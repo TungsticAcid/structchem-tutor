@@ -21,28 +21,47 @@
 // ============================================================================
 
 /**
- * 工具按「是否改变世界」分四类。
- * 前两类无副作用，任何节点都能用；后两类需要按节点授权。
+ * 共享核心**实际提供**的工具，按类别分组。
+ *
+ * 这些工具由核心自己实现，因此对每个模块都可用，不需要模块声明。
+ * 目前只有知识/技能目录的按需加载两项。
+ *
+ * ★ B5 对账（2026-09-24）修正的一处偏差——值得记住它的成因：
+ *   此处原名 TOOL_CLASSES，列的是 `getSceneSnapshot` / `queryCrystal` /
+ *   `generateQuiz` / `checkAnswer` 等一套**抽象能力名**，而它们在任何一个模块里
+ *   都没有实现。后果是每个节点解析出的工具清单里都混着一批幽灵名字。
+ *   自检之所以一直是绿的，是因为**它和 descriptor 犯了同一个错**：
+ *   它断言「受限节点**不含**某名字」（幽灵名字当然也不含，断言成立）、
+ *   「授权节点**含**某名字」（含的是幽灵名字，而非某模块真的实现了它）。
+ *   测试与被测对象用同一批错名字，于是互相印证。
+ *
+ *   现在这里只列核心确实实现了的工具；其余一律由模块在注册时用 `tools` 声明，
+ *   且只声明**已验证实现**的（未实现的进 `plannedTools`）。声明与实现因此
+ *   在结构上必须对齐，tool-registry 的 missing() 也能把偏差报出来。
  */
-export const TOOL_CLASSES = {
-  /** 读：感知当前状态与行为轨迹，无副作用 */
-  read: ['getSceneSnapshot', 'getInteractionTrace', 'getLearningProfile'],
+export const CORE_TOOLS = {
+  read: [],
+  query: ['loadKnowledge', 'loadSkill'],
+  hand: [],
+  teach: [],
+}
 
-  /** 查：获取事实（晶体数据、知识条目、技能步骤），无副作用 */
-  query: ['queryCrystal', 'searchCrystals', 'getCrystalDetail', 'compareCrystals',
-          'loadKnowledge', 'loadSkill', 'searchKnowledge'],
+/**
+ * 命名建议（**设计意图，不是已实现的工具名**）：同类工具跨模块宜用一致的动词前缀，
+ * 便于模型把在一个模块里学到的用法迁移到另一个模块。
+ *
+ *   read  ：getSnapshot / getInteractionTrace / getLearningProfile
+ *   query ：query<Domain> / search<Domain> / get<Domain>Detail / compare<Domain>
+ *   hand  ：applySceneActions / highlightAtoms / navigateTo
+ *   teach ：generateQuiz / checkAnswer / diagnoseError / evaluateExplanation / recordLearningEvent
+ *
+ * 各模块按此约定命名自己的工具，但仍须在 descriptor 的 `tools` 里如实声明。
+ * （例如 orbit 实际用的是 generateQuestion 而非 generateQuiz——约定是建议，声明是事实。）
+ */
 
-  /** 手：★ 有副作用，会改变用户眼前的画面。模型唯一能"动手"的途径 */
-  hand: ['applySceneActions', 'highlightAtoms', 'navigateTo'],
-
-  /** 教：教学流程工具（出题、判定、诊断、评估、记录） */
-  teach: ['generateQuiz', 'checkAnswer', 'diagnoseError',
-          'evaluateExplanation', 'recordLearningEvent'],
-};
-
-/** 取某几类工具的全集 */
+/** 取某几类核心工具的全集 */
 export function toolsOf(...classes) {
-  return classes.flatMap((c) => TOOL_CLASSES[c] || []);
+  return classes.flatMap((c) => CORE_TOOLS[c] || [])
 }
 
 // ============================================================================
@@ -205,8 +224,12 @@ export const NODES = {
 /**
  * 解析某节点实际可用的工具清单。
  *
+ * ★ 结果只含**已实现**的工具：核心实际提供的（CORE_TOOLS）∪ 本模块声明为
+ *   `tools` 的（descriptor 里未实现的那些放在 `plannedTools`，不参与解析——
+ *   把没实现的工具交给模型，它只会不断调用然后拿到"尚未实现"）。
+ *
  * @param {string} nodeName  节点名
- * @param {Object} [moduleTools] 当前模块贡献的工具，形如
+ * @param {Object} [moduleTools] 当前模块贡献的**已实现**工具，形如
  *        { read: [...], query: [...], hand: [...], teach: [...] }
  * @returns {string[]} 该节点可调用的工具名列表
  */
@@ -214,10 +237,10 @@ export function resolveTools(nodeName, moduleTools = {}) {
   const node = NODES[nodeName];
   if (!node) throw new Error(`未知决策节点：${nodeName}`);
 
-  // 1. 按授权类别取工具（通用工具 + 当前模块贡献的工具）
+  // 1. 按授权类别取工具（核心提供的 + 当前模块贡献的）
   const granted = new Set();
   for (const cls of node.grants || []) {
-    for (const t of TOOL_CLASSES[cls] || []) granted.add(t);
+    for (const t of CORE_TOOLS[cls] || []) granted.add(t);
     for (const t of moduleTools[cls] || []) granted.add(t);
   }
 

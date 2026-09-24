@@ -1,13 +1,26 @@
 /**
- * orbit.js — 原子轨道模块描述（既有实现，待接入）
+ * orbit.js — 原子轨道模块描述
  *
- * 本模块的智能体已在 projects/orbit/H5/js/agent/ 下完整实现，
- * 接入时主要工作是把它的 scene-bridge 与 question-engine 适配到共享核心的接口。
+ * 本模块的智能体已在 projects/orbit/H5/js/agent/ 下完整实现（18 个文件、约 5600 行），
+ * 是三个模块中唯一有可用智能体的。接入时的主要工作是把它的 scene-bridge 与
+ * question-engine 适配到共享核心的接口（见重构计划 B1 已完成的部分与 B4）。
+ *
+ * ★ 工具声明的约定（B5 对账后确立，三份 descriptor 一致）：
+ *   · `tools`        —— **已实现**的工具，必须是可核对的。已完成对账：
+ *                       14 个名字逐一取自 projects/orbit/H5/js/agent/tool-registry.js
+ *                       的 ToolRegistry.names()，并在 tools/test-core.mjs 里由
+ *                       自动化用例守住（descriptor ⊆ 实际实现）。
+ *   · `plannedTools` —— 设计上需要、但**尚未实现**的工具。不参与节点白名单解析
+ *                       （把没实现的工具交给模型，它只会不断调用然后拿到"尚未实现"）。
+ *
+ *   `loadKnowledge` / `loadSkill` 不在此声明：它们由共享核心提供（CORE_TOOLS），
+ *   对每个模块自动可用。
  */
 export default {
   id: 'orbit',
   title: '原子轨道',
   scale: 'full',
+  // 现状指向模块独立页；统一壳建成后改为壳内模块入口（B6）
   entry: 'projects/orbit/H5/index.html',
 
   capabilities: {
@@ -21,11 +34,13 @@ export default {
   knowledge: 'orbit',
   skills: 'orbit',
 
+  // 已实现（14 个，与 tool-registry.js 一致）
   tools: {
-    read: ['getSceneSnapshot', 'getInteractionTrace'],
-    query: ['queryOrbital', 'loadKnowledge', 'loadSkill'],
+    read: ['getSnapshot'],
+    query: ['queryOrbital', 'listSceneActions'],
     hand: ['applySceneActions'],
-    teach: ['generateQuiz', 'checkAnswer', 'diagnoseError', 'evaluateExplanation'],
+    teach: ['explainConcept', 'generateQuestion', 'diagnoseError', 'generateVariant',
+            'startFeynmanCheck', 'evaluateFeynman', 'updateMastery', 'recommendNext'],
   },
 
   proactiveRules: [

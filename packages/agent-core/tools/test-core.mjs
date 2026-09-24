@@ -930,12 +930,20 @@ section('tool-registry：节点白名单在结构上生效')
   check('grade 节点能出题与诊断', R.available().includes('generateQuiz') && R.available().includes('diagnoseError'))
 
   // ---- 「声明与实现脱节」的探针 ----
+  // ★ B5 对账后 constraints 的 CORE_TOOLS 只列核心真正提供的工具，
+  //   故 explain 节点「允许的」工具现在全都有人实现 → missing() 应为空。
+  //   这比"报出一堆幽灵名"是更好的状态。
   R.setNode('explain')
   const miss = R.missing()
-  check('missing() 报出「白名单允许但未实现」的工具', miss.length > 0 && !miss.includes('applySceneActions'),
-    miss.join(','))
+  check('explain 节点允许的工具全部已实现（missing 为空）', miss.length === 0, miss.join(','))
+
+  // 探针仍要能工作：grade 的 allowExtra 声明的 getDiagnosisActions 无人实现
+  R.setNode('grade')
+  check('missing() 报出 allowExtra 里未实现的名字',
+    R.missing().includes('getDiagnosisActions'), R.missing().join(','))
   check('onMissing 回调被触发（用于暴露 descriptor 与实现的偏差）',
-    missingSeen.some((s) => s.startsWith('explain:')), JSON.stringify(missingSeen))
+    missingSeen.some((s) => s.startsWith('grade:')), JSON.stringify(missingSeen))
+  R.setNode('explain')
 
   // ---- 受控的跨模块联动（B6b 约束 2）----
   R.setNode('explain')

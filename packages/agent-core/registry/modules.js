@@ -60,10 +60,14 @@ export function registerModule(mod) {
     scale: 'full',
     knowledge: [],
     skills: [],
+    // `tools` 只放**已实现**的工具；未实现的放 `plannedTools`（不参与白名单解析）
     tools: { read: [], query: [], hand: [], teach: [] },
+    plannedTools: { read: [], query: [], hand: [], teach: [] },
     nodeOverrides: {},
     extraNodes: {},
     proactiveRules: [],
+    // 声明了但尚未实现的能力（仅参与路由，回答会失败），用于对账
+    plannedCapabilities: [],
     ...mod,
     capabilities: mod.capabilities || {},
   });
@@ -107,7 +111,9 @@ export function buildRoutingTable() {
 }
 
 /**
- * 聚合全部模块贡献的工具，供 constraints.resolveTools 使用。
+ * 聚合全部模块贡献的**已实现**工具，供 constraints.resolveTools 使用。
+ * ★ 只聚合 `tools`，不含 `plannedTools`——把没实现的工具交给模型，
+ *   它只会不断调用然后拿到"尚未实现"，白烧轮次。
  * @param {string} [onlyModule] 只取某个模块（单模块运行时用）
  */
 export function collectTools(onlyModule = null) {
@@ -121,6 +127,20 @@ export function collectTools(onlyModule = null) {
   // 去重
   for (const cls of Object.keys(acc)) acc[cls] = [...new Set(acc[cls])];
   return acc;
+}
+
+/**
+ * 聚合全部模块**计划中**的工具（供对账与进度展示，不参与白名单解析）。
+ * @returns {{module: string, cls: string, tool: string}[]}
+ */
+export function collectPlannedTools() {
+  const out = [];
+  for (const m of registry.values()) {
+    for (const [cls, list] of Object.entries(m.plannedTools || {})) {
+      for (const t of list || []) out.push({ module: m.id, cls, tool: t });
+    }
+  }
+  return out;
 }
 
 /**

@@ -1,13 +1,22 @@
 /**
  * crystal.js — 晶体结构模块描述
  *
- * 这是「大模块」的样板：完整的数据集、3D 渲染、出题引擎、专属教学法。
+ * 这是「大模块」的样板：完整的数据集（23 种晶体）、3D 渲染、出题引擎、专属教学法。
  * 小模块的样子见 _template-lite.js。
+ *
+ * ★ 工具声明的约定（B5 对账后确立，三份 descriptor 一致）：
+ *   · `tools`        —— **已实现**的工具，必须可核对。
+ *   · `plannedTools` —— 设计上需要、但尚未实现的工具，不参与节点白名单解析。
+ *
+ *   ⚠️ 本模块的智能体**尚未开始编码**（projects/crystal/H5/ 下没有任何 agent 代码），
+ *      故 `tools` 为空——这是如实声明，不是遗漏。下方 12 个工具全部在 plannedTools。
+ *      清单来自重构计划阶段 B6/C；`loadKnowledge`/`loadSkill` 由核心提供，无需声明。
  */
 export default {
   id: 'crystal',
   title: '晶体结构',
   scale: 'full',
+  // 现状指向模块独立页；统一壳建成后改为壳内模块入口（B6）
   entry: 'projects/crystal/H5/index.html',
 
   // ★ 路由依据：中枢凭这张表把用户问题分派过来
@@ -19,12 +28,15 @@ export default {
     structureProperty: ['同素异形体', '结构决定性质'],
   },
 
-  knowledge: 'crystal',          // packages/knowledge/crystal/
+  knowledge: 'crystal',          // packages/knowledge/crystal/（骨架已定，44 条待写）
   skills: 'crystal',             // packages/skills/crystal/
 
-  // 本模块贡献的工具（权限由 nodes/constraints.js 裁决，模块无权自行放行）
-  tools: {
-    read: ['getSceneSnapshot', 'getInteractionTrace'],
+  // 已实现：暂无（模块智能体尚未编码）
+  tools: {},
+
+  // 计划中（未实现，不参与白名单解析）
+  plannedTools: {
+    read: ['getSnapshot', 'getInteractionTrace'],
     query: ['searchCrystals', 'getCrystalDetail', 'compareCrystals', 'queryCrystal'],
     hand: ['applySceneActions', 'highlightAtoms', 'navigateTo', 'openCompareView'],
     teach: ['generateQuiz', 'checkAnswer', 'diagnoseError', 'recordLearningEvent'],
