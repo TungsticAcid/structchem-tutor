@@ -11,36 +11,44 @@
 
 ```
 chem-agent/
-├── packages/                     共享层（所有模块共用）
-│   ├── agent-core/               智能体运行时
+├── packages/                     共享层（所有模块共用，学科无关）
+│   ├── agent-core/               智能体中枢
+│   │   ├── app.js                ★ 装配层：一个中枢 + N 个模块
+│   │   ├── core/                 运行时：llm-client · catalog · perception ·
+│   │   │                         storyboard · conversation · tool-registry · params
+│   │   ├── ui/                   面板 · Markdown+KaTeX 渲染器 · DOM 工具
+│   │   ├── contract/             ★ 模块接入契约（必需/可选方法 + 设计原则）
 │   │   ├── nodes/constraints.js  ★ 决策节点约束规格表
-│   │   ├── registry/             模块注册机制
-│   │   │   ├── modules.js        注册表核心逻辑
-│   │   │   └── descriptors/      各模块描述（新增模块在此加一个文件）
-│   │   └── tools/selftest.mjs    自检脚本
-│   ├── knowledge/                知识库
-│   │   ├── shared/               总知识库（跨模块共用）
-│   │   └── <模块id>/              各模块知识条目
-│   └── skills/                   技能库（教什么 vs 怎么教）
-│       ├── common/               通用教学法
-│       └── <模块id>/              模块专属教学法
+│   │   ├── registry/             模块注册机制 + 各模块描述（descriptors/）
+│   │   └── tools/                自检与测试（selftest · test-core · test-app）
+│   ├── ui-kit/                   设计令牌 · 基础构件 · viewport · 设置弹层
+│   ├── viewer/                   三维外壳：四元数相机 · 指针手势 · 晶体几何
+│   ├── knowledge/                知识库（shared 总库 + 各模块条目）
+│   └── skills/                   技能库（common 通用教学法 + 各模块专属）
 │
-├── projects/                     各教学工具本体（原样搬入，内部结构未动）
-│   ├── crystal/                  晶体结构工具
-│   │   ├── H5/                   网页版（Vite + Three.js）
-│   │   ├── activity/             方案文档与参赛材料
-│   │   └── tools/                晶体数据自检脚本
-│   ├── orbit/                    原子轨道工具
-│   └── symmetry/                 分子对称性工具
+├── modules/                      ★ 模块实现：数据 · 门面 · 工具 · 动作词汇表
+│   └── crystal/
+│       ├── data/cod/             晶体数据的上游 CIF（取自 COD）与比对报告
+│       ├── actions.js            受控动作词汇表 + 参数校验
+│       ├── facade.js             模块契约的实现（智能体的"手和眼"）
+│       ├── tools.js              工具定义与执行（含程序计算的密度/体积/最近邻）
+│       └── index.js              装配入口（交给统一壳的完整模块包）
 │
-├── modules/                      模块实现与数据
-│   └── crystal/data/cod/         晶体数据的上游 CIF（取自 COD）与比对报告
+├── apps/
+│   └── web/                      ★ 统一前端：一个入口 + 模块视图 + 智能体面板
 │
-├── docs/                         跨项目文档
-│   └── archive/                  已移除组件的归档（小程序 AI 接入实现等）
+├── projects/                     各教学工具本体（原样，内部结构未动）
+│   ├── crystal/                  H5 网页版（视图与数据仍被 apps/web 复用，过渡期）
+│   ├── orbit/                    原子轨道工具（待 B4 去全局化后接入）
+│   └── symmetry/                 分子对称性工具（待阶段 C 接入）
 │
-└── apps/                         统一前端（阶段 B 建立）
+├── docs/                         重构计划 · 变更待评估 · 归档
+└── archive/                      （见 docs/archive/）
 ```
+
+> **过渡期的形态**：`projects/` 下的原项目代码尚未全部收进 `modules/`，
+> `apps/web` 通过 `@crystal` 别名引用 crystal 的视图与数据。收编进度见
+> [docs/重构计划.md](docs/重构计划.md)。
 
 ---
 
@@ -107,12 +115,18 @@ chem-agent/
 ## 快速开始
 
 ```bash
-# 运行共享核心自检（验证模块注册与节点约束）
-node packages/agent-core/tools/selftest.mjs
+# 依赖（three + vite 装在仓库根，因为源码分布在 packages/ modules/ projects/ apps/ 下）
+npm install
 
-# 启动某个模块的网页版
-cd projects/crystal/H5 && npm install && npm run dev
-cd projects/orbit/H5     && python -m http.server 8000   # orbit 是离线单页，双击亦可
+# 全部自检（约 543 项断言：共享核 · ui-kit · viewer · 数据真源 · 模块 · 装配层）
+npm test
+
+# 统一前端：一个入口，晶体模块已接通
+cd apps/web && npm run dev        # → http://localhost:3001
+
+# 原模块独立页（过渡期仍在，收编完成后退役）
+cd projects/crystal/H5 && npm run dev
+cd projects/orbit/H5    && python -m http.server 8000   # orbit 仍是离线单页，双击亦可
 ```
 
 ---
@@ -163,9 +177,14 @@ symmetry:P2-3    对称模块
 | 部分 | 状态 |
 |---|---|
 | 三个工具本体 | 已搬入（crystal 网页版已上线；orbit 已上线含完整智能体；symmetry 无智能体） |
-| 共享核心：节点约束 | ✅ 已实现并通过自检 |
-| 共享核心：模块注册 | ✅ 已实现并通过自检 |
-| 共享核心：对话循环等运行时 | ⏳ 待从 orbit 抽取（其管道部分可直接复用） |
-| 知识库 | ⏳ 骨架已建，内容待蒸馏 |
-| 技能库 | ⏳ 骨架已建，通用 6 个待从 orbit 平移 |
-| 晶体模块的智能体 | ⏳ 进行中 |
+| 共享核心：节点约束 | ✅ 27 项自检通过 |
+| 共享核心：模块注册 | ✅ 已实现 |
+| 共享核心：对话循环等运行时 | ✅ 已从 orbit 抽取，**每项都与原实现双跑比对** |
+| 模块契约与装配层 | ✅ 已实现（装配层有 40 条无头端到端断言） |
+| 共享表现层 | ✅ ui-kit（令牌/构件/设置）+ viewer（相机/手势/几何） |
+| 统一前端 | ✅ `apps/web` 可构建可服务；**浏览器实机渲染待确认** |
+| 知识库 | ⏳ orbit 34 条已迁入；晶体 44 条与对称 30–45 条待蒸馏 |
+| 技能库 | ✅ 通用 6 个已迁入 |
+| **晶体模块** | ✅ 门面 + 工具 + 动作词汇表，已接通统一壳 |
+| **轨道模块** | ⏳ 待去全局化（10.6k 行） |
+| **对称模块** | ⏳ 引擎与知识资产已在 packages/；UI 壳与接口层待做 |

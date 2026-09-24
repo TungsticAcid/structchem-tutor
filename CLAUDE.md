@@ -8,21 +8,36 @@
 
 ## 〇、当前待办（新会话从这里接手）
 
-> **主线是 [docs/重构计划.md](docs/重构计划.md)** —— 分阶段 0（基线）、A（编号迁移）、
-> B（统一壳与共享层）、C（symmetry 功能对等）、D（知识库蒸馏）。下表是可执行条目摘要。
+> **主线是 [docs/重构计划.md](docs/重构计划.md)**。进度见下方「已完成」。
 
 | # | 任务 | 说明 | 位置 |
 |---|---|---|---|
-| 1 | **抽通用管道** | 从 `projects/orbit/H5/js/agent/` 搬 `llm-client`、面板渲染、分镜队列、感知快照到 `packages/agent-core/core/` | 见 §七、重构计划 B1 |
-| 2 | **写知识条目** | 晶体约 44 条（C1–C8）＋ 对称 30–45 条（P1–P5）＋ 总库对称性基础；从 `D:\xjl\study\books\化学电子书籍` 重写 | [packages/knowledge/](packages/knowledge/)、重构计划 D |
-| 3 | **平移通用技能** | 6 个通用教学法从 orbit 移到 `packages/skills/common/` | [packages/skills/](packages/skills/)、重构计划 B4 |
+| 1 | **orbit 接入统一壳** | 照 crystal 的样板做 orbit 的模块层（facade/tools/actions）。orbit 是全局脚本、无 ESM，故需先做 B4 去全局化，或先写一层包 `window.OrbitApp` 的视图适配器 | 重构计划 B4/B6 |
+| 2 | **symmetry 收进 modules/** | 引擎 2733 行仍在 `projects/symmetry/H5/src/symmetry/`；对称性的 UI 壳要重写、接口层要新建（阶段 C） | 重构计划 B7 收尾/阶段 C |
+| 3 | **写知识条目** | 晶体约 44 条（C1–C8）＋ 对称 30–45 条（P1–P5）＋ 总库对称性基础；从 `D:\xjl\study\books\化学电子书籍` 重写（关键两本是**扫描件无文字层**，须用 pymupdf 渲染成图后读图重写） | [packages/knowledge/](packages/knowledge/)、重构计划 D |
+| 4 | **浏览器实机验证** | `cd apps/web && npm run dev` 看三维渲染与面板交互——本环境无法执行 WebGL，构建与模块解析已验证，渲染需肉眼确认 | `apps/web/` |
 
-**任务 2 的完整清单与流程已写在作业现场**——打开 `packages/knowledge/crystal/README.md`
+**任务 3 的完整清单与流程已写在作业现场**——打开 `packages/knowledge/crystal/README.md`
 就能看到 C1–C8 每个知识点该覆盖什么、计划多少条、以及从哪些书蒸馏。
 
-**已完成（2026-09-24）**：编号 K→C 迁移（见 §一.3）；移除两套微信小程序并抢救
-跨平台资产（见 §五）；修复 `check-crystal-data.mjs`（此前从任何目录都跑不起来）；
-修复氢键/虚线键渲染崩溃（three 旧 API `addAttribute`）。
+### 已完成（2026-09-24，24 个提交，`npm test` 543 项断言全绿）
+
+| 阶段 | 内容 |
+|---|---|
+| **0 / 0b** | 基线提交（此前零 commit）；移除两套微信小程序并抢救 4 类跨平台资产；three 统一到 0.170 |
+| **A** | 编号 K→C 迁移（5 份文档；orbit 的 245 处 K 与两个 lockfile 零触碰） |
+| **B1** | 抽通用管道到 `packages/agent-core/core/`：llm-client · catalog · feynman · **perception** · **storyboard** · **conversation** · tool-registry；`ui/`：renderer · dom · panel —— **每一项都与 orbit 原实现双跑比对**（含过程事件序列、applyAction 调用序列逐一对齐） |
+| **B2** | `packages/ui-kit/`：设计令牌（暗/浅主题）· 基础构件 · viewport · settings-store · **声明式** settings-popup |
+| **B3** | `packages/viewer/`：四元数相机（双模式 + 正交/透视两处抽象）· 指针手势层 · 晶体几何 —— 一并修掉 8 处实测缺陷 |
+| **B5** | descriptor 与实现对账，撤掉一批幽灵工具名（**自检曾与 descriptor 用同一批错名字而互相印证**） |
+| **B6** | 模块契约 · crystal 的 facade/tools/actions（**首个契约合规模块**）· 装配层 `app.js`（中枢工具 + 模块工具按节点裁决）· 统一前端 `apps/web` |
+| **B7** | 元素表真源+守卫 · orbit 的 34 条知识条目与 6 个通用技能迁入 · symmetry 特征标表与点群表迁入 |
+| 其余 | 修复 `check-crystal-data.mjs`（此前从任何目录都跑不起来）· 修复氢键渲染崩溃（three 旧 API `addAttribute`）· 迁移用户在 orbit 上的 9 处修复并抽出 4 条跨模块设计原则 |
+
+**踩过的三类坑，接手时值得先读**：
+1. **断言要断言实现，不是名字**——selftest 与 descriptor 用了同一批幽灵工具名，互相印证一直绿着却什么也没守住
+2. **注入式验证先确认注入真的生效**——两次因引号/字段格式写错导致"守卫通过"是假象
+3. **Windows 上比对文件必须先规范化行尾**——CRLF 差异会被误读成整文件内容分叉
 
 ---
 
@@ -110,9 +125,26 @@ node packages/agent-core/tools/selftest.mjs
 # 晶体数据自检（改完晶体数据后必跑）
 node projects/crystal/tools/check-crystal-data.mjs
 
-# 各模块网页版
+# 全部自检（改完任何共享层/模块代码后必跑；约 543 项断言）
+npm test
+
+# 统一前端（一个入口，晶体模块已接通）
+cd apps/web && npm run dev        # dev server；首次需在仓库根 npm install
+
+# 单独跑某一层
+npm run test:core      # 共享核自检 + test-core + test-app（装配层端到端）
+npm run test:ui        # ui-kit
+npm run test:viewer    # 三维外壳（用真实 three.js 驱动）
+npm run test:shared    # 数据真源一致性守卫
+npm run test:modules   # crystal 模块（门面 + 工具）
+npm run test:data      # 晶体数据语义校验
+
+# 原模块独立页（过渡期仍在，B4/B6 完成后逐步退役）
 cd projects/crystal/H5 && npm install && npm run dev
 ```
+
+**关于验证的一条经验**（本仓库反复踩到）：凡有"通过"的检查，**先看它红过一次**再信任它。
+注入式验证时要先确认注入真的生效——两次因引号/字段格式写错而得到"守卫通过"的假象。
 
 ---
 
@@ -134,9 +166,14 @@ cd projects/crystal/H5 && npm install && npm run dev
 **改数据时以 H5 那一份为准**。此前本节只登记了三份 JS 副本，**漏了上游 CIF**——
 而那一份才是数据的真正来源。
 
-⚠️ `check-crystal-data.mjs` **当前跑不起来**（副本路径仍是合并前的写法，且以
-`process.cwd()` 锚定，从任何目录运行都会失败），且它校验的三副本之一已不存在。
-**修复它之前，数据一致性没有任何检查守护**，改动须人工核对。
+✅ `check-crystal-data.mjs` 已修好（2026-09-24）：改为以**脚本自身位置**为锚点，
+从任何目录都能跑。三副本一致性检查已随小程序移除而废止，保留的是 8 项逐晶体语义校验
+（配位数格式、点阵型式↔晶胞点阵点数、空间群首字母↔点阵记号、结构基元自洽性、
+空间利用率交叉验证、晶胞非空等——它当年正是靠这些发现了 wurtzite 的结构基元错误）。
+
+📌 **元素表与知识/技能库另有守卫**：`packages/knowledge/tools/check-shared-data.mjs`
+逐字段比对"真源 ↔ 各模块的本地副本"，并校验 44 个群的特征标表**每行字符数 == 共轭类数**。
+过渡期用（模块改为直接引用真源后，副本与对应守卫条目一并退役）。
 
 ---
 
@@ -162,15 +199,21 @@ cd projects/crystal/H5 && npm install && npm run dev
 
 | 部分 | 状态 |
 |---|---|
-| 节点约束规格表 | ✅ 已实现，18 项自检通过 |
+| 节点约束规格表 | ✅ 已实现，27 项自检通过 |
 | 模块注册机制 | ✅ 已实现 |
-| 智能体运行时（对话循环等） | ⏳ 待从 `projects/orbit/H5/js/agent/` 抽取通用管道 |
-| 知识库 | ⏳ 骨架已建，内容待蒸馏 |
-| 技能库 | ⏳ 骨架已建，通用 6 个待从 orbit 平移 |
-| 晶体模块的智能体 | ⏳ 进行中 |
+| 智能体运行时（对话循环等） | ✅ 已实现（`packages/agent-core/core/`，7 个模块，与 orbit 原实现双跑比对） |
+| 模块契约与装配层 | ✅ 已实现（`contract/module-contract.js` + `app.js`），装配层有 40 条无头端到端断言 |
+| 共享表现层 | ✅ 已实现（`ui-kit` 令牌/构件/设置 · `viewer` 相机/手势/几何） |
+| 知识库 | ⏳ 骨架已建；orbit 34 条已迁入，晶体 44 条与对称 30–45 条待蒸馏 |
+| 技能库 | ✅ 通用 6 个已迁入 `packages/skills/common/` |
+| **晶体模块** | ✅ 门面 + 工具 + 动作词汇表已建，统一壳已接通（`apps/web`） |
+| **轨道模块** | ⏳ 需先做 B4 去全局化（10.6k 行、28 个全局脚本）才有模块层 |
+| **对称模块** | ⏳ 引擎与知识资产已在 packages/；UI 壳重写、接口层、P4 计算待做（阶段 C） |
 
-**关于复用 orbit**：它的 `llm-client`、面板渲染、分镜队列、感知快照等
-与学科无关，**直接搬**（它们处理了流式解析、中断、max_tokens 截断续写等真实的坑）；
+**关于复用 orbit 的经验已被验证**：它的 `llm-client`、面板渲染、分镜队列、感知快照
+确与学科无关，**直接搬**是对的（它们处理了流式解析、中断、max_tokens 截断续写等真实的坑）；
 而 `scene-bridge`、`question-engine`、`error-diagnosis` 是学科耦合的，**必须重写**。
+搬完之后，其中三样被进一步抽成**跨模块资产**（见重构计划与 `contract/module-contract.js`
+的 `DESIGN_PRINCIPLES`）：可撤回性、标注跟随系列、多网格外观更新、一控件多场景。
 
 
