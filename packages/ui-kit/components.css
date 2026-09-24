@@ -1,0 +1,247 @@
+/* ============================================================================
+ * components.css — 基础构件（按钮 / 分段控件 / 卡片 / 滑块 / 表单 / 布局栅格）
+ *
+ * 来源：orbit/H5/css/style.css 的构件段与 crystal/H5/src/styles/global.css 的重置段，
+ * 2026-09-24 合并。合并时做了一件事：**把硬编码颜色换成令牌**——
+ * 原 orbit 与 crystal 的构件样式里有大量直接写的十六进制值，那正是
+ * 「同一个语义色在不同文件里取值不同」的来源。
+ *
+ * 本文件只放**构件**；颜色与尺寸一律来自 tokens.css。
+ * ========================================================================== */
+
+/* ---------- 重置 ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- 布局 ---------- */
+.layout { max-width: 1500px; margin: 0 auto; padding: var(--space-4) var(--space-5) 40px; }
+.grid-main { display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
+.grid-charts { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); margin-top: var(--space-4); }
+/* ★ min-width:0 不能省。1fr 实为 minmax(auto, 1fr)，而 auto 的最小宽度 = 项目的
+   min-content 尺寸；栅格项里放了 canvas（有固有像素宽度）时，列就不肯收缩，
+   于是「抽屉一打开，三张卡片宽度不一致」——中间那张撑住原宽、两侧被压扁。 */
+.grid-charts > * { min-width: 0; }
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-5);
+  padding-top: calc(var(--space-3) + var(--safe-top));
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: var(--z-topbar);
+}
+.brand { display: flex; align-items: center; gap: var(--space-3); }
+.brand h1 { font-size: var(--fs-xl); font-weight: 700; margin: 0; letter-spacing: 0.5px; }
+.subtitle { font-size: var(--fs-xs); color: var(--text-dim); align-self: flex-end; margin-bottom: 3px; }
+.top-meta { display: flex; align-items: center; gap: var(--space-3); }
+
+.badge {
+  border: 1px solid var(--line);
+  background: var(--card-2);
+  color: var(--text);
+  font-size: var(--fs-xs);
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+}
+
+/* ---------- 卡片 ---------- */
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: var(--space-3) var(--space-4);
+}
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.card-head-right { display: flex; align-items: center; gap: var(--space-4); }
+.card-title { font-size: var(--fs-md); font-weight: 700; letter-spacing: 0.3px; }
+
+/* ---------- 按钮 ---------- */
+.btn {
+  border: 1px solid var(--line);
+  background: var(--card-2);
+  color: var(--text);
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+  /* 触摸目标下限：移动端 30×30 的返回按钮实测点不准 */
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-ghost { background: transparent; }
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+.btn-primary:hover { color: var(--on-accent); filter: brightness(1.08); }
+.btn-danger { border-color: var(--danger); color: var(--danger); }
+
+/* ---------- 分段控件（按钮组） ---------- */
+.seg {
+  display: inline-flex;
+  background: var(--active);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 3px;
+}
+.seg.small .seg-btn { font-size: var(--fs-xs); padding: 5px 10px; }
+.seg-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+  min-height: 34px;
+}
+.seg-btn:hover { color: var(--text); }
+.seg-btn.active { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+
+/* ---------- 表单 ---------- */
+.chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  min-height: var(--tap-min);
+}
+.chk input { accent-color: var(--accent); }
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 6px;
+  background: var(--active);
+  outline: none;
+  margin: 0;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--card);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--card);
+  cursor: pointer;
+}
+
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--space-3); }
+.field-label { font-size: var(--fs-sm); color: var(--text-dim); }
+.field input[type="text"], .field input[type="password"], .field select {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  padding: 9px 10px;
+  min-height: var(--tap-min);
+}
+.field input:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---------- 分隔线 ---------- */
+.divider { display: flex; align-items: center; gap: var(--space-2); color: var(--text-dim); font-size: var(--fs-xs); }
+.divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line-soft); }
+
+/* ---------- 公式区 ---------- */
+.formula-box {
+  overflow-x: auto;
+  padding: 2px 4px;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.formula-box .katex { font-size: 1.06em; }
+.formula-note { color: var(--text-dim); font-size: var(--fs-xs); margin-top: 4px; text-align: center; }
+
+/* ---------- 图表 ---------- */
+.chart-card { min-height: 0; }
+.chart { width: 100%; height: 168px; display: block; margin-top: 6px; border-radius: 8px; }
+/* 角度分布里是 three.js 的 canvas，renderer.setSize() 会给它写**内联像素宽度**。
+   不覆盖的话这个固有宽度会撑住栅格列，导致三张卡片宽度不一致（与主画布同理）。 */
+.chart-host { overflow: hidden; }
+.chart-host canvas { display: block; width: 100% !important; height: 100% !important; }
+
+/* ---------- 三维视口 ---------- */
+/* 高度由 viewport.js 按「窗口真实可见高度 − 画布顶端位置」算出，写进 --viewer-h。
+   变量未算出前用视口单位兜底（渐进增强，不是硬编码）。 */
+.viewer { height: var(--viewer-h, 44vh); min-height: 220px; overflow: hidden; }
+.viewer canvas { display: block; touch-action: none; }   /* ★ touch-action:none 必须设，否则手势与页面滚动打架 */
+
+/* ---------- 页脚 ---------- */
+.foot { text-align: center; color: var(--text-dim); font-size: var(--fs-xs); padding: var(--space-3); }
+
+/* ---------- 可访问性 ---------- */
+/* 键盘导航必须有可见焦点，否则用不了 */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px;
+  margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 1024px) {
+  .grid-main { grid-template-columns: 1fr; }
+  .grid-charts { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 640px) {
+  .topbar { flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-3) var(--space-4); }
+  .brand h1 { font-size: var(--fs-lg); }
+  .subtitle { display: none; }
+  .layout { padding: var(--space-3) var(--space-3) 30px; }
+  .card { padding: var(--space-3); }
+  .grid-charts { grid-template-columns: 1fr; }
+  .chart { height: 190px; }
+  /* 高度仍交给 viewport.js 算（移动端读 visualViewport，能正确处理地址栏收放），
+     这里只收紧保底高度，避免横屏时画布被压成一条缝 */
+  .viewer { min-height: 200px; }
+}

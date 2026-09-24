@@ -1,0 +1,16 @@
+{
+  "name": "@chem-agent/ui-kit",
+  "version": "0.1.0",
+  "description": "共享表现层：设计令牌、基础构件、视口自适应、设置弹层",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./index.js",
+    "./viewport.js": "./viewport.js",
+    "./settings-store.js": "./settings-store.js",
+    "./settings-popup.js": "./settings-popup.js",
+    "./tokens.css": "./tokens.css",
+    "./components.css": "./components.css",
+    "./settings-popup.css": "./settings-popup.css"
+  }
+}

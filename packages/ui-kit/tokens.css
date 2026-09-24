@@ -1,0 +1,132 @@
+/* ============================================================================
+ * tokens.css — 设计令牌（颜色与尺寸的**唯一**真相来源）
+ *
+ * 为什么要有这一层：改造前三个模块各自硬编码——晶体 H5 定义了 14 个令牌却
+ * **0 处使用**、全站 537 处硬编码十六进制；symmetry 只有 4 个令牌、样式全部
+ * 内联在 index.html（229 行）；orbit 的令牌层是唯一被真正使用的。
+ * 于是"同一个语义色"在不同文件里取不同值（例如「卡片背景」同时是 #f5f5f5、
+ * #eeeeee、#fff）。合到一个令牌表里，这类漂移才不会再发生。
+ *
+ * ★ 主题策略（阶段 B2 必须先回答的问题）：
+ *   以 orbit 的令牌**名字**为基（--bg/--card/--line/--text/--accent…），
+ *   默认暗色（取值来自 orbit style.css，是经实际使用验证过的一组）；
+ *   浅色主题以 [data-theme="light"] 覆盖，取值来自 crystal 原令牌表，
+ *   而**不是**重新配色——沿用原作者定的值，避免"换个主题像换了个产品"。
+ *   模块不写死颜色，壳在 <html> 上设 data-theme 即可整体切换。
+ *
+ * ⚠️ 安全区令牌（--safe-*）要生效，index.html 的 viewport meta **必须**含
+ *    viewport-fit=cover，否则 env(safe-area-inset-*) 恒为 0px。
+ *    这是改造前的一个真实缺陷：crystal 的 index.html 缺该属性，导致它 6 处
+ *    safe-area padding 全部形同虚设。令牌修不了这个，meta 才行。
+ * ========================================================================== */
+
+:root {
+  /* ---- 尺寸与节奏 ---- */
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-pill: 999px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 22px;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+
+  /* ---- 字体与字阶 ----
+   * 改造前最刺眼的问题之一是字号：周期表单元格 7px、族标签 8px、分段按钮 9px。
+   * 7–9px 在移动端不可读，在桌面端更是无法使用。故把字阶固定为令牌，
+   * **最小正文级别（--fs-sm）不得低于 12px**。 */
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  --font-math: Georgia, "Times New Roman", serif;
+  --fs-xs: 12px;      /* 辅助信息的**下限**，不要更小 */
+  --fs-sm: 13px;
+  --fs-md: 14px;      /* 正文基准 */
+  --fs-lg: 17px;
+  --fs-xl: 19px;
+  --fs-2xl: 22px;
+
+  /* ---- 交互尺寸 ----
+   * 触摸目标不得小于 --tap-min，否则移动端点不准（改造前返回按钮 30×30）。 */
+  --tap-min: 44px;
+
+  /* ---- 层次（z-index 阶梯，改造前散落各处且互不知情）---- */
+  --z-viewer-chips: 5;
+  --z-topbar: 10;
+  --z-fab: 900;
+  --z-demo-bar: 950;
+  --z-drawer: 1000;
+  --z-overlay: 1200;
+
+  /* ---- 安全区 ---- */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  /* ---- 视觉令牌：暗色（默认） ---- */
+  --bg: #0b1020;
+  --bg-2: #101629;
+  --card: #151c33;
+  --card-2: #1a2340;
+  --line: #2a3558;
+  --line-soft: #202b48;
+  --text: #e8ecf7;
+  --text-dim: #9aa7c6;
+  --accent: #55c2ff;
+  --accent-2: #7a9bff;
+  --active: #2b3d6b;
+  --on-accent: #0b1224;   /* 强调色之上的文字色 */
+  --danger: #ff7a7a;
+  --warn: #ffcf6b;
+
+  /* ---- 学科语义色（数据可视化用，跨模块一致） ----
+   * 这些是教学可视化的关键：空隙、配位、点阵点、氢键在同一模块内必须一眼可辨。 */
+  --color-octahedral: #FFB74D;    /* 八面体空隙 */
+  --color-tetrahedral: #4FC3F7;   /* 四面体空隙 */
+  --color-lattice-point: #8b97b8; /* 点阵点 */
+  --color-aux-body: #FFD54F;
+  --color-aux-face: #90CAF9;
+  --color-hbond: #FFAB40;         /* 氢键 */
+}
+
+/* ============================================================================
+ * 浅色主题：取值沿用 crystal 原令牌表（不重新配色）
+ * ========================================================================== */
+[data-theme="light"] {
+  --bg: #eeeeee;
+  --bg-2: #f5f5f5;
+  --card: #ffffff;
+  --card-2: #fafafa;
+  --line: #dddddd;
+  --line-soft: #eeeeee;
+  --text: #333333;
+  --text-dim: #666666;
+  --accent: #4285F4;
+  --accent-2: #6aa0f7;
+  --active: #e3ecfd;
+  --on-accent: #ffffff;
+  --danger: #d93025;
+  --warn: #b26a00;
+  --shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  --color-lattice-point: #333333;
+}
+
+/* 跟随系统偏好（仅当壳没有显式指定主题时生效） */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --bg: #eeeeee;
+    --bg-2: #f5f5f5;
+    --card: #ffffff;
+    --card-2: #fafafa;
+    --line: #dddddd;
+    --line-soft: #eeeeee;
+    --text: #333333;
+    --text-dim: #666666;
+    --accent: #4285F4;
+    --accent-2: #6aa0f7;
+    --active: #e3ecfd;
+    --on-accent: #ffffff;
+    --shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  }
+}

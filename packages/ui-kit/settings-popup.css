@@ -1,0 +1,81 @@
+/* ============================================================================
+ * settings-popup.css — 设置弹层样式
+ *
+ * 来源：orbit/H5/css/agent.css 的「设置弹层」段（原第 346–413 行），
+ * 2026-09-24 从 panel.css 拆出——概念上它属于设置构件，不属于对话面板。
+ *
+ * 类名保留 agent- 前缀：panel.css 与本文件共用同一套前缀，改名收益不足以抵消
+ * 破坏样式的风险。此处 agent- 的含义已从"orbit 的 agent"演化为"智能体 UI"。
+ *
+ * TODO（B2 收尾）：把其中的 var(--x, 硬编码) 兜底值清理为纯令牌引用，
+ * 让主题切换（tokens.css 的 [data-theme]）对设置弹层同样生效。
+ * ========================================================================== */
+
+/* ------------------------------------------------------------------ */
+/* 设置弹层                                                            */
+/* ------------------------------------------------------------------ */
+.agent-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 8, 18, .72);
+  backdrop-filter: blur(3px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+.agent-overlay.show { display: flex; }
+.agent-settings-box {
+  width: min(520px, 94vw);
+  max-height: 88vh;
+  background: linear-gradient(180deg, #151c33, #111830);
+  border: 1px solid var(--line, #2a3558);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .6);
+}
+.agent-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line-soft, #202b48);
+}
+.agent-settings-title { font-size: 15px; font-weight: 700; color: var(--accent, #55c2ff); }
+.agent-settings-body { padding: 6px 16px 10px; overflow-y: auto; }
+.agent-sgroup-title {
+  font-size: 12px;
+  color: var(--text-dim, #9aa7c6);
+  margin: 14px 0 8px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--line-soft, #202b48);
+}
+.agent-sgroup { display: flex; flex-direction: column; gap: 10px; }
+.agent-field { display: flex; flex-direction: column; gap: 4px; }
+.agent-flabel { font-size: 12.5px; color: var(--text, #e8ecf7); }
+.agent-fhint { font-size: 11px; color: var(--text-dim, #9aa7c6); }
+.agent-input {
+  background: var(--card, #151c33);
+  border: 1px solid var(--line, #2a3558);
+  border-radius: 8px;
+  color: var(--text, #e8ecf7);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+}
+.agent-input:focus { border-color: var(--accent, #55c2ff); }
+.agent-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.agent-test-msg { font-size: 12px; color: var(--text-dim, #9aa7c6); }
+.agent-test-msg.ok { color: #7ce38b; }
+.agent-test-msg.bad { color: #ff8f8f; }
+.agent-check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.agent-check input { accent-color: var(--accent, #55c2ff); }
+.agent-note { font-size: 11.5px; color: var(--text-dim, #9aa7c6); line-height: 1.7; white-space: pre-wrap; }
+.agent-settings-foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--line-soft, #202b48);
+  display: flex;
+  justify-content: flex-end;
+}
