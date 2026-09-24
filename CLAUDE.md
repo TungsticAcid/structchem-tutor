@@ -8,17 +8,21 @@
 
 ## 〇、当前待办（新会话从这里接手）
 
-按优先级排列：
+> **主线是 [docs/重构计划.md](docs/重构计划.md)** —— 分阶段 0（基线）、A（编号迁移）、
+> B（统一壳与共享层）、C（symmetry 功能对等）、D（知识库蒸馏）。下表是可执行条目摘要。
 
 | # | 任务 | 说明 | 位置 |
 |---|---|---|---|
-| 1 | **编号 K→C 迁移** | 晶体模块知识点编号目前仍是 `K1`–`K8`，与 orbit 的 `K1`–`K9` 冲突，须改为 `C1`–`C8`。散落在 `projects/crystal/activity/` 的各文档中 | 见 §一.3 |
-| 2 | **抽通用管道** | 从 `projects/orbit/H5/js/agent/` 搬 `llm-client`、面板渲染、分镜队列、感知快照到 `packages/agent-core/core/` | 见 §七 |
-| 3 | **写晶体知识条目** | 约 44 条，从 `D:\xjl\study\books\化学电子书籍` 重写 | [packages/knowledge/crystal/](packages/knowledge/crystal/) |
-| 4 | **平移通用技能** | 6 个通用教学法从 orbit 移到 `packages/skills/common/` | [packages/skills/](packages/skills/) |
+| 1 | **抽通用管道** | 从 `projects/orbit/H5/js/agent/` 搬 `llm-client`、面板渲染、分镜队列、感知快照到 `packages/agent-core/core/` | 见 §七、重构计划 B1 |
+| 2 | **写知识条目** | 晶体约 44 条（C1–C8）＋ 对称 30–45 条（P1–P5）＋ 总库对称性基础；从 `D:\xjl\study\books\化学电子书籍` 重写 | [packages/knowledge/](packages/knowledge/)、重构计划 D |
+| 3 | **平移通用技能** | 6 个通用教学法从 orbit 移到 `packages/skills/common/` | [packages/skills/](packages/skills/)、重构计划 B4 |
 
-**任务 3 的完整清单与流程已写在作业现场**——打开 `packages/knowledge/crystal/README.md`
+**任务 2 的完整清单与流程已写在作业现场**——打开 `packages/knowledge/crystal/README.md`
 就能看到 C1–C8 每个知识点该覆盖什么、计划多少条、以及从哪些书蒸馏。
+
+**已完成（2026-09-24）**：编号 K→C 迁移（见 §一.3）；移除两套微信小程序并抢救
+跨平台资产（见 §五）；修复 `check-crystal-data.mjs`（此前从任何目录都跑不起来）；
+修复氢键/虚线键渲染崩溃（three 旧 API `addAttribute`）。
 
 ---
 
@@ -55,9 +59,13 @@ shared:S1-2      总知识库
 symmetry:P2-3    对称模块
 ```
 
-**⚠️ 未完成的迁移**：晶体模块的知识点编号目前仍是 `K1`–`K8`（散落在
-`projects/crystal/activity/` 的文档中），与 orbit 的 `K1`–`K9` 含义冲突。
-**须改为 `C1`–`C8`**。改动会波及方案文档、知识条目、出题引擎设计——越晚越麻烦。
+**✅ 已迁移（2026-09-24）**：晶体模块的知识点编号此前是 `K1`–`K8`，与 orbit 的
+`K1`–`K9` 含义冲突（两套 `K` 指完全不同的东西）。现已改为 `C1`–`C8`，条目 id
+形如 `crystal:C1-1`。
+
+**orbit 的 `K` 保持不变**——它是活数据，被 localStorage 掌握度键、错因映射、
+题目模板分支、工具 schema 描述文本等多处消费，改名成本远高于收益。让位的应是
+后加入者，这就是晶体改用 `C` 的原因。
 
 ---
 
@@ -136,10 +144,16 @@ cd projects/crystal/H5 && npm install && npm run dev
 
 | 文档 | 位置 |
 |---|---|
+| **重构计划（当前主线）** | `docs/重构计划.md` |
 | 智能体知识资产设计 | `projects/crystal/activity/智能体知识资产设计.md` |
 | AI 智能体建设方案 | `projects/crystal/activity/AI智能体建设方案.md` |
 | 出题引擎技术设计 | `projects/crystal/activity/出题引擎技术设计.md` |
+| **参赛执行清单** | `projects/crystal/activity/参赛执行清单.md`（§五.1 是 C1–C8 知识点定义的权威出处） |
 | 数据核查报告 | `projects/crystal/activity/数据核查报告.md` |
+| COD 数据比对报告 | `modules/crystal/data/cod/COD_COMPARISON_REPORT.md` |
+
+> ⚠️ `projects/orbit/activity/` 下**另有一份同名但内容完全不同的**《AI智能体建设方案.md》
+> （句子重合度 0.0%，是 orbit 模块自己的方案，55 KB vs 39 KB）。**按文件名去重会丢掉其中一份。**
 
 ---
 
