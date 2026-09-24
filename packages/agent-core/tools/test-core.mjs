@@ -19,6 +19,7 @@ import { createConversation, buildManifestText, composeSystemPrompt } from '../c
 import { createToolRegistry } from '../core/tool-registry.js'
 import { createRenderer } from '../ui/renderer.js'
 import { el, clear } from '../ui/dom.js'
+import { createPanel } from '../ui/panel.js'
 
 const HERE = new URL('.', import.meta.url)
 const orbit = (p) => fileURLToPath(new URL('../../../projects/orbit/H5/' + p, HERE))
@@ -1102,6 +1103,212 @@ section('renderer：Markdown+LaTeX 渲染（与 orbit 原实现逐字比对）')
     delete globalThis.document
     check('clear() 移除子节点并返回该节点', r === holder && emptied)
     check('clear() 容忍 null 输入', clear(null) === null)
+  }
+}
+
+// ============================================================================
+section('panel：界面故障防护（rAF 合帧 / finish 掐帧 / 空正文诊断）')
+// ============================================================================
+{
+  // ---- 最小 DOM 桩 ----
+  const mkDom = () => {
+    const findIn = (node, tag) => {
+      for (const c of node.children) {
+        if (c.tag === tag) return c
+        const r = findIn(c, tag)
+        if (r) return r
+      }
+      return null
+    }
+    const mkNode = (tag) => {
+      const n = {
+        tag, className: '', textContent: '', children: [], attrs: {},
+        style: {}, disabled: false, scrollTop: 0, scrollHeight: 0,
+        offsetWidth: 40, offsetHeight: 40,
+        _classes: new Set(), _html: '', htmlWrites: 0,
+        setAttribute(k, v) { n.attrs[k] = v },
+        removeAttribute(k) { delete n.attrs[k] },
+        appendChild(c) { n.children.push(c); return c },
+        removeChild(c) { const i = n.children.indexOf(c); if (i >= 0) n.children.splice(i, 1); return c },
+        addEventListener(t, fn) { (n._ev = n._ev || {})[t] = fn },
+        querySelector(sel) { return findIn(n, sel.replace(/^\./, '')) },
+        insertAdjacentHTML(pos, html) { n._html += html },
+        focus() {},
+        getBoundingClientRect() { return { left: 0, top: 0, width: 40, height: 40 } },
+        get firstChild() { return n.children[0] || null },
+      }
+      n.classList = {
+        add: (...c) => c.forEach((x) => n._classes.add(x)),
+        remove: (...c) => c.forEach((x) => n._classes.delete(x)),
+        toggle: (c, on) => {
+          if (on === undefined) { n._classes.has(c) ? n._classes.delete(c) : n._classes.add(c) }
+          else if (on) n._classes.add(c); else n._classes.delete(c)
+        },
+        contains: (c) => n._classes.has(c),
+      }
+      Object.defineProperty(n, 'innerHTML', {
+        get: () => n._html,
+        set: (v) => { n._html = v; n.htmlWrites++ },
+      })
+      return n
+    }
+    const body = mkNode('body')
+    return {
+      document: { body, createElement: mkNode },
+      // 找到 body 里最后一个匹配 class 的深搜辅助
+      body,
+    }
+  }
+
+  const mkWin = () => {
+    const listeners = {}
+    const orig = {
+      window: globalThis.window, localStorage: globalThis.localStorage,
+      raf: globalThis.requestAnimationFrame, caf: globalThis.cancelAnimationFrame,
+    }
+    const frames = []
+    globalThis.window = globalThis
+    globalThis.innerWidth = 1000
+    globalThis.innerHeight = 800
+    globalThis.addEventListener = (t, fn) => { listeners[t] = fn }
+    globalThis.dispatchEvent = () => {}
+    globalThis.localStorage = { getItem: () => null, setItem: () => {}, removeItem: () => {} }
+    globalThis.requestAnimationFrame = (fn) => { frames.push(fn); return frames.length }
+    globalThis.cancelAnimationFrame = (id) => { frames[id - 1] = null }   // 排队后被取消 → 置空
+    return {
+      listeners,
+      /** 执行当前排队中的帧（模拟"下一帧到了"），被取消的会跳过 */
+      runFrames() {
+        const batch = frames.splice(0, frames.length)
+        for (const f of batch) if (typeof f === 'function') f()
+      },
+      pending: () => frames.filter((f) => typeof f === 'function').length,
+      restore() {
+        globalThis.window = orig.window
+        globalThis.localStorage = orig.localStorage
+        globalThis.requestAnimationFrame = orig.raf
+        globalThis.cancelAnimationFrame = orig.caf
+      },
+    }
+  }
+
+  /** 深搜收集所有匹配 tag 的节点 */
+  const collect = (node, tag, out = []) => {
+    for (const c of node.children) {
+      if (c.tag === tag) out.push(c)
+      collect(c, tag, out)
+    }
+    return out
+  }
+
+  /** 统一判类名：el() 写的是 className，classList.add 写的是 _classes，两处都要看 */
+  const hasClass = (node, c) =>
+    String(node.className || '').split(/\s+/).includes(c) || node._classes.has(c)
+
+  const W = mkWin()
+  const dom = mkDom()
+  try {
+    const progressHooks = []
+    const SB = {
+      onProgress: (fn) => { progressHooks.push(fn); return () => { const i = progressHooks.indexOf(fn); if (i >= 0) progressHooks.splice(i, 1) } },
+      prev: () => ({ ok: true }), next: () => ({ ok: true }), autoPlay: () => {},
+      stop: () => {}, replay: () => ({ ok: true }), state: () => ({ pending: [] }),
+    }
+
+    let capturedHandlers = null
+    let sentText = null
+    const panel = createPanel({
+      doc: dom.document,
+      title: '测试智能体',
+      greeting: '你好',
+      actionLabels: { setRenderMode: '切换渲染方式' },
+      sequenceToolName: 'applySceneActions',
+      getShowReasoning: () => true,
+      storyboard: SB,
+      send: async (text, handlers) => { sentText = text; capturedHandlers = handlers; return { ok: true } },
+    })
+    panel.init()
+
+    const msgs = panel.nodes().msgBox
+    check('init 后建出抽屉与消息区', !!panel.nodes().drawer && !!msgs)
+    check('空态已渲染问候语', /你好/.test(msgs.innerHTML || '') || collect(msgs, 'div').some((d) => /你好/.test(d.innerHTML)))
+    check('订阅了分镜进度', progressHooks.length === 1)
+
+    // ---- beginAssistant：rAF 合帧 ----
+    const cur = panel.beginAssistant()
+    const textNode = collect(cur.wrap, 'div').find((d) => hasClass(d, 'agent-text'))
+    check('助手消息含正文容器', !!textNode)
+    const before = textNode.htmlWrites
+    cur.setContent('第一')
+    cur.setContent('第一第二')
+    cur.setContent('第一第二第三')
+    check('多次 setContent 只排队一帧（rAF 合帧）', W.pending() === 1, `待执行帧 ${W.pending()}`)
+    check('尚未写入 DOM（等下一帧）', textNode.htmlWrites === before)
+    W.runFrames()
+    check('每帧只写一次 DOM', textNode.htmlWrites === before + 1)
+    check('写入的是最后一次的累积全文', /第一第二第三/.test(textNode.innerHTML))
+
+    // ---- finish 必须先掐掉排队中的那一帧（否则刷成空泡）----
+    cur.setContent('第四')
+    check('又排了一帧', W.pending() === 1)
+    cur.finish({ hasContent: true })
+    W.runFrames()   // 若没被取消，这一帧会用 pendingText='' 把正文刷成空
+    check('finish 掐掉了排队中的帧（界面未被刷成空泡）', /第四/.test(textNode.innerHTML),
+      textNode.innerHTML)
+
+    // ---- 空正文 + 截断：必须说清成因并附证据 ----
+    const c2 = panel.beginAssistant()
+    const t2 = collect(c2.wrap, 'div').find((d) => hasClass(d, 'agent-text'))
+    c2.finish({
+      hasContent: false, finishReason: 'length',
+      usage: { completion_tokens: 8192, prompt_tokens: 900, completion_tokens_details: { reasoning_tokens: 7000 } },
+    })
+    check('空正文被诊断（不是空白气泡）', /没有输出正文/.test(t2.innerHTML), t2.innerHTML)
+    check('截断成因被点名', /长度上限截断/.test(t2.innerHTML))
+    check('附上 finish_reason 证据', /finish_reason: length/.test(t2.innerHTML))
+    check('附上 token 用量证据（含思考 token）', /8192 tokens/.test(t2.innerHTML) && /其中思考 7000/.test(t2.innerHTML))
+
+    // ---- 空正文 + 只有工具调用：成因不同，文案应不同 ----
+    const c3 = panel.beginAssistant()
+    const t3 = collect(c3.wrap, 'div').find((d) => hasClass(d, 'agent-text'))
+    c3.finish({ hasContent: false, finishReason: 'tool_calls' })
+    check('只有工具调用时给不同说明', /只发起了动作调用/.test(t3.innerHTML), t3.innerHTML)
+
+    // ---- 思考折叠：有正文时收起，无正文时展开（让用户至少看到模型干了什么）----
+    const c4 = panel.beginAssistant()
+    const details4 = collect(c4.wrap, 'details')[0]
+    c4.setReasoning('我思考了一下')
+    c4.finish({ hasContent: true })
+    check('有正文时思考收起', !hasClass(details4, 'hidden') || !details4.attrs.open)
+    const c5 = panel.beginAssistant()
+    const details5 = collect(c5.wrap, 'details')[0]
+    c5.setReasoning('只有思考')
+    c5.finish({ hasContent: false, finishReason: 'stop' })
+    check('无正文时思考被展开', details5.attrs.open === '')
+    check('无正文时的 summary 文案改为说明', /模型实际输出的思考内容/.test(collect(details5, 'summary')[0].textContent))
+
+    // ---- runAgent 接线：动作气泡与失败标记 ----
+    panel.setInput('演示一下')
+    const p = panel.send()
+    check('发送后把文本交给 send', sentText === '演示一下')
+    capturedHandlers.onToolCall({ name: 'applySceneActions', args: { actions: [{ action: 'setRenderMode', params: { mode: 'surface' } }] }, round: 1 })
+    const bubbles = collect(msgs, 'details').filter((d) => hasClass(d, 'agent-action'))
+    check('为动手类工具画了动作气泡', bubbles.length === 1, `气泡数 ${bubbles.length}`)
+    check('气泡用中文动作名描述', /切换渲染方式/.test(collect(bubbles[0], 'summary')[0].innerHTML))
+    capturedHandlers.onToolResult({ name: 'applySceneActions', result: { failed: [{ action: 'x', error: 'e' }] }, round: 1 })
+    check('有动作未执行时气泡标红并提示', bubbles[0]._classes.has('bad') && /1 个动作未执行/.test(collect(bubbles[0], 'summary')[0].innerHTML))
+    capturedHandlers.onToolCall({ name: 'loadKnowledge', args: {}, round: 1 })
+    check('查询类工具不产生气泡（属内部行为）',
+      collect(msgs, 'details').filter((d) => hasClass(d, 'agent-action')).length === 1)
+    capturedHandlers.onDone({ ok: true, aborted: false, finishReason: 'stop' })
+    await p
+
+    // ---- destroy 解绑订阅（防反复进出页面时累积）----
+    check('destroy 前有订阅', progressHooks.length === 1)
+    panel.destroy()
+    check('destroy 后解绑订阅', progressHooks.length === 0)
+  } finally {
+    W.restore()
   }
 }
 

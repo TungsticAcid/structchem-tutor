@@ -19,10 +19,15 @@
  * @param {Object} [attrs] 特殊键：`class` → className，`text` → textContent，
  *                         `html` → innerHTML；其余走 setAttribute
  * @param {Node[]} [children]
+ * @param {Document} [doc] 目标文档。缺省取全局 document。
+ *                        显式传入是为了让"注入 document"真正生效——
+ *                        否则调用方以为注入了，实际仍在用全局，测试与多端都骗不过去。
  * @returns {HTMLElement}
  */
-export function el(tag, attrs, children) {
-  const e = document.createElement(tag)
+export function el(tag, attrs, children, doc) {
+  const d = doc || (typeof globalThis !== 'undefined' ? globalThis.document : null)
+  if (!d) throw new Error('el() 无法取得 document：请显式传入第四个参数')
+  const e = d.createElement(tag)
   if (attrs) {
     for (const k of Object.keys(attrs)) {
       if (k === 'class') e.className = attrs[k]
