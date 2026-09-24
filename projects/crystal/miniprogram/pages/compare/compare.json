@@ -1,6 +1,0 @@
-{
-  "usingComponents": {
-    "viewer-canvas": "/components/viewer-canvas/viewer-canvas"
-  },
-  "disableScroll": true
-}

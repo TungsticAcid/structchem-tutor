@@ -1,9 +1,0 @@
-{
-  "name": "symmetry-viewer-miniprogram",
-  "version": "0.1.0",
-  "description": "对称视界——分子对称性与点群教学小程序",
-  "type": "module",
-  "dependencies": {
-    "threejs-miniprogram": "^0.0.8"
-  }
-}

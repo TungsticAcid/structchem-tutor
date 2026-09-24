@@ -25,3 +25,6 @@ npm-debug.log*
 
 # Vite cache
 .vite/
+
+# Claude Code 本地配置（含机器绝对路径，不入库）
+.claude/

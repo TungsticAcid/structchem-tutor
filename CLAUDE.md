@@ -110,15 +110,25 @@ cd projects/crystal/H5 && npm install && npm run dev
 
 ## 五、数据副本注意事项
 
-晶体数据有**三份副本**，内容必须一致，仅模块语法不同：
+> **2026-09-24 变更**：两套微信小程序（`projects/crystal/miniprogram/`、
+> `projects/symmetry/wx/`）已从本仓库移除——先完善网页版，之后再处理。
+> 原版在 `D:\xjl\program\` 与 GitHub 有备份，另可在 git 历史中取回。
+> 移除前抢救出的跨平台资产见 `docs/archive/` 与下表。
 
-| 副本 | 模块语法 |
-|---|---|
-| `projects/crystal/H5/src/data/crystals/` | `export default` |
-| `projects/crystal/miniprogram/data/crystals/` | `module.exports =` |
-| `projects/crystal/miniprogram/skills/data/crystals/` | `module.exports =` |
+晶体数据由「三份 JS 副本」变为**单份 JS 源 + 上游 CIF**：
 
-**改数据时三处都要同步**，然后用 `check-crystal-data.mjs` 验证一致性。
+| 内容 | 位置 | 说明 |
+|---|---|---|
+| 晶体数据（唯一的 JS 源） | `projects/crystal/H5/src/data/crystals/` | `export default` 语法 |
+| **上游权威源**：23 个 CIF | `modules/crystal/data/cod/` | 取自 Crystallography Open Database |
+| COD 比对报告 | `modules/crystal/data/cod/COD_COMPARISON_REPORT.md` | 逐晶体与 COD 的偏差与文献出处 |
+
+**改数据时以 H5 那一份为准**。此前本节只登记了三份 JS 副本，**漏了上游 CIF**——
+而那一份才是数据的真正来源。
+
+⚠️ `check-crystal-data.mjs` **当前跑不起来**（副本路径仍是合并前的写法，且以
+`process.cwd()` 锚定，从任何目录运行都会失败），且它校验的三副本之一已不存在。
+**修复它之前，数据一致性没有任何检查守护**，改动须人工核对。
 
 ---
 

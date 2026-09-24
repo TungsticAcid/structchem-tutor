@@ -28,13 +28,18 @@ chem-agent/
 ├── projects/                     各教学工具本体（原样搬入，内部结构未动）
 │   ├── crystal/                  晶体结构工具
 │   │   ├── H5/                   网页版（Vite + Three.js）
-│   │   ├── miniprogram/          微信小程序版
 │   │   ├── activity/             方案文档与参赛材料
 │   │   └── tools/                晶体数据自检脚本
 │   ├── orbit/                    原子轨道工具
 │   └── symmetry/                 分子对称性工具
 │
-└── docs/                         跨项目文档
+├── modules/                      模块实现与数据
+│   └── crystal/data/cod/         晶体数据的上游 CIF（取自 COD）与比对报告
+│
+├── docs/                         跨项目文档
+│   └── archive/                  已移除组件的归档（小程序 AI 接入实现等）
+│
+└── apps/                         统一前端（阶段 B 建立）
 ```
 
 ---
