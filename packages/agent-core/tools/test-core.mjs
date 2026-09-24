@@ -1321,6 +1321,80 @@ section('panel：界面故障防护（rAF 合帧 / finish 掐帧 / 空正文诊�
 }
 
 // ============================================================================
+section('module-contract：模块接入契约')
+// ============================================================================
+{
+  const { assertModuleContract, describeContract, REQUIRED_METHODS, ALL_METHODS } =
+    await import('../contract/module-contract.js')
+
+  // ---- 完整合规的 facade ----
+  const good = {
+    getSnapshot: () => ({ a: 1 }),
+    applyActions: () => ({ ok: true }),
+    onAction: (cb) => () => {},
+    highlightAtoms: () => ({ ok: true }),
+    navigateTo: () => ({ ok: true }),
+    exportViewPNG: () => 'data:image/png;base64,x',
+    sceneVocabulary: { setX: { animated: false } },
+    settings: [{ key: 'animSpeed', type: 'range' }],
+    prompts: { role: '...' },
+    getInteractionTrace: () => ({ idleMs: 0 }),
+  }
+  const rGood = assertModuleContract(good, { label: 'good' })
+  check('合规 facade 通过校验', rGood.ok === true && rGood.missingRequired.length === 0)
+  check('缺失清单为空', rGood.missing.length === 0, rGood.missing.join(','))
+  check('已提供清单覆盖全部方法', rGood.present.length === ALL_METHODS.length,
+    `${rGood.present.length}/${ALL_METHODS.length}`)
+
+  // ---- 缺必需方法：必须失败并指明缺什么 ----
+  const noApply = { getSnapshot: () => ({}) }
+  const rNo = assertModuleContract(noApply, { label: '缺 applyActions' })
+  check('缺 applyActions 时校验失败', rNo.ok === false)
+  check('明确报出缺的是必需方法', rNo.missingRequired.join(',') === 'applyActions', rNo.missingRequired.join(','))
+  check('必需方法共 2 个（getSnapshot / applyActions）', REQUIRED_METHODS.length === 2)
+
+  // ---- 非对象/空值 ----
+  check('facade 为 null 时失败且不抛异常', assertModuleContract(null).ok === false)
+  check('facade 为 null 时报出全部必需方法',
+    assertModuleContract(null).missingRequired.length === 2)
+
+  // ---- 常见实现错误的提醒（warnings，不阻断）----
+  const oneSlot = { getSnapshot: () => ({}), applyActions: () => ({}), onAction: (cb) => {} }
+  const rW = assertModuleContract(oneSlot)
+  check('提醒 onAction 可能是单槽位实现（会静默顶掉先注册者）',
+    rW.warnings.some((w) => /单槽位|顶掉/.test(w)), JSON.stringify(rW.warnings))
+
+  const applyNoSnap = { applyActions: () => ({}) }
+  check('提醒"有 applyActions 但没有 getSnapshot"（分镜无法抓快照回退）',
+    assertModuleContract(applyNoSnap).warnings.some((w) => /快照/.test(w)))
+
+  const noVocab = { getSnapshot: () => ({}), applyActions: () => ({}) }
+  check('提醒缺 sceneVocabulary（模型只能猜动作名）',
+    assertModuleContract(noVocab).warnings.some((w) => /词汇表|猜动作名/.test(w)))
+
+  // ---- 文档可用 ----
+  const doc = describeContract()
+  check('describeContract 含必需与可选两段', /必需/.test(doc) && /可选/.test(doc))
+  check('契约文档列出全部方法名', ALL_METHODS.every((m) => doc.includes(m)))
+
+  // ---- 三个真实模块的接入实况：如实报出缺什么，而不是假装支持 ----
+  // （这是"契约必须可执行"的体现：共享核能据此给出接入进度）
+  const THREE_REAL = [
+    { id: 'crystal', note: 'main.js 只管路由，viewer-canvas 是 894 行类，无动作层' },
+    { id: 'orbit', note: 'main.js 有 OrbitApp facade（getState/applyAction/onAction/exportViewPNG）' },
+    { id: 'symmetry', note: 'main.js 是 744 行单体、不导出任何东西' },
+  ]
+  const status = THREE_REAL.map((m) => ({ ...m, r: assertModuleContract({ id: m.id }) }))
+  check('三个模块当前都未满足契约（如实报告，不是缺陷而是现状）',
+    status.every((s) => s.r.ok === false))
+  check('每个模块都报出缺哪些必需方法',
+    status.every((s) => s.r.missingRequired.length === 2))
+  console.log('      接入实况（契约要求 vs 现状）：')
+  for (const s of status) console.log(`        ${s.id.padEnd(9)} 缺 ${s.r.missingRequired.join(', ')}  —— ${s.note}`)
+  console.log('        （orbit 的 OrbitApp 是本契约的蓝本，阶段 B4 去全局化后即可包装成 facade）')
+}
+
+// ============================================================================
 console.log(`\n${'═'.repeat(60)}`)
 console.log(`test-core 结果：通过 ${pass} 项，失败 ${fail} 项`)
 console.log('═'.repeat(60))
