@@ -1,0 +1,82 @@
+<!-- 晶体详情卡片 -->
+<view class="cdc-card">
+  <!-- 标题区 -->
+  <view class="cdc-title-row">
+    <view class="cdc-name">
+      <text>{{name}}</text>
+      <text class="cdc-formula">{{formula}}</text>
+    </view>
+    <view class="cdc-badges">
+      <text class="cdc-badge badge-system">{{crystalSystemCN}}</text>
+      <text class="cdc-badge badge-category">{{categoryName}}</text>
+    </view>
+  </view>
+  <view wx:if="{{subtitle}}" class="cdc-subtitle">{{subtitle}}</view>
+
+  <!-- 对比模式标签 -->
+  <view wx:if="{{isComparison}}" class="cdc-compare-banner">
+    <text class="cdc-compare-icon">🔄</text>
+    <text>对比：{{crystalAName}} vs {{crystalBName}}</text>
+  </view>
+
+  <!-- 晶格参数 -->
+  <view wx:if="{{latticeText}}" class="cdc-section">
+    <view class="cdc-section-title">晶格参数</view>
+    <view class="cdc-section-body">{{latticeText}}</view>
+  </view>
+
+  <!-- 教学属性 -->
+  <view wx:if="{{featureList.length > 0}}" class="cdc-section">
+    <view class="cdc-section-title">结构特征</view>
+    <view class="cdc-features">
+      <view wx:for="{{featureList}}" wx:key="*this" class="cdc-feature-item">
+        {{item}}
+      </view>
+    </view>
+  </view>
+
+  <!-- 原子组成 -->
+  <view wx:if="{{atomText}}" class="cdc-section">
+    <view class="cdc-section-title">原子组成</view>
+    <view class="cdc-section-body">{{atomText}}</view>
+  </view>
+
+  <!-- 空隙信息 -->
+  <view wx:if="{{intersticeTypes.length > 0}}" class="cdc-section">
+    <view class="cdc-section-title">空隙类型</view>
+    <view class="cdc-tags">
+      <text wx:for="{{intersticeTypes}}" wx:key="*this" class="cdc-tag tag-void">{{item === 'octahedral' ? '八面体空隙' : (item === 'tetrahedral' ? '四面体空隙' : item)}}</text>
+    </view>
+  </view>
+
+  <!-- 能力标签 -->
+  <view wx:if="{{hasSymmetry || hasBonds || hasHydrogenBonds}}" class="cdc-section">
+    <view class="cdc-section-title">可展示图层</view>
+    <view class="cdc-tags">
+      <text wx:if="{{hasSymmetry}}" class="cdc-tag tag-ability">🔷 对称元素</text>
+      <text wx:if="{{hasBonds}}" class="cdc-tag tag-ability">🔗 化学键</text>
+      <text wx:if="{{hasHydrogenBonds}}" class="cdc-tag tag-ability">💧 氢键</text>
+    </view>
+  </view>
+
+  <!-- 操作按钮 -->
+  <view class="cdc-actions">
+    <view class="cdc-btn cdc-btn-primary" hover-class="cdc-btn-hover"
+      bind:tap="onTapOpenViewer" data-crystal-id="{{isComparison ? '' : ''}}">
+      在3D查看器中打开
+    </view>
+    <view wx:if="{{isComparison}}" class="cdc-btn cdc-btn-secondary" hover-class="cdc-btn-hover"
+      bind:tap="onTapCompare">
+      并排对比视图
+    </view>
+  </view>
+
+  <!-- 对比差异列表 -->
+  <view wx:if="{{isComparison && featureList.length > 0}}" class="cdc-section" style="margin-top: 24rpx;">
+    <view class="cdc-section-title">主要差异</view>
+    <view wx:for="{{featureList}}" wx:key="*this" class="cdc-diff-item">
+      <text class="cdc-diff-bullet">•</text>
+      <text>{{item}}</text>
+    </view>
+  </view>
+</view>

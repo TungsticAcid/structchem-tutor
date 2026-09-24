@@ -1,0 +1,174 @@
+% 滚转完备性推导子文件
+% 主题：在当前旋转模式（绕 right/up 旋转 + 绕 look 滚转同时生效）下，
+%       证明鼠标 x、y 变化导致的旋转对 SO(3) 是完备的；并说明滚转的冗余性
+
+\section{绕视线轴滚转的完备性推导}
+
+\subsection{旋转模式与直接可控性}
+
+在「对称视界」的三维视图中，用户通过鼠标左键拖动旋转分子。
+记相机坐标系的三条轴为 $\mathbf{u}_r$（right，右方向）、$\mathbf{u}_p$（up，上方向）、
+$\mathbf{u}_l$（look，视线方向），它们是世界坐标轴经轨道四元数旋转所得，
+故两两正交且\emph{不随被旋转对象而变}（固定轴）。
+
+设鼠标在屏幕上的位置为 $(x,y)$（相对分子中心投影），单次移动为 $(\mathrm{d}x,\mathrm{d}y)$。
+当前实现中，这次移动产生三个绕固定轴的无穷小旋转角：
+\begin{equation}
+  \delta\theta_p = S\,\mathrm{d}x \quad(\text{绕 up}),\qquad
+  \delta\theta_r = S\,\mathrm{d}y \quad(\text{绕 right}),\qquad
+  \delta\theta_l = -\frac{x\,\mathrm{d}y - y\,\mathrm{d}x}{x^2+y^2} \quad(\text{绕 look}),
+\end{equation}
+其中 $S>0$ 为灵敏度系数。写成角速度（除以时间微元）：
+\begin{equation}
+  \omega_p = S\,\dot x,\qquad
+  \omega_r = S\,\dot y,\qquad
+  \omega_l = \frac{y\,\dot x - x\,\dot y}{x^2+y^2}.
+\end{equation}
+
+\noindent 注意到 $\omega_l$ 由 $\dot x, \dot y$ 与位置 $x,y$ 共同决定，
+故\emph{单次移动中三个角速度线性相关}（三个量仅由两个输入 $(\dot x,\dot y)$ 决定）。
+
+直接可控性分三种情形：
+
+\begin{enumerate}
+  \item \textbf{绕 right 直接可控}：$\omega_r = S\dot y$ 仅依赖 $\dot y$。
+    取 $x = 0$、$\dot x = 0$（鼠标在 $y$ 轴上做垂直移动），
+    则 $\omega_p = \omega_l = 0$，得到\emph{纯绕 right} 的旋转，
+    其总旋转角为 $\int \omega_r\,\mathrm{d}t = S\,\Delta y$，可取任意值。
+
+  \item \textbf{绕 up 直接可控}：$\omega_p = S\dot x$ 仅依赖 $\dot x$。
+    取 $y = 0$、$\dot y = 0$（鼠标在 $x$ 轴上做水平移动），
+    则 $\omega_r = \omega_l = 0$，得到\emph{纯绕 up} 的旋转，总角 $S\,\Delta x$ 任意。
+
+  \item \textbf{绕 look 单步不可纯化}：要使 $\omega_p = \omega_r = 0$，
+    须 $\dot x = \dot y = 0$，但此时 $\omega_l = 0$。
+    故单次移动\emph{无法}只产生纯滚转——这正是三轴耦合的本质。
+\end{enumerate}
+
+\noindent 结论：绕 $\mathbf{u}_r$、$\mathbf{u}_p$ 的旋转可以\emph{直接、独立}控制；
+绕 $\mathbf{u}_l$ 的旋转单步不可纯化，需借助前两者的组合（见下文）。
+
+\subsection{预备知识}
+
+三维旋转群定义为全体行列式为 $1$ 的正交矩阵：
+\begin{equation}
+  \mathrm{SO}(3) = \{\, R \in \mathbb{R}^{3\times 3} \mid R^{\mathsf T}R = I,\ \det R = 1 \,\}.
+\end{equation}
+
+绕单位轴 $\mathbf{u}$ 旋转角 $\varphi$ 由 Rodrigues 公式给出：
+\begin{equation}
+  R_{\mathbf{u}}(\varphi)
+  = I + \sin\varphi\, [\mathbf{u}]_{\times} + (1-\cos\varphi)\, [\mathbf{u}]_{\times}^{2},
+\end{equation}
+其中 $[\mathbf{u}]_{\times}$ 为 $\mathbf{u}$ 的叉积矩阵。绕标准坐标轴的矩阵为
+\begin{equation}
+  R_x(\alpha) =
+  \begin{pmatrix} 1&0&0\\ 0&\cos\alpha&-\sin\alpha\\ 0&\sin\alpha&\cos\alpha \end{pmatrix},\quad
+  R_y(\beta) =
+  \begin{pmatrix} \cos\beta&0&\sin\beta\\ 0&1&0\\ -\sin\beta&0&\cos\beta \end{pmatrix},\quad
+  R_z(\gamma) =
+  \begin{pmatrix} \cos\gamma&-\sin\gamma&0\\ \sin\gamma&\cos\gamma&0\\ 0&0&1 \end{pmatrix}.
+  \label{eq:rotmat}
+\end{equation}
+
+\subsection{完备性证明}
+
+先证两个群论事实，再综合。
+
+\begin{lemma}[绕两正交轴生成绕第三轴]
+  设 $\mathbf{u},\mathbf{v}$ 为两两正交的单位向量，$\mathbf{w} = \mathbf{u}\times\mathbf{v}$。
+  则绕 $\mathbf{w}$ 的任意旋转 $R_{\mathbf{w}}(\varphi)$ 可由绕 $\mathbf{u}$、$\mathbf{v}$
+  的旋转组合而成。
+\end{lemma}
+
+\begin{proof}
+  由 Rodrigues 公式，绕 $\mathbf{v}$ 旋转角 $\tfrac{\pi}{2}$ 将 $\mathbf{u}$ 映为
+  \begin{equation}
+    \mathbf{u}\cos\tfrac{\pi}{2} + (\mathbf{v}\times\mathbf{u})\sin\tfrac{\pi}{2}
+    = \mathbf{v}\times\mathbf{u} = -\mathbf{w}.
+  \end{equation}
+  故 $R_{\mathbf{v}}(\tfrac{\pi}{2})$ 把 $\mathbf{u}$ 送到 $-\mathbf{w}$，于是
+  \begin{equation}
+    R_{\mathbf{v}}(\tfrac{\pi}{2})\, R_{\mathbf{u}}(\varphi)\, R_{\mathbf{v}}(-\tfrac{\pi}{2})
+  \end{equation}
+  是绕 $-\mathbf{w}$ 旋转角 $\varphi$ 的旋转，即绕 $\mathbf{w}$ 旋转角 $-\varphi$。
+  因 $\varphi$ 任意，绕 $\mathbf{w}$ 的任意旋转均可如此实现。\qedhere
+\end{proof}
+
+\begin{lemma}[欧拉角分解]
+  任意旋转 $R\in\mathrm{SO}(3)$ 均可分解为绕 $\mathbf{e}_x,\mathbf{e}_y,\mathbf{e}_z$
+  各一次的旋转：$R = R_y(\beta)\, R_x(\alpha)\, R_z(\gamma)$。
+\end{lemma}
+
+\begin{proof}
+  设 $R$ 的第三列为单位向量 $\mathbf{r}_3 = (r_{13},r_{23},r_{33})^{\mathsf T}$。
+  先证一个辅助事实：任意单位向量可参数化为
+  \begin{equation}
+    \mathbf{r}_3 = \bigl(\sin\beta\cos\alpha,\ -\sin\alpha,\ \cos\beta\cos\alpha\bigr)^{\mathsf T}.
+  \end{equation}
+  令 $\sin\alpha = -r_{23}$，则 $\cos\alpha = \sqrt{1-r_{23}^{2}}$；
+  再令 $\cos\beta = r_{33}/\sqrt{1-r_{23}^{2}}$、$\sin\beta = r_{13}/\sqrt{1-r_{23}^{2}}$ 即可
+  （当 $r_{23}^{2}=1$ 时取 $\alpha=\pm\pi/2$、$\beta$ 任意，退化情形不影响存在性）。
+
+  由式 \eqref{eq:rotmat} 直接相乘：
+  \begin{equation}
+    R_y(\beta)\, R_x(\alpha)\, \mathbf{e}_z
+    = \bigl(\sin\beta\cos\alpha,\ -\sin\alpha,\ \cos\beta\cos\alpha\bigr)^{\mathsf T}
+    = \mathbf{r}_3.
+  \end{equation}
+  令 $A = R_x(-\alpha)\, R_y(-\beta)\, R$，则 $A\in\mathrm{SO}(3)$ 且 $A\,\mathbf{e}_z = \mathbf{e}_z$。
+
+  再证：满足 $A\mathbf{e}_z = \mathbf{e}_z$ 的 $A\in\mathrm{SO}(3)$ 必为 $R_z(\gamma)$。
+  设 $A$ 的三列为 $\mathbf{a}_1,\mathbf{a}_2,\mathbf{a}_3$，则 $\mathbf{a}_3=\mathbf{e}_z$；
+  由正交性 $\mathbf{a}_1,\mathbf{a}_2\perp\mathbf{e}_z$ 且彼此正交、为单位向量，
+  故 $\mathbf{a}_1 = (\cos\gamma,\sin\gamma,0)^{\mathsf T}$、
+  $\mathbf{a}_2 = \mathbf{e}_z\times\mathbf{a}_1 = (-\sin\gamma,\cos\gamma,0)^{\mathsf T}$
+  （$\det A=1$ 取右手方向）。于是 $A = R_z(\gamma)$。
+
+  综上 $R = R_y(\beta)\, R_x(\alpha)\, R_z(\gamma)$。\qedhere
+\end{proof}
+
+\begin{theorem}[当前耦合模式完备]
+  在当前旋转模式（绕 right/up 旋转与绕 look 滚转同时生效、由两个输入 $(\dot x,\dot y)$ 耦合）下，
+  通过一系列鼠标移动，可达到 $\mathrm{SO}(3)$ 中的任意旋转。
+\end{theorem}
+
+\begin{proof}
+  由直接可控性分析（第 1.1 节），绕 $\mathbf{u}_r$、$\mathbf{u}_p$
+  的任意旋转均可直接实现。
+
+  因 $\mathbf{u}_l = \mathbf{u}_r\times\mathbf{u}_p$，由引理一，
+  绕 $\mathbf{u}_l$ 的任意旋转可由绕 $\mathbf{u}_r$、$\mathbf{u}_p$ 的组合生成。
+  又 $\{\mathbf{u}_r,\mathbf{u}_p,\mathbf{u}_l\}$ 与 $\{\mathbf{e}_x,\mathbf{e}_y,\mathbf{e}_z\}$
+  之间只差一个固定旋转 $Q$（相似变换 $R\mapsto Q R Q^{-1}$），
+  故由引理二，绕 $\mathbf{u}_r,\mathbf{u}_p,\mathbf{u}_l$ 三轴的旋转可生成 $\mathrm{SO}(3)$。
+
+  于是绕 $\mathbf{u}_r,\mathbf{u}_p$ 两轴已可生成 $\mathrm{SO}(3)$：
+  任意旋转先按引理二分解为绕三轴的旋转，再把其中绕 $\mathbf{u}_l$ 的部分
+  用引理一替换为绕 $\mathbf{u}_r,\mathbf{u}_p$ 的组合。
+
+  综上所述，当前模式完备：虽然绕 $\mathbf{u}_l$ 单步不可纯化，
+  但它可由直接可控的 $\mathbf{u}_r,\mathbf{u}_p$ 方向组合实现。\qedhere
+\end{proof}
+
+\subsection{结论}
+
+\begin{enumerate}
+  \item \textbf{完备性}：绕 $\mathbf{u}_r$、$\mathbf{u}_p$ 两轴的旋转直接可控（$\omega_r=S\dot y$、
+    $\omega_p=S\dot x$ 分别由单个输入独立决定），且两轴通过非交换组合生成绕 $\mathbf{u}_l$，
+    故当前模式完备，能达到任意旋转。
+
+  \item \textbf{滚转的冗余性}：完备性由绕 right/up 两轴保证，\emph{滚转在完备性上是冗余的}——
+    即使删去 $\delta\theta_l$ 项，仅靠 $\delta\theta_p,\delta\theta_r$ 两轴也能完备。
+
+  \item \textbf{滚转的价值}：绕 $\mathbf{u}_l$ 的旋转在无滚转时需「绕 $\mathbf{u}_p$ 转 $\pm\tfrac{\pi}{2}$
+    $\to$ 绕 $\mathbf{u}_r$ 转所需角 $\to$ 绕 $\mathbf{u}_p$ 转 $\mp\tfrac{\pi}{2}$」三步组合；
+    有滚转后只需做圆周运动一步到位。故滚转改进的是\emph{直接可控性（手感）}，而非完备性。
+\end{enumerate}
+
+\paragraph{注（一般框架的指认）}
+本节的论证，本质上是 Chow--Rashevskii 定理在 $\mathrm{SO}(3)$ 上的特例：
+直接可控方向 $\{\hat{\mathbf{u}}_r,\hat{\mathbf{u}}_p\}$（$\mathfrak{so}(3)$ 中的两个生成元）
+的李括号 $[\hat{\mathbf{u}}_r,\hat{\mathbf{u}}_p]=\widehat{\mathbf{u}_r\times\mathbf{u}_p}
+=\hat{\mathbf{u}}_l$ 使李代数秩达到 $\dim\mathrm{SO}(3)=3$，故系统可达（完备）。
+此注仅指认一般框架，正文证明不依赖该定理。

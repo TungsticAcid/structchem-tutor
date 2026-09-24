@@ -1,0 +1,70 @@
+/* ============================================
+ * 全局样式 - 晶体结构3D可视化 H5
+ * 基准：375px 设计稿，1rpx ≈ 0.5px
+ * ============================================ */
+
+/* CSS 变量 */
+:root {
+  --color-primary: #4285F4;
+  --color-bg: #eeeeee;
+  --color-bg2: #f5f5f5;
+  --color-text: #333;
+  --color-text-light: #666;
+  --color-text-muted: #999;
+  --color-white: #fff;
+  --color-border: #eee;
+
+  /* 颜色映射 */
+  --color-octahedral: #FFB74D;
+  --color-tetrahedral: #4FC3F7;
+  --color-lattice-point: #333333;
+  --color-aux-body: #FFD54F;
+  --color-aux-face: #90CAF9;
+  --color-hbond: #FFAB40;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* 全局重置 */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 14px;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+}
+
+/* Toast 动画 */
+@keyframes wxToastIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}

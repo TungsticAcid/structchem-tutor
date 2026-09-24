@@ -1,0 +1,82 @@
+<!-- 晶体分类/推荐卡片 -->
+<view class="ccc-card">
+  <!-- 标题 -->
+  <view class="ccc-header">
+    <view class="ccc-title">{{title}}</view>
+    <view wx:if="{{mode === 'categories'}}" class="ccc-sub">
+      {{totalCategories}} 个分类 · {{totalCrystals}} 种晶体
+    </view>
+    <view wx:elif="{{total > 0}}" class="ccc-sub">{{total}} 个推荐</view>
+  </view>
+
+  <!-- 分类模式 -->
+  <block wx:if="{{mode === 'categories' && categories.length > 0}}">
+    <view class="ccc-cat-list">
+      <view
+        wx:for="{{categories}}"
+        wx:key="key"
+        class="ccc-cat-item"
+        hover-class="ccc-cat-item-hover"
+        bind:tap="onTapCategory"
+        data-category="{{item}}"
+      >
+        <view class="ccc-cat-icon">
+          <text wx:if="{{item.key === 'metal'}}">🪙</text>
+          <text wx:elif="{{item.key === 'ionic'}}">⚡</text>
+          <text wx:elif="{{item.key === 'covalent'}}">💎</text>
+          <text wx:elif="{{item.key === 'molecular'}}">❄️</text>
+          <text wx:elif="{{item.key === 'mixed'}}">📐</text>
+          <text wx:else>◆</text>
+        </view>
+        <view class="ccc-cat-info">
+          <view class="ccc-cat-name">{{item.name}}</view>
+          <view class="ccc-cat-count">{{item.count}} 种晶体</view>
+          <view wx:if="{{item.samples && item.samples.length > 0}}" class="ccc-cat-samples">
+            <text wx:for="{{item.samples}}" wx:key="id" wx:for-item="s" class="ccc-cat-sample">{{s.name}}</text>
+          </view>
+        </view>
+        <view class="ccc-cat-arrow">→</view>
+      </view>
+    </view>
+  </block>
+
+  <!-- 推荐模式 -->
+  <block wx:if="{{mode === 'recommended' && items.length > 0}}">
+    <view class="ccc-rec-list">
+      <view
+        wx:for="{{items}}"
+        wx:key="id"
+        class="ccc-rec-item"
+        hover-class="ccc-rec-item-hover"
+        data-item="{{item}}"
+      >
+        <view class="ccc-rec-main" bind:tap="onTapCrystal" data-item="{{item}}">
+          <view class="ccc-rec-name">
+            <text>{{item.name}}</text>
+            <text class="ccc-rec-formula">{{item.formula}}</text>
+          </view>
+          <view wx:if="{{item.recommendationReason}}" class="ccc-rec-reason">{{item.recommendationReason}}</view>
+          <view class="ccc-rec-tags">
+            <text class="ccc-tag tag-system">{{item.systemName}}</text>
+            <text class="ccc-tag tag-category">{{item.categoryName}}</text>
+          </view>
+        </view>
+        <view class="ccc-rec-btn" hover-class="ccc-rec-btn-hover" bind:tap="onTapView3D" data-item="{{item}}">
+          查看3D
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <!-- 空状态 -->
+  <block wx:if="{{(mode === 'categories' && categories.length === 0) || (mode === 'recommended' && items.length === 0)}}">
+    <view class="ccc-empty">
+      <view class="ccc-empty-text">暂无数据</view>
+    </view>
+  </block>
+
+  <!-- 浏览全部入口 -->
+  <view class="ccc-browse" hover-class="ccc-browse-hover" bind:tap="onTapBrowseAll">
+    <view class="ccc-browse-text">浏览全部晶体结构库 →</view>
+  </view>
+</view>

@@ -1,0 +1,26 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/viewer/viewer",
+    "pages/compare/compare",
+    "pages/settings/settings"
+  ],
+  "window": {
+    "navigationBarTextStyle": "black",
+    "navigationStyle": "custom"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents",
+  "subPackages": [
+    {
+      "root": "skills",
+      "name": "skills",
+      "independent": true,
+      "pages": []
+    }
+  ],
+  "agent": {
+    "skills": []
+  }
+}

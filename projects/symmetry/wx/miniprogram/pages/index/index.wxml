@@ -1,0 +1,25 @@
+<view class="landing">
+  <view class="landing-center">
+    <image class="logo" src="/images/logo.png" mode="aspectFit" />
+    <view class="name">{{name}}</view>
+    <view class="sub">{{sub}}</view>
+
+    <view class="divider"></view>
+
+    <view class="feature">
+      <text class="check">✓</text>
+      <text class="feature-text">{{f1}}</text>
+    </view>
+    <view class="feature">
+      <text class="check">✓</text>
+      <text class="feature-text">{{f2}}</text>
+    </view>
+
+    <view class="lang-row">
+      <view class="lang-btn {{lang === 'zh' ? 'active' : ''}}" bindtap="onTapZh">中文</view>
+      <view class="lang-btn {{lang === 'en' ? 'active' : ''}}" bindtap="onTapEn">English</view>
+    </view>
+
+    <button class="enter-btn" bindtap="onTapEnter">{{enter}}</button>
+  </view>
+</view>

@@ -1,0 +1,54 @@
+<!-- 晶体搜索结果卡片 -->
+<view class="crc-card">
+  <view class="crc-header">
+    <view class="crc-title">{{title}}</view>
+    <view wx:if="{{total > 0}}" class="crc-sub">{{total}} 个结果</view>
+  </view>
+
+  <!-- 结果列表 -->
+  <block wx:if="{{items.length > 0}}">
+    <view class="crc-list">
+      <view
+        wx:for="{{items}}"
+        wx:key="id"
+        class="crc-item"
+        hover-class="crc-item-hover"
+        data-item="{{item}}"
+      >
+        <view class="crc-info">
+          <view class="crc-name">
+            <text>{{item.name}}</text>
+            <text class="crc-formula">{{item.formula}}</text>
+          </view>
+          <view wx:if="{{item.subtitle}}" class="crc-subtitle">{{item.subtitle}}</view>
+          <view class="crc-tags">
+            <text class="crc-tag tag-system">{{item.systemName}}</text>
+            <text class="crc-tag tag-category">{{item.categoryName}}</text>
+          </view>
+        </view>
+        <view class="crc-actions">
+          <view class="crc-btn crc-btn-primary" hover-class="crc-btn-hover" bind:tap="onTapView3D" data-item="{{item}}">
+            查看3D
+          </view>
+          <view class="crc-btn crc-btn-secondary" hover-class="crc-btn-hover" bind:tap="onTapDetail" data-item="{{item}}">
+            详情
+          </view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <!-- 空结果 -->
+  <block wx:else>
+    <view class="crc-empty">
+      <view class="crc-empty-icon">🔍</view>
+      <view class="crc-empty-title">没有找到匹配的晶体</view>
+      <view class="crc-empty-sub">换个关键词试试，或浏览全部晶体</view>
+    </view>
+  </block>
+
+  <!-- 查看全部 -->
+  <view class="crc-more" hover-class="crc-more-hover" bind:tap="onTapMore">
+    <view class="crc-more-text">{{items.length === 0 ? '浏览全部晶体' : '查看全部晶体 →'}}</view>
+  </view>
+</view>

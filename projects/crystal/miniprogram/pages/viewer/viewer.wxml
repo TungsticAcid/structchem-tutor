@@ -1,0 +1,105 @@
+<!-- 3D查看器页面 -->
+<view class="viewer-page">
+  <!-- 3D画布 -->
+  <viewer-canvas
+    id="viewerCanvas"
+    class="viewer-canvas"
+    crystalId="{{crystalId}}"
+    showAtoms="{{showAtoms}}"
+    showWireframe="{{showWireframe}}"
+    showInterstices="{{showInterstices}}"
+    showOctahedral="{{showOctahedral}}"
+    showTetrahedral="{{showTetrahedral}}"
+    showSymmetry="{{showSymmetry}}"
+    showBonds="{{showBonds}}"
+    showAxes="{{showAxes}}"
+    showAuxiliaryBody="{{showAuxiliaryBody}}"
+    showAuxiliaryFace="{{showAuxiliaryFace}}"
+    auxiliaryLineAboveAtoms="{{auxiliaryLineAboveAtoms}}"
+    atomScale="{{atomScale}}"
+    modelType="{{modelType}}"
+    stickRadius="{{stickRadius}}"
+    cellDisplayMode="{{cellDisplayMode}}"
+    opacity="{{opacity}}"
+    depthFog="{{depthFog}}"
+    fractionalShift="{{fractionalShift}}"
+    partialAtoms="{{partialAtoms}}"
+    projection="orthographic"
+    lightConfig="{{lightConfig}}"
+    atomVisibility="{{atomVisibility}}"
+    showAtomLabels="{{showAtomLabels}}"
+    showHydrogenBonds="{{showHydrogenBonds}}"
+    showLatticePoints="{{showLatticePoints}}"
+    bind:atomTap="onAtomTap"
+    bind:voidTap="onVoidTap"
+    bind:latticePointTap="onLatticePointTap"
+    bind:loaded="onCrystalLoaded"
+  />
+
+  <!-- 顶部标题栏 -->
+  <view class="top-bar">
+    <view class="back-btn" bindtap="onBack">
+      <text class="back-icon">←</text>
+    </view>
+    <text class="crystal-title">{{crystalData.name || '晶体结构'}}</text>
+  </view>
+
+  <!-- 对比按钮（独立悬浮，避开右上角胶囊关闭按钮） -->
+  <view class="compare-fab" bindtap="onCompare">
+    <text class="compare-fab-text">对比</text>
+  </view>
+
+  <!-- 底部控制面板 -->
+  <view class="bottom-panel">
+    <layer-control
+      showAtoms="{{showAtoms}}"
+      showWireframe="{{showWireframe}}"
+      showInterstices="{{showInterstices}}"
+      showOctahedral="{{showOctahedral}}"
+      showTetrahedral="{{showTetrahedral}}"
+      showSymmetry="{{showSymmetry}}"
+      showBonds="{{showBonds}}"
+      showAxes="{{showAxes}}"
+      showAuxiliaryBody="{{showAuxiliaryBody}}"
+      showAuxiliaryFace="{{showAuxiliaryFace}}"
+      auxiliaryLineAboveAtoms="{{auxiliaryLineAboveAtoms}}"
+      atomScale="{{atomScale}}"
+      opacity="{{opacity}}"
+      modelType="{{modelType}}"
+      stickRadius="{{stickRadius}}"
+      cellDisplayMode="{{cellDisplayMode}}"
+      depthFog="{{depthFog}}"
+      fractionalShift="{{fractionalShift}}"
+      partialAtoms="{{partialAtoms}}"
+      lightConfig="{{lightConfig}}"
+      crystalMeta="{{crystalMeta}}"
+      crystalData="{{crystalData}}"
+      showIntersticeControl="{{showIntersticeControl}}"
+      atomVisibility="{{atomVisibility}}"
+      showAtomLabels="{{showAtomLabels}}"
+      isMolecularCrystal="{{isMolecularCrystal}}"
+      showHydrogenBonds="{{showHydrogenBonds}}"
+      hasHydrogenBonds="{{hasHydrogenBonds}}"
+      isOrthogonalCell="{{isOrthogonalCell}}"
+      showLatticePoints="{{showLatticePoints}}"
+      bind:layerchange="onLayerChange"
+      bind:atomlabelstoggle="onAtomLabelsToggle"
+      bind:atomvisibilitychange="onAtomVisibilityChange"
+      bind:viewchange="onViewChange"
+      bind:modeltypechange="onModelTypeChange"
+      bind:celldisplaymodechange="onCellDisplayModeChange"
+      equivalentSettings="{{equivalentSettings}}"
+      equivalentIndex="{{equivalentIndex}}"
+      bind:partialatomschange="onPartialAtomsChange"
+      bind:equivalentsettingchange="onEquivalentSettingChange"
+      bind:auxiliaryabovetoggle="onAuxiliaryAboveChange"
+    />
+  </view>
+
+  <!-- 原子信息弹窗 -->
+  <atom-info-popup
+    visible="{{popupVisible}}"
+    atomData="{{popupData}}"
+    bind:close="onPopupClose"
+  />
+</view>

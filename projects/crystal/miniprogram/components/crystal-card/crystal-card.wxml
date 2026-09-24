@@ -1,0 +1,15 @@
+<!-- 晶体卡片组件 -->
+<view class="crystal-card" bindtap="onTap">
+  <view class="card-thumb">
+    <canvas class="thumb-canvas" type="2d" id="thumbCanvas-{{crystal.id}}" wx:if="{{!drawFailed}}" />
+    <view class="thumb-placeholder" wx:else>
+      <text class="thumb-icon">{{systemIcons[crystal.crystalSystem] || '◆'}}</text>
+    </view>
+  </view>
+  <view class="card-body">
+    <text class="card-name">{{crystal.name}}</text>
+    <text class="card-formula" wx:if="{{crystal.subtitle}}">{{crystal.subtitle}}</text>
+    <text class="card-formula" wx:else>{{crystal.formula}}</text>
+  </view>
+  <view class="card-tag">{{crystal.systemName || systemNames[crystal.crystalSystem] || crystal.crystalSystem}}</view>
+</view>

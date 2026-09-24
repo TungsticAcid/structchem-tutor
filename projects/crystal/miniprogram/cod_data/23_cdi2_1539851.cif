@@ -1,0 +1,77 @@
+#------------------------------------------------------------------------------
+#$Date: 2025-10-31 18:24:25 +0200 (Fri, 31 Oct 2025) $
+#$Revision: 303120 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/1/53/98/1539851.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/
+#
+# All data on this site have been placed in the public domain by the
+# contributors.
+#
+data_1539851
+loop_
+_publ_author_name
+'de Haan, Y.M.'
+_publ_section_title
+;
+ Structure refinements, thermal motion and Madelung constants of cadmium
+ iodide- and cadmium hydroxide-type layer structures
+;
+_journal_name_full
+'National Bureau of Standards (U.S.), Special Publication'
+_journal_page_first              233
+_journal_page_last               236
+_journal_volume                  1969
+_journal_year                    1969
+_chemical_formula_sum            'Cd I2'
+_space_group_IT_number           164
+_symmetry_space_group_name_Hall  '-P 3 2"'
+_symmetry_space_group_name_H-M   'P -3 m 1'
+_cell_angle_alpha                90
+_cell_angle_beta                 90
+_cell_angle_gamma                120
+_cell_formula_units_Z            1
+_cell_length_a                   4.244
+_cell_length_b                   4.244
+_cell_length_c                   6.859
+_cell_volume                     106.990
+_citation_journal_id_ASTM        XNBSAV
+_cod_data_source_file            deHaan_XNBSAV_1969_593.cif
+_cod_data_source_block           Cd1I2
+_cod_original_cell_volume        106.9898
+_cod_original_formula_sum        'Cd1 I2'
+_cod_database_code               1539851
+loop_
+_symmetry_equiv_pos_as_xyz
+x,y,z
+-y,x-y,z
+-x+y,-x,z
+y,x,-z
+-x,-x+y,-z
+x-y,-y,-z
+-x,-y,-z
+y,-x+y,-z
+x-y,x,-z
+-y,-x,z
+x,x-y,z
+-x+y,y,z
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_U_iso_or_equiv
+Cd1 Cd+2 0 0 0 1 0.0
+I1 I-1 0.3333 0.6667 0.2492 1 0.0
+loop_
+_cod_related_entry_id
+_cod_related_entry_database
+_cod_related_entry_code
+1 ROD 3500044
+2 ROD 3500116
+3 ROD 3500166
+4 ROD 3500230

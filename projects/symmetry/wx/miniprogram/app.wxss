@@ -1,0 +1,37 @@
+/**app.wxss — 全局暗色主题（对齐 H5 index.html 的面板配色）**/
+page {
+  /* CSS 变量（面板/metadata，供各页使用） */
+  --panel-bg: rgba(30, 34, 48, 0.96);
+  --panel-fg: #e8eaf0;
+  --accent: #7c9cf5;
+  --border: rgba(255, 255, 255, 0.12);
+  --muted: #9aa3b5;
+
+  background: #eceff4;
+  color: #1c2230;
+  font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 28rpx;
+}
+
+/* 暗色浮层面板公用的容器 */
+.panel {
+  background: var(--panel-bg);
+  color: var(--panel-fg);
+  border: 1rpx solid var(--border);
+  border-radius: 16rpx;
+}
+.panel .muted { color: var(--muted); }
+
+/* 通用按钮 */
+.ghost-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--panel-fg);
+  border: 1rpx solid var(--border);
+  border-radius: 8rpx;
+  padding: 8rpx 16rpx;
+  font-size: 26rpx;
+}
+
+/* 覆盖 button 默认样式 */
+button { background: none; }
+button::after { border: none; }

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm --prefix H5 ci",
+  "buildCommand": "npm --prefix H5 run build",
+  "outputDirectory": "H5/dist",
+  "headers": [
+    {
+      "source": "/assets/(.*\\.wasm)",
+      "headers": [
+        { "key": "Content-Type", "value": "application/wasm" },
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    }
+  ]
+}

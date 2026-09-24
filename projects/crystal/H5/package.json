@@ -1,0 +1,19 @@
+{
+  "name": "crystal-viewer-h5",
+  "version": "1.0.0",
+  "description": "晶体结构3D可视化 H5 版本",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vercel/analytics": "^2.0.1",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,8 @@
+{
+  "usingComponents": {
+    "viewer-canvas": "/components/viewer-canvas/viewer-canvas",
+    "layer-control": "/components/layer-control/layer-control",
+    "atom-info-popup": "/components/atom-info-popup/atom-info-popup"
+  },
+  "disableScroll": true
+}

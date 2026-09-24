@@ -1,0 +1,236 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #eceff4;
+}
+
+/* ===== 顶部工具条 ===== */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 12rpx 16rpx;
+  background: var(--panel-bg);
+  color: var(--panel-fg);
+  border-bottom: 1rpx solid var(--border);
+  flex-shrink: 0;
+  padding-top: calc(12rpx + env(safe-area-inset-top));
+}
+.brand { font-weight: 700; font-size: 28rpx; letter-spacing: 1rpx; white-space: nowrap; }
+.mol-picker {
+  flex: 1; min-width: 0;
+  font-size: 26rpx; color: var(--panel-fg);
+  background: rgba(255,255,255,0.08);
+  border: 1rpx solid var(--border); border-radius: 8rpx;
+  padding: 8rpx 14rpx;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gear { font-size: 34rpx; padding: 0 6rpx; }
+.tool-btn { font-size: 30rpx; padding: 0 6rpx; color: var(--muted); }
+.tool-btn.on { color: var(--accent); }
+
+/* 拖柄：拖拽调整侧栏宽度 */
+.sidebar-handle {
+  flex-shrink: 0;
+  width: 16rpx;
+  cursor: col-resize;
+  background: var(--panel-bg);
+  border-right: 1rpx solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.handle-grip {
+  width: 4rpx;
+  height: 64rpx;
+  border-radius: 4rpx;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ===== 右侧画布区 ===== */
+.canvas-area { flex: 1; min-width: 0; position: relative; }
+.viewer-canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+
+/* ===== 主区：左信息栏 + 拖柄 + 右画布 ===== */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;            /* 允许子元素内部滚动 */
+  overflow: hidden;
+}
+
+/* 左侧信息栏（宽度由内联 style 控制，可拖宽/收起；不覆盖画布） */
+.sidebar {
+  flex-shrink: 0;
+  height: 100%;
+  background: var(--panel-bg);
+  color: var(--panel-fg);
+  border-right: 1rpx solid var(--border);
+  box-sizing: border-box;
+  font-size: 24rpx;
+  overflow: hidden;
+}
+.sidebar-scroll {
+  height: 100%;
+  padding: 12rpx 14rpx calc(12rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+/* 显隐开关条（2×2 网格） */
+.toggle-strip { display: flex; flex-wrap: wrap; gap: 4rpx 8rpx; padding-bottom: 8rpx; border-bottom: 1rpx solid var(--border); margin-bottom: 8rpx; }
+.tg {
+  display: flex; align-items: center; gap: 2rpx;
+  font-size: 20rpx; min-width: 120rpx; white-space: nowrap;
+}
+.tg switch { transform: scale(0.62); }
+
+.sec-title { font-size: 20rpx; color: var(--muted); margin: 14rpx 0 6rpx; text-transform: uppercase; letter-spacing: 1rpx; }
+.pt-title { font-size: 30rpx; font-weight: 700; margin-top: 6rpx; }
+.pt-formula { font-size: 22rpx; color: var(--muted); margin-bottom: 6rpx; }
+.group-row { display: flex; align-items: baseline; gap: 6rpx; margin-bottom: 2rpx; }
+.group-symbol { font-size: 38rpx; font-weight: 800; color: var(--accent); }
+.group-name { font-size: 22rpx; color: #c2c9d8; }
+
+/* 对称元素树 */
+.elem-row { display: flex; align-items: center; gap: 6rpx; padding: 4rpx 2rpx; font-size: 22rpx; }
+.elem-label { flex: 1; min-width: 0; word-break: break-all; }
+.dot { width: 12rpx; height: 12rpx; border-radius: 50%; flex-shrink: 0; }
+.elem-head { display: flex; align-items: center; gap: 6rpx; padding: 6rpx 2rpx; font-size: 22rpx; }
+.gname { flex: 1; }
+.gcount { color: var(--muted); font-size: 20rpx; }
+.arrow { color: var(--muted); font-size: 20rpx; }
+.elem-body { padding-left: 18rpx; }
+.cb { transform: scale(0.66); }
+.play {
+  width: 32rpx; height: 32rpx; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(124,156,245,0.18); color: var(--accent);
+  border: 1rpx solid rgba(124,156,245,0.4); border-radius: 50%;
+  font-size: 18rpx;
+}
+
+/* 特征标表（可折叠） */
+.ct-header { display: flex; justify-content: space-between; align-items: center; margin-top: 12rpx; padding: 6rpx 2rpx; font-size: 22rpx; color: #c2c9d8; }
+.ct { margin-top: 4rpx; }
+.ct-row { display: flex; align-items: center; border-top: 1rpx solid var(--border); }
+.ct-th { color: var(--muted); font-size: 20rpx; }
+.ct-cell { flex: 1; min-width: 34rpx; text-align: center; font-size: 20rpx; padding: 4rpx 1rpx; word-break: break-all; }
+.ct-cell:first-child { flex: 1.6; }
+.ct-irrep { color: var(--accent); font-weight: 600; }
+.ct-basis { font-size: 18rpx; color: var(--muted); }
+
+/* 原子轨道 / 稳定化子 */
+.orbit-block { margin-top: 12rpx; padding: 8rpx; border: 1rpx solid var(--border); border-radius: 8rpx; }
+.orb-line { display: flex; gap: 6rpx; padding: 2rpx 0; font-size: 20rpx; }
+.orb-label { color: var(--muted); flex-shrink: 0; }
+.orb-val { flex: 1; word-break: break-all; }
+
+/* 分子库 */
+.lib-item { display: flex; align-items: center; gap: 8rpx; padding: 6rpx 2rpx; font-size: 22rpx; border-bottom: 1rpx solid rgba(255,255,255,0.05); }
+.lib-sym { width: 64rpx; flex-shrink: 0; text-align: center; color: var(--accent); font-weight: 600; font-size: 20rpx; }
+.lib-name { flex: 1; word-break: break-all; }
+
+/* 关于 */
+.about-card { font-size: 22rpx; color: var(--panel-fg); line-height: 1.6; }
+.about-card .muted { color: var(--muted); }
+
+/* ===== 右侧画布区 ===== */
+.canvas-area { flex: 1; min-width: 0; position: relative; background: #eceff4; }
+
+/* 动画进度条（画布内底部） */
+.anim-bar {
+  position: absolute;
+  left: 16rpx; right: 16rpx; bottom: 16rpx;
+  display: flex; align-items: center; gap: 8rpx;
+  padding: 8rpx 14rpx;
+  z-index: 30;
+}
+.anim-btn { font-size: 26rpx; padding: 0 2rpx; }
+.anim-slider { flex: 1; }
+
+/* ===== 底部五页签 ===== */
+.tabbar {
+  display: flex;
+  background: var(--panel-bg);
+  border-top: 1rpx solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
+  flex-shrink: 0;
+}
+.tab-item { flex: 1; text-align: center; padding: 16rpx 0 12rpx; font-size: 22rpx; color: var(--muted); }
+.tab-item.active { color: var(--accent); font-weight: 600; }
+
+/* ===== 设置浮层 ===== */
+.settings-mask {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 50;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.settings {
+  width: 100%; max-height: 82vh;
+  border-radius: 24rpx 24rpx 0 0;
+  padding: 16rpx 20rpx calc(20rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+.settings-head { display: flex; justify-content: space-between; align-items: center; font-weight: 600; padding-bottom: 12rpx; border-bottom: 1rpx solid var(--border); }
+.settings-body { max-height: calc(82vh - 80rpx); padding-top: 12rpx; }
+.s-row { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; margin-bottom: 14rpx; font-size: 26rpx; }
+.s-row > text { flex: 1; }
+.s-row slider { flex: 1.6; }
+.s-row switch { transform: scale(0.8); }
+.s-value { background: rgba(255,255,255,0.08); border: 1rpx solid var(--border); border-radius: 8rpx; padding: 6rpx 14rpx; font-size: 24rpx; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8rpx; }
+.swatch { width: 40rpx; height: 40rpx; border-radius: 8rpx; border: 2rpx solid rgba(255,255,255,0.15); }
+.swatch.on { border-color: var(--accent); box-shadow: 0 0 0 3rpx rgba(124,156,245,0.35); }
+.color-row { display: flex; align-items: center; gap: 10rpx; margin-bottom: 8rpx; }
+.color-label { width: 70rpx; font-size: 24rpx; }
+.danger { margin-top: 20rpx; background: rgba(239,83,80,0.15); color: #ef5350; border: 1rpx solid rgba(239,83,80,0.4); border-radius: 8rpx; font-size: 26rpx; }
+
+.muted { color: var(--muted); }
+
+/* 分子信息行（more 页签） */
+.info-line { display: flex; gap: 8rpx; padding: 6rpx 0; font-size: 22rpx; }
+.info-line .orb-label { width: 110rpx; flex-shrink: 0; color: var(--muted); }
+
+/* 颜色块（展示当前色 + 十六进制） */
+.color-chip { display: flex; align-items: center; gap: 8rpx; }
+.color-chip .chip { width: 36rpx; height: 36rpx; border-radius: 8rpx; border: 1rpx solid rgba(255,255,255,0.25); }
+.color-chip .chip-hex { font-size: 22rpx; color: var(--muted); }
+
+/* 颜色选择弹窗（覆盖画布） */
+.color-mask {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+}
+.color-pop {
+  width: 80vw;
+  padding: 20rpx 24rpx;
+  border-radius: 20rpx;
+  box-sizing: border-box;
+}
+.cp-preview { height: 80rpx; border-radius: 12rpx; border: 2rpx solid var(--border); margin: 16rpx 0; }
+.cp-input-row {
+  display: flex; align-items: center; gap: 6rpx;
+  background: rgba(255,255,255,0.08);
+  border: 1rpx solid var(--border); border-radius: 8rpx;
+  padding: 6rpx 14rpx; margin-bottom: 16rpx;
+}
+.cp-hash { color: var(--muted); font-size: 26rpx; }
+.cp-input { flex: 1; color: var(--panel-fg); font-size: 26rpx; }
+.cp-grid { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.cp-swatch { width: 64rpx; height: 64rpx; border-radius: 12rpx; border: 2rpx solid rgba(255,255,255,0.15); }
+.cp-swatch.on { border-color: var(--accent); box-shadow: 0 0 0 4rpx rgba(124,156,245,0.35); }
+.cp-done {
+  margin-top: 20rpx; width: 100%;
+  background: var(--accent); color: #fff;
+  border-radius: 10rpx; font-size: 28rpx;
+}
+
+/* 适配更小屏幕：信息栏稍窄 */
+@media (max-width: 360px) {
+  .sidebar { min-width: 0; }
+}

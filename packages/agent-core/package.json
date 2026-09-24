@@ -1,0 +1,10 @@
+{
+  "name": "@chem-agent/agent-core",
+  "version": "0.1.0",
+  "description": "共享智能体核心：决策节点约束、模块注册、对话循环",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "selftest": "node tools/selftest.mjs"
+  }
+}

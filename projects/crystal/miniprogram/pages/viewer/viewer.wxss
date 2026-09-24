@@ -1,0 +1,82 @@
+/** 3D查看器页面样式 */
+.viewer-page {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  overflow: hidden;
+  background: #eeeeee;
+}
+
+/* 3D画布占满全屏 */
+.viewer-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* 顶部标题栏（悬浮） */
+.top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  padding: 60rpx 24rpx 20rpx;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.5), rgba(0,0,0,0));
+  z-index: 10;
+}
+
+.back-btn {
+  width: 60rpx;
+  height: 60rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  margin-right: 20rpx;
+}
+.back-icon {
+  color: #fff;
+  font-size: 36rpx;
+}
+
+.crystal-title {
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 500;
+  flex: 1;
+}
+
+/* 对比按钮（独立悬浮于右侧，避开右上角胶囊关闭按钮） */
+.compare-fab {
+  position: absolute;
+  top: 160rpx;
+  right: 24rpx;
+  z-index: 10;
+  padding: 12rpx 28rpx;
+  border-radius: 28rpx;
+  background: rgba(66, 133, 244, 0.35);
+  border: 1rpx solid rgba(66, 133, 244, 0.5);
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.3);
+}
+.compare-fab:active {
+  background: rgba(66, 133, 244, 0.55);
+}
+.compare-fab-text {
+  color: #fff;
+  font-size: 26rpx;
+  font-weight: 500;
+}
+
+/* 底部控制面板（悬浮） */
+.bottom-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}

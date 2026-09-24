@@ -1,0 +1,6 @@
+{
+  "usingComponents": {
+    "viewer-canvas": "/components/viewer-canvas/viewer-canvas"
+  },
+  "navigationBarTitleText": "对称视界"
+}

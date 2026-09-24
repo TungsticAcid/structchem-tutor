@@ -1,0 +1,83 @@
+.landing {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #eceff4;
+  padding: 48rpx 48rpx;
+  box-sizing: border-box;
+}
+.landing-center {
+  width: 100%;
+  max-width: 560rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.logo {
+  width: 200rpx;
+  height: 200rpx;
+  border-radius: 32rpx;
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.15);
+}
+.name {
+  margin-top: 32rpx;
+  font-size: 46rpx;
+  font-weight: 700;
+  color: #1c2230;
+}
+.sub {
+  margin-top: 8rpx;
+  font-size: 30rpx;
+  color: #55607a;
+}
+.divider {
+  margin-top: 36rpx;
+  width: 100%;
+  height: 1rpx;
+  background: #d3d8e2;
+}
+.feature {
+  margin-top: 28rpx;
+  display: flex;
+  align-items: center;
+  align-self: flex-start;
+  font-size: 30rpx;
+  color: #333c52;
+}
+.feature .check {
+  color: #3f8cff;
+  font-weight: 700;
+  margin-right: 16rpx;
+}
+.lang-row {
+  margin-top: 44rpx;
+  display: flex;
+  gap: 24rpx;
+  align-self: stretch;
+}
+.lang-btn {
+  flex: 1;
+  padding: 20rpx 0;
+  text-align: center;
+  font-size: 30rpx;
+  border: 2rpx solid #c8cfdb;
+  border-radius: 12rpx;
+  color: #333c52;
+  background: #ffffff;
+}
+.lang-btn.active {
+  border-color: #3f8cff;
+  color: #3f8cff;
+  background: #eef4ff;
+}
+.enter-btn {
+  margin-top: 52rpx;
+  align-self: stretch;
+  padding: 22rpx 0;
+  background: #3f8cff;
+  color: #ffffff;
+  font-size: 32rpx;
+  border-radius: 14rpx;
+}

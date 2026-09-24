@@ -1,0 +1,137 @@
+<!-- 图层控制面板 -->
+<view class="layer-control {{expanded ? 'expanded' : 'collapsed'}}">
+  <!-- 折叠/展开按钮 -->
+  <view class="panel-toggle" bindtap="togglePanel">
+    <text class="toggle-arrow">{{expanded ? '▼' : '▲'}}</text>
+    <text class="toggle-label">控制面板</text>
+  </view>
+
+  <view class="panel-body" wx:if="{{expanded}}">
+    <!-- 晶体信息 -->
+    <view class="control-section" wx:if="{{crystalMeta}}">
+      <text class="section-title">晶体信息</text>
+      <view class="crystal-info">
+        <text class="info-line" wx:if="{{crystalMeta.formula}}">化学式：{{crystalMeta.formula}}</text>
+        <text class="info-line" wx:if="{{crystalMeta.crystalSystem}}">晶系：{{crystalMeta.crystalSystem}}</text>
+        <text class="info-line" wx:if="{{crystalMeta.spaceGroup}}">空间群：{{crystalMeta.spaceGroup}}</text>
+        <text class="info-line" wx:if="{{crystalMeta.latticeType}}">点阵型式：{{crystalMeta.latticeType}}</text>
+        <text class="info-line" wx:if="{{crystalMeta.structuralUnit}}">结构基元：{{crystalMeta.structuralUnit}}</text>
+        <text class="info-line" wx:if="{{crystalMeta.coordination}}">配位数：{{crystalMeta.coordination}}</text>
+        <text class="info-line" wx:if="{{crystalMeta.spaceUtilization}}">空间利用率：{{crystalMeta.spaceUtilization}}</text>
+        <text class="info-line" wx:if="{{crystalMeta.packingDescription}}">堆积方式：{{crystalMeta.packingDescription}}</text>
+        <text class="info-line" wx:if="{{crystalMeta.latticeConstText}}">晶胞参数：{{crystalMeta.latticeConstText}}</text>
+      </view>
+    </view>
+
+    <!-- 模型类型选择 -->
+    <view class="control-section">
+      <text class="section-title">显示模型</text>
+      <view class="model-selector">
+        <view class="model-option {{modelType === 'cpk' ? 'active' : ''}}" data-type="cpk" bindtap="onModelTypeTap">CPK</view>
+        <view class="model-option {{modelType === 'ballStick' ? 'active' : ''}}" data-type="ballStick" bindtap="onModelTypeTap">球棍</view>
+      </view>
+    </view>
+
+    <!-- 晶胞类型模式：暂时隐藏，统一使用惯用平行六面体晶胞 -->
+    <view class="control-section" wx:if="{{false}}">
+      <text class="section-title">晶胞类型</text>
+      <view class="model-selector">
+        <view class="model-option {{cellDisplayMode === 'conventional' ? 'active' : ''}}" data-mode="conventional" bindtap="onCellModeTap">惯用晶胞</view>
+        <view class="model-option {{cellDisplayMode === 'primitive' ? 'active' : ''}}" data-mode="primitive" bindtap="onCellModeTap">素晶胞</view>
+      </view>
+    </view>
+
+    <!-- 图层开关 -->
+    <view class="control-section">
+      <text class="section-title">图层显示</text>
+      <view class="toggle-row">
+        <text class="toggle-label">原子</text>
+        <switch checked="{{showAtoms}}" data-layer="atoms" bindchange="onToggle" color="#4285F4" />
+      </view>
+      <!-- 各元素独立显隐开关（可折叠） -->
+      <view class="toggle-row element-section-header" bindtap="onToggleElements">
+        <view class="element-section-left">
+          <text class="toggle-label">分元素控制</text>
+          <text class="element-count-text">（{{crystalData.atoms.length}}种）</text>
+        </view>
+        <text class="element-expand-arrow">{{elementsExpanded ? '▼' : '▶'}}</text>
+      </view>
+      <view wx:if="{{elementsExpanded}}">
+        <view class="toggle-row element-toggle-row" wx:for="{{crystalData.atoms}}" wx:key="element" wx:for-item="atomGroup">
+          <view class="element-color-dot" style="background-color: {{atomGroup.color}}"></view>
+          <text class="toggle-label element-label">{{atomGroup.element}}</text>
+          <switch checked="{{atomVisibility[atomGroup.element]}}" data-element="{{atomGroup.element}}" bindchange="onAtomVisibilityToggle" color="#4285F4" />
+        </view>
+      </view>
+      <view class="toggle-row">
+        <text class="toggle-label">原子标签</text>
+        <switch checked="{{showAtomLabels}}" bindchange="onAtomLabelsToggle" color="#4285F4" />
+      </view>
+      <view class="toggle-row">
+        <text class="toggle-label">点阵型式</text>
+        <switch checked="{{showLatticePoints}}" bindchange="onLatticePointsToggle" color="#FF6D00" />
+      </view>
+<view wx:if="{{showIntersticeControl}}">
+        <view class="toggle-row">
+          <text class="toggle-label">八面体空隙</text>
+          <switch checked="{{showOctahedral}}" data-layer="octahedral" bindchange="onToggle" color="#FFB74D" />
+        </view>
+        <view class="toggle-row">
+          <text class="toggle-label">四面体空隙</text>
+          <switch checked="{{showTetrahedral}}" data-layer="tetrahedral" bindchange="onToggle" color="#4FC3F7" />
+        </view>
+      </view>
+      <!-- 对称元素：暂不支持 -->
+      <view class="toggle-row" wx:if="{{false}}">
+        <text class="toggle-label">对称元素</text>
+        <switch checked="{{showSymmetry}}" data-layer="symmetry" bindchange="onToggle" color="#4285F4" />
+      </view>
+      <view class="toggle-row" wx:if="{{!isMolecularCrystal}}">
+        <text class="toggle-label">化学键</text>
+        <switch checked="{{showBonds}}" data-layer="bonds" bindchange="onToggle" color="#4285F4" />
+      </view>
+      <view class="toggle-row" wx:if="{{hasHydrogenBonds}}">
+        <text class="toggle-label" style="padding-left:24rpx; font-size:24rpx;">氢键</text>
+        <switch checked="{{showHydrogenBonds}}" data-layer="hydrogenBonds" bindchange="onToggle" color="#64B5F6" />
+      </view>
+      <view class="toggle-row">
+        <text class="toggle-label">坐标轴</text>
+        <switch checked="{{showAxes}}" data-layer="axes" bindchange="onToggle" color="#4285F4" />
+      </view>
+      <view class="toggle-row">
+        <text class="toggle-label">体对角线</text>
+        <switch checked="{{showAuxiliaryBody}}" data-layer="auxiliaryBody" bindchange="onToggle" color="#FFD54F" />
+      </view>
+      <view class="toggle-row">
+        <text class="toggle-label">面对角线</text>
+        <switch checked="{{showAuxiliaryFace}}" data-layer="auxiliaryFace" bindchange="onToggle" color="#90CAF9" />
+      </view>
+      <view class="toggle-row" wx:if="{{showAuxiliaryBody || showAuxiliaryFace}}">
+        <text class="toggle-label" style="font-size:22rpx; padding-left:24rpx;">显示在原子上方</text>
+        <switch checked="{{auxiliaryLineAboveAtoms}}" bindchange="onAuxiliaryAboveToggle" color="#FFD54F" />
+      </view>
+    </view>
+
+    <!-- 变换晶胞原点 -->
+    <view class="control-section" wx:if="{{equivalentSettings.length > 0}}">
+      <text class="section-title">变换晶胞原点</text>
+      <view class="model-selector">
+        <view
+          class="model-option {{equivalentIndex === idx ? 'active' : ''}}"
+          wx:for="{{equivalentSettings}}" wx:key="label" wx:for-index="idx"
+          data-index="{{idx}}"
+          bindtap="onEquivalentTap"
+        >{{item.label}}</view>
+      </view>
+    </view>
+
+    <!-- 部分原子显示（仅正交晶胞支持） -->
+    <view class="control-section" wx:if="{{isOrthogonalCell && !isMolecularCrystal}}">
+      <view class="toggle-row">
+        <text class="toggle-label">晶胞裁剪</text>
+        <switch checked="{{partialAtoms}}" bindchange="onPartialAtomsToggle" color="#4285F4" />
+      </view>
+    </view>
+
+  </view>
+</view>

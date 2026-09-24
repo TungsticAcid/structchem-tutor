@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cp \"d:/xjl/AppData/WeChatDevtools/crystal 20260609/BZ.png\" \"d:/xjl/AppData/H5/crystal/public/BZ.png\" 2>/dev/null; echo \"done\")",
+      "Bash(npm install *)",
+      "Bash(npx vite *)",
+      "Bash(curl -s http://localhost:3000)",
+      "WebFetch(domain:vercel.com)",
+      "WebFetch(domain:examples.vercel.com)",
+      "WebFetch(domain:community.vercel.com)",
+      "WebFetch(domain:aming.ourdisc.net)"
+    ],
+    "additionalDirectories": [
+      "d:\\xjl\\AppData\\WeChatDevtools\\crystal 20260609"
+    ]
+  }
+}

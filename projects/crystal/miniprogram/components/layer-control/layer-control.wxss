@@ -1,0 +1,299 @@
+/** 图层控制面板样式 */
+.layer-control {
+  background: rgba(30, 30, 50, 0.95);
+  border-top: 1rpx solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.panel-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16rpx;
+  gap: 8rpx;
+}
+.toggle-arrow {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 20rpx;
+}
+.toggle-label {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 24rpx;
+}
+
+.panel-body {
+  padding: 0 24rpx 32rpx;
+  max-height: 500rpx;
+  overflow-y: auto;
+}
+
+.control-section {
+  margin-bottom: 24rpx;
+}
+.section-title {
+  display: block;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 22rpx;
+  margin-bottom: 12rpx;
+}
+
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8rpx 0;
+}
+.toggle-label {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 26rpx;
+}
+
+/* 分元素控制折叠标题 */
+.element-section-header {
+  padding: 10rpx 0;
+  border-top: 1rpx solid rgba(255,255,255,0.06);
+  margin-top: 4rpx;
+}
+.element-section-left {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+.element-count-text {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 22rpx;
+}
+.element-expand-arrow {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 20rpx;
+}
+
+/* 各元素独立显隐开关行 */
+.element-toggle-row {
+  padding-left: 24rpx;
+  padding-top: 4rpx;
+  padding-bottom: 4rpx;
+}
+.element-toggle-row .toggle-label {
+  flex: 1;
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.75);
+}
+.element-color-dot {
+  width: 20rpx;
+  height: 20rpx;
+  border-radius: 50%;
+  margin-right: 12rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
+}
+
+/* 晶体信息 */
+.crystal-info {
+  padding: 8rpx 0;
+}
+.info-line {
+  display: block;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 24rpx;
+  line-height: 1.8;
+}
+
+/* 模型选择器 */
+.model-selector {
+  display: flex;
+  gap: 8rpx;
+}
+.model-option {
+  flex: 1;
+  text-align: center;
+  padding: 14rpx 0;
+  border-radius: 12rpx;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 24rpx;
+  transition: all 0.2s;
+}
+.model-option.active {
+  background: rgba(66, 133, 244, 0.2);
+  color: #4285F4;
+  font-weight: 500;
+}
+
+/* 视角按钮 */
+.view-buttons {
+  display: flex;
+  gap: 12rpx;
+}
+.view-btn {
+  flex: 1;
+  text-align: center;
+  padding: 12rpx 0;
+  border-radius: 12rpx;
+  background: rgba(66, 133, 244, 0.15);
+  color: #4285F4;
+  font-size: 24rpx;
+}
+.view-btn:active {
+  background: rgba(66, 133, 244, 0.3);
+}
+
+/* 原子平移输入 */
+.shift-inputs {
+  display: flex;
+  gap: 16rpx;
+}
+.shift-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+.shift-label {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 22rpx;
+  min-width: 28rpx;
+}
+.shift-input {
+  flex: 1;
+  height: 56rpx;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8rpx;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 24rpx;
+  padding: 0 12rpx;
+  text-align: center;
+}
+
+/* 原子平移确认按钮 */
+.shift-confirm-btn {
+  margin-top: 16rpx;
+  text-align: center;
+  padding: 14rpx;
+  border-radius: 12rpx;
+  background: rgba(66, 133, 244, 0.2);
+  color: #4285F4;
+  font-size: 24rpx;
+  font-weight: 500;
+}
+.shift-confirm-btn:active {
+  background: rgba(66, 133, 244, 0.35);
+}
+
+/* 重置按钮 */
+.reset-btn {
+  text-align: center;
+  padding: 16rpx;
+  border-radius: 12rpx;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 26rpx;
+}
+.reset-btn:active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* 灯光设置 */
+.light-section-header {
+  cursor: pointer;
+}
+.light-item {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10rpx;
+  padding: 12rpx;
+  margin-bottom: 12rpx;
+}
+.light-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+.light-type-label {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 22rpx;
+}
+.light-delete-btn {
+  padding: 4rpx 16rpx;
+  background: rgba(234, 67, 53, 0.15);
+  border-radius: 8rpx;
+}
+.light-field-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6rpx;
+}
+.light-field-label {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 20rpx;
+  width: 90rpx;
+  flex-shrink: 0;
+}
+.light-field-input {
+  flex: 1;
+  height: 48rpx;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6rpx;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 22rpx;
+  padding: 0 10rpx;
+}
+.light-pos-row {
+  display: flex;
+  gap: 8rpx;
+  margin-bottom: 6rpx;
+}
+.light-pos-input {
+  flex: 1;
+  height: 48rpx;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6rpx;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 22rpx;
+  padding: 0 6rpx;
+  text-align: center;
+}
+.light-add-btn {
+  text-align: center;
+  padding: 14rpx;
+  border-radius: 10rpx;
+  background: rgba(255, 255, 255, 0.06);
+  border: 2rpx dashed rgba(255, 255, 255, 0.15);
+}
+.light-add-btn text {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 24rpx;
+}
+
+/* 坐标轴模式选择 */
+.axes-mode-row {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 8rpx;
+  margin-bottom: 8rpx;
+  padding-left: 48rpx;
+}
+.axes-mode-option {
+  flex: 1;
+  text-align: center;
+  padding: 10rpx 0;
+  border-radius: 8rpx;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1rpx solid rgba(255, 255, 255, 0.1);
+}
+.axes-mode-option.active {
+  background: rgba(66, 133, 244, 0.25);
+  border-color: rgba(66, 133, 244, 0.5);
+}
+.axes-mode-text {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 22rpx;
+}
+.axes-mode-option.active .axes-mode-text {
+  color: #fff;
+}
+
+/* 晶胞参数变量斜体 */
+.italic-var {
+  font-style: italic;
+}

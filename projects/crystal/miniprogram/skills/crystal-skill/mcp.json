@@ -1,0 +1,259 @@
+{
+  "apis": [
+    {
+      "name": "searchCrystals",
+      "description": "按关键词搜索晶体结构。支持晶体名称、化学式、结构类型（如面心立方、岩盐型）、分类（金属/离子/共价/分子/混合）、晶系（立方/六方等）等关键词。\n调用前置条件：用户说出了具体的晶体名、化学式、结构类型、分类或晶系关键词。\n【严禁场景】用户仅表达模糊意图（如「推荐」「有什么」）时，禁止调用本接口，应调用 getRecommendedCrystals。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "description": "搜索关键词。取自用户原话中的晶体名、化学式、结构类型、分类或晶系关键词。【禁止编造】用户未说出任何关键词时，应改走 getRecommendedCrystals。"
+          }
+        },
+        "required": ["keyword"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "description": "匹配的晶体列表",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "description": "晶体唯一标识" },
+                "name": { "type": "string", "description": "晶体名称（中文）" },
+                "formula": { "type": "string", "description": "化学式" },
+                "crystalSystem": { "type": "string", "description": "晶系英文枚举值：cubic/hexagonal/tetragonal/orthorhombic/monoclinic/triclinic/trigonal" },
+                "category": { "type": "string", "description": "分类：metal/ionic/covalent/molecular/mixed" },
+                "subtitle": { "type": "string", "description": "结构类型描述" },
+                "systemName": { "type": "string", "description": "晶系中文名称" },
+                "categoryName": { "type": "string", "description": "分类中文名称" }
+              }
+            }
+          },
+          "total": { "type": "number", "description": "匹配总数" },
+          "keyword": { "type": "string", "description": "用户搜索关键词" }
+        }
+      },
+      "_meta": { "ui": { "componentPath": "components/crystal-result-card/index" } }
+    },
+    {
+      "name": "getRecommendedCrystals",
+      "description": "获取精选推荐晶体列表。\n调用前置条件：用户表达模糊浏览意图（如「推荐几个」「有什么晶体」「看看」），未指定具体名称或分类。\n【严禁场景】用户已说出具体晶体名或分类关键词时，应调用 searchCrystals。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "scenario": {
+            "type": "string",
+            "description": "推荐场景。仅允许以下取值：'default'（默认推荐）/ 'metal'（金属晶体）/ 'ionic'（离子晶体）/ 'covalent'（共价晶体）/ 'molecular'（分子晶体）/ 'mixed'（混合键型）。用户未明确表达偏好时，使用 'default'。",
+            "enum": ["default", "metal", "ionic", "covalent", "molecular", "mixed"]
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "description": "推荐晶体列表",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string", "description": "晶体唯一标识" },
+                "name": { "type": "string", "description": "晶体名称（中文）" },
+                "formula": { "type": "string", "description": "化学式" },
+                "crystalSystem": { "type": "string", "description": "晶系英文枚举值" },
+                "category": { "type": "string", "description": "分类" },
+                "subtitle": { "type": "string", "description": "结构类型描述" },
+                "systemName": { "type": "string", "description": "晶系中文名" },
+                "categoryName": { "type": "string", "description": "分类中文名" },
+                "recommendationReason": { "type": "string", "description": "推荐理由（教学视角）" }
+              }
+            }
+          },
+          "total": { "type": "number", "description": "场景下晶体总数" },
+          "scenario": { "type": "string", "description": "当前场景" }
+        }
+      },
+      "_meta": { "ui": { "componentPath": "components/crystal-category-card/index" } }
+    },
+    {
+      "name": "getCrystalDetail",
+      "description": "获取指定晶体的详细属性信息（晶格参数、空间群、原子信息、配位数、空隙类型等）。\n调用前置条件：已从 searchCrystals / getRecommendedCrystals 返回的 items 中获取到具体 crystalId。\n【严禁场景】禁止在未获得有效 crystalId 的情况下调用本接口，禁止从用户自然语言推断 crystalId。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "crystalId": {
+            "type": "string",
+            "description": "晶体唯一标识，必须来自上游接口 searchCrystals / getRecommendedCrystals 返回的 items[].id 字段原值。【禁止编造】禁止从用户自然语言推断或截取，上下文中无可用 crystalId 时应先调用 searchCrystals 或 getRecommendedCrystals。"
+          }
+        },
+        "required": ["crystalId"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "晶体ID" },
+          "name": { "type": "string", "description": "晶体名称" },
+          "formula": { "type": "string", "description": "化学式" },
+          "crystalSystem": { "type": "string", "description": "晶系英文枚举值" },
+          "crystalSystemCN": { "type": "string", "description": "晶系中文名" },
+          "category": { "type": "string", "description": "分类key" },
+          "categoryName": { "type": "string", "description": "分类中文名" },
+          "subtitle": { "type": "string", "description": "结构类型描述" },
+          "spaceGroup": { "type": "string", "description": "空间群符号" },
+          "latticeType": { "type": "string", "description": "点阵型式" },
+          "structuralUnit": { "type": "string", "description": "结构基元" },
+          "coordination": { "type": "string", "description": "配位数信息" },
+          "spaceUtilization": { "type": "string", "description": "空间利用率" },
+          "packingDescription": { "type": "string", "description": "堆积方式描述" },
+          "lattice": {
+            "type": "object",
+            "description": "晶格参数",
+            "properties": {
+              "a": { "type": "number" },
+              "b": { "type": "number" },
+              "c": { "type": "number" },
+              "alpha": { "type": "number" },
+              "beta": { "type": "number" },
+              "gamma": { "type": "number" }
+            }
+          },
+          "atomSummary": {
+            "type": "array",
+            "description": "原子种类及数量",
+            "items": {
+              "type": "object",
+              "properties": {
+                "element": { "type": "string", "description": "元素符号" },
+                "count": { "type": "number", "description": "晶胞中数量" },
+                "radius": { "type": "number", "description": "原子半径(Å)" }
+              }
+            }
+          },
+          "intersticeTypes": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "空隙类型列表（octahedral/tetrahedral）"
+          },
+          "hasSymmetry": { "type": "boolean", "description": "是否有对称元素数据" },
+          "hasBonds": { "type": "boolean", "description": "是否有化学键数据" },
+          "hasHydrogenBonds": { "type": "boolean", "description": "是否有氢键数据" }
+        }
+      },
+      "_meta": { "ui": { "componentPath": "components/crystal-detail-card/index" } }
+    },
+    {
+      "name": "openCrystalViewer",
+      "description": "导航到3D查看器页面，以三维方式展示晶体结构。用户可在查看器中旋转、缩放、切换模型和图层。\n调用前置条件：已从 searchCrystals / getRecommendedCrystals / getCrystalDetail 获得有效的 crystalId，且用户已确认要查看3D结构。\n【严禁场景】禁止在无 crystalId 时调用；禁止从用户语言推断 crystalId。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "crystalId": {
+            "type": "string",
+            "description": "晶体唯一标识，必须来自上游接口返回的 items[].id 字段原值。【禁止编造】禁止从用户自然语言推断。"
+          }
+        },
+        "required": ["crystalId"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "crystalId": { "type": "string" },
+          "name": { "type": "string", "description": "晶体名称" },
+          "navigated": { "type": "boolean", "description": "是否已触发导航" }
+        }
+      }
+    },
+    {
+      "name": "compareCrystals",
+      "description": "对比两个晶体的结构特征，展示差异信息。\n调用前置条件：已从 searchCrystals / getRecommendedCrystals 获得两个有效 crystalId，且用户表达了对比意图。\n【严禁场景】禁止在任一 crystalId 缺失时调用；禁止编造 crystalId。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "crystalIdA": {
+            "type": "string",
+            "description": "第一个晶体的ID，必须来自上游接口返回值。【禁止编造】"
+          },
+          "crystalIdB": {
+            "type": "string",
+            "description": "第二个晶体的ID，必须来自上游接口返回值。【禁止编造】"
+          }
+        },
+        "required": ["crystalIdA", "crystalIdB"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "crystalA": { "type": "object", "description": "晶体A的基本信息" },
+          "crystalB": { "type": "object", "description": "晶体B的基本信息" },
+          "comparison": {
+            "type": "object",
+            "description": "对比结果",
+            "properties": {
+              "sameCategory": { "type": "boolean", "description": "同分类" },
+              "sameCrystalSystem": { "type": "boolean", "description": "同晶系" },
+              "sameLatticeType": { "type": "boolean", "description": "同点阵型式" },
+              "differences": { "type": "array", "items": { "type": "string" }, "description": "主要差异点文本列表" }
+            }
+          }
+        }
+      },
+      "_meta": { "ui": { "componentPath": "components/crystal-detail-card/index" } }
+    },
+    {
+      "name": "getCrystalCategories",
+      "description": "获取全部分类信息，包括每类晶体数量和代表样品。\n调用前置条件：用户询问分类信息（如「有哪些分类」「金属晶体有哪些」）。\n【严禁场景】用户已说出具体晶体名时，应调用 searchCrystals 而非本接口。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": { "type": "string", "description": "分类key" },
+                "name": { "type": "string", "description": "分类中文名" },
+                "count": { "type": "number", "description": "该分类晶体数量" },
+                "samples": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "name": { "type": "string" },
+                      "formula": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "totalCategories": { "type": "number", "description": "分类总数" },
+          "totalCrystals": { "type": "number", "description": "晶体总数" }
+        }
+      },
+      "_meta": { "ui": { "componentPath": "components/crystal-category-card/index" } }
+    }
+  ],
+  "components": [
+    {
+      "path": "components/crystal-result-card/index",
+      "relatedPage": "/pages/index/index"
+    },
+    {
+      "path": "components/crystal-detail-card/index",
+      "relatedPage": "/pages/viewer/viewer"
+    },
+    {
+      "path": "components/crystal-category-card/index",
+      "relatedPage": "/pages/index/index"
+    }
+  ]
+}

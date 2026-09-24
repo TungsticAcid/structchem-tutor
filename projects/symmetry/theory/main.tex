@@ -1,0 +1,33 @@
+% 「对称视界」理论推导 —— 主文件
+% 只负责整合各子 tex 文件，具体推导见 sections/ 下的子文件
+% 点群识别（sections/point-group-flow.tex）以严谨数学态表述方法论，并标注方法边界与已知局限
+\documentclass[UTF8, zihao=-4]{ctexart}
+
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{geometry}
+\geometry{a4paper, margin=2.5cm}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue}
+
+\newtheorem{theorem}{定理}[section]
+\newtheorem{lemma}[theorem]{引理}
+\newtheorem{corollary}[theorem]{推论}
+\newtheorem{definition}[theorem]{定义}
+
+\title{「对称视界」理论推导}
+\author{}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% ==================== 子文件整合区 ====================
+% 新增理论主题时，在此追加 \input{sections/xxx}
+
+\input{sections/roll-derivation}
+\input{sections/point-group-flow}
+
+\end{document}

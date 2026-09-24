@@ -1,0 +1,274 @@
+% 分子点群识别理论推导子文件
+% 主题：以严谨数学态表述「由孤立分子几何确定其点群与对称元素」的方法论，
+%       给出关键论断的定理/引理与证明，同时诚实标注方法存在的边界与已知局限。
+% 全文为群论/线性代数表述，不含程序代码。
+
+\section{分子点群识别的方法论与边界}
+
+\subsection{引言与问题定义}\label{sec:intro}
+
+本文考虑的对象是\emph{孤立分子}：由 $N$ 个原子（各自带坐标与质量）组成、不施加任何晶格平移的有限构型。
+记第 $i$ 个原子的位矢为 $\mathbf r_i\in\mathbb R^3$（$i=1,\dots,N$）。
+
+\begin{definition}[分子点群]
+  称分子构型 $\mathcal M=\{\mathbf r_i\}$ 的\emph{点群} $G$ 为保持 $\mathcal M$ 不变的等距变换之集合：
+  \begin{equation}
+    G \;=\; \bigl\{\, T\in \mathrm{Isom}(\mathbb R^3) \;\big|\; T(\mathcal M)=\mathcal M \,\bigr\}.
+  \end{equation}
+  因 $\mathcal M$ 为有限点集，$G$ 为有限群（线性分子与单原子等连续情形见下）。
+\end{definition}
+
+\paragraph{关键边界：孤立分子点群不受结晶学限制}
+周期性晶体的点群须与晶格平移相容，因此被限制在 $32$ 个结晶学点群、且主旋转阶不超过 $6$。
+但孤立分子\emph{不含任何平移对称性}，其点群是\emph{任意有限点群}——
+主旋转阶 $n$、旋反阶 $m$ 在数学上\emph{无上限}（如正七边形构型可给出 $C_7$，正 $n$ 边形给出 $C_n$）。
+因此判别算法若以某固定阶为上限，便构成\emph{人为局限}而非几何必然（见 \S\ref{sec:limit}）。
+
+\paragraph{任务}
+给定 $\mathcal M$（含原子质量），确定：点群 $G$、$G$ 的全部对称元素（旋转轴、反映面、旋反轴、反演中心）、
+以及 $G$ 的特征标表与不可约表示。
+
+\subsection{对称操作群与对称元素（数学奠基）}
+
+\subsubsection{质心不动点与正交化}
+除平移外，等距变换含旋转、反映、滑移等。因 $\mathcal M$ 有限，可先以其\emph{质心}为原点：
+\begin{equation}
+  \mathbf r_i'=\mathbf r_i-\frac{1}{N}\sum_{j=1}^{N}\mathbf r_j .
+\end{equation}
+质心是 $\mathcal M$ 在任一对称变换下的不动点（对称变换不改质心），故 $G$ 中所有变换均为\emph{过原点的}线性变换，
+即 $G$ 是正交群 $\mathrm{O}(3)$ 的子群。在 $\mathrm{O}(3)$ 中按行列式可分两类：
+$\det R=+1$ 是\emph{真旋转}，$\det R=-1$ 是\emph{非真}（含反映、反演、旋反，均为某种旋转与反映的复合）。
+常用符号记法（Schoenflies）如下：$C_n$（旋转阶）、$\sigma$（反映面）、$i$（反演，即 $S_2$）、$S_n$（$n$ 阶旋反）。
+
+\subsubsection{对称元素与共轭类}
+\begin{lemma}[对称元素 $\leftrightarrow$ 共轭类]\label{lem:conj}
+  设 $R\in G$ 是 $G$ 中操作用以对应某个几何元素（轴 $\mathbf u$、面法向 $\mathbf n$ 或点）。
+  则 $R$ 的共轭类 $\{TRT^{-1}: T\in G\}$ 中的元素\emph{恰好}同型——它们对应同一族几何等价元素（同一共轭类旋转轴、或同一族反映面）。
+  于是 $G$ 的共轭类与"一族同型对称元素"一一对应。
+\end{lemma}
+\begin{proof}
+  对旋转 $R_{\mathbf u}(\varphi)$，共轭 $T R_{\mathbf u}(\varphi)T^{-1}$ 是绕 $T\mathbf u$ 旋转同角 $\varphi$ 的旋转。
+  故共轭保持"轴方向随 $T$ 变、角度不变"，即同型（同一族轴）。
+  对反映、旋反同理（$T$ 对法向/轴作转移）。故共轭类 $\leftrightarrow$ 等价几何元素族。\qedhere
+\end{proof}
+
+\begin{corollary}[同轴拆列与子阶独立的群论依据]\label{cor:split}
+  同一条轴上的不同阶旋转（$C_6,C_3,C_2$）属于\emph{不同}共轭类；真旋转与旋反轴（$C_n$ 与 $S_n$，乃至 $C_2$ 与 $S_4$）
+  在同轴时也属不同共轭类。因此它们应作为互不相同的对称元素\emph{并列}列出。
+\end{corollary}
+\begin{proof}
+  由引理~\ref{lem:conj}，共轭保持旋转角不变；$C_6$（$\pi/3$）与 $C_3$（$2\pi/3$）角不同，不可能共轭；
+  $C_n$ 为真（$\det=+1$）、$S_n$ 为非真（$\det=-1$），行列式是共轭不变量，故不共轭。\qedhere
+\end{proof}
+
+\subsubsection{有限群可由生成元封闭生成}
+\begin{theorem}[生成元与群封闭]\label{thm:closure}
+  设 $G$ 为有限群，$S\subseteq G$ 为一族操作。若 $\langle S\rangle = G$（$S$ 生成 $G$），
+  则从 $S$ 出发反复复合（$S$ 中元素及其幂、两两相乘），并以"复合结果仍属于 $G$"为判据，\
+  可\emph{枚举}出整个 $G$。
+\end{theorem}
+\begin{proof}
+  群 $G$ 对乘法封闭且有限。取生成元集 $S$，凡 $G$ 中元素均可写成 $S$ 元素的有限乘积。
+  从 $\{e\}$ 出发，逐步用 $S$ 左乘，经有限步（$|G|$ 有限）即得全部元素；
+  判据"乘积属 $G$"等价于"乘积在 $G$ 中"，故无遗漏、无越界。\qedhere
+\end{proof}
+
+定理~\ref{thm:closure} 是"由少量验证过的操作生成完整点群"的数学依据：\emph{只要候选生成元能生成整个群，
+其余所有元素}（及其对应的全部对称元素）\emph{都被确定性地补全}，无需逐条枚举。这一结构性优点与 §\ref{sec:limit}
+中"候选完备性"这一受质疑点互相独立——前者是群论保证，后者是候选覆盖的工程问题。
+
+\subsubsection{连续群（无限群）特判}
+当 $\mathcal M$ 落在某直线上（线性分子），$G$ 含绕该轴的任意小角度旋转，构成\emph{连续}群 $C_{\infty v}$（无对称中心）
+或 $D_{\infty h}$（含对称中心）；当 $\mathcal M$ 仅一个原子，$G=\mathrm{O}(3)$，记 $K_h$。
+这些群阶无限，无法用定理~\ref{thm:closure} 的有限封闭枚举，需单独处理。
+
+\subsection{对称性判据：一个变换是否为对称操作}\label{sec:criteria}
+
+\begin{definition}[对称操作判据]\label{def:op}
+  称正交变换 $R\in\mathrm{O}(3)$ 对 $\mathcal M$ 是\emph{对称操作}，当且仅当存在一个双射 $\sigma$
+  使
+  \begin{equation}
+    R\,\mathbf r_i \;=\; \mathbf r_{\sigma(i)} \qquad(\forall i),
+  \end{equation}
+  即变换后的点集与原点集\emph{重合}（含元素种类对应）。
+\end{definition}
+
+\subsubsection{近似化：位置容差与双射匹配}
+实际分子几何常有微小偏差（实验测量、理想构型近似），定义\eqref{def:op} 需弱化为带容差 $\varepsilon>0$ 的双射匹配：
+每个像点 $R\mathbf r_i$ 与其对应的源点 $\mathbf r_{\sigma(i)}$ 满足
+\begin{equation}\label{eq:matching}
+  \bigl\| R\mathbf r_i-\mathbf r_{\sigma(i)} \bigr\| \;<\;\varepsilon .
+\end{equation}
+\begin{lemma}[精确情形的极限]\label{lem:epszero}
+  当 $\mathcal M$ 精确对称（存在群 $G$）且 $\varepsilon\to 0$ 时，式~\eqref{eq:matching} 恰还原
+  定义~\ref{def:op}。故 $\varepsilon$ 是"近似参数"：几何误差越小，判据越接近严格。
+\end{lemma}
+\begin{proof}
+  若 $\mathcal M$ 精确且在 $G$ 作用下不变，则对任一 $R\in G$，像点集与源点集逐点重合，匹配距离为 $0$；
+  当 $\varepsilon\to 0$，只有距离为 $0$ 的配对通过。反之若距离为 $0$，则点集重合，为严格对称。\qedhere
+\end{proof}
+
+\paragraph{局限（方法而非数学）}
+式~\eqref{eq:matching} 的匹配在实现上常按\emph{贪心最近邻}逐点进行，且要求同一源点只匹配一次。
+当 $\mathcal M$ 含两原子间距 $\sim\varepsilon$（近简并）时，贪心可能给出非全局最优的配对，导致误判；
+判别结果对 $\varepsilon$ 敏感（$\varepsilon$ 过大会把"近对称"误收为对称，过小则漏掉真实对称）。
+这是\emph{实现层面的局限}，非本文群论论断的限制（详见 \S\ref{sec:limit}）。
+
+\subsection{点群分类判据}\label{sec:classify}
+
+\subsubsection{惯量张量与陀螺分类}\label{sec:gyro}
+由原子质量 $m_i$ 与坐标构造惯量张量（相对质心）
+\begin{equation}
+  \mathbf I=\sum_{i=1}^{N} m_i\,\bigl(\lVert\mathbf r_i\rVert^2\,\mathbb{E}_3-\mathbf r_i\mathbf r_i^{\mathsf T}\bigr),
+\end{equation}
+其为 $3\times 3$ 实对称，可用 Jacobi 变换对角化得特征值 $I_1\le I_2\le I_3$（升序）与单位特征向量
+$\mathbf v_1,\mathbf v_2,\mathbf v_3$（候选主惯量轴）。
+
+\begin{lemma}[陀螺分类的主轴依据]\label{lem:gyro}
+  $\mathbf I$ 的二重简并（$I_1\approx I_2$ 或 $I_2\approx I_3$）当且仅当分子存在阶 $n\ge3$ 的旋转轴（对称陀螺）；
+  三重简并（$I_1\approx I_2\approx I_3$）当且仅当分子具 $T/O/I$ 型（球陀螺）。
+  非简并对应非对称陀螺，其最大对称性至多 $D_2$。
+\end{lemma}
+\begin{proof}
+  若存在 $C_n$（$n\ge3$），绕其旋转保持惯性不变，故垂直于轴的两个方向惯量相等，产生二重简并；
+  反之二重简并蕴含分子有 $n\ge3$ 旋转轴（惯性不变的主轴即旋转轴，$n\ge3$）。三重简并蕴含三个方向惯量全等，
+  即存在 $T/O/I$ 的正四面体式/立方/二十面体群（对刚体，$\mathbf I\propto\mathbb{E}_3$）。
+  非简并则至多存在互相垂直的二重轴（$D_2$）。\qedhere
+\end{proof}
+
+需要强调：\emph{主轴简并时，特征向量不确定}（如对称陀螺的垂直于轴的方向可任意旋转），
+因此"主轴方向"在简并情形不是唯一；分类时应以简并判定 + 对称元素检测为准，不依赖单一的特征向量。
+
+\subsubsection{分类判别（标准群论判据）}
+点群 $G$ 可由下列独立量唯一确定：
+\begin{itemize}
+  \item $n$：沿主轴（最高真旋转轴）的真旋转最高阶；
+  \item 是否存在水平面 $\sigma_h$（法向平行主轴）、竖直面 $\sigma_v$、对角面 $\sigma_d$；
+  \item 垂直主轴的二重轴 $C_2$ 之条数；
+  \item 是否存在反演中心 $i$、旋反轴 $S_m$。
+\end{itemize}
+判别流程（对 $C/D/S$ 系）：
+\begin{equation*}
+  \begin{cases}
+    n=1:\ \text{无真旋转}\to \begin{cases}
+      \text{有 } i & \to C_i,\\
+      \text{有 }\sigma & \to C_s,\\
+      \text{有 }S_m & \to S_m,\\
+      \text{无} & \to C_1;
+    \end{cases}\\[6pt]
+    n\ge2:\ \text{以 } n,\ \sigma_h,\ \perp C_2,\ \sigma_v/\sigma_d\ \text{判定}\to
+    C_n/C_{nh}/C_{nv}/D_n/D_{nh}/D_{nd}\ \text{等}.
+  \end{cases}
+\end{equation*}
+高阶群（$T/T_d/T_h/O/O_h/I/I_h$）由"是否有 $n\ge3$ 条互相指向体对角/棱/面的 $C_n$ 轴 + 反演中心"区分。
+
+\paragraph{适用范围（数学上成立）}
+上述判据是\emph{纯群论}的：只要 $n$、$\sigma_h$、$C_2$、$\sigma_v/\sigma_d$、$i$、$S_m$ 被正确测定，
+它就能断定 $G$。该逻辑对\emph{任意有限点群}均成立，\emph{不限于 $32$ 个结晶学点群}
+——若分子含 $C_7$ 轴，只需把 $n$ 取为 $7$ 即可归到 $C_7$，仅需扩充分类表与特征标表数据，而非改动判据本身。
+
+\subsection{对称元素的确定：生成元封闭与投影}\label{sec:proj}
+
+\subsubsection{候选方向与生成元池}
+候选方向由两部分构造：
+\begin{enumerate}
+  \item \emph{惯性主轴方向}（最可靠，来自 $\mathbf I$ 的特征向量，见 \S\ref{sec:gyro}）；
+  \item \emph{原子几何候选}：单原子方向（该原子在轴上）、两同类原子中点方向、三点外接轴方向；
+    反映面法向由上述几何量经叉积构造，且仅保留"过质心"者。
+\end{enumerate}
+每一候选方向用 \S\ref{sec:criteria} 的判据验证各阶旋转/旋反/反映，通过者进入\emph{生成元池}。
+
+\subsubsection{封闭生成与出清误检}
+\begin{lemma}[封闭性自动出清误检]\label{lem:selfclean}
+  若某候选 $g$ 并非 $G$ 中元素（$g\notin G$），则其与 $G$ 中元素的复合结果必不完全落在“对称操作”集合内，
+  故在按定理~\ref{thm:closure} 封闭时被排除。于是最终收敛于 $G$（或其子群），而非被 $g$ “污染”。
+\end{lemma}
+\begin{proof}
+  $G$ 是\emph{所有}对称操作构成的群（极大性）。若 $g\notin G$，则 $g$ 本身不能通过 \S\ref{sec:criteria} 判据
+  （否则 $g\in G$），故其在判据下被拒收；同理其与 $G$ 元的某些复合也可能不满足判据而被过滤。
+  封闭过程只会保留真正属于对称操作集合的元素，故不被 $g$ 污染。\qedhere
+\end{proof}
+
+\paragraph{注（完备性条件）}
+定理~\ref{thm:closure} 的前提是 \emph{生成元集能生成整个 $G$}（$\langle S\rangle=G$）。
+若候选方向未能完全覆盖 $G$ 的生成元，封闭只得到 $G$ 的\emph{真子群}，导致点群被判低。
+候选覆盖的完备性依赖于"由原子几何构造的方向必覆盖全部真实对称方向"这一\emph{假设}，
+其本身\emph{不是定理}（见 \S\ref{sec:limit} 的 L2）。
+
+\subsubsection{由操作集投影对称元素}
+封闭得到的完整操作集，逐元投影为几何元素：
+\begin{itemize}
+  \item $\det R=+1$ 且 $R\neq\mathbb{E}$：\emph{真旋转}，由旋转矩阵提取轴 $\mathbf u$ 与角 $\varphi$，阶 $n=\lfloor 2\pi/\varphi\rfloor$；
+  \item $\det R=-1,\ \mathrm{tr}\,R=1$：\emph{反映面}，法向取对应单位特征向量；
+  \item $\det R=-1,\ \mathrm{tr}\,R=-3$：\emph{反演中心} $i$；
+  \item $\det R=-1$，其余：\emph{旋反} $S_m$。
+\end{itemize}
+\begin{lemma}[旋反阶须绕轴重测，勿由迹直接反推]\label{lem:improper}
+  旋反 $S_n$ 的幂 $S_n^k$ 满足
+  \begin{equation}
+    \mathrm{tr}\bigl(S_n^k\bigr) \;=\; 2\cos\frac{2\pi k}{n}-1 .
+  \end{equation}
+  由 $\mathrm{tr}$ 直接反解 $\arccos$ 得到的是\emph{幂次角} $2\pi k/n$，\emph{而非} $S_m$ 的阶 $m$。
+  当 $k$ 与 $n$ 互质时（如 $S_{10}^3$，$3$ 与 $10$ 互质），$\arccos$ 会给出 $2\pi k/n$，据此得
+  $\lfloor 2\pi/(2\pi k/n)\rfloor=n/k\notin\mathbb Z$，四舍五入后\emph{误判}为 $S_3$（实为 $S_{10}^3$）。
+\end{lemma}
+\begin{proof}
+  $S_n=\sigma_h C_n$，其中 $\sigma_h$ 为关于垂直轴的反映。计算迹：$S_n^k$ 的迹
+  $=2\cos(2\pi k/n)-1$（$C_n^k$ 部分贡献 $2\cos(2\pi k/n)$，$\sigma_h$ 贡献 $-1$ 的因子）。
+  故 $\mathrm{tr}$ 只编码 $\cos(2\pi k/n)$，即只含"幂次角"，丢失了 $n$ 与 $k$ 的独立信息。
+  给定单个 $\mathrm{tr}$ 无法独占地还原 $n$。\qedhere
+\end{proof}
+
+因此，正确做法是：对候选轴 $\mathbf u$ 逐一\emph{重测各候选阶} $m$——绕 $\mathbf u$ 验证
+"是否 $S_m$ 对称操作"，取通过者；而非由单个矩阵的迹反推。同时由推论~\ref{cor:split}，
+同轴各阶（如 $C_6,C_3,C_2$；$S_6,S_3$）与真旋转/旋反轴应\emph{全部并列}列出。
+
+\subsection{边界与已知局限}\label{sec:limit}
+
+本节诚实列出方法上\emph{非数学保证}、而是\emph{工程设定或假设}的边界。
+\emph{群论本身}（定理~\ref{thm:closure}、引理~\ref{lem:conj}、\S\ref{sec:classify} 的判据、
+引理~\ref{lem:improper}）是可靠的；受限于的是\emph{判据的应用范围与几何信息}。
+
+\paragraph{(L1) 阶上限是工程设定}
+真旋转阶检测范围通常取 $2\le n\le 6$，旋反阶取 $3\le m\le 10$。
+对\emph{质数阶} $n>6$（如 $C_7,C_{11}$），其轴无 $\le6$ 的子阶（$7$ 的幂仍只有 $7$ 阶），
+故\emph{完全漏检}——任何 $\le6$ 的旋转判据都不成立，主轴被拒；
+对\emph{合成数阶} $n>6$（如 $C_8,C_9,C_{12}$），仅其 $\le6$ 的最大子阶（$C_4/C_3/C_6$）被识别，
+即\emph{降级}为该子阶。由 \S\ref{sec:intro}，孤立分子可含任意阶，故此上限是\emph{局限}而非必然。
+
+\paragraph{(L2) 候选方向完备性非定理}
+"由原子几何（单原子/原子对中点/三点/面法向）+ 惯性主轴构造的候选方向
+必覆盖全部真实对称方向"是一个\emph{工程假设}（源自 SYVA 一类方法），\emph{不是}可证的定理。
+反例：无任何原子支撑的"空对称轴"（如乙烯面外 $C_2$）、由\emph{异类}原子共同决定的轴、
+或原子恰好对称地落在轴两侧而非给出方向的情形，都使原子几何候选遗漏。
+一旦候选覆盖不足，\S\ref{sec:proj} 的封闭仅得子群，点群判低。
+
+\paragraph{(L3) 容差匹配的 $\varepsilon$ 敏感性与贪心误配}
+判据 \eqref{eq:matching} 依赖 $\varepsilon$；
+近简并（两原子距离 $\sim\varepsilon$）下贪心最近邻匹配非全局最优，可能误配。
+结果是"真对称/近对称"的边界由 $\varepsilon$ 决定，而非由数学精确判定。
+
+\paragraph{(L4) 连续群须特判}
+$C_{\infty v}/D_{\infty h}/K_h$ 为无限群，无法用有限封闭枚举
+（定理~\ref{thm:closure} 前提是有限群），需单独识别。
+
+\paragraph{(L5) 几何不精确的影响}
+当几何有偏差，\emph{真}对称操作匹配余量 $\approx 0$，
+\emph{近对称}操作匹配余量 $>0$（数量级 $10^{-2}$）。用"匹配余量最小值"作为"最接近真对称"的代表可
+部分缓解误检，但分离阈值本质上仍由 $\varepsilon$ 与几何噪声决定，无法保证绝对正确。
+
+\subsection{结语}
+
+综上：\emph{数学上可靠}的部分是——
+(1) 群封闭生成（定理~\ref{thm:closure}）与误检出清（引理~\ref{lem:selfclean}）；
+(2) 对称元素与共轭类的对应（引理~\ref{lem:conj}）及同轴拆列（推论~\ref{cor:split}）；
+(3) 点群分类的纯群论判据（\S\ref{sec:classify}，对任意有限点群成立）；
+(4) 旋反阶须绕轴重测、勿由迹反推（引理~\ref{lem:improper}）。
+
+而\emph{工程受限或依赖假设}的部分是——
+最大检测阶（L1）、候选方向完备性（L2）、容差匹配的 $\varepsilon$ 敏感与贪心误配（L3）、
+连续群的特判（L4）、几何不精确下的真/近对称界限（L5）。
+
+因此，本方法的正确性边界清晰：在生成元能被候选方向充分覆盖、且 $\varepsilon$ 显著小于分子最小近邻间距的前提下，
+\emph{群论层面}的结果是可靠的；超出这一前提（极高阶轴、极端几何、或 $\varepsilon$ 过大）则可能出现
+漏检或降级——这是任何基于"候选 + 容差"的方法所共有的边界，而非本方法特有的缺陷。
