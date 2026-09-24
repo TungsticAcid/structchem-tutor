@@ -32,7 +32,8 @@ export const REQUIRED_METHODS = [
     sig: '(actions: Array<{action, params, speech?}>) => { ok, error?, accepted? } | Promise<同>',
     why: '唯一的"动手"途径。动作**必须**经此方法进入模块，才能被分镜队列编排、'
       + '被快照回退、被 speech 旁白串起来。模块内部直接改视图而不走这里，'
-      + '学生就会看到"画面莫名跳了一下"。',
+      + '学生就会看到"画面莫名跳了一下"，而且用户收不掉它——'
+      + '见 DESIGN_PRINCIPLES 的 agent-action-must-be-reversible。',
   },
 ]
 
@@ -89,6 +90,56 @@ export const OPTIONAL_METHODS = [
 
 /** 全部方法名（供快速查找） */
 export const ALL_METHODS = [...REQUIRED_METHODS, ...OPTIONAL_METHODS].map((m) => m.name)
+
+/**
+ * 接入过程中反复踩到、且**跨模块普适**的设计原则。
+ *
+ * 每条都是从一次真实故障里提炼的，迁移时不要只看代码、不看这些理由——
+ * 否则重写一遍还会再犯。
+ */
+export const DESIGN_PRINCIPLES = [
+  {
+    id: 'agent-action-must-be-reversible',
+    title: '智能体下发的可见状态，必须能被用户撤回',
+    detail: '动作改变了用户看得见的东西时，**必须同时更新该状态的界面表征**。'
+      + '否则会出现"智能体画得出来，用户却收不掉"——界面上明明看得见那条标注，'
+      + '但没有任何控件反映它、也没有入口关掉它。',
+    origin: 'orbit 的 highlightRadialFeature 原先直接调 Charts.setRadialHighlight()，'
+      + '绕过了界面状态；智能体标出峰值线后就再没人能取消。'
+      + '改为走 applyAction({action:"setRadialMarks"})，由模块动作层同时更新图表与面板控件。',
+  },
+  {
+    id: 'geometric-annotation-follows-series',
+    title: '几何标注要跟随它所标注的系列显隐',
+    detail: '图上的标注线（节点、极值）与它所标注的曲线，若显隐各自独立，'
+      + '就会出现"关了曲线却还留着它的标注"。标注的可见性应由所属系列的可见性派生。',
+    origin: 'orbit 的径向图：曲线能开关，标线却只由动作驱动、界面上没有入口。'
+      + '修正为 computeMarks() 只标**当前可见曲线**的半径，并对 R 与 D 的重复零点去重'
+      + '（D = r²R²，两者零点完全相同，画两遍只会叠成一条）。',
+  },
+  {
+    id: 'multi-mesh-appearance-update',
+    title: '几何若由多块网格构成，任何全局外观变更都必须遍历全部网格',
+    detail: '同一个可见物体可能由多块网格拼成（例如全局粗网格 + 局部精细化补片）。'
+      + '改着色 / 材质 / 可见性时只遍历主网格，表现是"只改了一半"——'
+      + '一部分变色、另一部分保持旧色，看起来像渲染坏了。',
+    origin: 'orbit 的 4pz + 等值面阈值=1：切三维着色后外层壳变色、内层壳不变。'
+      + '根因是局部精细化的补片是另一块网格（fineObj），着色时漏了重涂它。',
+  },
+  {
+    id: 'one-control-many-scenes',
+    title: '同一个视觉开关若作用于多处场景，必须一并作用',
+    detail: '页面上有多个三维小场景时，"绕着自己转"这类开关应由**一个**控件统一控制，'
+      + '而不是各自写死。写死的那一个用户永远关不掉。',
+    origin: 'orbit 的角度分布小场景在 init 时写死 setAutoRotate(true)，'
+      + '用户没有任何入口关掉它。改为一个开关同时作用于主视图与小场景。',
+  },
+]
+
+/** 取某条设计原则（供文档与开发期提示引用） */
+export function designPrinciple(id) {
+  return DESIGN_PRINCIPLES.find((p) => p.id === id) || null
+}
 
 /**
  * 校验一个模块 facade 是否符合契约。
@@ -163,7 +214,14 @@ export function describeContract() {
   for (const m of REQUIRED_METHODS) lines.push(`  ${m.name}${m.sig}`, `      ${m.why}`, '')
   lines.push('可选：')
   for (const m of OPTIONAL_METHODS) lines.push(`  ${m.name}${m.sig}`, `      ${m.why}`, '')
+  lines.push('设计原则（从真实故障里提炼，跨模块普适）：')
+  for (const p of DESIGN_PRINCIPLES) {
+    lines.push(`  [${p.id}] ${p.title}`, `      ${p.detail}`, `      由来：${p.origin}`, '')
+  }
   return lines.join('\n')
 }
 
-export default { assertModuleContract, describeContract, REQUIRED_METHODS, OPTIONAL_METHODS, ALL_METHODS }
+export default {
+  assertModuleContract, describeContract, designPrinciple,
+  REQUIRED_METHODS, OPTIONAL_METHODS, ALL_METHODS, DESIGN_PRINCIPLES,
+}

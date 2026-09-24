@@ -17,6 +17,11 @@
  *   import { createQuatOrbit } from '@chem-agent/viewer/camera.js'
  *   const ctl = createQuatOrbit({ THREE, camera, dom, mode: 'camera' })
  *   // 每帧：ctl.update()
+ *
+ * ★ 场景层尚未建立（本包目前只有 相机 / 手势 / 几何 三层）。等实现场景与网格管理时，
+ *   请先读 packages/agent-core/contract/module-contract.js 的 DESIGN_PRINCIPLES——
+ *   其中 multi-mesh-appearance-update 与 geometric-annotation-follows-series 两条
+ *   正是从 orbit 真实渲染故障里提炼的，直接用得上，重写一遍很容易再犯。
  */
 
 export { createQuatOrbit, CAMERA_DEFAULTS } from './camera.js'

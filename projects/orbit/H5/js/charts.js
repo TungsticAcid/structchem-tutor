@@ -109,6 +109,34 @@ window.Charts = (function () {
     return out;
   }
 
+  /**
+   * 当前**实际会画出来**的特征标线。
+   *
+   * ★ 标线跟着**曲线显隐**走：只标当前可见曲线对应的半径。原先这两件事是割裂的——
+   *   曲线能开关，标线却只由外部的 highlightRadialFeature 动作驱动、界面上没有入口，
+   *   于是"关了 R 却还留着 R 的峰值线"，很难控制。
+   * @returns {Array<{r:number, col:number[]}>}
+   */
+  function computeMarks(n, l, whichList) {
+    if (!radialHighlight) return [];
+    const t = radialHighlight.target, f = radialHighlight.feature;
+    const showR = whichList.indexOf('R') >= 0 || whichList.indexOf('R2') >= 0;
+    const showD = whichList.indexOf('D') >= 0 || whichList.indexOf('D2') >= 0;
+    const marks = [];
+    if ((t === 'R' || t === 'ALL') && showR) {
+      computeFeature('R', f, n, l).forEach((r) => marks.push({ r: r, col: RADIAL_PALETTE.R }));
+    }
+    if ((t === 'D' || t === 'ALL') && showD) {
+      computeFeature('D', f, n, l).forEach((r) => marks.push({ r: r, col: RADIAL_PALETTE.D }));
+    }
+    // 去重：R 与 D 的零点完全相同（D = r²R²），重复画只会叠成一条
+    const uniq = [];
+    marks.forEach((m) => {
+      if (!uniq.some((u) => Math.abs(u.r - m.r) < 1e-6)) uniq.push(m);
+    });
+    return uniq;
+  }
+
   /** 设置/清除径向图的特征标注（target=null 表示清除） */
   function setRadialHighlight(target, feature) {
     radialHighlight = target ? { target: target, feature: feature } : null;
@@ -166,8 +194,12 @@ window.Charts = (function () {
     // 轴标签
     ctx.fillStyle = 'rgba(200,210,235,0.9)';
     ctx.font = '12px system-ui, sans-serif';
-    ctx.fillText('r (a₀)', w - pad.r - 34, h - 10);
-    ctx.fillText('波函数幅度', pad.l - 68, pad.t + 6);
+    // x 轴：钟标居中偏右、**压在刻度数字下面一行**（原先 x = w−pad.r−34 与最后一个
+    // 刻度（如 41.4）横向重叠，看着挤在一起）
+    ctx.fillText('r (a₀)', w - pad.r - 46, h - 4);
+    // y 轴：原先写作 (pad.l − 68) = 负坐标 → 一半画到画布外被裁，看着像"数幅度"。
+    // 改放在绘图区左上方的留白里（那里正好空着，图例在右上）
+    ctx.fillText('归一化值', pad.l + 2, pad.t - 5);
 
     // 绘制各曲线（按其峰值归一化，便于比较节点结构）
     curves.forEach((c) => {
@@ -183,23 +215,23 @@ window.Charts = (function () {
       ctx.stroke();
     });
 
-    // 特征标注（峰值 / 零点）—— 辨析 R 与 D 的核心手段
-    if (radialHighlight) {
-      const feat = computeFeature(radialHighlight.target, radialHighlight.feature, n, l);
-      const col = RADIAL_PALETTE[radialHighlight.target] || [255, 255, 255];
+    // 特征标注（峰值 / 零点）—— 辨析 R 与 D 的核心手段（口径见 computeMarks）
+    const marks = computeMarks(n, l, whichList);
+    if (marks.length) {
       ctx.save();
       ctx.setLineDash([4, 4]);
       ctx.lineWidth = 1.6;
-      ctx.strokeStyle = 'rgba(' + col.join(',') + ',0.95)';
-      ctx.fillStyle = 'rgb(' + col.join(',') + ')';
       ctx.font = '10px system-ui, sans-serif';
-      feat.forEach((r, i) => {
-        if (!(r >= 0) || r > rEnd) return;
-        const gx = pad.l + (iw * r) / rEnd;
+      let row = 0;
+      marks.forEach((m) => {
+        if (!(m.r >= 0) || m.r > rEnd) return;
+        const gx = pad.l + (iw * m.r) / rEnd;
+        ctx.strokeStyle = 'rgba(' + m.col.join(',') + ',0.95)';
         ctx.beginPath(); ctx.moveTo(gx, pad.t); ctx.lineTo(gx, pad.t + ih); ctx.stroke();
-        const label = r.toFixed(2);
-        const ty = pad.t + 12 + (i % 2) * 12;
-        ctx.fillText(label, Math.min(gx + 3, w - pad.r - 34), ty);
+        ctx.fillStyle = 'rgb(' + m.col.join(',') + ')';
+        // 标签分两行交错，避免相邻标线的数值贴在一起
+        ctx.fillText(m.r.toFixed(2), Math.min(gx + 3, w - pad.r - 30), pad.t + 12 + (row % 2) * 12);
+        row++;
       });
       ctx.restore();
     }
@@ -562,5 +594,9 @@ window.Charts = (function () {
     }
   }
 
-  return { drawRadial, drawAngular, drawSection, setRadialHighlight };
+  return {
+    drawRadial, drawAngular, drawSection, setRadialHighlight,
+    /** 调试/测试：给定曲线显隐时实际会画的标线（只读，不改变状态） */
+    _marksDebug: (n, l, whichList) => computeMarks(n, l, whichList),
+  };
 })();

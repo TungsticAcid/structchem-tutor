@@ -163,7 +163,34 @@ export function createRenderer(opts = {}) {
     return out.join('')
   }
 
-  return { escapeHtml, trimUnclosedFormula, katexHtml, renderRich, md, KATEX_OPTS }
+  return { escapeHtml, trimUnclosedFormula, katexHtml, renderRich, md, mdInline, KATEX_OPTS }
+}
+
+/**
+ * 轻量标记转换：**专用于「用 innerHTML 渲染的界面文案」**（不是助手消息）。
+ *
+ * ★ 与 renderRich 的分工，别混用：
+ *   · 助手消息走 renderRich —— 有 Markdown 块级语法，且公式要过 KaTeX
+ *   · 界面文案（预设说明、滑块旁注等）直接 innerHTML 注入，**既不过 Markdown
+ *     也不过 KaTeX**，于是 `**加粗**` 会原样显示星号、`p_x` 会原样显示下划线。
+ *     这类"静默显示成源码"的问题不影响逻辑、不报错，只有肉眼盯着那个界面才看得见。
+ *
+ * ★ 下标只认 s/p/d 前缀（`p_x`、`p_{xy}`），刻意不做通用的「任意字母_」：
+ *   界面文案里出现下划线的场合（文件名、变量名）也不少，放宽会误伤。
+ *   要支持更多前缀，用 opts.prefix 传入即可。
+ *
+ * @param {string} s
+ * @param {Object} [opts]
+ * @param {string} [opts.prefix='spd'] 允许作为下标主体的字母集
+ * @returns {string} 可直接用于 innerHTML 的字符串
+ */
+export function mdInline(s, opts = {}) {
+  const prefix = opts.prefix || 'spd'
+  const cls = '[' + prefix + ']'
+  return String(s == null ? '' : s)
+    .replace(/\*\*([^*]+?)\*\*/g, '<b>$1</b>')
+    .replace(new RegExp('(' + cls + ')_\\{([^}]+)\\}', 'g'), '$1<sub>$2</sub>')
+    .replace(new RegExp('(' + cls + ')_([A-Za-z0-9])', 'g'), '$1<sub>$2</sub>')
 }
 
 export default createRenderer

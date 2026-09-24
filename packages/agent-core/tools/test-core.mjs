@@ -1061,6 +1061,33 @@ section('renderer：Markdown+LaTeX 渲染（与 orbit 原实现逐字比对）')
   check('KaTeX 抛错时退化为源码而非整条渲染失败', /<code>/.test(badKatex.renderRich('$x$')))
   check('KaTeX 抛错不影响同条消息的其它内容', /正文/.test(badKatex.renderRich('正文 $x$ 结尾')))
 
+  // mdInline()：界面文案的轻量标记（用 innerHTML 渲染的那些字符串）
+  // 用例取自 orbit 真实文案里的写法，不是自造字符串——自造容易测出并不存在的问题
+  {
+    const { mdInline } = await import('../ui/renderer.js')
+    const CASES = [
+      ['**加粗**', '<b>加粗</b>'],
+      ['sp² 由 s_y·p_y 与 s_z·p_z 混合', 'sp² 由 s<sub>y</sub>·p<sub>y</sub> 与 s<sub>z</sub>·p<sub>z</sub> 混合'],
+      ['(1/√6)p_x + (1/√2)p_y', '(1/√6)p<sub>x</sub> + (1/√2)p<sub>y</sub>'],
+      ['d_{x2-y2} 与 d_{xy}', 'd<sub>x2-y2</sub> 与 d<sub>xy</sub>'],
+      // 真实写法是 d_z²（上标），不是 d_z2 —— 单字符规则在此正确：
+      // 下标只吃 z，² 保持上标形态
+      ['d_z² 轨道', 'd<sub>z</sub>² 轨道'],
+      // ★ 不误伤：界面文案里出现下划线的其它场合
+      ['文件名 my_file.txt 与 a_b', '文件名 my_file.txt 与 a_b'],
+      ['', ''],
+    ]
+    let bad = 0
+    for (const [inp, want] of CASES) {
+      const got = mdInline(inp)
+      if (got !== want) { bad++; check(`mdInline(${JSON.stringify(inp)})`, false, `得到 ${JSON.stringify(got)}`) }
+    }
+    check(`mdInline 全部 ${CASES.length} 个用例通过（含"不误伤下划线"）`, bad === 0)
+    check('mdInline 容忍空值', mdInline(null) === '' && mdInline(undefined) === '')
+    check('mdInline 前缀可配置', mdInline('f_x', { prefix: 'fp' }) === 'f<sub>x</sub>')
+    check('mdInline 默认不处理 f_x（前缀只认 s/p/d，避免误伤）', mdInline('f_x') === 'f_x')
+  }
+
   // el()：用最小 document 桩驱动两边，比对**行为**（Node 里没有 DOM）
   {
     const mkDoc = () => {
@@ -1376,6 +1403,22 @@ section('module-contract：模块接入契约')
   const doc = describeContract()
   check('describeContract 含必需与可选两段', /必需/.test(doc) && /可选/.test(doc))
   check('契约文档列出全部方法名', ALL_METHODS.every((m) => doc.includes(m)))
+  check('契约文档含设计原则一节', /设计原则/.test(doc))
+
+  // ---- 设计原则：每条都必须写清由来（否则下次重写还会再犯）----
+  const { DESIGN_PRINCIPLES, designPrinciple } = await import('../contract/module-contract.js')
+  check('设计原则至少 4 条', DESIGN_PRINCIPLES.length >= 4, String(DESIGN_PRINCIPLES.length))
+  check('每条都有 id/title/detail/origin',
+    DESIGN_PRINCIPLES.every((p) => p.id && p.title && p.detail && p.origin))
+  check('id 不重复', new Set(DESIGN_PRINCIPLES.map((p) => p.id)).size === DESIGN_PRINCIPLES.length)
+  check('原则都写进了契约文档', DESIGN_PRINCIPLES.every((p) => doc.includes(p.id)))
+  check('可按 id 取单条', !!designPrinciple('agent-action-must-be-reversible'))
+  check('未知 id 返回 null（不抛异常）', designPrinciple('zzz') === null)
+  // 这四条都是从真实故障提炼的，逐条断言它们确实在（名字变了要有人注意到）
+  for (const id of ['agent-action-must-be-reversible', 'geometric-annotation-follows-series',
+                    'multi-mesh-appearance-update', 'one-control-many-scenes']) {
+    check(`原则在册：${id}`, !!designPrinciple(id))
+  }
 
   // ---- 三个真实模块的接入实况：如实报出缺什么，而不是假装支持 ----
   // （这是"契约必须可执行"的体现：共享核能据此给出接入进度）
