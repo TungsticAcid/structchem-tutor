@@ -5,6 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "selftest": "node tools/selftest.mjs"
+    "selftest": "node tools/selftest.mjs",
+    "test": "node tools/test-core.mjs && node tools/selftest.mjs"
   }
 }
