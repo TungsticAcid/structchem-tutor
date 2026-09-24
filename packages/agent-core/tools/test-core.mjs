@@ -16,6 +16,7 @@ import { startFeynman } from '../core/feynman.js'
 import { createPerception } from '../core/perception.js'
 import { createStoryboard } from '../core/storyboard.js'
 import { createConversation, buildManifestText, composeSystemPrompt } from '../core/conversation.js'
+import { createToolRegistry } from '../core/tool-registry.js'
 
 const HERE = new URL('.', import.meta.url)
 const orbit = (p) => fileURLToPath(new URL('../../../projects/orbit/H5/' + p, HERE))
@@ -860,6 +861,115 @@ section('conversation：循环机制 + 与 orbit 原循环的等价性')
     const p = composeSystemPrompt({ role: 'R', manifest: 'M', nodePrompt: 'N' })
     check('系统提示三段式拼装', p === 'R\n\nM\n\nN')
     check('缺段时不留空行', composeSystemPrompt({ role: 'R', nodePrompt: 'N' }) === 'R\n\nN')
+  }
+}
+
+// ============================================================================
+section('tool-registry：节点白名单在结构上生效')
+// ============================================================================
+{
+  const def = (name) => ({ type: 'function', function: { name, description: name, parameters: { type: 'object', properties: {} } } })
+  const tools = {
+    read: [def('getSceneSnapshot'), def('getInteractionTrace')],
+    query: [def('loadKnowledge'), def('loadSkill')],
+    hand: [def('applySceneActions'), def('highlightAtoms')],
+    teach: [def('generateQuiz'), def('diagnoseError')],
+  }
+  const calls = []
+  const handlers = {
+    getSceneSnapshot: () => { calls.push('snap'); return { state: 1 } },
+    getInteractionTrace: () => ({ idleMs: 0 }),
+    loadKnowledge: (a) => (a.id === 'x' ? { id: 'x', body: '正文' } : null),  // null → {ok:true}
+    loadSkill: () => ({ name: 'feynman' }),
+    applySceneActions: () => ({ accepted: 1 }),
+    highlightAtoms: () => ({ ok: true }),
+    generateQuiz: () => ({ q: 1 }),
+    diagnoseError: () => { throw new Error('诊断模块炸了') },                 // 抛异常 → 作为结果回灌
+  }
+  const missingSeen = []
+  const R = createToolRegistry({ tools, handlers, onMissing: (m, node) => missingSeen.push(node + ':' + m.join(',')) })
+
+  check('未指定节点时拒绝暴露任何工具', (() => {
+    try { R.definitions(); return false } catch (e) { return /决策节点/.test(e.message) }
+  })())
+
+  // ---- quiz：无 hand 授权 → 拿不到 applySceneActions ----
+  R.setNode('quiz')
+  const qNames = R.available()
+  check('quiz 节点无 hand 工具（结构上做不到）', !qNames.includes('applySceneActions') && !qNames.includes('highlightAtoms'),
+    qNames.join(','))
+  check('quiz 节点拿到 read + query', qNames.includes('getSceneSnapshot') && qNames.includes('loadKnowledge'))
+  check('quiz 节点定义数组里没有 hand 工具',
+    !R.definitions().some((d) => ['applySceneActions', 'highlightAtoms'].includes(d.function.name)))
+  check('quiz 节点执行 applySceneActions 被拒（执行期二次把关）',
+    /不可用/.test((await R.execute('applySceneActions', '{}')).error))
+  check('被拒时提示了当前节点与可用工具',
+    /quiz/.test((await R.execute('applySceneActions', '{}')).error))
+
+  // ---- route / proactive：同样无 hand、无 teach ----
+  for (const n of ['route', 'proactive']) {
+    R.setNode(n)
+    check(`${n} 节点无 hand、无 teach`,
+      !R.available().some((x) => ['applySceneActions', 'highlightAtoms', 'generateQuiz', 'diagnoseError'].includes(x)),
+      R.available().join(','))
+  }
+
+  // ---- explain：有完整 hand 授权 ----
+  R.setNode('explain')
+  check('explain 节点拿到 hand 工具（边讲边演示）', R.available().includes('applySceneActions'))
+  check('explain 节点无 teach 工具（讲解节点不出题）', !R.available().includes('generateQuiz'))
+
+  // ---- grade：granted hand 但 deny 掉 applySceneActions ----
+  R.setNode('grade')
+  check('grade 节点能用诊断动作（highlightAtoms）', R.available().includes('highlightAtoms'))
+  check('grade 节点被 deny 掉 applySceneActions（只能用诊断动作，不能自由操控）',
+    !R.available().includes('applySceneActions'), R.available().join(','))
+  check('grade 节点能出题与诊断', R.available().includes('generateQuiz') && R.available().includes('diagnoseError'))
+
+  // ---- 「声明与实现脱节」的探针 ----
+  R.setNode('explain')
+  const miss = R.missing()
+  check('missing() 报出「白名单允许但未实现」的工具', miss.length > 0 && !miss.includes('applySceneActions'),
+    miss.join(','))
+  check('onMissing 回调被触发（用于暴露 descriptor 与实现的偏差）',
+    missingSeen.some((s) => s.startsWith('explain:')), JSON.stringify(missingSeen))
+
+  // ---- 受控的跨模块联动（B6b 约束 2）----
+  R.setNode('explain')
+  check('默认看不到其他模块的工具', !R.available().includes('crystalSearch'))
+  R.setNode('explain', { query: ['crystalSearch'] })
+  check('显式注入后才可见（跨模块是受控能力，不是默认）', R.available().includes('crystalSearch') || R.missing().includes('crystalSearch'))
+  R.setNode('quiz', { query: ['crystalSearch'] })
+  check('注入跨模块 query 不会连带放开 hand', !R.available().includes('applySceneActions'))
+
+  // ---- execute 的归一化与容错 ----
+  R.setNode('explain')
+  check('null 结果归一为 {ok:true}', JSON.stringify(await R.execute('loadKnowledge', '{"id":"nope"}')) === '{"ok":true}')
+  check('正常结果原样返回', (await R.execute('loadKnowledge', '{"id":"x"}')).body === '正文')
+  const badJson = await R.execute('loadKnowledge', '{不是 JSON')
+  check('非法 JSON 返回错误结果而非抛异常', !!badJson.error && /JSON/.test(badJson.error))
+  // handler 抛异常要转成结果——注意得先用一个**允许 teach** 的节点，
+  // 否则拿到的是白名单拒绝（那是另一条路径，前面已覆盖）
+  R.setNode('grade')
+  const threw = await R.execute('diagnoseError', '{}')
+  check('handler 抛异常被转成结果（不中断对话循环）', !!threw.error && /执行异常/.test(threw.error),
+    JSON.stringify(threw))
+  R.setNode('explain')
+  check('未知但白名单允许的工具名给明确错误', !!(await R.execute('navigateTo', '{}')).error)
+  check('完全未知的工具名也被拒', !!(await R.execute('不存在的工具', '{}')).error)
+
+  // ---- 与 orbit 原 execute 的容错行为对齐 ----
+  {
+    const win = loadScripts({}, [orbit('js/agent/tool-registry.js')])
+    win.SceneBridge = { listActions: () => [], applySequence: async () => ({ accepted: 0 }) }
+    win.Perception = { snapshot: () => ({}) }
+    const O = win.ToolRegistry
+    const oBad = await O.execute('queryOrbital', '{坏 JSON')
+    const oUnknown = await O.execute('根本不存在的工具', '{}')
+    check('orbit 侧：非法 JSON 也是返回错误结果', !!oBad.error)
+    check('orbit 侧：未知工具也是返回错误结果', !!oUnknown.error)
+    check('两边的容错策略一致（都不抛异常、都返回错误对象）',
+      !!oBad.error && !!badJson.error && !!oUnknown.error && !!(await R.execute('不存在的工具', '{}')).error)
   }
 }
 
