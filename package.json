@@ -16,6 +16,7 @@
   },
   "comment": "刻意不使用 npm workspaces：各包之间目前是源码级相对引用（无构建步骤），加 workspaces 会改变 node_modules 布局并引入安装步骤，收益不足。等阶段 B6 建 apps/web 时再评估。",
   "devDependencies": {
-    "three": "^0.170.0"
+    "three": "^0.170.0",
+    "vite": "^6.4.3"
   }
 }

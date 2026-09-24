@@ -1,0 +1,12 @@
+{
+  "name": "@chem-agent/app-web",
+  "version": "0.1.0",
+  "description": "统一前端：一个入口 + 各模块视图 + 共享智能体面板",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  }
+}

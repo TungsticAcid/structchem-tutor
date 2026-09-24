@@ -58,7 +58,7 @@ export const DEFAULT_SCHEMA = [
   },
 ]
 
-const DEFAULT_GROUPS = [
+export const DEFAULT_GROUPS = [
   { title: '模型服务（改一次就不动）', keys: ['endpoint', 'apiKey', 'model', 'effort', 'maxTokens'], test: true },
   { title: '教学偏好（可能每次教学都调）', keys: ['showReasoning', 'proactive', 'animSpeed', 'playback'] },
 ]

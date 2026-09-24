@@ -76,6 +76,7 @@ export const APPEARANCE_RANGES = {
 /**
  * 动作词汇表。
  * 字段含义与 orbit 的 VOCAB 保持一致（同一套读取方，见 core/storyboard.js）：
+ *   label    短标签（面板的动作气泡用它，比如「切换图层」）
  *   group    分组（面板上按此归类）
  *   desc     一句话说明（给模型看）
  *   params   参数形状说明（给模型看，不参与校验）
@@ -83,41 +84,49 @@ export const APPEARANCE_RANGES = {
  */
 export const VOCAB = {
   loadCrystal: {
+    label: '切换晶体',
     group: '结构',
     desc: '切换到指定晶体。id 必须来自 searchCrystals / listCrystals 返回的原值',
     params: { crystalId: 'string' },
   },
   setLayer: {
+    label: '切换图层',
     group: '图层',
     desc: '开关一个图层（原子、化学键、空隙、对称元素、点阵点…）',
     params: { layer: Object.keys(LAYER_PROPS).join('|'), visible: 'boolean' },
   },
   setLayers: {
+    label: '批量切换图层',
     group: '图层',
     desc: '一次开关多个图层（比连续调 setLayer 少占一步演示）',
     params: { layers: '{ [layer]: boolean }' },
   },
   setView: {
+    label: '切换视角',
     group: '视角',
     desc: '切到预置视角',
     params: { direction: VIEW_DIRECTIONS.join('|') },
   },
   resetView: {
+    label: '复位视角',
     group: '视角',
     desc: '复位视角与缩放',
     params: {},
   },
   setCellDisplayMode: {
+    label: '切换晶胞显示',
     group: '结构',
     desc: '切换惯用晶胞 / 原胞',
     params: { mode: CELL_MODES.join('|') },
   },
   setAtomVisibility: {
+    label: '按元素显隐',
     group: '图层',
     desc: '按元素显示或隐藏原子（讲"A 离子在哪些位置"时很有用）',
     params: { element: 'string（元素符号，如 Na）', visible: 'boolean' },
   },
   setAppearance: {
+    label: '调整外观',
     group: '外观',
     desc: '调整原子缩放 / 键粗细 / 透明度。越界值会被夹到允许区间',
     params: {
@@ -212,6 +221,7 @@ export function validate(name, p, ctx = {}) {
 export function listActions() {
   return Object.entries(VOCAB).map(([action, v]) => ({
     action,
+    label: v.label,
     group: v.group,
     desc: v.desc,
     params: v.params,
@@ -225,4 +235,11 @@ export function listActions() {
   }))
 }
 
-export default { VOCAB, LAYER_PROPS, LAYER_NOTES, VIEW_DIRECTIONS, CELL_MODES, APPEARANCE_RANGES, validate, listActions }
+/** 动作名 → 短标签（面板的动作气泡与 describeAction 用） */
+export function labels() {
+  const out = {}
+  for (const [k, v] of Object.entries(VOCAB)) out[k] = v.label
+  return out
+}
+
+export default { VOCAB, LAYER_PROPS, LAYER_NOTES, VIEW_DIRECTIONS, CELL_MODES, APPEARANCE_RANGES, validate, listActions, labels }

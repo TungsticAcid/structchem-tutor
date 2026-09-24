@@ -9,14 +9,14 @@
  */
 import { createCrystalFacade } from './facade.js'
 import { createCrystalTools } from './tools.js'
-import { VOCAB, validate as rawValidate, listActions } from './actions.js'
+import { VOCAB, validate as rawValidate, listActions, labels as actionLabels } from './actions.js'
 
 export { createCrystalFacade } from './facade.js'
 export { createCrystalTools } from './tools.js'
 export {
   VOCAB, LAYER_PROPS, LAYER_NOTES, VIEW_DIRECTIONS, VIEW_NOTES,
   CELL_MODES, CELL_MODE_NOTES, APPEARANCE_RANGES,
-  validate, listActions,
+  validate, listActions, labels as actionLabels,
 } from './actions.js'
 
 /**
@@ -48,6 +48,8 @@ export function createModule(opts = {}) {
     validate: (name, params) => rawValidate(name, params, { crystalIds }),
     /** 动作词汇表（壳用它标注 animated/concept，并按需 listSceneActions 暴露给模型） */
     vocabulary: VOCAB,
+    /** 动作名 → 短标签（面板的动作气泡用；不该在应用入口里硬编码） */
+    actionLabels: actionLabels(),
     /** 模块自己的小参数（声明式，可直接喂 ui-kit 的 settings-popup） */
     settings: facade.settings,
     /** 模块的提示词片段（人格 + 领域约定） */
