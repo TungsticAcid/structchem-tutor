@@ -872,14 +872,19 @@ section('tool-registry：节点白名单在结构上生效')
 // ============================================================================
 {
   const def = (name) => ({ type: 'function', function: { name, description: name, parameters: { type: 'object', properties: {} } } })
+  // ★ 工具集要对齐**当前**的 CORE_TOOLS 模型：中枢提供
+  //   getSnapshot / listSceneActions / loadKnowledge / loadSkill / applySceneActions，
+  //   模块提供自己的专属工具。桩里两类都放，才能检验 missing() 的行为。
   const tools = {
-    read: [def('getSceneSnapshot'), def('getInteractionTrace')],
-    query: [def('loadKnowledge'), def('loadSkill')],
+    read: [def('getSnapshot'), def('getSceneSnapshot'), def('getInteractionTrace')],
+    query: [def('listSceneActions'), def('loadKnowledge'), def('loadSkill')],
     hand: [def('applySceneActions'), def('highlightAtoms')],
     teach: [def('generateQuiz'), def('diagnoseError')],
   }
   const calls = []
   const handlers = {
+    getSnapshot: () => { calls.push('snap'); return { state: 1 } },
+    listSceneActions: () => ({ actions: [] }),
     getSceneSnapshot: () => { calls.push('snap'); return { state: 1 } },
     getInteractionTrace: () => ({ idleMs: 0 }),
     loadKnowledge: (a) => (a.id === 'x' ? { id: 'x', body: '正文' } : null),  // null → {ok:true}
@@ -899,9 +904,11 @@ section('tool-registry：节点白名单在结构上生效')
   // ---- quiz：无 hand 授权 → 拿不到 applySceneActions ----
   R.setNode('quiz')
   const qNames = R.available()
-  check('quiz 节点无 hand 工具（结构上做不到）', !qNames.includes('applySceneActions') && !qNames.includes('highlightAtoms'),
+  check('quiz 节点无 hand 工具（结构上做不到）',
+    !qNames.includes('applySceneActions') && !qNames.includes('highlightAtoms'), qNames.join(','))
+  check('quiz 节点拿到 read + query',
+    qNames.includes('getSnapshot') && qNames.includes('loadKnowledge'),
     qNames.join(','))
-  check('quiz 节点拿到 read + query', qNames.includes('getSceneSnapshot') && qNames.includes('loadKnowledge'))
   check('quiz 节点定义数组里没有 hand 工具',
     !R.definitions().some((d) => ['applySceneActions', 'highlightAtoms'].includes(d.function.name)))
   check('quiz 节点执行 applySceneActions 被拒（执行期二次把关）',

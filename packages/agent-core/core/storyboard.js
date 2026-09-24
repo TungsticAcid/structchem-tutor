@@ -37,7 +37,8 @@ export const STORYBOARD_DEFAULTS = {
  *                                      参数错的步骤**当场退回，不入队、不占用户的一次点击**
  * @param {Function} opts.applyStep     必需：(name, params, ctx) => { ok, error? } | Promise<同>
  *                                      ctx = { isDead() }，长动画应周期性检查它并在作废时提前退出
- * @param {Object}   [opts.vocabulary]  { actionName: { animated, concept, label } }
+ * @param {Object}   [opts.vocabulary]  { actionName: { animated, concept, label } }；
+ *                                      可后续用 setVocabulary() 更换（切模块时）
  *                                      animated=true 的步骤走 applyStep 的异步路径
  * @param {Function} [opts.describe]    (name, params) => 给人看的中文动作名。默认取 vocabulary.label 或原名
  * @param {Function} [opts.capture]     () => snapshot|null，抓一份"足以完整还原视图"的快照
@@ -48,9 +49,14 @@ export const STORYBOARD_DEFAULTS = {
  */
 export function createStoryboard(opts = {}) {
   const {
-    validate, applyStep, vocabulary = {}, describe, capture, restore,
+    validate, applyStep, describe, capture, restore,
     getDefaultPlayback, onStop, timers,
   } = opts
+  /**
+   * 动作词汇表。★ 可变：多模块共用一个引擎时，切换模块必须换词汇表——
+   * 否则模型看到的是上一个模块的动作，animated/concept 判定也会串台。
+   */
+  let vocabulary = opts.vocabulary || {}
 
   if (typeof validate !== 'function') throw new Error('createStoryboard 需要 opts.validate')
   if (typeof applyStep !== 'function') throw new Error('createStoryboard 需要 opts.applyStep')
@@ -389,8 +395,19 @@ export function createStoryboard(opts = {}) {
     return { ok: true, total: q.length }
   }
 
+  /**
+   * 更换动作词汇表（切模块时调用）。
+   * ★ 顺带 stop()：正在播的分镜属于上一个模块，跨模块继续播没有意义，
+   *   而且词汇表一换，queue 里那些动作名的 animated/concept 就查不到了。
+   */
+  function setVocabulary(v) {
+    stop()
+    vocabulary = v || {}
+    return vocabulary
+  }
+
   return {
-    onProgress, emitProgress,
+    onProgress, emitProgress, setVocabulary,
     applySequence, stop, next, prev, autoPlay, replay, state,
     // 供面板/调试读取
     get queue() { return queue.slice() },

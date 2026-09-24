@@ -141,7 +141,8 @@ if (ghostTotal) {
 }
 
 // ⑤-2 CORE_TOOLS 里的名字必须由核心实现（这里只做「不是模块专属名」的粗校验）
-const CORE_IMPLEMENTED = ['loadKnowledge', 'loadSkill'];
+// 中枢实际提供的工具（app.js 里的 createShellTools 实现了这几个）
+const CORE_IMPLEMENTED = ['getSnapshot', 'listSceneActions', 'loadKnowledge', 'loadSkill', 'applySceneActions'];
 const coreNotImplemented = [...coreNames].filter((t) => !CORE_IMPLEMENTED.includes(t));
 ok(coreNotImplemented.length === 0,
    'CORE_TOOLS 只列核心确实提供的工具',
@@ -156,6 +157,8 @@ ok(coreNotImplemented.length === 0,
   ok(notImplemented.length === 0,
      `orbit descriptor 声明的 ${orbitDeclared.length} 个工具都已实现`,
      '未实现：' + notImplemented.join(','));
+  // ★ 核心提供的名字不必在 descriptor 里声明（它们归中枢）；
+  //   反向检查只针对"模块专属却没声明"的遗漏
   const undeclared = actual.filter((t) => !orbitDeclared.includes(t) && !CORE_IMPLEMENTED.includes(t));
   ok(undeclared.length === 0,
      'orbit 已实现的工具都已在 descriptor 里声明',

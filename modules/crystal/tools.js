@@ -161,11 +161,12 @@ export function createCrystalTools(opts = {}) {
     function: { name, description, parameters: { type: 'object', properties: properties || {}, required: required || [] } },
   })
 
+  // ★ 这里只放**模块专属**工具。getSnapshot / listSceneActions / applySceneActions
+  //   语义与模块无关（"当前视图""当前动作词汇表""把动作排成分镜队列"），
+  //   由中枢实现一次并分派给当前激活模块（见 packages/agent-core/app.js 与
+  //   nodes/constraints.js 的 CORE_TOOLS）。模块只通过 facade 暴露这些能力。
   const defs = {
-    read: [
-      def('getSnapshot', '获取当前视图状态的完整快照：正在看哪个晶体、哪些图层开着、外观参数与视角。'
-        + '需要了解"用户此刻在看什么"时必须先调用它。'),
-    ],
+    read: [],
     query: [
       def('listCrystals', '列出全部可用的晶体（id / 名称 / 化学式 / 晶系 / 类别）。'
         + '用于回答"有哪些晶体"以及**取得合法 id**——id 必须来自本工具返回的原值，禁止编造。', {
@@ -184,36 +185,12 @@ export function createCrystalTools(opts = {}) {
         kind: { type: 'string', enum: ['summary', 'cellVolume', 'density', 'nearestNeighbor', 'atoms', 'interstices'] },
         element: { type: 'string', description: 'nearestNeighbor 用：指定元素符号，缺省取数据里第一种' },
       }, ['crystalId', 'kind']),
-      def('listSceneActions', '拉取**受控动作词汇表**（能做哪些动作、参数取值范围）。'
-        + '词汇表不进常驻上下文，需要时调用本工具获取。', {}),
     ],
-    hand: [
-      def('applySceneActions', '在当前视图上播放一组动作。动作会排成**分镜队列逐步播放**：'
-        + '第一步立刻执行，之后停下等用户点「下一步」。因此本工具**立即返回受理回执、不等播完**。'
-        + '单次 4–8 个动作；每步必须写 speech 旁白（用户据此判断这一步在做什么）。', {
-        actions: {
-          type: 'array',
-          description: '动作数组，每项 { action, params, speech, holdMs? }。可用动作见 listSceneActions',
-          items: {
-            type: 'object',
-            properties: {
-              action: { type: 'string' },
-              params: { type: 'object' },
-              speech: { type: 'string', description: '这一步的旁白（必填）' },
-            },
-            required: ['action', 'speech'],
-          },
-        },
-      }, ['actions']),
-    ],
+    hand: [],
     teach: [],
   }
 
   const handlers = {
-    getSnapshot() {
-      return { snapshot: facade.getSnapshot() }
-    },
-
     listCrystals(p) {
       const list = catalog
         .filter((c) => !p || !p.category || c.category === p.category)
@@ -283,25 +260,6 @@ export function createCrystalTools(opts = {}) {
         default:
           return { error: `未知 kind：${p.kind}` }
       }
-    },
-
-    listSceneActions() {
-      return { actions: facade.sceneVocabulary.list(), layerNotes: facade.sceneVocabulary.layerNotes }
-    },
-
-    applySceneActions(p) {
-      // 这里只做**校验与转发**：真正的"入队 + 逐步播放"由共享分镜引擎负责
-      // （core/storyboard.js）。工具层不该自己实现队列——否则回退/快照/闸门都要重写一遍。
-      const actions = (p && p.actions) || []
-      const checked = []
-      const failed = []
-      for (const a of actions) {
-        const v = facade.validate(a && a.action, (a && a.params) || {})
-        if (v.err) failed.push({ action: a && a.action, error: v.err })
-        else checked.push({ action: a.action, params: v.params, speech: a.speech })
-      }
-      return { checked, failed, count: checked.length,
-        note: '已校验，交由分镜引擎入队；每步执行前会存快照以便「上一步」精确回退' }
     },
   }
 

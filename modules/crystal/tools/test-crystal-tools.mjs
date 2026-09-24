@@ -116,7 +116,7 @@ section('Z 不自洽时必须报错，而不是四舍五入')
 }
 
 // ============================================================================
-section('工具定义（OpenAI function-calling 格式）')
+section('工具定义：模块只提供专属工具')
 // ============================================================================
 {
   const all = Object.entries(T.defs).flatMap(([cls, list]) => list.map((d) => ({ cls, d })))
@@ -126,16 +126,27 @@ section('工具定义（OpenAI function-calling 格式）')
   check('四个类别都在（read/query/hand/teach）',
     ['read', 'query', 'hand', 'teach'].every((c) => c in T.defs))
 
-  const hand = T.defs.hand.find((d) => d.function.name === 'applySceneActions')
-  check('出题/动手类工具的参数 schema 要求每步写 speech（否则学生看到画面莫名跳一下）',
-    hand.function.parameters.properties.actions.items.required.includes('speech'))
-  check('applySceneActions 的描述里写明"入队 + 立即返回"（不阻塞对话循环）',
-    /立即返回|不等播完/.test(hand.function.description))
-
   const q = T.defs.query.find((d) => d.function.name === 'queryCrystal')
   check('queryCrystal 的 kind 是枚举（模型不必猜）', Array.isArray(q.function.parameters.properties.kind.enum))
   check('queryCrystal 的描述里点明"一律由程序计算，不得口算"',
     /程序计算|不得口算/.test(q.function.description))
+  check('listCrystals 的描述要求 id 原样使用（禁止编造）', /原值/.test(T.defs.query.find((d) => d.function.name === 'listCrystals').function.description))
+
+  // ★ 模块**不得**定义中枢工具 —— 重复注册会让模块版覆盖中枢版，
+  //   而模块版通常只做校验、忘了入队，于是"动作立刻执行、没有分镜队列"，
+  //   逐步播放与快照回退全失效。这条不变量值得单列一条钉住。
+  const SHELL_TOOLS = ['getSnapshot', 'listSceneActions', 'applySceneActions', 'loadKnowledge', 'loadSkill']
+  const overlap = T.names().filter((n) => SHELL_TOOLS.includes(n))
+  check('★ 模块不定义任何中枢工具（避免覆盖中枢版、丢掉分镜队列）',
+    overlap.length === 0, '重复定义：' + overlap.join(','))
+  check('模块工具恰好是 3 个专属查询工具',
+    T.names().sort().join(',') === 'getCrystalDetail,listCrystals,queryCrystal', T.names().join(','))
+
+  // 但**能力**仍在：中枢的 applySceneActions 要靠 facade 校验动作、applyActions 执行
+  check('facade 仍暴露中枢所需的能力（validate / applyActions / getSnapshot / sceneVocabulary）',
+    ['validate', 'applyActions', 'getSnapshot', 'sceneVocabulary'].every((k) => k in facade))
+  check('facade.validate 能校验动作（中枢的分镜引擎要用它）',
+    facade.validate('setLayer', { layer: 'octahedral' }).params.layer === 'octahedral')
 }
 
 // ============================================================================
@@ -152,7 +163,6 @@ section('工具执行：错误归一化为结果，不抛异常')
   const r3 = T.handlers.queryCrystal({ crystalId: 'fcc', kind: '不存在的kind' })
   check('未知 kind 返回 error', !!r3.error && /未知 kind/.test(r3.error))
 
-  // 各 kind 都应给出可用结果
   for (const kind of ['summary', 'cellVolume', 'density', 'nearestNeighbor', 'atoms', 'interstices']) {
     const r = T.handlers.queryCrystal({ crystalId: 'naCl', kind })
     check(`kind=${kind} 有结果且无 error`, !r.error, JSON.stringify(r).slice(0, 120))
@@ -170,30 +180,9 @@ section('工具执行：错误归一化为结果，不抛异常')
   const sum = T.handlers.queryCrystal({ crystalId: 'fcc', kind: 'summary' })
   check('summary 同时给出数据原文与程序算出的量，并标明哪些是算的',
     sum.atomCount === 4 && sum.cellVolumeA3 > 0 && /由程序计算/.test(sum.note))
-}
 
-// ============================================================================
-section('applySceneActions：只校验与转发，不自己实现队列')
-// ============================================================================
-{
-  const r = T.handlers.applySceneActions({ actions: [
-    { action: 'setLayer', params: { layer: 'octahedral', visible: true }, speech: '打开八面体空隙' },
-    { action: 'setLayer', params: { layer: '不存在的层' }, speech: 'x' },
-    { action: 'loadCrystal', params: { crystalId: '编造' }, speech: 'y' },
-  ] })
-  check('合法动作进 checked，非法动作进 failed（分开报，不整批回滚）',
-    r.checked.length === 1 && r.failed.length === 2, JSON.stringify(r))
-  check('checked 里带上 speech', r.checked[0].speech === '打开八面体空隙')
-  check('注明队列由分镜引擎负责（工具层不重复实现）', /分镜/.test(r.note))
-
-  const r2 = T.handlers.applySceneActions({ actions: [] })
-  check('空动作数组不报错', r2.count === 0 && r2.failed.length === 0)
-  const r3 = T.handlers.applySceneActions({})
-  check('缺 actions 参数不抛异常', r3.count === 0)
-
-  const vocab = T.handlers.listSceneActions({})
-  check('listSceneActions 返回词汇表与图层说明',
-    vocab.actions.length === listActions().length && Object.keys(vocab.layerNotes).length > 0)
+  const cat = T.handlers.listCrystals({ category: 'metal' })
+  check('listCrystals 支持按类别筛选', cat.crystals.every((c) => c.category === 'metal'))
 }
 
 // ============================================================================
@@ -206,15 +195,20 @@ section('与 descriptor 对账：声明的工具必须真的实现')
   const notImplemented = declared.filter((n) => !actual.has(n))
   check('crystal descriptor 的 tools 里没有"声明了却没实现"的名字',
     notImplemented.length === 0, '未实现：' + notImplemented.join(','))
-  check('descriptor 不再声明已实现工具之外的东西（plannedTools 单独放）',
-    Object.values(descriptor.plannedTools || {}).flat().every((n) => !actual.has(n)),
-    '既在 tools 又在 plannedTools：' +
-      Object.values(descriptor.plannedTools || {}).flat().filter((n) => actual.has(n)).join(','))
-  console.log('      模块已实现工具：' + [...actual].sort().join(', '))
+  const planned = Object.values(descriptor.plannedTools || {}).flat()
+  check('descriptor 的 plannedTools 与 tools 不重叠',
+    planned.every((n) => !declared.includes(n)),
+    planned.filter((n) => declared.includes(n)).join(','))
+  check('descriptor 不再把中枢工具当作模块工具声明（否则等于重复注册）',
+    !['getSnapshot', 'listSceneActions', 'applySceneActions'].some((n) => declared.includes(n)),
+    declared.join(','))
+  console.log('      模块专属工具：' + [...actual].sort().join(', '))
+  console.log('      中枢提供（不由本模块声明）：getSnapshot, listSceneActions, applySceneActions, loadKnowledge, loadSkill')
 }
 
 // ============================================================================
-console.log(`\n${'═'.repeat(60)}`)
+console.log(`
+${'═'.repeat(60)}`)
 console.log(`test-crystal-tools 结果：通过 ${pass} 项，失败 ${fail} 项`)
 console.log('═'.repeat(60))
 process.exit(fail ? 1 : 0)

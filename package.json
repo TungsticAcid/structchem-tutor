@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "npm run test:core && npm run test:ui && npm run test:viewer && npm run test:shared && npm run test:modules && npm run test:data",
-    "test:core": "node packages/agent-core/tools/selftest.mjs && node packages/agent-core/tools/test-core.mjs",
+    "test:core": "node packages/agent-core/tools/selftest.mjs && node packages/agent-core/tools/test-core.mjs && node packages/agent-core/tools/test-app.mjs",
     "test:ui": "node packages/ui-kit/tools/test-ui-kit.mjs",
     "test:viewer": "node packages/viewer/tools/test-viewer.mjs",
     "test:data": "node projects/crystal/tools/check-crystal-data.mjs",

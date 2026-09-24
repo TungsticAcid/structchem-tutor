@@ -34,11 +34,15 @@ export default {
   knowledge: 'orbit',
   skills: 'orbit',
 
-  // 已实现（14 个，与 tool-registry.js 一致）
+  // 已实现：只列**模块专属**工具。
+  // ★ getSnapshot / listSceneActions / applySceneActions 不在其中——它们语义与模块
+  //   无关，已归中枢提供（CORE_TOOLS + packages/agent-core/app.js）。
+  //   orbit 的 tool-registry 里仍有这三个的实现，那是它作为独立应用时的历史遗留；
+  //   阶段 B4 去全局化时不再迁移它们，只把 queryOrbital 等专属工具接过来。
   tools: {
-    read: ['getSnapshot'],
-    query: ['queryOrbital', 'listSceneActions'],
-    hand: ['applySceneActions'],
+    read: [],
+    query: ['queryOrbital'],
+    hand: [],
     teach: ['explainConcept', 'generateQuestion', 'diagnoseError', 'generateVariant',
             'startFeynmanCheck', 'evaluateFeynman', 'updateMastery', 'recommendNext'],
   },

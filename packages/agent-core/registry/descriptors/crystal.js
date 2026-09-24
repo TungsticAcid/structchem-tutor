@@ -35,10 +35,16 @@ export default {
   //   （facade.js 实现模块契约、tools.js 提供工具定义与执行、actions.js 是动作词汇表）。
   //   由 modules/crystal/tools/test-crystal-tools.mjs 对账：这里声明的名字必须都在
   //   tools.js 的 names() 里。
+  // ★ 只列**模块专属**工具。getSnapshot / listSceneActions / applySceneActions
+  //   语义与模块无关，由中枢提供一次并分派给当前激活模块
+  //   （见 nodes/constraints.js 的 CORE_TOOLS 与 packages/agent-core/app.js）。
+  //   模块通过 facade 暴露这些能力，但不必也不该重复注册同名工具——
+  //   重复注册会让模块版覆盖中枢版，而模块版通常只做校验、忘了入队，
+  //   于是"动作立刻执行、没有分镜队列"，逐步播放与快照回退全失效。
   tools: {
-    read: ['getSnapshot'],
-    query: ['listCrystals', 'getCrystalDetail', 'queryCrystal', 'listSceneActions'],
-    hand: ['applySceneActions'],
+    read: [],
+    query: ['listCrystals', 'getCrystalDetail', 'queryCrystal'],
+    hand: [],
     teach: [],
   },
 
