@@ -145,6 +145,7 @@ cd projects/crystal/H5 && npm install && npm run dev
 | 文档 | 位置 |
 |---|---|
 | **重构计划（当前主线）** | `docs/重构计划.md` |
+| **orbit 变更待评估** | `docs/orbit变更待评估.md`（用户在 `D:\xjl\program\orbit` 上的 15 处改动，待评估后按层迁移） |
 | 智能体知识资产设计 | `projects/crystal/activity/智能体知识资产设计.md` |
 | AI 智能体建设方案 | `projects/crystal/activity/AI智能体建设方案.md` |
 | 出题引擎技术设计 | `projects/crystal/activity/出题引擎技术设计.md` |
@@ -171,3 +172,5 @@ cd projects/crystal/H5 && npm install && npm run dev
 **关于复用 orbit**：它的 `llm-client`、面板渲染、分镜队列、感知快照等
 与学科无关，**直接搬**（它们处理了流式解析、中断、max_tokens 截断续写等真实的坑）；
 而 `scene-bridge`、`question-engine`、`error-diagnosis` 是学科耦合的，**必须重写**。
+
+
