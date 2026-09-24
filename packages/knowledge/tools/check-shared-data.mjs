@@ -231,6 +231,50 @@ console.log('\n【与共享核心的集成】')
 }
 
 // ============================================================================
+// symmetry 知识资产：特征标表与点群映射（packages/knowledge/symmetry/ 是真源）
+// ============================================================================
+console.log('\n【symmetry 知识资产】')
+{
+  const S = await import(new URL('../symmetry/index.js', HERE).href)
+  ok(S.groupCount() === 44, `特征标表收录 ${S.groupCount()} 个群（应为 44）`)
+  ok(S.listGroups().length === 44 && S.listGroups()[0] <= S.listGroups()[43], 'listGroups 有序返回全部群号')
+
+  // 与 symmetry/H5 的副本逐群逐表示比对（数据必须一致；头部注释差异不算）
+  const copy = await importAbs(repo('projects/symmetry/H5/src/symmetry/characterTables.js'))
+  const a = JSON.stringify(S.CHARACTER_TABLES)
+  const b = JSON.stringify(copy.CHARACTER_TABLES)
+  ok(a === b, '特征标表与 symmetry/H5 副本逐群逐表示一致',
+    a === b ? '' : `真源 ${Object.keys(S.CHARACTER_TABLES).length} 群 / 副本 ${Object.keys(copy.CHARACTER_TABLES).length} 群`)
+
+  const copyG = await importAbs(repo('projects/symmetry/H5/src/symmetry/groupTable.js'))
+  ok(JSON.stringify(S.POINT_GROUP_NAMES) === JSON.stringify(copyG.POINT_GROUP_NAMES),
+    '点群名称表与副本一致')
+  ok(JSON.stringify(S.POINT_GROUP_SYSTEM) === JSON.stringify(copyG.POINT_GROUP_SYSTEM),
+    '点群→晶系映射与副本一致')
+
+  // 结构自洽：每个群都要有 classes 与 irreps，且每个不可约表示的字符数等于类数
+  const badStruct = []
+  for (const [sym, t] of Object.entries(S.CHARACTER_TABLES)) {
+    if (!Array.isArray(t.classes) || !Array.isArray(t.irreps)) { badStruct.push(sym + ': 缺 classes/irreps'); continue }
+    for (const ir of t.irreps) {
+      if (!Array.isArray(ir.characters) || ir.characters.length !== t.classes.length) {
+        badStruct.push(`${sym}.${ir.label}: 字符数 ${ir.characters && ir.characters.length} ≠ 类数 ${t.classes.length}`)
+      }
+    }
+  }
+  // ★ 这条自洽性检查很重要：特征标表的**每一行字符数必须等于共轭类数**（群论基本要求）。
+  //   录入错一个数不会报错，只会让约化/选择定则算出错结果。
+  ok(badStruct.length === 0, '每个群的不可约表示字符数与共轭类数一致（逐条校验）',
+    badStruct.slice(0, 4).join('; ') + (badStruct.length > 4 ? ` …共 ${badStruct.length} 处` : ''))
+
+  ok(S.lookupCharacterTable('C2v') !== null && S.lookupCharacterTable('C2v').irreps.length === 4,
+    'lookupCharacterTable 可取到 C2v（4 个不可约表示）')
+  ok(S.lookupCharacterTable('Zzz') === null, '未知群统一返回 null（原实现返回 undefined，此处收口）')
+  ok(S.CHARACTER_TABLES.Oh && S.CHARACTER_TABLES.Oh.irreps.length === 10,
+    'Oh 群有 10 个不可约表示（A1g…T2u，可核对的已知事实）')
+}
+
+// ============================================================================
 console.log('\n' + '═'.repeat(70))
 console.log(`守卫结果：通过 ${pass} 项，失败 ${fail} 项`)
 console.log('═'.repeat(70))
