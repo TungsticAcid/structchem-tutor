@@ -17,6 +17,8 @@ import { createPerception } from '../core/perception.js'
 import { createStoryboard } from '../core/storyboard.js'
 import { createConversation, buildManifestText, composeSystemPrompt } from '../core/conversation.js'
 import { createToolRegistry } from '../core/tool-registry.js'
+import { createRenderer } from '../ui/renderer.js'
+import { el, clear } from '../ui/dom.js'
 
 const HERE = new URL('.', import.meta.url)
 const orbit = (p) => fileURLToPath(new URL('../../../projects/orbit/H5/' + p, HERE))
@@ -970,6 +972,136 @@ section('tool-registry：节点白名单在结构上生效')
     check('orbit 侧：未知工具也是返回错误结果', !!oUnknown.error)
     check('两边的容错策略一致（都不抛异常、都返回错误对象）',
       !!oBad.error && !!badJson.error && !!oUnknown.error && !!(await R.execute('不存在的工具', '{}')).error)
+  }
+}
+
+// ============================================================================
+section('renderer：Markdown+LaTeX 渲染（与 orbit 原实现逐字比对）')
+// ============================================================================
+{
+  // 取 orbit 原文件里「渲染器那一段」的源码文本，在受控作用域里求值。
+  // 这样不必修改 orbit 的文件，也能拿到它真正的实现来比对。
+  const src = readFileSync(orbit('js/agent/panel.js'), 'utf-8')
+  const start = src.indexOf('function escapeHtml')
+  const end = src.indexOf('// 构建 UI')
+  const block = src.slice(start, end)
+  check('成功提取 orbit 的渲染器源码段', start > 0 && end > start && block.includes('function renderRich'))
+
+  const stubKatex = { renderToString: (tex, o) => '[K' + (o && o.displayMode ? 'B' : 'I') + '<' + tex + '>]' }
+  const winO = { katex: stubKatex }
+  const O = new Function('window', block + '\n return { renderRich, md, trimUnclosedFormula, escapeHtml, katexHtml }')(winO)
+  const M = createRenderer({ katex: stubKatex })
+
+  const CASES = [
+    ['行内公式夹在句中（不应被切成多行）', '系数各为 $\\frac{1}{2}$ 与 $\\frac{1}{\\sqrt{2}}$ 两项。'],
+    ['块公式独占一行', '推导如下：\n\n$$\\psi_{nlm}=R_{n,l}(r)Y_{l,m}(\\theta,\\phi)$$\n\n以上。'],
+    ['块公式夹在文字中间（应强制断行）', '由前式 $$E_n=-13.6/n^2$$ 可得结论。'],
+    ['未闭合公式 + streaming（应整段裁掉）', '系数各为 $\\frac{1}{2'],
+    ['未闭合公式 + 非 streaming（原样保留）', '系数各为 $\\frac{1}{2'],
+    ['转义美元号 $\\$ 不当公式', '价格是 \\$5，而公式是 $a+b$。'],
+    ['表格', '| 群 | 阶 |\n|---|---|\n| C2v | 4 |\n| D3h | 12 |'],
+    ['列表', '- 第一项\n- 第二项\n* 第三项'],
+    ['标题', '## 小节标题\n正文'],
+    ['引用块', '> 这是引用'],
+    ['加粗/斜体/行内代码', '这是**加粗**、*斜体*与 `code` 的混排。'],
+    ['HTML 转义', '五五开 < > & " 比较'],
+    ['空输入', ''],
+    ['多段与空行', '第一段\n\n第二段\n\n\n第三段'],
+    ['公式里有特殊字符（转义次序）', '条件 $a<b$ 与 $x>y$ 同时成立'],
+  ]
+
+  let same = 0
+  for (const [name, input] of CASES) {
+    const streaming = /streaming（应整段裁掉）/.test(name) ? true : undefined
+    const a = O.renderRich(input, streaming ? { streaming: true } : undefined)
+    const b = M.renderRich(input, streaming ? { streaming: true } : undefined)
+    if (a === b) same++
+    else check(`渲染一致：${name}`, false, `\n      原 ${JSON.stringify(a)}\n      新 ${JSON.stringify(b)}`)
+  }
+  check(`全部 ${CASES.length} 个渲染用例逐字一致`, same === CASES.length, `一致 ${same}/${CASES.length}`)
+
+  // trimUnclosedFormula 单独比对
+  const TRIM = [
+    ['未闭合行内', 'abc $x+y'],
+    ['未闭合块级', 'abc $$x+y'],
+    ['已闭合', 'abc $x$ def'],
+    ['转义跳过', 'a \\$ b $c'],
+    ['两块一闭合', '$$a$$ 与 $$b'],
+    ['空串', ''],
+  ]
+  let trimSame = 0
+  for (const [n, s] of TRIM) {
+    if (O.trimUnclosedFormula(s) === M.trimUnclosedFormula(s)) trimSame++
+    else check(`trim 一致：${n}`, false, `${JSON.stringify(O.trimUnclosedFormula(s))} vs ${JSON.stringify(M.trimUnclosedFormula(s))}`)
+  }
+  check(`trimUnclosedFormula 全部 ${TRIM.length} 例一致`, trimSame === TRIM.length)
+
+  // 绝对性质：行内公式不得把一句话切成多个块
+  const oneLine = M.renderRich('系数为 $a$ 与 $b$，共两项。')
+  check('行内公式不把一句话切成多行', (oneLine.match(/class="md-line"/g) || []).length === 1, oneLine)
+  check('行内公式被渲染（非源码裸露）', oneLine.includes('[KI<a>]') && oneLine.includes('[KI<b>]'), oneLine)
+  const blk = M.renderRich('由前式 $$E$$ 可得')
+  check('块公式独占一个 md-math-block', blk.includes('class="md-math-block"') && blk.includes('[KB<E>]'), blk)
+  check('块公式两侧文字各自成行', (blk.match(/class="md-line"/g) || []).length === 2, blk)
+
+  // KaTeX 缺席时退化（总比空白好）
+  const noKatex = createRenderer({ katex: null })
+  check('KaTeX 缺席时公式退化为等宽源码', /<code>/.test(noKatex.renderRich('$x$')))
+  // KaTeX 报错时也退化，而不是让整条消息渲染失败
+  const badKatex = createRenderer({ katex: { renderToString: () => { throw new Error('boom') } } })
+  check('KaTeX 抛错时退化为源码而非整条渲染失败', /<code>/.test(badKatex.renderRich('$x$')))
+  check('KaTeX 抛错不影响同条消息的其它内容', /正文/.test(badKatex.renderRich('正文 $x$ 结尾')))
+
+  // el()：用最小 document 桩驱动两边，比对**行为**（Node 里没有 DOM）
+  {
+    const mkDoc = () => {
+      const mkNode = (tag) => ({
+        tag, className: '', textContent: '', innerHTML: '', children: [], attrs: {},
+        setAttribute(k, v) { this.attrs[k] = v },
+        appendChild(c) { this.children.push(c); return c },
+        removeChild(c) {
+          const i = this.children.indexOf(c)
+          if (i >= 0) this.children.splice(i, 1)
+          if (this.firstChild === c) this.firstChild = this.children[0] || null
+          return c
+        },
+      })
+      return { createElement: (tag) => mkNode(tag) }
+    }
+    const probe = (elFn) => {
+      globalThis.document = mkDoc()
+      try {
+        const n = elFn('div', { class: 'c', text: 'TT', html: '<b>H</b>', 'data-x': '1' }, [])
+        return { tag: n.tag, className: n.className, textContent: n.textContent, innerHTML: n.innerHTML, attrs: n.attrs }
+      } finally { delete globalThis.document }
+    }
+
+    // orbit 的 el 出现在 panel.js 与 settings.js 两处；取其一求值
+    const srcPanel = readFileSync(orbit('js/agent/panel.js'), 'utf-8')
+    const p1 = srcPanel.indexOf('function el(')
+    const p2 = srcPanel.indexOf('function build()')
+    const Oel = new Function(srcPanel.slice(p1, p2) + '\n return el')()
+
+    const a = probe(Oel)
+    const b = probe(el)
+    check('el() 的行为与原实现一致', JSON.stringify(a) === JSON.stringify(b),
+      `${JSON.stringify(a)} vs ${JSON.stringify(b)}`)
+    check('el() 把 class/text/html 走专用通道（不落到 setAttribute）',
+      b.className === 'c' && b.textContent === 'TT' && b.innerHTML === '<b>H</b>' &&
+      !('class' in b.attrs) && !('text' in b.attrs) && !('html' in b.attrs))
+    check('el() 其余属性走 setAttribute', b.attrs['data-x'] === '1')
+
+    // clear()：共享层新增的小工具（桩节点需要 removeChild，已在上面的 mkNode 里补）
+    globalThis.document = mkDoc()
+    const holder = document.createElement('div')
+    const child = document.createElement('span')
+    holder.appendChild(child)
+    holder.firstChild = child
+    const r = clear(holder)
+    const emptied = holder.children.length === 0
+    delete globalThis.document
+    check('clear() 移除子节点并返回该节点', r === holder && emptied)
+    check('clear() 容忍 null 输入', clear(null) === null)
   }
 }
 
