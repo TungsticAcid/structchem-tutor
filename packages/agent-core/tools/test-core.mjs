@@ -15,6 +15,7 @@ import { createCatalog } from '../core/catalog.js'
 import { startFeynman } from '../core/feynman.js'
 import { createPerception } from '../core/perception.js'
 import { createStoryboard } from '../core/storyboard.js'
+import { createConversation, buildManifestText, composeSystemPrompt } from '../core/conversation.js'
 
 const HERE = new URL('.', import.meta.url)
 const orbit = (p) => fileURLToPath(new URL('../../../projects/orbit/H5/' + p, HERE))
@@ -557,6 +558,308 @@ section('storyboard：机制验证 + 与 orbit 原引擎的协议等价性')
   } finally {
     globalThis.requestAnimationFrame = realRaf
     globalThis.cancelAnimationFrame = realCaf
+  }
+}
+
+// ============================================================================
+section('conversation：循环机制 + 与 orbit 原循环的等价性')
+// ============================================================================
+{
+  // ---- 假 LLM：按脚本逐次返回，并记录收到的 messages ----
+  const mkLLM = (script) => {
+    let i = 0
+    const calls = []
+    return {
+      calls,
+      chat: async (o) => {
+        calls.push({
+          msgs: JSON.parse(JSON.stringify(o.messages)),
+          tools: (o.tools || []).length,
+        })
+        const r = script[Math.min(i++, script.length - 1)]
+        if (r.streamReasoning && o.onDelta) o.onDelta({ type: 'reasoning', text: r.streamReasoning })
+        if (r.content && o.onDelta) o.onDelta({ type: 'content', text: r.content })
+        return {
+          content: r.content || '',
+          // 刻意允许返回比流出的更多的 reasoning，以覆盖"补发差额"这条路径
+          reasoning: r.reasoning != null ? r.reasoning : (r.streamReasoning || ''),
+          toolCalls: r.toolCalls || [],
+          finishReason: r.finishReason || 'stop',
+          usage: r.usage || null,
+        }
+      },
+    }
+  }
+
+  const tc = (name, args, id) => ({ id: id || ('call_' + name), type: 'function', function: { name, arguments: JSON.stringify(args || {}) } })
+
+  /**
+   * 跑一次对话，返回可比对的观测量。
+   * @param {Function} make  (deps) => { send, stop, getHistory }  用来喂 orbit 或我的实现
+   * @param {Function} wire  (deps, handlers) => void              各侧不同的接线方式
+   */
+  const runCase = async (make, wire, script, handlersOverride) => {
+    const events = { deltas: [], notices: [], toolCalls: [], toolResults: [], messages: [], errors: [], done: null }
+    const H = {
+      onDelta: (e) => events.deltas.push(e.type + ':' + e.text),
+      onNotice: (n) => events.notices.push(n.kind),
+      onToolCall: (i) => events.toolCalls.push(i.name),
+      onToolResult: (i) => events.toolResults.push(i.name + ':' + JSON.stringify(i.result)),
+      onMessage: (m) => events.messages.push(m.content),
+      onError: (e) => events.errors.push(e.kind + ':' + e.message),
+      onDone: (s) => { events.done = { rounds: s.rounds, tools: s.tools, aborted: s.aborted, finishReason: s.finishReason } },
+      ...(handlersOverride || {}),
+    }
+    const deps = make()
+    wire(deps, H)
+    const summary = await deps.send('学生提问', H)
+    return { events, summary, history: deps.getHistory(), calls: deps.llmCalls ? deps.llmCalls() : null }
+  }
+
+  // ---- orbit 侧接线 ----
+  const setupOrbit = (script, toolExec) => {
+    const llm = mkLLM(script)
+    const win = loadScripts({}, [orbit('js/agent/agent-core.js')])
+    let snapN = 0
+    win.LLMClient = llm
+    win.Settings = { get: () => ({ apiKey: 'test-key', maxTokens: 512, model: 'm' }) }
+    win.Perception = { toCompactText: () => 'SNAP#' + (++snapN) }
+    win.ToolRegistry = { TOOLS: [{ type: 'function', function: { name: 'getSnapshot' } }], execute: toolExec }
+    win.SceneBridge = { stop: () => {} }
+    return {
+      deps: {
+        send: (t, H) => win.AgentCore.send(t, H),
+        stop: () => win.AgentCore.stop(),
+        getHistory: () => win.AgentCore.getHistory(),
+        llmCalls: () => llm.calls,
+      },
+      win,
+    }
+  }
+
+  // ---- 我的侧接线 ----
+  const setupMine = (script, toolExec, over) => {
+    const llm = mkLLM(script)
+    let snapN = 0
+    const conv = createConversation({
+      llm,
+      buildSystem: () => 'ROLE',
+      getSettings: () => ({ apiKey: 'test-key', maxTokens: 512, model: 'm' }),
+      getTools: () => [{ type: 'function', function: { name: 'getSnapshot' } }],
+      executeTool: (name, argsJson) => toolExec(name, argsJson),
+      getSnapshotText: () => 'SNAP#' + (++snapN),
+      ...(over || {}),
+    })
+    return {
+      deps: {
+        send: (t, H) => conv.send(t, H),
+        stop: () => conv.stop(),
+        getHistory: () => conv.getHistory(),
+        llmCalls: () => llm.calls,
+      },
+      conv,
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // 用例 1：正常两轮（工具调用 → 回灌 → 收尾）
+  // ---------------------------------------------------------------------
+  {
+    const script = [
+      { content: '我来看看当前状态', toolCalls: [tc('getSnapshot', {})], finishReason: 'tool_calls' },
+      { content: '这是解释。', finishReason: 'stop', usage: { total_tokens: 42 } },
+    ]
+    const toolExec = async (name, argsJson) => ({ ok: true, echo: name, argsLen: String(argsJson).length })
+
+    const A = await runCase(() => setupOrbit(script, toolExec).deps, () => {}, script)
+    const B = await runCase(() => setupMine(script, toolExec).deps, () => {}, script)
+
+    check('两轮用例：rounds 一致', A.events.done.rounds === B.events.done.rounds, `${A.events.done.rounds} vs ${B.events.done.rounds}`)
+    check('两轮用例：工具调用序列一致', JSON.stringify(A.events.toolCalls) === JSON.stringify(B.events.toolCalls),
+      `${JSON.stringify(A.events.toolCalls)} vs ${JSON.stringify(B.events.toolCalls)}`)
+    check('两轮用例：工具结果回灌一致', JSON.stringify(A.events.toolResults) === JSON.stringify(B.events.toolResults))
+    check('两轮用例：流式增量序列一致', JSON.stringify(A.events.deltas) === JSON.stringify(B.events.deltas),
+      `${JSON.stringify(A.events.deltas)} vs ${JSON.stringify(B.events.deltas)}`)
+    check('两轮用例：finishReason 一致', A.events.done.finishReason === B.events.done.finishReason)
+    check('两轮用例：LLM 被调用次数一致', A.calls.length === B.calls.length && B.calls.length === 2)
+    check('两轮用例：第二次调用的 messages 角色序列一致（含 tool 回灌）',
+      A.calls[1].msgs.map((m) => m.role).join(',') === B.calls[1].msgs.map((m) => m.role).join(','),
+      `${A.calls[1].msgs.map((m) => m.role).join(',')} vs ${B.calls[1].msgs.map((m) => m.role).join(',')}`)
+    check('两轮用例：工具数传给 LLM 一致', A.calls[0].tools === B.calls[0].tools && B.calls[0].tools === 1)
+    check('两轮用例：历史角色序列一致',
+      A.history.map((m) => m.role).join(',') === B.history.map((m) => m.role).join(','),
+      `${A.history.map((m) => m.role).join(',')} vs ${B.history.map((m) => m.role).join(',')}`)
+    check('两轮用例：assistant 消息都回传面板', JSON.stringify(A.events.messages) === JSON.stringify(B.events.messages))
+  }
+
+  // ---------------------------------------------------------------------
+  // 用例 2：快照每轮重采（坑 1）—— 两次调用里注入的快照必须不同
+  // ---------------------------------------------------------------------
+  {
+    const script = [
+      { toolCalls: [tc('getSnapshot', {})], finishReason: 'tool_calls' },
+      { content: '完毕', finishReason: 'stop' },
+    ]
+    const toolExec = async () => ({ ok: true })
+    const B = await runCase(() => setupMine(script, toolExec).deps, () => {}, script)
+    const snap1 = B.calls[0].msgs.find((m) => m.role === 'system' && /SNAP#/.test(m.content))
+    const snap2 = B.calls[1].msgs.find((m) => m.role === 'system' && /SNAP#/.test(m.content))
+    check('每轮都注入了快照', !!snap1 && !!snap2)
+    check('第二轮拿到的是**新**快照（不是沿用旧的）', snap1.content !== snap2.content, `${snap1 && snap1.content} vs ${snap2 && snap2.content}`)
+    check('快照作为临时 system 插在 index 1（不写进 history）',
+      B.calls[0].msgs[1] && /SNAP#/.test(B.calls[0].msgs[1].content) &&
+      !B.history.some((m) => /SNAP#/.test(m.content || '')))
+  }
+
+  // ---------------------------------------------------------------------
+  // 用例 3：思考未走流式 → 按差额补发（坑 6）
+  // ---------------------------------------------------------------------
+  {
+    const script = [{ content: '正文', reasoning: '完整思考内容很长', finishReason: 'stop' }]
+    const toolExec = async () => ({ ok: true })
+    const A = await runCase(() => setupOrbit(script, toolExec).deps, () => {}, script)
+    const B = await runCase(() => setupMine(script, toolExec).deps, () => {}, script)
+    check('未流式的思考被补发（两边一致）', JSON.stringify(A.events.deltas) === JSON.stringify(B.events.deltas),
+      `${JSON.stringify(A.events.deltas)} vs ${JSON.stringify(B.events.deltas)}`)
+    check('补发的内容就是完整思考', B.events.deltas.includes('reasoning:完整思考内容很长'))
+  }
+
+  // ---------------------------------------------------------------------
+  // 用例 4：长度截断 → 显式续写，超过上限则放弃（坑 5）
+  // ---------------------------------------------------------------------
+  {
+    const script = [
+      { content: '写了一半', finishReason: 'length' },
+      { content: '再写一段', finishReason: 'length' },
+      { content: '继续', finishReason: 'length' },
+      { content: '还想写', finishReason: 'length' },
+    ]
+    const toolExec = async () => ({ ok: true })
+    const A = await runCase(() => setupOrbit(script, toolExec).deps, () => {}, script)
+    const B = await runCase(() => setupMine(script, toolExec).deps, () => {}, script)
+    check('截断通知序列一致', JSON.stringify(A.events.notices) === JSON.stringify(B.events.notices),
+      `${JSON.stringify(A.events.notices)} vs ${JSON.stringify(B.events.notices)}`)
+    // 轮次：第1轮截断→续写1；第2轮截断→续写2；第3轮截断→达上限放弃。
+    // 故 'truncated' 出现 maxContinues+1 = 3 次，之后是 giveup。
+    check('截断通知出现 maxContinues+1 次',
+      B.events.notices.filter((k) => k === 'truncated').length === 3,
+      JSON.stringify(B.events.notices))
+    check('放弃时发出 truncated_giveup', B.events.notices.includes('truncated_giveup'))
+    check('截断后注入的是续写指令（user 角色）',
+      B.calls[1].msgs.some((m) => m.role === 'user' && /截断/.test(m.content)))
+    check('截断用例：LLM 调用次数一致', A.calls.length === B.calls.length, `${A.calls.length} vs ${B.calls.length}`)
+  }
+
+  // ---------------------------------------------------------------------
+  // 用例 5：中途中止 → 剩余工具调用必须补发占位 tool 消息（坑 4，最关键）
+  // ---------------------------------------------------------------------
+  {
+    const script = [
+      {
+        toolCalls: [tc('t1', {}, 'c1'), tc('t2', {}, 'c2'), tc('t3', {}, 'c3'), tc('t4', {}, 'c4')],
+        finishReason: 'tool_calls',
+      },
+      { content: '不该走到这里', finishReason: 'stop' },
+    ]
+    const mkAbortingExec = (stopFn) => async (name) => {
+      if (name === 't2') stopFn()          // 执行第 2 个工具时用户叫停
+      return { ok: true, name }
+    }
+
+    // 两侧都在「执行第 2 个工具时」叫停自己，从而走到"丢弃剩余调用"的分支
+    const o = setupOrbit(script, mkAbortingExec(() => o.win.AgentCore.stop()))
+    const A = await runCase(() => o.deps, () => {}, script)
+
+    const m = setupMine(script, mkAbortingExec(() => m.conv.stop()))
+    const B = await runCase(() => m.deps, () => {}, script)
+
+    check('中止后只执行了已开始的工具（两边的 toolCall 序列一致）',
+      JSON.stringify(A.events.toolCalls) === JSON.stringify(B.events.toolCalls),
+      `${JSON.stringify(A.events.toolCalls)} vs ${JSON.stringify(B.events.toolCalls)}`)
+    check('中止后 aborted 标志一致', A.events.done.aborted === B.events.done.aborted && B.events.done.aborted === true,
+      `原 ${A.events.done.aborted} / 新 ${B.events.done.aborted}`)
+
+    // ★ 核心：tool_calls 与 tool 消息必须配对——未执行的也要有占位消息
+    const pairOk = (hist) => {
+      const asst = hist.find((m) => m.tool_calls)
+      const ids = (asst.tool_calls || []).map((t) => t.id)
+      const toolIds = hist.filter((m) => m.role === 'tool').map((m) => m.tool_call_id)
+      return ids.length === toolIds.length && ids.every((id, i) => id === toolIds[i])
+    }
+    check('orbit 侧历史配对完好', pairOk(A.history), JSON.stringify(A.history.map((m) => m.role)))
+    check('新实现历史配对完好（未执行的调用补了占位 tool 消息）', pairOk(B.history),
+      JSON.stringify(B.history.map((m) => m.role)))
+    check('两边历史角色序列一致',
+      A.history.map((m) => m.role).join(',') === B.history.map((m) => m.role).join(','),
+      `${A.history.map((m) => m.role).join(',')} vs ${B.history.map((m) => m.role).join(',')}`)
+    const placeholder = B.history.filter((m) => m.role === 'tool' && /aborted/.test(m.content))
+    check('未执行的调用写了 aborted 占位内容', placeholder.length === 2,
+      `占位数 ${placeholder.length}（期望 2：t3、t4）`)
+  }
+
+  // ---------------------------------------------------------------------
+  // 用例 6：未配置 API Key → 明确报错且不发请求
+  // ---------------------------------------------------------------------
+  {
+    const script = [{ content: 'x' }]
+    const toolExec = async () => ({ ok: true })
+    const llmO = mkLLM(script)
+    const win = loadScripts({}, [orbit('js/agent/agent-core.js')])
+    win.LLMClient = llmO
+    win.Settings = { get: () => ({ apiKey: '' }) }
+    win.Perception = { toCompactText: () => '' }
+    win.ToolRegistry = { TOOLS: [], execute: toolExec }
+    win.SceneBridge = { stop: () => {} }
+    const eo = []
+    await win.AgentCore.send('hi', { onError: (e) => eo.push(e.kind) })
+
+    const llmM = mkLLM(script)
+    const conv = createConversation({
+      llm: llmM, buildSystem: () => 'ROLE', getSettings: () => ({ apiKey: '' }),
+      getTools: () => [], executeTool: toolExec, getSnapshotText: () => '',
+    })
+    const em = []
+    await conv.send('hi', { onError: (e) => em.push(e.kind) })
+
+    check('无 Key 时两边都报 no_key', JSON.stringify(eo) === JSON.stringify(em) && em[0] === 'no_key',
+      `${JSON.stringify(eo)} vs ${JSON.stringify(em)}`)
+    check('无 Key 时不发任何请求', llmO.calls.length === 0 && llmM.calls.length === 0)
+  }
+
+  // ---------------------------------------------------------------------
+  // 用例 7：轮数上限
+  // ---------------------------------------------------------------------
+  {
+    const script = [{ toolCalls: [tc('t1', {})], finishReason: 'tool_calls' }]   // 永远要调工具
+    const toolExec = async () => ({ ok: true })
+    const A = await runCase(() => setupOrbit(script, toolExec).deps, () => {}, script)
+    const B = await runCase(() => setupMine(script, toolExec).deps, () => {}, script)
+    check('轮数上限一致（不让循环无限跑）',
+      A.events.done.rounds === B.events.done.rounds && B.events.done.rounds === 6,
+      `原 ${A.events.done.rounds} / 新 ${B.events.done.rounds}`)
+    check('轮数上限用例：LLM 调用次数一致', A.calls.length === B.calls.length)
+  }
+
+  // ---------------------------------------------------------------------
+  // 用例 8：buildManifestText / composeSystemPrompt（渐进式披露的拼装）
+  // ---------------------------------------------------------------------
+  {
+    const kc = createCatalog({ key: 'id' })
+    kc.register([{ id: 'crystal:C1-1', kp: 'crystal:C1', title: '标题', keywords: ['a', 'b'], body: '重内容不该进清单' }])
+    const sc = createCatalog({ key: 'name' })
+    sc.register([{ name: 'feynman', title: '费曼', desc: '让学生自己讲', when: '任何时候', steps: ['x'] }])
+
+    const t = buildManifestText({ knowledge: kc, skills: sc })
+    check('清单含知识库段', /【知识库清单】/.test(t))
+    check('清单含技能库段', /【教学技能清单】/.test(t))
+    check('清单含知识点 id 与关键词', /crystal:C1-1/.test(t) && /关键词:a\/b/.test(t))
+    check('清单**不含**正文（渐进式披露）', !/重内容不该进清单/.test(t))
+    check('清单提示要按需加载', /loadKnowledge\(id\)/.test(t) && /loadSkill\(name\)/.test(t))
+    check('无目录时返回空串', buildManifestText({}) === '')
+
+    const p = composeSystemPrompt({ role: 'R', manifest: 'M', nodePrompt: 'N' })
+    check('系统提示三段式拼装', p === 'R\n\nM\n\nN')
+    check('缺段时不留空行', composeSystemPrompt({ role: 'R', nodePrompt: 'N' }) === 'R\n\nN')
   }
 }
 
