@@ -2,30 +2,43 @@
  * 晶体数据自检脚本
  *
  * 用途：每次增删晶体或修改数据后运行，校验数据自洽性与格式合规性。
- * 运行：node tools/check-crystal-data.mjs
+ * 运行：node projects/crystal/tools/check-crystal-data.mjs
+ *       （可从仓库任意位置运行——路径以脚本自身位置为锚点）
  *
  * 设计说明：
- *   本脚本同时校验三份副本（H5 版 + 小程序的两份），因为三者内容必须保持一致，
- *   仅模块语法不同（export default vs module.exports）。
+ *   脚本用**自身所在位置**解析数据路径，不依赖 process.cwd()。
  *
- * 背景：见 activity/数据核查报告.md。数据中曾发现若干自洽性问题
- *       （如石英的结构基元误写为方石英的值），故建立此自动检查。
+ * 历史与现状：
+ *   原脚本同时校验三份副本（H5 版 + 小程序两份），因为三者内容必须一致。
+ *   两套微信小程序已于 2026-09-24 从本仓库移除，故**「副本一致性」检查已废止**
+ *   —— 晶体数据现存唯一 JS 源。上游权威源（23 个 CIF）在
+ *   modules/crystal/data/cod/。
+ *
+ * 背景：见 activity/数据核查报告.md 与 modules/crystal/data/cod/COD_COMPARISON_REPORT.md。
+ *      数据中曾发现若干自洽性问题（如石英的结构基元误写为方石英的值、
+ *      wurtzite 的结构基元错误），故建立此自动检查。
+ *
+ * TODO（阶段 B7 单源化时）：增加「JS 数据 ↔ 上游 CIF」的交叉校验。
+ *   今天检查项只校验数据**自洽**，不校验数据**正确**——三副本一致性检查更是
+ *   只保证三份一样。有了 CIF 上游，才有可能把校验从「自洽」提升到「对得上」。
  */
 import { readdirSync, readFileSync, existsSync } from 'fs'
 import { join } from 'path'
+import { fileURLToPath } from 'url'
 
 // ============================================================================
 // 配置
 // ============================================================================
 
-/** 三份内容必须一致的副本。keepPrefix 用于剥离各自的模块语法后比对 */
-const COPIES = [
-  { name: 'H5', dir: 'H5/src/data/crystals', exportPrefix: 'export default' },
-  { name: '小程序', dir: 'crystal/data/crystals', exportPrefix: 'module.exports =' },
-  { name: '小程序-skill', dir: 'crystal/skills/data/crystals', exportPrefix: 'module.exports =' },
-]
+/** 晶体数据目录（相对 ROOT）。现存唯一 JS 源 */
+const SOURCE = 'H5/src/data/crystals'
 
-const ROOT = process.cwd()
+/**
+ * 脚本所在目录的上一级，即 projects/crystal/。
+ * 用脚本自身位置而非 process.cwd()，否则从别的目录运行会找不到数据
+ * （这正是原实现的缺陷：从仓库根运行会报「副本目录不存在」）。
+ */
+const ROOT = fileURLToPath(new URL('..', import.meta.url))
 
 /** 点阵型式记号 → 晶胞内点阵点数 */
 const LATTICE_POINTS = {
@@ -225,8 +238,8 @@ function checkCrystal(crystal, d) {
 // 主流程
 // ============================================================================
 
-function loadCrystal(dir, file) {
-  const text = readFileSync(join(ROOT, dir, file), 'utf-8')
+function loadCrystal(file) {
+  const text = readFileSync(join(ROOT, SOURCE, file), 'utf-8')
   // 剥离模块语法，得到纯对象字面量
   const body = text
     .replace(/^\s*export\s+default\s*/, '')
@@ -236,29 +249,18 @@ function loadCrystal(dir, file) {
 }
 
 function main() {
-  // --- 副本存在性 ---
-  for (const c of COPIES) {
-    if (!existsSync(join(ROOT, c.dir))) {
-      console.log(`✗ 副本目录不存在：${c.dir}`)
-      process.exit(1)
-    }
-  }
-
-  // --- 副本一致性 ---
-  const baseDir = COPIES[0].dir
-  const files = readdirSync(join(ROOT, baseDir)).filter((f) => f.endsWith('.js')).sort()
-  let mismatch = 0
-  for (const f of files) {
-    const bodies = COPIES.map((c) => loadCrystal(c.dir, f).body.replace(/\s/g, ''))
-    if (new Set(bodies).size !== 1) {
-      report('error', f.replace('.js', ''), '三份副本内容不一致')
-      mismatch++
-    }
+  // --- 数据目录存在性 ---
+  // 打印解析后的绝对路径，便于诊断路径问题（而不是只报一个相对路径）
+  const dataDir = join(ROOT, SOURCE)
+  if (!existsSync(dataDir)) {
+    console.log(`✗ 晶体数据目录不存在：${dataDir}`)
+    process.exit(1)
   }
 
   // --- 逐晶体校验 ---
+  const files = readdirSync(dataDir).filter((f) => f.endsWith('.js')).sort()
   for (const f of files) {
-    const { data } = loadCrystal(baseDir, f)
+    const { data } = loadCrystal(f)
     checkCrystal(f.replace('.js', ''), data)
   }
 
@@ -269,8 +271,8 @@ function main() {
   console.log('═'.repeat(70))
   console.log(`晶体数据自检报告`)
   console.log('═'.repeat(70))
+  console.log(`数据源：${SOURCE}`)
   console.log(`晶体总数：${files.length}`)
-  console.log(`副本一致性：${mismatch === 0 ? '✓ 三份完全一致' : `✗ ${mismatch} 个文件不一致`}`)
 
   if (errors.length) {
     console.log(`\n【必须修复 ${errors.length} 项】`)
