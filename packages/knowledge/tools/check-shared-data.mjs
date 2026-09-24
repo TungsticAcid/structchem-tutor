@@ -12,7 +12,7 @@
  * 阶段 B6 建统一壳后，模块改为直接引用真源、副本删除，届时本脚本的对应条目
  * 也随之退役（会在这里显式报出"副本已不存在"，而不是静默跳过）。
  */
-import { readdirSync } from 'fs'
+import { readdirSync, readFileSync } from 'fs'
 import { fileURLToPath, pathToFileURL } from 'url'
 
 const HERE = new URL('.', import.meta.url)
@@ -20,6 +20,18 @@ const HERE = new URL('.', import.meta.url)
 const repo = (p) => fileURLToPath(new URL('../../../' + p, HERE))
 /** Windows 下绝不能写 new URL(绝对路径)：盘符会被当成协议（d:）而报错 */
 const importAbs = (absPath) => import(pathToFileURL(absPath).href)
+
+/**
+ * 加载 orbit 的自注册脚本（IIFE 挂 window.*），拿回它注册的数组。
+ * 用于与迁移后的 packages/ 版本做逐字比对。
+ */
+function loadOrbitGlobal(relPath, globalName) {
+  const src = readFileSync(repo(relPath), 'utf-8')
+  let captured = []
+  const win = { [globalName]: { register: (list) => { captured = list } } }
+  new Function('window', src)(win)   // eslint-disable-line no-new-func
+  return captured
+}
 
 let pass = 0
 let fail = 0
@@ -123,6 +135,99 @@ console.log('\n【晶体数据】')
     if (!d || !d.id) bad.push(f)
   }
   ok(bad.length === 0, '每个晶体数据都能解析出 id', bad.join(','))
+}
+
+// ============================================================================
+// orbit 知识条目与通用技能：packages/ 是迁移后的家，orbit/H5 仍有旧副本
+// ============================================================================
+console.log('\n【orbit 知识条目与通用技能】')
+{
+  const { ENTRIES, registerInto: regKnowledge } = await import(new URL('../orbit/index.js', HERE).href)
+  const { SKILLS, registerInto: regSkills } = await import(new URL('../../skills/common/index.js', HERE).href)
+
+  ok(ENTRIES.length === 34, `知识条目 ${ENTRIES.length} 条（应为 34）`)
+  ok(SKILLS.length === 6, `通用技能 ${SKILLS.length} 个（应为 6）`)
+  ok(ENTRIES.every((e) => String(e.id).startsWith('orbit:') && String(e.kp).startsWith('orbit:')),
+    '全部条目的 id 与 kp 都带 orbit: 命名空间')
+  ok(SKILLS.every((s) => !String(s.name).includes(':')), '技能不带命名空间（学科无关，全模块共用）')
+  ok(ENTRIES.every((e) => (e.misconceptions || []).length > 0),
+    '每条知识条目都有 misconceptions（错因诊断的来源）')
+
+  // 与 orbit/H5 旧副本逐字段比对（忽略命名空间前缀）
+  const orig = loadOrbitGlobal('projects/orbit/H5/knowledge/entries/index.js', 'Knowledge')
+  const origS = loadOrbitGlobal('projects/orbit/H5/skills/index.js', 'Skills')
+  ok(orig.length === ENTRIES.length, `orbit/H5 旧副本条目数一致（${orig.length}）`)
+
+  const strip = (s) => String(s).replace(/^orbit:/, '')
+  let diffs = []
+  for (let i = 0; i < orig.length && i < ENTRIES.length; i++) {
+    const o = orig[i]
+    const n = ENTRIES[i]
+    if (strip(n.id) !== o.id) diffs.push(`${o.id}: id 变了 → ${n.id}`)
+    if (strip(n.kp) !== o.kp) diffs.push(`${o.id}: kp 变了 → ${n.kp}`)
+    for (const f of ['title', 'source', 'body']) if (o[f] !== n[f]) diffs.push(`${o.id}.${f} 不一致`)
+    for (const f of ['keywords', 'misconceptions']) {
+      if (JSON.stringify(o[f] || []) !== JSON.stringify(n[f] || [])) diffs.push(`${o.id}.${f} 不一致`)
+    }
+  }
+  ok(diffs.length === 0, '知识条目与旧副本逐字一致（除命名空间前缀）',
+    diffs.slice(0, 4).join('; ') + (diffs.length > 4 ? ` …共 ${diffs.length} 处` : ''))
+
+  let sdiffs = []
+  for (let i = 0; i < origS.length && i < SKILLS.length; i++) {
+    const o = origS[i]
+    const n = SKILLS[i]
+    for (const f of ['name', 'title', 'desc', 'when', 'exit']) if (o[f] !== n[f]) sdiffs.push(`${o.name}.${f}`)
+    for (const f of ['steps', 'phrases', 'cautions']) {
+      if (JSON.stringify(o[f] || []) !== JSON.stringify(n[f] || [])) sdiffs.push(`${o.name}.${f}`)
+    }
+  }
+  ok(sdiffs.length === 0, '通用技能与旧副本逐字一致', sdiffs.join('; '))
+}
+
+// ============================================================================
+// 与共享核心的集成：装进目录后 清单/正文 两段式必须成立
+// ============================================================================
+console.log('\n【与共享核心的集成】')
+{
+  const { createCatalog } = await import(new URL('../../agent-core/core/catalog.js', HERE).href)
+  const { buildManifestText } = await import(new URL('../../agent-core/core/conversation.js', HERE).href)
+  const { registerInto: regKnowledge } = await import(new URL('../orbit/index.js', HERE).href)
+  const { registerInto: regSkills } = await import(new URL('../../skills/common/index.js', HERE).href)
+
+  const kc = createCatalog({ key: 'id' })
+  const sc = createCatalog({ key: 'name' })
+  const nk = regKnowledge(kc)
+  const ns = regSkills(sc)
+  ok(nk === 34, `知识条目装入目录 ${nk} 条`)
+  ok(ns === 6, `技能装入目录 ${ns} 个`)
+
+  // 清单：带命名空间、剔除 body、保留关键词
+  const idx = kc.index()
+  ok(idx.length === 34 && idx.every((e) => !('body' in e)), '清单剔除 body（渐进式披露）')
+  ok(idx[0].id.startsWith('orbit:'), '清单里的 id 带命名空间', idx[0].id)
+
+  const manifest = buildManifestText({ knowledge: kc, skills: sc })
+  ok(/【知识库清单】/.test(manifest) && /【教学技能清单】/.test(manifest), '清单文本含知识库与技能库两段')
+  ok(!/主量子数 n = 1,2,3/.test(manifest), '清单文本**不含**正文（正文只在 load 时进入上下文）')
+
+  // 按需取正文
+  const first = kc.load(idx[0].id)
+  ok(!!first && !!first.body && first.body.length > 30, 'load 能取到正文')
+  ok(Array.isArray(first.misconceptions) && first.misconceptions.length > 0, 'load 带回 misconceptions')
+
+  // 按知识点取同组条目：filterBy('kp', 'orbit:K3')
+  const kp3 = kc.filterBy('kp', 'orbit:K3')
+  ok(kp3.length > 0, `filterBy('kp','orbit:K3') 取到 ${kp3.length} 条`)
+
+  // 命名空间缺失时必须拒绝装入（而不是悄悄放进去、与别的模块撞名）
+  // ★ 直接测纯校验函数，而不是往被导入的数组里塞坏数据——
+  //   后者会污染模块状态，测试之间互相影响。
+  const { assertNamespaced } = await import(new URL('../orbit/index.js', HERE).href)
+  let threw = false
+  try { assertNamespaced([{ id: 'K9-9', kp: 'K9', title: '缺命名空间' }]) } catch (e) { threw = /命名空间/.test(e.message) }
+  ok(threw, '缺少命名空间的条目会被拒绝装入（而不是悄悄放进去撞名）')
+  ok(assertNamespaced([{ id: 'orbit:K1-1', kp: 'orbit:K1' }]) === true, '合规条目的校验通过')
 }
 
 // ============================================================================
