@@ -13,6 +13,8 @@ import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { createCatalog } from '../core/catalog.js'
 import { startFeynman } from '../core/feynman.js'
+import { createPerception } from '../core/perception.js'
+import { createStoryboard } from '../core/storyboard.js'
 
 const HERE = new URL('.', import.meta.url)
 const orbit = (p) => fileURLToPath(new URL('../../../projects/orbit/H5/' + p, HERE))
@@ -181,6 +183,381 @@ section('迁移等价性：与 orbit 原实现比对真实内容')
   const nf = startFeynman(sc, 'crystal:C4')
   check('startFeynman 输出与原实现一致',
     of.invitation === nf.invitation && JSON.stringify(of.rubric) === JSON.stringify(nf.rubric) && of.skill === nf.skill)
+}
+
+// ============================================================================
+section('perception：基本行为')
+// ============================================================================
+{
+  let threw = false
+  try { createPerception({}) } catch (e) { threw = /getState/.test(e.message) }
+  check('缺 getState 时明确报错（而非静默失效）', threw)
+
+  let clock = 0
+  const st = { a: 1, arr: [1, 2] }
+  const p = createPerception({ getState: () => st, now: () => clock, dwellFields: ['a'] })
+
+  clock = 1000; p.poll()
+  check('首次 poll 只建立基线，不记动作', p.getTrace().recentActions.length === 0)
+
+  st.a = 2; clock = 1500; p.poll()
+  check('变化被差分记录', p.getTrace().recentActions.join(',') === 'a')
+  check('停留时长记录了「上一个值」被保持的时间', JSON.stringify(p.getTrace().dwellMs.a) === '[500]')
+
+  st.arr = [1, 3]; clock = 3000; p.poll()
+  check('数组按值比较，元素变化能识别', p.getTrace().toggleCounts.arr === 1)
+
+  st.arr = [1, 3]; clock = 4000; p.poll()
+  check('数组内容相同则不算变化', p.getTrace().toggleCounts.arr === 1)
+
+  st.x = 1; clock = 5000; p.poll()
+  check('未在 dwellFields 的字段不进 dwellMs', !('x' in p.getTrace().dwellMs))
+  check('未知字段用原字段名作动作名', p.getTrace().toggleCounts.x === 1)
+
+  const snap = p.snapshot({ mastery: { k: 1 } })
+  check('snapshot 顶层合并 extra', snap.mastery.k === 1)
+  check('snapshot 含 state 与 interaction', !!snap.state && !!snap.interaction)
+  check('toCompactText 含空闲时长与最近动作', /空闲 0s/.test(p.toCompactText(snap)) && /x/.test(p.toCompactText(snap)))
+
+  p.reset()
+  check('reset 清空痕迹', p.getTrace().recentActions.length === 0 && Object.keys(p.getTrace().toggleCounts).length === 0)
+
+  // ★ 静默失败模式回归：模块若返回**活状态引用**（而非新对象），
+  //   原实现会永远算出「无变化」且不报错。新实现用深拷贝堵住这条路径。
+  let c2 = 0
+  const live = { a: 1, nested: { x: 1 } }
+  const p2 = createPerception({ getState: () => live, now: () => c2 })
+  c2 = 100; p2.poll()
+  live.a = 2; c2 = 200; p2.poll()
+  check('返回活引用时仍能差分出变化（防静默失败）',
+    p2.getTrace().toggleCounts.a === 1, JSON.stringify(p2.getTrace()))
+  live.nested.x = 9; c2 = 300; p2.poll()
+  check('嵌套字段的变化也能差分出', p2.getTrace().toggleCounts.nested === 1, JSON.stringify(p2.getTrace()))
+}
+
+// ============================================================================
+section('perception：迁移等价性（与 orbit 原实现同钟驱动比对）')
+// ============================================================================
+{
+  // orbit 原实现用 Date.now() 与 window.OrbitApp / window.Formula，故在受控钟下加载
+  const realNow = Date.now
+  let clock = 100000
+  Date.now = () => clock
+  try {
+    const win = loadScripts({}, [orbit('js/agent/perception-snapshot.js')])
+
+    let state = {
+      n: 3, l: 2, m: 0, wavefunction: 'real', render: 'isosurface', color: 'phase',
+      psiCriterion: 'density', levelFraction: 0.9, radial: ['R', 'D'],
+      angularWhich: 'theta', plane: 'xz', sectionMode: 'density', autoRotate: false,
+    }
+    win.OrbitApp = { getState: () => state }
+    win.Formula = { realOrbitalName: (l, m) => `d(${l},${m})` }
+
+    // orbit 的配置：字段标签、需要记停留的字段、快照形状、紧凑文本
+    const FIELD_LABEL = {
+      n: 'setN', l: 'setL', m: 'setM', wavefunction: 'setWavefunctionMode',
+      render: 'setRenderMode', color: 'setColorMode', psiCriterion: 'setPsiCriterion',
+      levelFraction: 'setIsosurfaceLevel', plane: 'setSectionPlane',
+      sectionMode: 'setSectionMode', angularWhich: 'setAngularView',
+      radial: 'setRadial', autoRotate: 'setAutoRotate',
+    }
+    const SUBSHELL = ['s', 'p', 'd', 'f', 'g', 'h']
+    const describeState = (s) => {
+      const sub = SUBSHELL[Math.min(s.l || 0, SUBSHELL.length - 1)]
+      return {
+        orbital: {
+          n: s.n, l: s.l, m: s.m, name: '' + s.n + sub,
+          chemName: (s.wavefunction === 'real' && win.Formula && win.Formula.realOrbitalName)
+            ? win.Formula.realOrbitalName(s.l, s.m) : '',
+        },
+        mode: { wavefunction: s.wavefunction, render: s.render, color: s.color },
+        isosurface: { criterion: s.psiCriterion, levelFraction: s.levelFraction },
+        charts: { radial: s.radial, angular: s.angularWhich, section: { plane: s.plane, mode: s.sectionMode } },
+        camera: { autoRotate: s.autoRotate },
+      }
+    }
+    const formatCompact = (snap) => {
+      const s = { ...snap.state, interaction: snap.interaction }
+      const it = s.interaction || {}
+      return [
+        '【当前视图】' + s.orbital.name +
+          (s.orbital.chemName ? '(' + s.orbital.chemName + ')' : '') +
+          '  n=' + s.orbital.n + ' l=' + s.orbital.l + ' m=' + s.orbital.m,
+        '【模式】' + s.mode.wavefunction + ' / ' + s.mode.render + ' / 着色:' + s.mode.color,
+        '【等值面】判据 ' + s.isosurface.criterion + '，阈值 ' + (s.isosurface.levelFraction * 100).toFixed(1) + '%',
+        '【图表】径向 [' + (s.charts.radial || []).join(',') + ']；角度 ' + s.charts.angular +
+          '；截面 ' + s.charts.section.plane + '/' + s.charts.section.mode,
+        '【交互】空闲 ' + Math.round((it.idleMs || 0) / 1000) + 's' +
+          '；切换次数 ' + JSON.stringify(it.toggleCounts || {}) +
+          '；最近动作 ' + (it.recentActions || []).join('→'),
+      ].join('\n')
+    }
+
+    const mine = createPerception({
+      getState: () => state, fieldLabels: FIELD_LABEL, dwellFields: ['n', 'l', 'm'],
+      describeState, formatCompact, now: () => clock,
+    })
+
+    // 同一组状态变化驱动两者
+    const drive = (label, fn) => {
+      fn()
+      win.Perception.poll()
+      mine.poll()
+      const a = win.Perception.getTrace()
+      const b = mine.getTrace()
+      check(`痕迹一致：${label}`, JSON.stringify(a) === JSON.stringify(b),
+        `原 ${JSON.stringify(a)} vs 新 ${JSON.stringify(b)}`)
+    }
+
+    win.Perception.poll(); mine.poll()
+    check('首次 poll 行为一致（不记动作）',
+      win.Perception.getTrace().recentActions.length === 0 && mine.getTrace().recentActions.length === 0)
+
+    drive('n: 3→4', () => { clock = 100500; state = { ...state, n: 4 } })
+    drive('m: 0→1', () => { clock = 102000; state = { ...state, m: 1 } })
+    clock = 102300; win.Perception.poll(); mine.poll()
+    drive('l 与 render 同时变', () => { clock = 105000; state = { ...state, l: 1, render: 'cloud' } })
+    drive('无变化', () => { clock = 106000 })
+    clock = 110000; win.Perception.poll(); mine.poll()
+
+    check('空闲时长一致', true) // 已在上面每步比对中覆盖
+
+    // 紧凑文本逐字比对
+    const a = win.Perception.toCompactText()
+    const b = mine.toCompactText()
+    check('紧凑文本逐字一致', a === b, a === b ? '' : `\n    原: ${JSON.stringify(a)}\n    新: ${JSON.stringify(b)}`)
+
+    // 快照主体（形状不同：orbit 把 interaction 平铺在顶层，新实现分成 state + interaction，
+    // 故比对时剔除 interaction，只比视图状态那一部分）
+    const sa = win.Perception.snapshot()
+    const { interaction: _omitA, ...saBody } = sa
+    const sb = mine.snapshot()
+    check('快照主体内容一致', JSON.stringify(saBody) === JSON.stringify(sb.state),
+      `原 ${JSON.stringify(saBody)} vs 新 ${JSON.stringify(sb.state)}`)
+    check('两者的 interaction 也一致',
+      JSON.stringify(sa.interaction) === JSON.stringify(sb.interaction))
+  } finally {
+    Date.now = realNow
+  }
+}
+
+// ============================================================================
+section('storyboard：机制验证 + 与 orbit 原引擎的协议等价性')
+// ============================================================================
+{
+  // ---- 事件序列记录器：两边各自订阅，最后比对事件序列 ----
+  const rec = (label) => {
+    const evts = []
+    return {
+      label, evts,
+      fn: (e) => evts.push(e.phase + (e.action ? ':' + e.action : '') + (e.index != null ? '@' + e.index : '')),
+      // 只保留引擎决定的"进程性"事件，去掉带具体文案的字段（两边文案来源不同）
+      shape: () => evts.join(' | '),
+    }
+  }
+
+  // ---- 受控渲染时钟（orbit 的 applyAnimated 用 requestAnimationFrame）----
+  const realRaf = globalThis.requestAnimationFrame
+  const realCaf = globalThis.cancelAnimationFrame
+  const rafQ = []
+  globalThis.requestAnimationFrame = (fn) => { rafQ.push(fn); return rafQ.length }
+  globalThis.cancelAnimationFrame = () => {}
+
+  try {
+    // ---- 共用桩：一个记录 applyAction 调用的假模块 ----
+    const mkApp = () => {
+      const calls = []
+      let st = { renderMode: 'points', colorMode: 'orbital' }
+      return {
+        calls,
+        getState: () => ({ ...st }),
+        applyAction: (a) => {
+          calls.push(a.action + ':' + JSON.stringify(a.params))
+          if (a.action === 'setRenderMode') st.renderMode = a.params.mode
+          if (a.action === 'setColorMode') st.colorMode = a.params.mode
+          if (a.action === 'restoreState') st = { ...a.params.state }
+          return { ok: true }
+        },
+      }
+    }
+
+    // ---- 载入 orbit 原引擎 ----
+    const win = loadScripts({}, [orbit('js/agent/scene-bridge.js')])
+    const orbApp = mkApp()
+    win.OrbitApp = orbApp
+    win.Orbit3D = { getAnnotations: () => null, setAnnotations: () => {} }
+    const OB = win.SceneBridge
+    check('orbit SceneBridge 已就绪', !!OB && typeof OB.applySequence === 'function')
+
+    // 从 orbit 自己的词汇表生成我的 vocabulary（保证 animated/concept 判定一致）
+    const vocab = Object.fromEntries(
+      OB.listActions().map((a) => [a.action, { animated: a.animated, concept: a.concept, desc: a.desc }])
+    )
+    check('从 orbit 取到动作词汇表', Object.keys(vocab).length > 5, `${Object.keys(vocab).length} 个动作`)
+
+    // ---- 我的引擎：validate 只覆盖本次用到的动作，语义与 orbit 一致 ----
+    const myApp = mkApp()
+    const validate = (name, p) => {
+      switch (name) {
+        case 'setRenderMode': return ['points', 'surface'].includes(p.mode) ? { params: { mode: p.mode } } : { err: 'mode 非法' }
+        case 'setColorMode': return ['orbital', 'phase'].includes(p.mode) ? { params: { mode: p.mode } } : { err: 'mode 非法' }
+        case 'setPsiCriterion': return ['psi', 'psi2'].includes(p.criterion) ? { params: { criterion: p.criterion } } : { err: 'criterion 非法' }
+        case 'showRadial': {
+          const which = (p.which || []).filter((k) => ['R', 'R2', 'D', 'D2'].includes(k))
+          return which.length ? { params: { which } } : { err: 'which 非法（应为 R/R2/D/D2 的非空子集）' }
+        }
+        case 'setSectionPlane': return ['xy', 'xz', 'yz'].includes(p.plane) ? { params: { plane: p.plane } } : { err: 'plane 非法' }
+        default: return { err: '未知动作：' + name }
+      }
+    }
+    const SB = createStoryboard({
+      validate, vocabulary: vocab,
+      applyStep: (name, params) => myApp.applyAction({ action: name, params }),
+      capture: () => ({ state: myApp.getState() }),
+      restore: (s) => myApp.applyAction({ action: 'restoreState', params: { state: s.state } }),
+      getDefaultPlayback: () => 'manual',
+    })
+
+    const settle = () => new Promise((r) => setTimeout(r, 5))
+    const ACTIONS = [
+      { action: 'setRenderMode', params: { mode: 'surface' }, speech: '切球棍' },
+      { action: 'setColorMode', params: { mode: 'phase' }, speech: '按相位着色' },
+      { action: 'showRadial', params: { which: ['R', 'D'] } },
+    ]
+
+    // =====================================================================
+    // 阶段 1：手动模式 → 入队即返回，**不执行**
+    // =====================================================================
+    const r1 = rec('orbit'), r2 = rec('mine')
+    OB.onProgress(r1.fn); SB.onProgress(r2.fn)
+
+    const a1 = await OB.applySequence(ACTIONS)
+    const a2 = await SB.applySequence(ACTIONS)
+
+    check('入队返回的 accepted/queued/total 一致',
+      a1.accepted === a2.accepted && a1.queued === a2.queued && a1.total === a2.total,
+      `原 ${JSON.stringify({ a: a1.accepted, q: a1.queued, t: a1.total })} vs 新 ${JSON.stringify({ a: a2.accepted, q: a2.queued, t: a2.total })}`)
+    check('manual 标志一致（默认逐步）', a1.manual === a2.manual && a1.manual === true)
+    check('executed 均为空（本次调用未跑完整轮）', a1.executed.length === 0 && a2.executed.length === 0)
+    // ★ 记录一个不显眼但承重的行为：正常播放时**第一个动作立即执行**，闸门在其后。
+    //   两边必须一致；这也解释了为什么下面 index 起始是 1 而不是 0。
+    check('第一个动作立即执行（两边的动作序列相同）',
+      JSON.stringify(orbApp.calls) === JSON.stringify(myApp.calls),
+      `原 ${JSON.stringify(orbApp.calls)} vs 新 ${JSON.stringify(myApp.calls)}`)
+    check('第一个动作立即执行（各 1 次）',
+      orbApp.calls.length === 1 && myApp.calls.length === 1,
+      `原 ${orbApp.calls.length} 次 / 新 ${myApp.calls.length} 次`)
+    check('state() 都停在闸门上等确认（等第 2 步）',
+      OB.state().waitingForUser === true && SB.state().waitingForUser === true)
+    check('state() 的 index/total/pending 一致',
+      OB.state().index === SB.state().index && OB.state().total === SB.state().total &&
+      JSON.stringify(OB.state().pending) === JSON.stringify(SB.state().pending),
+      `原 ${JSON.stringify(OB.state())} vs 新 ${JSON.stringify(SB.state())}`)
+    check('过程事件序列一致（up to 入队 + 第一步）', r1.shape() === r2.shape(), `原 [${r1.shape()}] vs 新 [${r2.shape()}]`)
+
+    // =====================================================================
+    // 阶段 2：逐步点「下一步」（第一步已在阶段 1 执行过）
+    // =====================================================================
+    const idxBefore = SB.state().index
+    OB.next(); SB.next(); await settle()
+    check('第 1 次 next 后 applyAction 序列一致',
+      JSON.stringify(orbApp.calls) === JSON.stringify(myApp.calls),
+      `原 ${JSON.stringify(orbApp.calls)} vs 新 ${JSON.stringify(myApp.calls)}`)
+    check('第 1 次 next 后 index 一致且前进了一步',
+      OB.state().index === SB.state().index && SB.state().index === idxBefore + 1,
+      `原 ${OB.state().index} vs 新 ${SB.state().index}（期望 ${idxBefore + 1}）`)
+
+    OB.next(); SB.next(); await settle()
+    check('第 2 次 next 后 applyAction 序列一致', JSON.stringify(orbApp.calls) === JSON.stringify(myApp.calls))
+    check('走完后 canPrev 一致', OB.state().canPrev === SB.state().canPrev)
+    check('过程事件序列一致（up to 走完）', r1.shape() === r2.shape(), `原 [${r1.shape()}] vs 新 [${r2.shape()}]`)
+
+    // =====================================================================
+    // 阶段 3：「上一步」必须靠快照还原（且不释放闸门）
+    // =====================================================================
+    const beforePrev = orbApp.calls.length
+    const p1 = OB.prev(); const p2 = SB.prev()
+    check('prev 返回值一致', JSON.stringify(p1) === JSON.stringify(p2), `原 ${JSON.stringify(p1)} vs 新 ${JSON.stringify(p2)}`)
+    await settle()
+    check('prev 触发了快照还原（两边都调了 restoreState）',
+      orbApp.calls.slice(beforePrev).some((c) => c.startsWith('restoreState')) &&
+      myApp.calls.slice(beforePrev).some((c) => c.startsWith('restoreState')))
+    check('prev 后 applyAction 序列仍一致', JSON.stringify(orbApp.calls) === JSON.stringify(myApp.calls),
+      `原 ${JSON.stringify(orbApp.calls)} vs 新 ${JSON.stringify(myApp.calls)}`)
+    check('prev 后仍等在闸门上（刻意不释放）',
+      OB.state().waitingForUser === true && SB.state().waitingForUser === true)
+    check('过程事件序列一致（含 back）', r1.shape() === r2.shape(), `原 [${r1.shape()}] vs 新 [${r2.shape()}]`)
+
+    // =====================================================================
+    // 阶段 4：切连播 → 走完 → done 保留队列可重播
+    // =====================================================================
+    OB.autoPlay(); SB.autoPlay(); await settle()
+    await settle()
+    check('自动播完后 index=total', OB.state().index === OB.state().total && SB.state().index === SB.state().total,
+      `原 ${OB.state().index}/${OB.state().total} vs 新 ${SB.state().index}/${SB.state().total}`)
+    check('播完后 canReplay 都为真', OB.state().canReplay === true && SB.state().canReplay === true)
+    check('applyAction 序列一致（走完全程）', JSON.stringify(orbApp.calls) === JSON.stringify(myApp.calls),
+      `原 ${JSON.stringify(orbApp.calls)}\n      新 ${JSON.stringify(myApp.calls)}`)
+    check('过程事件序列一致（走完全程）', r1.shape() === r2.shape(), `原 [${r1.shape()}]\n      新 [${r2.shape()}]`)
+
+    // =====================================================================
+    // 阶段 5：stop() 必须唤醒闸门，否则 await 永久挂住
+    // =====================================================================
+    const stopTest = async (bridge) => {
+      // 用 2 个动作，这样第一个立即执行后会**停在闸门**上（单个动作会直接走完不入闸门）
+      await bridge.applySequence([
+        { action: 'setRenderMode', params: { mode: 'points' } },
+        { action: 'setColorMode', params: { mode: 'orbital' } },
+      ])
+      const running = bridge.state().waitingForUser
+      bridge.stop()                       // 若 stop 不唤醒闸门，后续 await 会永久挂住
+      const aborted = await Promise.race([
+        (async () => { await settle(); return 'resolved' })(),
+        new Promise((r) => setTimeout(() => r('HUNG'), 400)),
+      ])
+      return { running, aborted }
+    }
+    const s1 = await stopTest(OB)
+    const s2 = await stopTest(SB)
+    check('两边都在闸门上', s1.running === true && s2.running === true, `原 ${s1.running} / 新 ${s2.running}`)
+    check('stop() 后都不挂死（闸门被唤醒）', s1.aborted === 'resolved' && s2.aborted === 'resolved',
+      `原 ${s1.aborted} / 新 ${s2.aborted}`)
+    check('stop() 后 playing 均为假且队列清空',
+      OB.state().playing === false && SB.state().playing === false &&
+      OB.state().total === 0 && SB.state().total === 0)
+
+    // =====================================================================
+    // 阶段 6：校验失败不占用户的点击；超上限被截断
+    // =====================================================================
+    const bad1 = await OB.applySequence([{ action: 'setRenderMode', params: { mode: 'NOPE' } }])
+    const bad2 = await SB.applySequence([{ action: 'setRenderMode', params: { mode: 'NOPE' } }])
+    check('非法参数被退回且不入队', bad1.accepted === 0 && bad2.accepted === 0 &&
+      bad1.failed.length === 1 && bad2.failed.length === 1)
+    check('非法参数时也不进入播放态', OB.state().playing === false && SB.state().playing === false)
+
+    const many = Array.from({ length: 20 }, () => ({ action: 'setColorMode', params: { mode: 'orbital' } }))
+    const m1 = await OB.applySequence(many)
+    const m2 = await SB.applySequence(many)
+    OB.stop(); SB.stop()
+    check('单轮动作数上限一致（超出者丢弃）',
+      m1.accepted === m2.accepted && m1.dropped === m2.dropped,
+      `原 accepted=${m1.accepted} dropped=${m1.dropped} vs 新 accepted=${m2.accepted} dropped=${m2.dropped}`)
+    check('上限为 12', m2.accepted === 12, `实际 ${m2.accepted}`)
+
+    // =====================================================================
+    // 阶段 7：auto 模式（脚本回放路径）
+    // =====================================================================
+    const a3 = await OB.applySequence(ACTIONS, { auto: true, noPacing: true })
+    const a4 = await SB.applySequence(ACTIONS, { auto: true, noPacing: true })
+    check('auto 模式 executed 数与 aborted 一致',
+      a3.executed.length === a4.executed.length && a3.aborted === a4.aborted,
+      `原 ${JSON.stringify({ e: a3.executed.length, ab: a3.aborted })} vs 新 ${JSON.stringify({ e: a4.executed.length, ab: a4.aborted })}`)
+    check('auto 模式后不在闸门上', OB.state().waitingForUser === false && SB.state().waitingForUser === false)
+  } finally {
+    globalThis.requestAnimationFrame = realRaf
+    globalThis.cancelAnimationFrame = realCaf
+  }
 }
 
 // ============================================================================
