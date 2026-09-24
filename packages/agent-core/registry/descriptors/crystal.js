@@ -31,14 +31,25 @@ export default {
   knowledge: 'crystal',          // packages/knowledge/crystal/（骨架已定，44 条待写）
   skills: 'crystal',             // packages/skills/crystal/
 
-  // 已实现：暂无（模块智能体尚未编码）
-  tools: {},
+  // ★ 已实现（2026-09-24）：模块门面与工具层已建好，见 modules/crystal/
+  //   （facade.js 实现模块契约、tools.js 提供工具定义与执行、actions.js 是动作词汇表）。
+  //   由 modules/crystal/tools/test-crystal-tools.mjs 对账：这里声明的名字必须都在
+  //   tools.js 的 names() 里。
+  tools: {
+    read: ['getSnapshot'],
+    query: ['listCrystals', 'getCrystalDetail', 'queryCrystal', 'listSceneActions'],
+    hand: ['applySceneActions'],
+    teach: [],
+  },
 
   // 计划中（未实现，不参与白名单解析）
   plannedTools: {
-    read: ['getSnapshot', 'getInteractionTrace'],
-    query: ['searchCrystals', 'getCrystalDetail', 'compareCrystals', 'queryCrystal'],
-    hand: ['applySceneActions', 'highlightAtoms', 'navigateTo', 'openCompareView'],
+    read: ['getInteractionTrace'],
+    query: ['searchCrystals', 'compareCrystals'],
+    // ★ highlightAtoms 目前**无法实现**：crystal 的渲染层没有高亮能力
+    //   （scene-builder 里只有轴的 emissive，没有按原子高亮）。要让 grade 节点的
+    //   诊断动作可用，需先在渲染层加高亮能力——这是阶段 C 的一项。
+    hand: ['highlightAtoms', 'navigateTo', 'openCompareView'],
     teach: ['generateQuiz', 'checkAnswer', 'diagnoseError', 'recordLearningEvent'],
   },
 

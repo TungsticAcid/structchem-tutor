@@ -816,6 +816,39 @@ export class ViewerCanvas {
     }
   }
 
+  /**
+   * 读取当前**属性状态**（只读快照）。
+   *
+   * ★ 为什么需要它：智能体侧的 facade 必须读视图的**真实**状态，而不是自己维护
+   *   一份副本——因为页面上的图层控件也在改同一批属性，副本会漂移。
+   *   `getViewState()` 给的是视角/相机状态，不含图层与外观，二者互补。
+   *
+   * 返回的是浅拷贝（atomVisibility 再拷一层），调用方改它不会影响视图。
+   */
+  getProps() {
+    return {
+      crystalId: this._crystalId,
+      showAtoms: this._showAtoms,
+      showWireframe: this._showWireframe,
+      showInterstices: this._showInterstices,
+      showOctahedral: this._showOctahedral,
+      showTetrahedral: this._showTetrahedral,
+      showSymmetry: this._showSymmetry,
+      showBonds: this._showBonds,
+      showAxes: this._showAxes,
+      showAuxiliaryBody: this._showAuxiliaryBody,
+      showAuxiliaryFace: this._showAuxiliaryFace,
+      showAtomLabels: this._showAtomLabels,
+      showHydrogenBonds: this._showHydrogenBonds,
+      showLatticePoints: this._showLatticePoints,
+      atomVisibility: Object.assign({}, this._atomVisibility),
+      atomScale: this._atomScale,
+      stickRadius: this._stickRadius,
+      cellDisplayMode: this._cellDisplayMode,
+      opacity: this._opacity,
+    }
+  }
+
   applyViewState(state) {
     const s = this._state
     if (!state || !s.camera) return false

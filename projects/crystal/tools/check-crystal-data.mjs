@@ -25,6 +25,7 @@
 import { readdirSync, readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { fileURLToPath } from 'url'
+import { parseFormula } from '../../../packages/knowledge/shared/formula.js'
 
 // ============================================================================
 // 配置
@@ -57,70 +58,9 @@ const SG_TO_LATTICE = { P: 'P', I: 'I', F: 'F', C: 'C', A: 'A', R: 'R' }
 const SPACE_UTILIZATION = { cF: 74.05, hP: 74.05, cI: 68.02 }
 
 // ============================================================================
-// 化学式解析
-// ============================================================================
+// 化学式解析：已抽到共享层 packages/knowledge/shared/formula.js
+// （晶体模块的 queryCrystal 工具算密度也要用它求摩尔质量，两处共用一份实现）
 
-/** 将 Unicode 下标数字转为 ASCII，如 H₂O → H2O */
-function normalizeSubscripts(s) {
-  return s.replace(/[₀-₉]/g, (ch) => String(ch.charCodeAt(0) - 0x2080))
-}
-
-/**
- * 解析化学式，返回各元素原子数。支持嵌套括号，如 [(NH₂)₂CO]₂。
- * @param {string} formula
- * @returns {Record<string, number>}
- */
-function parseFormula(formula) {
-  const s = normalizeSubscripts(formula)
-  const counts = {}
-
-  function merge(target, source, mult) {
-    for (const [el, n] of Object.entries(source)) {
-      target[el] = (target[el] || 0) + n * mult
-    }
-  }
-
-  function expand(str) {
-    const out = {}
-    let i = 0
-    while (i < str.length) {
-      const ch = str[i]
-      if (ch === '(' || ch === '[') {
-        // 找到配对的右括号（同时跟踪两种括号的嵌套深度）
-        let depth = 1
-        let j = i + 1
-        while (j < str.length && depth > 0) {
-          if (str[j] === '(' || str[j] === '[') depth++
-          else if (str[j] === ')' || str[j] === ']') depth--
-          if (depth === 0) break
-          j++
-        }
-        const inner = str.slice(i + 1, j)
-        // 读取组后的数字倍数
-        let k = j + 1
-        let num = ''
-        while (k < str.length && /\d/.test(str[k])) num += str[k++]
-        merge(out, expand(inner), num ? parseInt(num, 10) : 1)
-        i = k
-      } else if (/[A-Z]/.test(ch)) {
-        let el = ch
-        let j = i + 1
-        if (j < str.length && /[a-z]/.test(str[j])) el += str[j++]
-        let num = ''
-        while (j < str.length && /\d/.test(str[j])) num += str[j++]
-        out[el] = (out[el] || 0) + (num ? parseInt(num, 10) : 1)
-        i = j
-      } else {
-        i++ // 跳过 ≫ 等非化学式字符
-      }
-    }
-    return out
-  }
-
-  return expand(s)
-}
-
-// ============================================================================
 // 校验逻辑
 // ============================================================================
 
