@@ -1,0 +1,19 @@
+{
+  "name": "@chem-agent/viewer",
+  "version": "0.1.0",
+  "description": "共享三维外壳：四元数相机控制器（双模式）、指针手势层、晶体几何工具",
+  "type": "module",
+  "private": true,
+  "peerDependencies": {
+    "three": ">=0.170.0"
+  },
+  "devDependencies": {
+    "three": "^0.170.0"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./camera.js": "./camera.js",
+    "./gestures.js": "./gestures.js",
+    "./geometry.js": "./geometry.js"
+  }
+}

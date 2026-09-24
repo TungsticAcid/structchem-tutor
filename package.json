@@ -5,11 +5,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run test:core && npm run test:ui && npm run test:data",
+    "test": "npm run test:core && npm run test:ui && npm run test:viewer && npm run test:data",
     "test:core": "node packages/agent-core/tools/selftest.mjs && node packages/agent-core/tools/test-core.mjs",
     "test:ui": "node packages/ui-kit/tools/test-ui-kit.mjs",
+    "test:viewer": "node packages/viewer/tools/test-viewer.mjs",
     "test:data": "node projects/crystal/tools/check-crystal-data.mjs",
     "test:symmetry": "node projects/symmetry/H5/test/verify-logic.mjs"
   },
-  "comment": "刻意不使用 npm workspaces：各包之间目前是源码级相对引用（无构建步骤），加 workspaces 会改变 node_modules 布局并引入安装步骤，收益不足。等阶段 B6 建 apps/web 时再评估。"
+  "comment": "刻意不使用 npm workspaces：各包之间目前是源码级相对引用（无构建步骤），加 workspaces 会改变 node_modules 布局并引入安装步骤，收益不足。等阶段 B6 建 apps/web 时再评估。",
+  "devDependencies": {
+    "three": "^0.170.0"
+  }
 }
