@@ -1769,7 +1769,7 @@ function buildBondCylinders(crystalData, lattice, THREE, stickRadius, opacity = 
       if (totalLen < 0.001) continue
       if (bond.dashed) {
         const lineGeom = new THREE.BufferGeometry()
-        lineGeom.addAttribute('position', new THREE.Float32BufferAttribute([
+        lineGeom.setAttribute('position', new THREE.Float32BufferAttribute([
           fromVecM.x, fromVecM.y, fromVecM.z,
           toVecM.x, toVecM.y, toVecM.z
         ], 3))
@@ -1819,7 +1819,7 @@ function buildBondCylinders(crystalData, lattice, THREE, stickRadius, opacity = 
         }
       }
       const lineGeom = new THREE.BufferGeometry()
-      lineGeom.addAttribute('position', new THREE.Float32BufferAttribute([
+      lineGeom.setAttribute('position', new THREE.Float32BufferAttribute([
         lineFrom.x, lineFrom.y, lineFrom.z,
         lineTo.x, lineTo.y, lineTo.z
       ], 3))
@@ -1940,7 +1940,7 @@ function buildHydrogenBondLines(crystalData, lattice, THREE) {
     }
 
     const lineGeom = new THREE.BufferGeometry()
-    lineGeom.addAttribute('position', new THREE.Float32BufferAttribute([
+    lineGeom.setAttribute('position', new THREE.Float32BufferAttribute([
       lineFrom.x, lineFrom.y, lineFrom.z,
       lineTo.x, lineTo.y, lineTo.z
     ], 3))
