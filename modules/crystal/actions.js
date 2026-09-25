@@ -33,6 +33,25 @@ export const LAYER_PROPS = {
   latticePoints: 'showLatticePoints',
 }
 
+/** 图层短标签（面板按钮用）。与 LAYER_NOTES 的区别：这里是按钮上的两三个字，
+ *  后者是悬浮说明。★ 面板上不该显示 `hydrogenBonds` 这种键名——
+ *  用户看不懂，而键名是给代码用的。 */
+export const LAYER_LABELS = {
+  atoms: '原子',
+  bonds: '化学键',
+  wireframe: '晶胞线框',
+  interstices: '空隙',
+  octahedral: '八面体空隙',
+  tetrahedral: '四面体空隙',
+  symmetry: '对称元素',
+  axes: '晶轴',
+  auxiliaryBody: '辅助体',
+  auxiliaryFace: '辅助面',
+  atomLabels: '原子标签',
+  hydrogenBonds: '氢键',
+  latticePoints: '点阵点',
+}
+
 /** 图层的教学含义（写进词汇表给模型看，也用于设置面板的说明） */
 export const LAYER_NOTES = {
   atoms: '原子球（分子晶体显示为球棍）',
@@ -50,8 +69,12 @@ export const LAYER_NOTES = {
   latticePoints: '点阵点（打开后隐藏原子、只显示点阵）',
 }
 
-/** 预置视角（ViewerCanvas.setView 支持的方向） */
+/** 预置视角（ViewerCanvas.setView 支持的方向）。★ 这些英文名是**动作参数值**，
+ *  会出现在给模型看的词汇表里，不要改；界面按钮用下面的 VIEW_LABELS */
 export const VIEW_DIRECTIONS = ['top', 'front', 'side', 'iso']
+
+/** 视角按钮的中文短标签（注意与 VIEW_NOTES 分工：短标签上按钮，长句作悬浮说明） */
+export const VIEW_LABELS = { top: '俯视', front: '正视', side: '侧视', iso: '等轴' }
 export const VIEW_NOTES = {
   top: '俯视（沿 c 轴看）',
   front: '正视（沿 a 轴看）',
@@ -242,4 +265,4 @@ export function labels() {
   return out
 }
 
-export default { VOCAB, LAYER_PROPS, LAYER_NOTES, VIEW_DIRECTIONS, CELL_MODES, APPEARANCE_RANGES, validate, listActions, labels }
+export default { VOCAB, LAYER_PROPS, LAYER_LABELS, LAYER_NOTES, VIEW_DIRECTIONS, VIEW_LABELS, CELL_MODES, APPEARANCE_RANGES, validate, listActions, labels }

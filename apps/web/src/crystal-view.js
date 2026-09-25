@@ -12,6 +12,7 @@ import { ViewerCanvas } from '@crystal/components/viewer-canvas.js'
 import { getCrystalData, getAllCrystalIds } from '@crystal/lib/crystal-loader.js'
 import crystalIndex from '@crystal/data/crystalIndex.js'
 import elements from '@crystal/data/elements.js'
+import { DEFAULT_VIEW_PROPS } from '@modules/crystal/view-props.js'
 
 export { getCrystalData, getAllCrystalIds, crystalIndex }
 
@@ -36,7 +37,11 @@ export function createCrystalView(opts) {
   const view = new ViewerCanvas({
     container: opts.container,
     canvasId: opts.canvasId || 'crystalCanvas',
-    props: Object.assign({ crystalId: 'naCl' }, opts.props || {}),
+    // ★ 必须带上模块的默认视图属性（尤其 lightConfig）。
+    //   不传的后果不是"用默认值"，而是"场景里没有灯"——Phong 材质在无光源下
+    //   一律渲染成纯黑，表现成"原子没有颜色、没有质感"，看起来像渲染坏了。
+    //   详见 modules/crystal/view-props.js 的说明。
+    props: Object.assign({}, DEFAULT_VIEW_PROPS, opts.props || {}),
   })
   view.mount()
   return view

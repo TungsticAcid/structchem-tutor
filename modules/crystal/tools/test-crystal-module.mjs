@@ -203,6 +203,17 @@ section('其余契约方法')
     F.sceneVocabulary.list().find((a) => a.action === 'setView').options.length === 4)
   check('图层说明齐备（每个图层都有教学含义）',
     Object.keys(LAYER_PROPS).every((k) => !!F.sceneVocabulary.layerNotes[k]))
+  // ★ 界面按钮不该显示 atoms / hydrogenBonds 这种键名——用户看不懂。
+  //   这条断言保证"新增图层却忘了加中文标签"会当场失败。
+  {
+    const { LAYER_LABELS, VIEW_LABELS, VIEW_DIRECTIONS } = await import('../actions.js')
+    const noLabel = Object.keys(LAYER_PROPS).filter((k) => !LAYER_LABELS[k])
+    check('每个图层都有中文短标签（按钮不显示英文键名）', noLabel.length === 0, noLabel.join(','))
+    check('每个视角方向都有中文短标签',
+      VIEW_DIRECTIONS.every((d) => !!VIEW_LABELS[d]), VIEW_DIRECTIONS.filter((d) => !VIEW_LABELS[d]).join(','))
+    check('图层短标签与教学含义说明分工清楚（短标签更短）',
+      Object.keys(LAYER_PROPS).every((k) => LAYER_LABELS[k].length <= 6))
+  }
 
   const st = F.settings
   check('settings 是声明式 schema（可直接喂 settings-popup）',

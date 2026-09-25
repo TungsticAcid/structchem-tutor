@@ -37,20 +37,23 @@
               <div class="seg small" id="crystalSeg"></div>
             </div>
           </div>
-          <!-- 三维视图挂载点。viewer.js 会按"可见高度 − 顶端位置"算 --viewer-h -->
+          <!-- 三维视图挂载点。viewport.js 会按"可见高度 − 顶端位置"算 --viewer-h。
+               ★ 它必须尽量是本列的**最后一个**元素：算法把剩余高度全给画布，
+                 其后的内容会被推到折叠线下（图层栏曾因此整排看不见）。 -->
           <div id="viewer" class="viewer chart-host"></div>
-          <div class="card-head" style="margin-top:10px">
-            <span class="card-title">图层</span>
-          </div>
-          <div id="layerBar" class="seg small" style="flex-wrap:wrap;gap:6px"></div>
         </div>
 
         <aside class="card">
-          <div class="card-head"><span class="card-title">视角与外观</span></div>
+          <div class="card-head"><span class="card-title">视角</span></div>
           <div id="viewBar" class="seg small" style="flex-wrap:wrap;gap:6px"></div>
-          <div id="appearanceBar" style="margin-top:12px"></div>
-          <div class="divider" style="margin:14px 0"><span>演示</span></div>
-          <div id="storyboardBar" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+
+          <div class="divider" style="margin:14px 0"><span>图层</span></div>
+          <!-- 图层放在控制栏而不是画布下方：这些开关是"看着晶体时"要拨的，
+               必须与三维视图同屏。放画布下方会被 viewport.js 算出的画布高度挤出视野。 -->
+          <div id="layerBar" class="seg small" style="flex-wrap:wrap;gap:6px"></div>
+
+          <div class="divider" style="margin:14px 0"><span>晶胞显示</span></div>
+          <div id="cellBar" class="seg small" style="flex-wrap:wrap;gap:6px"></div>
         </aside>
       </section>
     </main>

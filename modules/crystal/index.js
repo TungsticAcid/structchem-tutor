@@ -14,7 +14,7 @@ import { VOCAB, validate as rawValidate, listActions, labels as actionLabels } f
 export { createCrystalFacade } from './facade.js'
 export { createCrystalTools } from './tools.js'
 export {
-  VOCAB, LAYER_PROPS, LAYER_NOTES, VIEW_DIRECTIONS, VIEW_NOTES,
+  VOCAB, LAYER_PROPS, LAYER_LABELS, LAYER_NOTES, VIEW_DIRECTIONS, VIEW_LABELS, VIEW_NOTES,
   CELL_MODES, CELL_MODE_NOTES, APPEARANCE_RANGES,
   validate, listActions, labels as actionLabels,
 } from './actions.js'

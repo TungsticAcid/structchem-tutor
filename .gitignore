@@ -30,3 +30,6 @@ project.private.config.json
 # （crystal 的 doc/ 目录 2.0G，留在原处，如需引用请用相对路径）
 *.rar
 *.zip
+
+# 开发过程产物（截图工具的默认输出目录）
+tmp/

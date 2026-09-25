@@ -27,6 +27,13 @@ html, body {
 /* ---------- 布局 ---------- */
 .layout { max-width: 1500px; margin: 0 auto; padding: var(--space-4) var(--space-5) 40px; }
 .grid-main { display: grid; grid-template-columns: 1fr 320px; gap: var(--space-4); }
+/* ★ min-width:0 同样不能省，而且这一次是**实测踩到的**：
+   1fr 实为 minmax(auto, 1fr)，auto 的最小宽度 = 项目的 min-content 尺寸。
+   主列里放了 canvas（有固有像素宽度，如 1994px）时，列就不肯收缩，整个栅格溢出
+   窗口宽度 —— 表现为三件事同时发生：3D 区域"左右太宽"、模型看着偏在一侧、
+   右栏被推出屏幕外（看着像"面板没渲染"）。
+   给 .grid-charts 加过同样的修复，却漏了 .grid-main；同一个坑踩两次，故两处都写明。 */
+.grid-main > * { min-width: 0; }
 .grid-charts { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-4); margin-top: var(--space-4); }
 /* ★ min-width:0 不能省。1fr 实为 minmax(auto, 1fr)，而 auto 的最小宽度 = 项目的
    min-content 尺寸；栅格项里放了 canvas（有固有像素宽度）时，列就不肯收缩，

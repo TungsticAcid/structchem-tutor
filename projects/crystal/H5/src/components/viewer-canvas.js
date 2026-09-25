@@ -216,8 +216,9 @@ export class ViewerCanvas {
     // 事件绑定
     this._bindEvents(canvas)
 
-    // 渲染循环
-    this._animate()
+    // 起渲染：按需重绘 + 1 Hz 兜底（见 invalidate 的注释）
+    this.invalidate()
+    this._startRenderSweep()
 
     // 加载晶体
     if (this._crystalId) {
@@ -296,6 +297,7 @@ export class ViewerCanvas {
         }
       }
     }
+    this.invalidate()
   }
 
   _updateCameraPosition() {
@@ -313,15 +315,48 @@ export class ViewerCanvas {
       new THREE.Vector3(0, 0, 1).applyQuaternion(s.orbitQuat)
     )
     s.camera.quaternion.setFromRotationMatrix(m4)
+    this.invalidate()   // 相机是唯一会动的量，这里是绝大多数重绘的来源
   }
 
-  // ==================== 渲染循环 ====================
+  // ==================== 渲染：按需重绘 ====================
 
-  _animate() {
+  /**
+   * 请求重绘（脏标记）。
+   *
+   * ★ 原先这里是一个**无条件 requestAnimationFrame 递归**：每帧渲染，渲染完立刻
+   *   排下一帧，界面完全静止时也在满速重绘。后果有两层：
+   *     · 真机上一直烧 GPU 与电量（页面放着不动也不例外）
+   *     · 在**软件渲染**下（无头截图用的 SwiftShader、或没装驱动的机器）等于
+   *       拿 CPU 当 GPU 用——实测把 CPU 打满，验证过程本身成了事故
+   *   现在改为按需：谁改了画面谁调 invalidate()，多次调用合并到下一帧渲染一次。
+   *
+   *   调用点集中在 6 个"改画面"的方法里：_loadCrystal / _updateVisibility /
+   *   _updateCameraPosition / _applyLightConfig / _applyFog / resize。
+   *   相机运动的路径全部经过 _updateCameraPosition，故拖拽/滚轮/切视角均已覆盖。
+   */
+  invalidate() {
     const s = this._state
     if (!s.renderer || !s.scene || !s.camera) return
-    s.renderer.render(s.scene, s.camera)
-    s.animFrameId = requestAnimationFrame(() => this._animate())
+    if (s.animFrameId) return                    // 已排队，合并到同一帧
+    s.animFrameId = requestAnimationFrame(() => {
+      s.animFrameId = 0
+      const st = this._state
+      if (!st.renderer || !st.scene || !st.camera) return
+      st.renderer.render(st.scene, st.camera)
+    })
+  }
+
+  /**
+   * 低频兜底重绘（1 Hz）。
+   *
+   * ★ 故意保留这个"保险"，而不是完全相信按需渲染：按需的前提是**每个改画面的地方
+   *   都调了 invalidate()**。万一漏一处，表现是"画面停住不更新"——那比费 CPU
+   *   更难发现、也更糟。每秒补一帧的代价可忽略（相比 60 帧是 60 倍降幅），
+   *   换来的是"即使漏了一处也不会僵住"。
+   */
+  _startRenderSweep() {
+    if (this._sweepId) return
+    this._sweepId = setInterval(() => this.invalidate(), 1000)
   }
 
   // ==================== 晶体加载 ====================
@@ -421,6 +456,7 @@ export class ViewerCanvas {
       const mask = this._container.querySelector('.loading-mask')
       if (mask) mask.style.display = 'none'
     }
+    this.invalidate()
   }
 
   _clearCrystalGroup() {
@@ -488,6 +524,7 @@ export class ViewerCanvas {
     if (s.groups.hydrogenBonds) {
       s.groups.hydrogenBonds.visible = showLP ? false : this._showHydrogenBonds
     }
+    this.invalidate()
   }
 
   /** 公共: 更新可见性（由外部调用） */
@@ -521,6 +558,7 @@ export class ViewerCanvas {
     const bgColor = getVisualColor('bgColor') || '#eeeeee'
     const bgHex = parseInt(bgColor.replace('#', ''), 16)
     s.scene.fog = new THREE.Fog(bgHex, fogNear, fogFar)
+    this.invalidate()
   }
 
   // ==================== 触摸交互 ====================
@@ -911,6 +949,7 @@ export class ViewerCanvas {
   // ==================== 销毁 ====================
 
   _destroy() {
+    if (this._sweepId) { clearInterval(this._sweepId); this._sweepId = 0 }
     const s = this._state
     if (s.animFrameId) {
       cancelAnimationFrame(s.animFrameId)

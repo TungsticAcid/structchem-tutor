@@ -24,7 +24,9 @@ import { createSettingsPopup, DEFAULT_SCHEMA, DEFAULT_GROUPS } from '@ui-kit/set
 import { registerInto as regOrbitKnowledge } from '@knowledge/orbit/index.js'
 import { registerInto as regCommonSkills } from '@skills/common/index.js'
 import { createModule as createCrystalModule } from '@modules/crystal/index.js'
-import { LAYER_NOTES, VIEW_DIRECTIONS, VIEW_NOTES, CELL_MODES, CELL_MODE_NOTES } from '@modules/crystal/actions.js'
+import { DEFAULT_VISUAL_COLORS } from '@modules/crystal/view-props.js'
+import { setVisualColor } from '@crystal/data/settings.js'
+import { LAYER_LABELS, LAYER_NOTES, VIEW_DIRECTIONS, VIEW_LABELS, VIEW_NOTES, CELL_MODES, CELL_MODE_NOTES } from '@modules/crystal/actions.js'
 import { createCrystalView, CATALOG, getCrystalData } from './crystal-view.js'
 
 const $ = (sel) => document.querySelector(sel)
@@ -41,6 +43,11 @@ viewport.init()
 // ---------------------------------------------------------------------------
 // 2. 三维视图（浏览器专用，隔离在 crystal-view.js）
 // ---------------------------------------------------------------------------
+// ★ 视觉配色必须在创建视图**之前**应用：renderer.setClearColor 在 mount() 里
+//   就执行了，mount 之后再来改就晚了（实测踩到：背景仍是模块默认的浅灰）。
+//   配色用模块给的那一套（深底，理由见 view-props.js —— 按元素色亮度分布定的）。
+for (const [k, v] of Object.entries(DEFAULT_VISUAL_COLORS)) setVisualColor(k, v)
+
 const view = createCrystalView({ container: $('#viewer'), props: { crystalId: 'naCl' } })
 
 // ---------------------------------------------------------------------------
@@ -172,9 +179,10 @@ function rerenderControls() {
   // 图层（空隙两类的显隐受总开关控制，故一并展示；这是 C5 最需要看清的一组）
   const lBar = $('#layerBar')
   lBar.innerHTML = ''
+  // ★ 按钮显示中文短标签，注释（title）给教学含义；不要显示 `hydrogenBonds` 这种键名
   for (const [layer, note] of Object.entries(LAYER_NOTES)) {
     lBar.appendChild(segButton(
-      layer, on.has(layer),
+      LAYER_LABELS[layer] || layer, on.has(layer),
       () => {
         const next = !on.has(layer)
         crystal.facade.applyActions([{ action: 'setLayer', params: { layer, visible: next } }])
@@ -188,7 +196,7 @@ function rerenderControls() {
   const vBar = $('#viewBar')
   vBar.innerHTML = ''
   for (const d of VIEW_DIRECTIONS) {
-    vBar.appendChild(segButton(d, false,
+    vBar.appendChild(segButton(VIEW_LABELS[d] || d, false,
       () => { crystal.facade.applyActions([{ action: 'setView', params: { direction: d } }]); rerenderControls() },
       VIEW_NOTES[d]))
   }
@@ -196,17 +204,14 @@ function rerenderControls() {
     () => { crystal.facade.applyActions([{ action: 'resetView', params: {} }]); rerenderControls() }))
 
   // 晶胞显示（惯用 / 原胞）——C1/C2 的辨析要用
-  const ab = $('#appearanceBar')
-  ab.innerHTML = '<div class="card-title" style="margin-bottom:6px">晶胞显示</div>'
-  const cellSeg = document.createElement('div')
-  cellSeg.className = 'seg small'
+  const cellSeg = $('#cellBar')
+  cellSeg.innerHTML = ''
   for (const m of CELL_MODES) {
     cellSeg.appendChild(segButton(
       m === 'primitive' ? '原胞' : '惯用晶胞', snap.cellDisplayMode === m,
       () => { crystal.facade.applyActions([{ action: 'setCellDisplayMode', params: { mode: m } }]); rerenderControls() },
       CELL_MODE_NOTES[m]))
   }
-  ab.appendChild(cellSeg)
 }
 
 $('#settingsBtn').onclick = () => settingsPopup.open()
