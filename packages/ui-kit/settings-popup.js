@@ -100,13 +100,50 @@ export function createSettingsPopup(cfg = {}) {
     const f = el('div', { class: 'agent-field' }, undefined, doc)
     f.appendChild(el('label', { class: 'agent-flabel', text: label }, undefined, doc))
     f.appendChild(input)
-    if (hint) f.appendChild(el('div', { class: 'agent-fhint', text: hint }, undefined, doc))
+    if (hint) {
+      const h = el('div', { class: 'agent-fhint', text: hint }, undefined, doc)
+      // ★ 把 hint 元素记在 input 上，供 refreshHints() 重算。
+      //   `hint` 可能是**函数**（如 API Key 的"已配置：sk-****"），它依赖 store 状态；
+      //   而弹层只在打开时渲染一次——于是"测试连接成功"之后，那句提示还停在
+      //   "仅存本机，不上传服务器"，用户看到的就是"连上了却还显示未配置"（实测反馈）。
+      input._hintEl = h
+      f.appendChild(h)
+    }
     return f
   }
 
-  /** 按声明建控件。返回 { node, read(), bare?, touchedOnly?, input? } */
+  /**
+   * 重算所有依赖 store 状态的提示文案。
+   * 在「测试连接」成功、以及「保存」之后调用——那两处都会改变 `store`，
+   * 而界面上的文案不会自己跟着变。
+   */
+  function refreshHints() {
+    for (const def of schema) {
+      const built = inputs[def.key]
+      if (!built || !built.input || !built.input._hintEl) continue
+      const t = resolveHint(def)
+      if (t) built.input._hintEl.textContent = t
+      // 掩码占位符同理：配置过之后要从 `sk-...` 换成 `sk-ab****cd` 的样子
+      if (def.type === 'secret' && built.input.placeholder != null) {
+        built.input.placeholder = store.hasKey()
+          ? store.mask(store.get()[def.key])
+          : (def.placeholder || '')
+      }
+    }
+  }
+
+  /**
+   * 按声明建控件。返回 { node, read(), bare?, touchedOnly?, noStore?, input? }
+   *
+   * ★ 两种"不进本 store"的字段（本文件支持的两条外挂通道）：
+   *   · `def.get()` / `def.set(v)` —— 值的**真源在别处**（如模块自己的 localStorage）。
+   *     弹层此时只是它的一个**视图**，不是又一份副本。若让这类字段也走本 store，
+   *     同一份数据就有两个真源，改一处另一处不变——本仓库把这类问题记为头号隐患。
+   *   · `noStore` —— 控件自己负责持久化（如元素颜色调色板：一格一元素，
+   *     落库发生在点击时，没有"一个字段一个值"可言）。
+   */
   function buildInput(def, s) {
-    const v = s[def.key]
+    const v = def.get ? def.get() : s[def.key]
     switch (def.type) {
       case 'checkbox': {
         const input = el('input', { type: 'checkbox' }, undefined, doc)
@@ -152,6 +189,75 @@ export function createSettingsPopup(cfg = {}) {
         }, undefined, doc)
         input.addEventListener('input', () => { input.dataset.touched = '1' })
         return { node: input, read: () => null, touchedOnly: true, input }
+      }
+      case 'color': {
+        // 取色器 + 十六进制文本。两者**双向同步**：文本比色块更便于"抄一个准确的色号"，
+        // 而色块比文本更便于试色——教学中这两件事都会发生。
+        const input = el('input', { class: 'agent-input agent-color', type: 'color', value: v || '#cccccc' }, undefined, doc)
+        const hex = el('input', { class: 'agent-input agent-hex', type: 'text', value: v || '#cccccc' }, undefined, doc)
+        input.addEventListener('input', () => { hex.value = input.value })
+        hex.addEventListener('input', () => {
+          const t = hex.value.trim()
+          // 只在**合法**的 6 位十六进制时才回写取色器：否则用户打到一半就会被改掉
+          if (/^#[0-9a-fA-F]{6}$/.test(t)) input.value = t
+        })
+        return {
+          node: el('div', { class: 'agent-colorrow' }, [input, hex], doc),
+          read: () => input.value,
+        }
+      }
+      case 'palette': {
+        /**
+         * 调色板：**一格一元素**，点选后用下方取色器改色。
+         *
+         * ★ 为什么不是"每个元素一个取色器"：元素有 103 个，铺 103 个
+         *   `<input type=color>` 会让这个弹层明显变卡，而绝大多数会话只会改其中一两个。
+         *   一格一按钮 + 一个共享取色器，既保住"一眼看全配色"的用法，
+         *   也不让开销随元素表规模线性增长。
+         * ★ `noStore`：落库在点击时由 `def.set` 负责，没有"一个字段一个值"可言。
+         */
+        const items = (typeof def.items === 'function' ? def.items() : (def.items || [])).slice()
+        const grid = el('div', { class: 'agent-palette' }, undefined, doc)
+        const picker = el('input', { class: 'agent-input agent-color', type: 'color' }, undefined, doc)
+        const caption = el('span', { class: 'agent-fhint', text: '点一个格子选中元素，再取色' }, undefined, doc)
+        let target = null
+        const swatchOf = (key) => grid.querySelector('[data-el="' + String(key).replace(/"/g, '\\"') + '"]')
+        for (const it of items) {
+          const b = el('button', { class: 'agent-swatch', type: 'button', title: it.label, 'data-el': it.key }, undefined, doc)
+          b.style.background = it.color
+          b.onclick = () => {
+            target = it
+            picker.value = it.color
+            for (const n of grid.querySelectorAll('.agent-swatch')) n.classList.remove('active')
+            b.classList.add('active')
+            caption.textContent = it.label + '：取色后立即生效'
+          }
+          grid.appendChild(b)
+        }
+        picker.addEventListener('input', () => {
+          if (!target) { caption.textContent = '先点一个格子选中元素'; return }
+          target.color = picker.value
+          const n = swatchOf(target.key)
+          if (n) n.style.background = picker.value
+          if (typeof def.set === 'function') def.set(target.key, picker.value)
+          caption.textContent = target.label + ' → ' + picker.value
+        })
+        const resetBtn = el('button', { class: 'agent-btn', type: 'button', text: '恢复默认配色' }, undefined, doc)
+        resetBtn.onclick = () => {
+          if (typeof def.reset === 'function') def.reset()
+          const fresh = typeof def.items === 'function' ? def.items() : []
+          for (const it of fresh) {
+            const n = swatchOf(it.key)
+            if (n) n.style.background = it.color
+          }
+          target = null
+          caption.textContent = '已恢复默认配色'
+        }
+        return {
+          node: el('div', {}, [grid, el('div', { class: 'agent-colorrow' }, [picker, caption], doc), resetBtn], doc),
+          read: () => null,
+          noStore: true,
+        }
       }
       default: {
         const input = el('input', {
@@ -202,8 +308,14 @@ export function createSettingsPopup(cfg = {}) {
           const patch = collect()
           try {
             const r = await cfg.testConnection(patch)
-            testMsg.textContent = '✓ 连接成功（模型：' + ((r && r.model) || patch.model) + '）'
+            // ★ 文案要**说清"已保存"**：`collect()` 在测试之前就把表单落库了（见它的实现），
+            //   但用户看不到这一点——只说"连接成功"会让人不确定密钥到底存没存，
+            //   于是回到面板再发消息、看到"尚未配置 API Key"时就以为是 bug（实测反馈）。
+            testMsg.textContent = '✓ 连接成功（模型：' + ((r && r.model) || patch.model)
+              + '）· 已保存到本机'
             testMsg.className = 'agent-test-msg ok'
+            refreshHints()
+            if (typeof cfg.onSaved === 'function') cfg.onSaved(store.get())
           } catch (e) {
             testMsg.textContent = '✗ ' + ((e && e.message) || '失败')
             testMsg.className = 'agent-test-msg bad'
@@ -255,11 +367,21 @@ export function createSettingsPopup(cfg = {}) {
   }
 
   /** 收集表单值并落库。逐项按声明读取；未触及的密钥保留原值。 */
+  /** 上一次 collect() 里被用户写过的外挂字段 key 集合（见 collect 的说明） */
+  const externalTouched = new Set()
+
   function collect() {
     const patch = {}
+    // ★ 记录本次保存里被**用户改过**的外挂字段（`def.set` 那条通道）。
+    //   宿主要用它区分"用户显式选过"与"我们按主题替他写的"——
+    //   两者在模块存储里长得一样，但语义完全不同：
+    //   前者此后必须尊重，后者每次切主题都该重算。
+    externalTouched.clear()
     for (const def of schema) {
       const built = inputs[def.key]
       if (!built) continue
+      // ★ 自己负责持久化的控件（如元素颜色调色板）：不参与本 store 的读写
+      if (built.noStore) continue
       if (built.touchedOnly) {
         const typed = built.input.value.trim()
         if (built.input.dataset.touched === '1' && typed) patch[def.key] = typed
@@ -272,6 +394,12 @@ export function createSettingsPopup(cfg = {}) {
         v = Math.max(lo, Math.min(hi, Math.round(v) || store.DEFAULTS[def.key]))
       }
       if (def.type === 'text' && !v) v = store.DEFAULTS[def.key]   // 空则回退默认
+      /**
+       * ★ 值的**真源在模块那边**（`def.set`）时，写进去、且**不**塞进本 store。
+       *   塞了就等于同一份数据两个真源——"改了一处、另一处没变"是最难查的那类
+       *   缺陷（本仓库已记过多次）。这里的 `patch` 只承载本 store 自己管的字段。
+       */
+      if (typeof def.set === 'function') { def.set(v); externalTouched.add(def.key); continue }
       patch[def.key] = v
     }
     return store.set(patch)
@@ -280,7 +408,11 @@ export function createSettingsPopup(cfg = {}) {
   function open() { buildOverlay(); overlay.classList.add('show') }
   function close() { if (overlay) overlay.classList.remove('show') }
 
-  return { open, close, collect, isOpen: () => !!(overlay && overlay.classList.contains('show')) }
+  return {
+    open, close, collect, isOpen: () => !!(overlay && overlay.classList.contains('show')),
+    /** 上一次保存里用户显式改过的外挂字段（`def.set` 通道），供宿主区分"用户选的"与"我们写的" */
+    touchedExternal: () => [...externalTouched],
+  }
 }
 
 export default createSettingsPopup

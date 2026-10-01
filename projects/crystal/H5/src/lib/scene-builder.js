@@ -2,7 +2,7 @@
  * 场景构建模块
  * 从晶体JSON数据构建Three.js场景图，支持CPK/球棍两种模型
  */
-import { fractionalToCartesian, getCellVertices, getCellEdges, getCellCenteredOffset, detectLatticeType } from './geometry-utils'
+import { fractionalToCartesian, getCellVertices, getCellEdges, getCellCenteredOffset, detectLatticeType, getExplicitLatticeType, latticePointPositions } from './geometry-utils'
 import elementsData from '../data/elements.js'
 import { getElementColor as getUserElementColor, getVisualColor } from '../data/settings.js'
 
@@ -43,7 +43,7 @@ function createWebCanvas(options = {}) {
 export function buildCrystalScene(crystalData, THREE, options = {}) {
   const { modelType = 'ballStick', atomScale = 1.0, stickRadius = 0.08,
           cellDisplayMode = 'conventional', opacity = 0.0, fractionalShift = [0, 0, 0],
-          partialAtoms = false } = options
+          partialAtoms = false, highlightElements = null } = options
 
   // 向后兼容：旧的 cellMode='motif'/'fullCell' 映射
   const mode = (options.cellMode === 'motif' || options.cellMode === 'fullCell')
@@ -99,7 +99,7 @@ export function buildCrystalScene(crystalData, THREE, options = {}) {
   const groups = {}
 
   // 构建原子
-  groups.atoms = buildAtoms(atoms, crystalData.lattice, THREE, activeScale, opacity, partialAtoms)
+  groups.atoms = buildAtoms(atoms, crystalData.lattice, THREE, activeScale, opacity, partialAtoms, highlightElements)
   contentGroup.add(groups.atoms)
 
   // 原子名称标签（始终构建，通过 visible 控制显示）
@@ -281,19 +281,40 @@ function applyWorldClipPlanes(atomsGroup, crystalRoot, THREE) {
   if (!clipMaterials || !cartPlanes || !offset) return
 
   const R = crystalRoot.quaternion
-  const offsetVec = new THREE.Vector3(offset.x, offset.y, offset.z)
-  const worldPlanes = cartPlanes.map(p => {
-    const normal = p.normal.clone().applyQuaternion(R)
-    const constant = p.constant - p.normal.dot(offsetVec)
-    return new THREE.Plane(normal, constant)
-  })
+  const offsetVec = atomsGroup.userData._clipOffsetVec || (atomsGroup.userData._clipOffsetVec = new THREE.Vector3())
+  offsetVec.set(offset.x, offset.y, offset.z)
 
-  for (const mat of clipMaterials) {
-    mat.clippingPlanes = worldPlanes
-    mat.clipIntersection = false
-    mat.clipShadows = true
-    mat.needsUpdate = true
+  // ★ 复用同一组 Plane 对象（而不是每帧 new 一批）
+  let worldPlanes = atomsGroup.userData._worldPlanes
+  if (!worldPlanes || worldPlanes.length !== cartPlanes.length) {
+    worldPlanes = cartPlanes.map(() => new THREE.Plane())
+    atomsGroup.userData._worldPlanes = worldPlanes
+    atomsGroup.userData._worldPlanesFresh = true
   }
+  for (let i = 0; i < cartPlanes.length; i++) {
+    const p = cartPlanes[i]
+    // 直接改 Plane 的 normal/constant —— 渲染器每帧会把当前值写进 uniform
+    worldPlanes[i].normal.copy(p.normal).applyQuaternion(R)
+    worldPlanes[i].constant = p.constant - p.normal.dot(offsetVec)
+  }
+
+  // ★★ 这里原先是**每帧**对每个材质设 `mat.needsUpdate = true`，那会触发
+  //    **着色器重编译**。而本函数在拖拽路径上被逐帧调用（_handleMouseMove /
+  //    _handleGestureResult）——也就是拖拽时每帧重编译所有原子材质的着色器，
+  //    这正是"旋转卡顿"的一个直接来源。
+  //
+  //    正确的做法：只在**引用或数量变化**时重编译一次；此后渲染器每帧读
+  //    Plane 对象的当前值即可，不需要 needsUpdate。
+  const fresh = atomsGroup.userData._worldPlanesFresh
+  for (const mat of clipMaterials) {
+    if (fresh || mat.clippingPlanes !== worldPlanes) {
+      mat.clippingPlanes = worldPlanes
+      mat.clipIntersection = false
+      mat.clipShadows = true
+      mat.needsUpdate = true      // 仅在数量/引用变化时
+    }
+  }
+  atomsGroup.userData._worldPlanesFresh = false
 }
 
 /**
@@ -1062,7 +1083,7 @@ function buildClippingCaps(atomGroups, lattice, offset, THREE, sizeFactor, atomS
 
 // ==================== 原子渲染 ====================
 
-function buildAtoms(atomGroups, lattice, THREE, sizeFactor, opacity = 0.0, partialAtoms = false) {
+function buildAtoms(atomGroups, lattice, THREE, sizeFactor, opacity = 0.0, partialAtoms = false, highlightElements = null) {
   const group = new THREE.Group()
   const sharedMaterials = {}
   const sharedGeom = new THREE.SphereGeometry(1, 32, 32)
@@ -1074,18 +1095,22 @@ function buildAtoms(atomGroups, lattice, THREE, sizeFactor, opacity = 0.0, parti
     if (!positions || positions.length === 0) continue
 
     const atomColor = getUserElementColor(atomGroup.element) || atomGroup.color || '#ffffff'
-    // 提亮材质颜色：Phong 材质下 diffuse = 材质色 × 光照，深色元素色会被光照进一步压暗。
-    // 结合白色环境光（viewer 默认 lightConfig），让球体呈现接近元素原色/截面的亮度。
-    const brightenedColor = new THREE.Color(atomColor).offsetHSL(0, 0, 0.06)
     const scale = (atomGroup.radius || 1.0) * sizeFactor
 
     // 为每个元素创建两种材质：内部材质（无裁剪）和边界材质（可裁剪）
     if (!sharedMaterials[atomGroup.element]) {
       const matOpts = {
-        color: brightenedColor,
-        // H5 增强高光：让球体更有光泽（小程序为 shininess 30 / specular 0x222222）
-        shininess: 60,
-        specular: new THREE.Color(0x666666)
+        // ★ 用**元素原色**，不做提亮。
+        //   原实现是 Phong + offsetHSL(0,0,0.06) 提亮，用于补偿"深色元素色被光照压暗"。
+        //   PBR 下亮度由 metalness/roughness 与环境反射共同决定，再手工提亮会让颜色失真
+        //   （深色元素会被洗白，而元素色本身就是教学信息——学生靠颜色认元素）。
+        color: atomColor,
+        // ★ 金属参数：金属感 = 低粗糙度（反射清晰）+ 中等金属度。
+        //   必须配合 scene.environment（见 viewer-canvas 的 _setupEnvironment）：
+        //   金属没有漫反射，没有环境可反射时只会发黑。
+        metalness: 0.55,
+        roughness: 0.32,
+        envMapIntensity: 1.0,
       }
       const matOpacity = 1.0 - opacity
       if (matOpacity < 1.0) {
@@ -1093,8 +1118,22 @@ function buildAtoms(atomGroups, lattice, THREE, sizeFactor, opacity = 0.0, parti
         matOpts.opacity = matOpacity
         matOpts.depthWrite = matOpacity > 0.5
       }
-      const interiorMat = new THREE.MeshPhongMaterial(matOpts)
-      const boundaryMat = new THREE.MeshPhongMaterial(matOpts)
+
+      // ★ 高亮：命中的元素改用 `emissive` 发光，而**不是**改 `color`。
+      //   元素色本身是教学信息（学生靠颜色认元素），改掉它就丢了这个信息；
+      //   emissive 是在原色之上"点亮"，既突出又不改变身份。
+      //   scene-builder 里已有先例——晶轴就是用 emissive 做的，沿用同一手法
+      //   可保证与既有配色不打架。
+      //
+      //   用途：grade 节点的诊断动作（"高亮中心球周围的空隙""高亮某元素的配位环境"）
+      //   与演示脚本的场景 A（"高亮 Na⁺ 与周围 6 个 Cl⁻"）。
+      if (highlightElements && highlightElements.indexOf(atomGroup.element) >= 0) {
+        matOpts.emissive = new THREE.Color(atomColor)
+        matOpts.emissiveIntensity = 0.45
+      }
+
+      const interiorMat = new THREE.MeshStandardMaterial(matOpts)
+      const boundaryMat = new THREE.MeshStandardMaterial(matOpts)
       sharedMaterials[atomGroup.element] = { interior: interiorMat, boundary: boundaryMat }
       if (partialAtoms) {
         clipMaterials.push(boundaryMat)
@@ -1457,23 +1496,11 @@ function createOctaVoidSprite(color, THREE, opacity, scale) {
 
 // ==================== 点阵点 ====================
 
-/**
- * 从晶体数据中显式声明的 latticeType 字符串提取内部代码
- * 优先使用此方法，避免分子晶体等原子不在格点位置时自动检测失败
- * @param {Object} crystalData
- * @returns {string|null} 内部代码或 null
- */
-function getExplicitLatticeType(crystalData) {
-  const lt = (crystalData.latticeType || '').toLowerCase()
-  if (!lt) return null
-  if (lt.includes('底心') || lt.includes('oc') || lt.includes('c心') || lt.includes('oa') || lt.includes('ob')) return 'cbase'
-  if (lt.includes('体心') || lt.includes('ci') || lt.includes('bcc')) return 'bcc'
-  if (lt.includes('面心') || lt.includes('cf') || lt.includes('fcc')) return 'fcc'
-  if (lt.includes('r心') || lt.includes('rhex')) return 'rHex'
-  if (lt.includes('六方') || lt.includes('hp')) return 'hcp'
-  if (lt.includes('金刚石') || lt.includes('diamond')) return 'diamond'
-  return null
-}
+// ★ `getExplicitLatticeType()` 与「该画在哪几个位置」的判据都已移到 `lib/geometry-utils.js`：
+//   它们是纯几何、不碰 three，移过去之后 `tools/check-crystal-data.mjs` 才能拿数据自己声明的
+//   Pearson 符号跟它们**直接对账**（原先数据守卫与渲染器各有一套知识、互不相干，
+//   于是 CsCl 把点阵点画到体心这件事错了很久没人发现）。
+
 
 /**
  * 自动检测点阵型式并构建点阵点显示
@@ -1507,35 +1534,10 @@ function buildLatticePoints(crystalData, lattice, THREE, mode = 'conventional') 
     'rHex': 'R心六方', 'other': '未知'
   }
 
-  // 显示所有点阵点：8顶点 + 体心/面心/底心
-  const displayPositions = []
-  for (let i = 0; i <= 1; i++)
-    for (let j = 0; j <= 1; j++)
-      for (let k = 0; k <= 1; k++)
-        displayPositions.push([i, j, k])
-
-  if (latticeType === 'bcc') displayPositions.push([0.5, 0.5, 0.5])
-  if (latticeType === 'fcc' || latticeType === 'diamond') {
-    displayPositions.push([0.5, 0.5, 0.0], [0.5, 0.0, 0.5], [0.0, 0.5, 0.5],
-      [0.5, 0.5, 1.0], [0.5, 1.0, 0.5], [1.0, 0.5, 0.5])
-  }
-  if (latticeType === 'cbase') {
-    displayPositions.push([0.5, 0.5, 0.0], [0.5, 0.5, 1.0])
-  }
-  // R心六方：obverse (2/3,1/3,1/3)+(1/3,2/3,2/3) 或 reverse (1/3,2/3,1/3)+(2/3,1/3,2/3)
-  if (latticeType === 'rHex') {
-    // 自动判断 obverse 还是 reverse
-    const hasReverse = crystalData.atoms.some(g =>
-      g.positions.some(p =>
-        Math.abs(p[0] - 0.3333) < 0.05 && Math.abs(p[1] - 0.6667) < 0.05 && Math.abs(p[2] - 0.3333) < 0.05
-      )
-    )
-    if (hasReverse) {
-      displayPositions.push([0.3333, 0.6667, 0.3333], [0.6667, 0.3333, 0.6667])
-    } else {
-      displayPositions.push([0.6667, 0.3333, 0.3333], [0.3333, 0.6667, 0.6667])
-    }
-  }
+  // 要显示的点阵点位置（8 顶点 + 带心位置）。
+  // ★ 判据在 `lib/geometry-utils.js` 的 `latticePointPositions()` —— 抽出去是为了让
+  //   `tools/check-crystal-data.mjs` 能拿数据声明的 Pearson 符号跟它直接对账。
+  const displayPositions = latticePointPositions(latticeType, crystalData)
 
   for (const pos of displayPositions) {
     const mesh = new THREE.Mesh(sphereGeom, material)
@@ -1546,7 +1548,11 @@ function buildLatticePoints(crystalData, lattice, THREE, mode = 'conventional') 
     mesh._element = '_latticePoint'
     mesh._position = [...pos]
     mesh._latticeType = latticeType
-    mesh._latticeTypeName = latticeTypeNames[latticeType] || latticeType
+    // ★ 显示名优先用**数据自己写的**那个字符串（如「简单立方(cP)」）：
+    //   它是人工校订过的中文名，且与「晶体信息」里那一行是同一个来源，不会互相打架。
+    //   下面那张按内部代码拼的表只作兜底 —— 它是按"带心方式"拼的，遇到 简单四方(tP)、
+    //   简单六方(hP) 会拼成「简单立方 P」（错，晶系都不对）。
+    mesh._latticeTypeName = crystalData.latticeType || latticeTypeNames[latticeType] || latticeType
     group.add(mesh)
   }
 
@@ -2124,6 +2130,20 @@ function buildSymmetry(symmetry, lattice, THREE) {
 
   const group = new THREE.Group()
 
+  /**
+   * ★ 对称元素统一**过晶胞中心**（而不是过晶胞原点/角）。
+   *
+   *   数据里每个对称元素的 `position` 都是 `[0,0,0]`、镜面 `distance` 是 `0`
+   *   ——那在晶体学上是对的（对称元素过原点，也就过它的所有平移等价点），
+   *   但**画出来**必须取晶胞中心那个代表：放在角上时，轴上只看到小半截、
+   *   镜面切在角落，学生根本看不出"这是一条贯穿晶胞的四重轴"（实测反馈）。
+   *
+   *   `contentGroup` 整体被平移了 `-center`（使晶胞中心落在世界原点），
+   *   所以这里要把局部坐标**加上** center，对称元素才落在晶胞中心上。
+   */
+  const c = fractionalToCartesian([0.5, 0.5, 0.5], lattice)
+  const center = new THREE.Vector3(c.x, c.y, c.z)
+
   // 将晶体学方向/法线向量转换为笛卡尔方向
   const crystalDirToCart = (dir) => {
     const cart = fractionalToCartesian(dir, lattice)
@@ -2133,7 +2153,9 @@ function buildSymmetry(symmetry, lattice, THREE) {
   if (symmetry.axes) {
     for (const axis of symmetry.axes) {
       const dir = crystalDirToCart(axis.direction)
-      const length = 2.5
+      // 轴长取晶胞对角线量级，保证**贯穿整个晶胞**——否则轴只在中间一小段，
+      // 看不出它与顶点/面心的关系（`length` 原为 2.5，对边长 5~7 Å 的晶胞不够）
+      const length = 2.2 * Math.max(lattice.a || 1, lattice.b || 1, lattice.c || 1)
       const cylinderGeom = new THREE.CylinderGeometry(0.04, 0.04, length, 16)
       const material = new THREE.MeshPhongMaterial({
         color: axis.color || '#ffffff',
@@ -2141,13 +2163,16 @@ function buildSymmetry(symmetry, lattice, THREE) {
         emissiveIntensity: 0.3,
         transparent: true,
         opacity: 0.8,
-        depthWrite: true
+        // ★ 不写深度：对称元素是**辅助几何**，若写深度它会挡住后面的原子球轮廓，
+        //   看起来像"多了一根实心棒插在晶体里"。不写深度 + renderOrder 靠后，
+        //   它自己之间还能正确遮挡。（原子球的遮挡问题另由"原子透明度"滑块解决）
+        depthWrite: false
       })
 
       const cylinder = new THREE.Mesh(cylinderGeom, material)
       const pos = axis.position || [0, 0, 0]
       const cartPos = fractionalToCartesian(pos, lattice)
-      cylinder.position.set(cartPos.x, cartPos.y, cartPos.z)
+      cylinder.position.set(cartPos.x + center.x, cartPos.y + center.y, cartPos.z + center.z)
       cylinder.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir)
       cylinder.renderOrder = 2
       group.add(cylinder)
@@ -2157,28 +2182,34 @@ function buildSymmetry(symmetry, lattice, THREE) {
   if (symmetry.mirrors) {
     for (const mirror of symmetry.mirrors) {
       const normal = crystalDirToCart(mirror.normal)
-      const size = 3.0
+      const size = 2.6 * Math.max(lattice.a || 1, lattice.b || 1, lattice.c || 1)
       const planeGeom = new THREE.PlaneGeometry(size, size)
       // THREE.Color 不支持 rgba 格式，提取纯色部分，alpha 由 material.opacity 控制
-      const mirrorColor = (mirror.color || 'rgba(255,255,255,0.3)').replace(/rgba?\((\d+),\s*(\d+),\s*(\d+).*\)/, 'rgb($1,$2,$3)')
+      // ★ 兜底色用**深灰**而非白：默认背景已是白色，白色镜面在白底上等于消失
+      //   （数据里的镜面色也一并改成了 rgba(60,60,60,0.35)）。
+      const mirrorColor = (mirror.color || 'rgba(60,60,60,0.35)').replace(/rgba?\((\d+),\s*(\d+),\s*(\d+).*\)/, 'rgb($1,$2,$3)')
       const material = new THREE.MeshBasicMaterial({
         color: mirrorColor,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.2,
+        // ★ 0.2 → 0.3：背景改白之后，深灰镜面压到 20% 在白底上只剩浅灰，
+        //   几乎看不出"这里有个镜面"（深底时代 0.2 是够的）。与数据里的 alpha 0.35 取齐。
+        opacity: 0.3,
         depthWrite: false
       })
 
       const plane = new THREE.Mesh(planeGeom, material)
       plane.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal)
-      plane.position.copy(normal.clone().multiplyScalar(mirror.distance || 0))
+      // 过晶胞中心，再沿法线按 distance 偏移（数据里 distance 均为 0 ⇒ 正好过中心）
+      plane.position.copy(normal.clone().multiplyScalar(mirror.distance || 0)).add(center)
       plane.renderOrder = 3
       group.add(plane)
 
       const edgeGeom = new THREE.EdgesGeometry(planeGeom)
       const edgeLine = new THREE.LineSegments(
         edgeGeom,
-        new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })
+        // 镜面边框同用深色（白底上白线不可见，等于没有边框）
+        new THREE.LineBasicMaterial({ color: 0x555555, transparent: true, opacity: 0.55 })
       )
       plane.add(edgeLine)
     }

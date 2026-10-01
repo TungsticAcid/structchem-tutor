@@ -1,7 +1,9 @@
 /**
  * facade.js — 晶体模块的智能体门面（模块契约的实现）
  *
- * 契约见 packages/agent-core/contract/module-contract.js。crystal 原先完全没有这一层
+ * 契约见 packages/module-contract/index.js（原在 agent-core/contract/，2026-09-30 提为独立包
+ * —— 契约是模块与中枢共同依赖的第三方，放在中枢里会让"模块依赖中枢"不可回避）。
+ * crystal 原先完全没有这一层
  * ——它的页面直接调 `viewer.setProps()`，智能体无从驱动。本文件把「能读什么状态、
  * 能被人怎样驱动」显式化。
  *
@@ -18,7 +20,28 @@
  *      （`this._events[name]` 一个名字只存一个回调），后注册者会静默顶掉先注册者——
  *      契约里专门警告过这件事。DOM 事件天然支持多订阅，且返回取消函数。
  */
-import { VOCAB, LAYER_PROPS, LAYER_NOTES, VIEW_DIRECTIONS, CELL_MODES, APPEARANCE_RANGES, validate as validateAction, listActions } from './actions.js'
+import { VOCAB, LAYER_PROPS, LAYER_LABELS, LAYER_NOTES, VIEW_DIRECTIONS, CELL_MODES, APPEARANCE_RANGES, validate as validateAction, listActions } from './actions.js'
+// 演示脚本是**模块自己的内容**（"NaCl 六步演示"、"以 Cu 型看空隙"…）。
+// 播放能力（分镜队列）在中枢，二者分得很干净——见契约的 demos 字段说明。
+import { DEMO_SCRIPTS, demoById, demoManifest } from './demo/scripts.js'
+
+/**
+ * 该动作是否打开了"练习中不该打开"的图层；是则返回那个图层的友好名。
+ *
+ * ★ 只认**打开**（`true` / 省略 visible）——关闭图层不泄露任何东西，
+ *   反而是把画面复位到中性题境所必需的（见 quiz/preset-view.js 的 buildQuestionView）。
+ */
+function bannedLayerHit(name, p, banned) {
+  if (name === 'setLayer') {
+    return (p.visible !== false && banned.has(p.layer)) ? p.layer : null
+  }
+  if (name === 'setLayers') {
+    for (const [k, v] of Object.entries(p.layers || {})) {
+      if (v && banned.has(k)) return k
+    }
+  }
+  return null
+}
 
 /**
  * 创建晶体模块门面。
@@ -94,6 +117,10 @@ export function createCrystalFacade(opts = {}) {
       view: viewState
         ? { theta: round(viewState.theta), phi: round(viewState.phi), radius: round(viewState.radius) }
         : null,
+      // ★ 完整视角状态（含 crystalQuat / panOffset / frustumSize）：上面的 `view` 是
+      //   给人看/给模型读的**简化版**（只要角度与距离）；而"回到演示前"要**精确回设**，
+      //   少一项都会留下"半新半旧"的相机状态。两者并存：简化版供感知，完整版供还原。
+      viewState: viewState || null,
     }
     if (loadData && id) {
       try {
@@ -113,14 +140,45 @@ export function createCrystalFacade(opts = {}) {
    * 应用动作。每个动作先校验（参数错则拒绝并说明原因），再落到视图。
    * 返回形状与 core/storyboard 的 applyStep 约定一致。
    */
-  function applyActions(actions) {
+  function applyActions(actions, o = {}) {
     const list = Array.isArray(actions) ? actions : [{ action: actions && actions.action, params: actions && actions.params }]
     const applied = []
     const failed = []
+    // ★ 练习守卫：未作答的题目里，"揭示答案"要打开哪些图层（空集 ⇒ 不限制）。
+    //   每次调用算一次即可——它只依赖本地题库状态。
+    // ★ `o.bypassGuard` 供**还原**路径使用（"回到演示前"）：那是在恢复**用户自己的**
+    //   状态（快照里本就是他调好的图层），不是模型在泄题；若不放行，用户原本开着的
+    //   图层会被守卫挡回去，恢复就成了"半新半旧"。调用方只有 app.js 的 restore。
+    let banned = null
+    if (!o.bypassGuard && typeof opts.practiceGuard === 'function') {
+      try {
+        const s = opts.practiceGuard()
+        if (s && s.size) banned = s
+      } catch (e) { banned = null }
+    }
     for (const a of list) {
       const name = a && a.action
-      const v = validateAction(name, (a && a.params) || {}, { crystalIds })
+      // ★ 一并告知"当前是哪个晶体"：openCompareView 要据此拒绝"与自己对比"
+      const v = validateAction(name, (a && a.params) || {}, {
+        crystalIds,
+        currentCrystalId: (view.getProps && view.getProps().crystalId) || '',
+      })
       if (v.err) { failed.push({ action: name, error: v.err }); continue }
+
+      // ★ 练习中拒绝泄题动作。理由写清楚，好让模型知道**为什么**被拒、以及正确做法。
+      if (banned) {
+        const hit = bannedLayerHit(name, v.params, banned)
+        if (hit) {
+          failed.push({
+            action: name,
+            error: `练习进行中，已拒绝打开「${LAYER_LABELS[hit] || hit}」图层——`
+              + '它正是这道题要考的内容，画面一开就等于把答案说出来了。'
+              + '请先让学生作答；作答之后可引导学生点「去看结构」，那时再看不受限。',
+          })
+          continue
+        }
+      }
+
       try {
         applyOne(name, v.params)
         applied.push({ action: name, params: v.params })
@@ -155,6 +213,10 @@ export function createCrystalFacade(opts = {}) {
       case 'setCellDisplayMode':
         view.setProps({ cellDisplayMode: p.mode })
         return
+      // "谁在顶点、谁在体心"——同一结构的等价画法，用来把要讲的那个离子放到体心
+      case 'setEquivalentOrigin':
+        view.setProps({ equivalentIndex: p.index })
+        return
       case 'setAtomVisibility': {
         const cur = (view.getProps().atomVisibility) || {}
         view.setProps({ atomVisibility: Object.assign({}, cur, { [p.element]: p.visible }) })
@@ -162,6 +224,19 @@ export function createCrystalFacade(opts = {}) {
       }
       case 'setAppearance':
         view.setProps(Object.assign({}, p))
+        return
+      case 'highlightAtoms':
+        // ★ 空数组 ⇒ null（取消全部高亮）。视图侧约定：null/[] 都表示"没有高亮"，
+        //   但传 null 比传 [] 更明确（后续若加"高亮历史"之类也容易分辨）。
+        view.setProps({ highlightElements: (p.elements && p.elements.length) ? p.elements : null })
+        return
+      case 'openCompareView':
+        // 并排对比是"跳转 + 预置视图"，由宿主页面实现（它才持有 router 与当前状态）。
+        // 非 viewer 页没有这个能力时**明确报错**，而不是静默什么也不做。
+        if (typeof view.openCompareWith !== 'function') {
+          throw new Error('当前视图不支持并排对比（需先打开一个晶体）')
+        }
+        view.openCompareWith(p.b)
         return
       default:
         throw new Error('未实现的动作：' + name)
@@ -176,6 +251,148 @@ export function createCrystalFacade(opts = {}) {
     // ---- 契约必需 ----
     getSnapshot,
     applyActions,
+
+    /**
+     * 此刻能否受理动作。
+     *
+     * ★ 晶体模块的动作**全部落在三维视图上**（loadCrystal / setLayer / setView …），
+     *   故"能否受理"等价于"视图是否可用"。
+     *
+     * ★ 刻意**不**写成 `!!getSnapshot().crystal` —— 那是"用户是否已打开某个晶体"，
+     *   属于**内容**状态而非**能力**状态。两者的差别在具体场景里会显形：
+     *   学生刚进首页、一个晶体都没打开时，`loadCrystal` 恰恰是最该被受理的动作；
+     *   若用内容状态当闸门，中枢会在学生说"打开 NaCl"时回一句"当前没有可驱动的视图"。
+     *   这个"用内容状态猜能力状态"的错，晶体线的 app.js 正是这么犯的
+     *   （`!!(snap && snap.crystal && snap.crystal.id)`），接第二个模块时恒为假。
+     */
+    canApplyActions() {
+      // 视图对象在构造时已校验存在；若它自报就绪状态则采信，否则视为可用。
+      if (typeof view.isReady === 'function') return !!view.isReady()
+      return true
+    },
+    /**
+     * 把视图整体回设到某份快照所描述的状态（分镜的「上一步」「回到演示前」用它）。
+     *
+     * ★ 为什么这个方法必须在**模块**里，而不是中枢里：
+     *   原先它是中枢 app.js 的一段代码，里面逐个枚举了晶体的 13 个图层名
+     *   （`ALL_LAYERS`）、5 个动作名与晶体专属的外观字段名——那是把模块的内部结构
+     *   抄了一份进通用核。后果有两个：
+     *     ① 中枢每接一个模块就要长一节（接 orbit 时要再加一段轨道专属的枚举）
+     *     ② 枚举清单会**漏**。晶体线已踩过两次：视角静默不恢复、外观与按元素显隐
+     *        整块漏掉。每次都表现为"回退后留下一个半新半旧的视图，比完全不回退更难察觉"。
+     *   搬进模块后，还原用模块自己的词汇表（`LAYER_PROPS`），不存在"抄漏"的可能。
+     *
+     * ★ 实现走 `applyActions` 而不是直接改视图字段：
+     *   这样与用户操作、与智能体操作共用同一条通路（校验、动作词汇表、订阅通知都一致），
+     *   符合 DESIGN_PRINCIPLES 的 state-restore-must-share-user-path。
+     *
+     * ★ `bypassGuard: true`：还原是恢复**用户自己的**状态（快照里本就是他调好的图层），
+     *   不是模型在泄题。不放行的话，用户原本开着的图层会被练习守卫挡回去，
+     *   恢复就成了"半新半旧"——这正是本方法要根治的那类症状。
+     *
+     * @param {Object} state  getSnapshot() 曾经返回过的那个对象（或其子集）
+     * @returns {{ok:boolean, error?:string}}
+     */
+    restoreState(state) {
+      if (!state || typeof state !== 'object') return { ok: false, error: '没有可还原的状态' }
+      const actions = []
+      // ① 晶体本身
+      if (state.crystal && state.crystal.id && crystalIds.has(state.crystal.id)) {
+        actions.push({ action: 'loadCrystal', params: { crystalId: state.crystal.id } })
+      }
+      // ② 图层：快照里只列"开着的"，其余一律关。
+      //    用 LAYER_PROPS（模块自己的词汇表）遍历，而不是中枢抄来的一份清单。
+      const on = new Set(state.layersOn || [])
+      for (const friendly of Object.keys(LAYER_PROPS)) {
+        actions.push({ action: 'setLayer', params: { layer: friendly, visible: on.has(friendly) } })
+      }
+      // ③ 外观（可逆的标量）
+      const appearance = {}
+      for (const k of ['atomScale', 'stickRadius', 'opacity']) {
+        if (typeof state[k] === 'number') appearance[k] = state[k]
+      }
+      if (Object.keys(appearance).length) actions.push({ action: 'setAppearance', params: appearance })
+      // ④ 晶胞显示（惯用/原胞）
+      if (state.cellDisplayMode) {
+        actions.push({ action: 'setCellDisplayMode', params: { mode: state.cellDisplayMode } })
+      }
+      // ⑤ 按元素显隐：快照记的是"被隐藏的元素"。
+      //    要还原就得知道**现在**隐藏了哪些（可能被用户改过），故取两边并集：
+      //    快照里隐藏的 → 保持隐藏；现在隐藏、但快照里没隐藏的 → 显回来。
+      //    （动作签名是单个元素 `{element, visible}`，故逐个下发。）
+      if (Array.isArray(state.hiddenElements)) {
+        const cur = (view.getProps && view.getProps().atomVisibility) || {}
+        const hiddenThen = new Set(state.hiddenElements)
+        const union = new Set([...Object.keys(cur).filter((k) => cur[k] === false), ...hiddenThen])
+        for (const el of union) {
+          actions.push({ action: 'setAtomVisibility', params: { element: el, visible: !hiddenThen.has(el) } })
+        }
+      }
+      const r = applyActions(actions, { bypassGuard: true })
+      if (!r.ok) return { ok: false, error: (r.failed[0] || {}).error || '还原失败' }
+      // ⑥ 视角：**完整**回设（四元数 / 平移 / 视锥）。
+      //    只恢复角度与距离是不够的——正交取景的 frustumSize、拖拽平移量都在其中，
+      //    少一项就会留下一个"角度转对了、但缩放与位置不对"的相机。
+      if (state.viewState) {
+        try {
+          if (typeof view.setViewState === 'function') view.setViewState(state.viewState)
+        } catch (e) { /* 视角还原失败不该让整个回退失败——图层已经回去了 */ }
+      }
+      return { ok: true }
+    },
+    /**
+     * 感知层的模块配置（见契约的 `perception` 字段）。
+     *
+     * ★ 键必须是**快照里真实存在的字段名**。第一版曾写成 `crystalId`，
+     *   而快照字段叫 `crystal`（对象）——于是"用户换了晶体"不被识别成一次切换，
+     *   痕迹里只剩一堆原始字段名。**字段名对不上不报错**，只是痕迹变得不可读，
+     *   这类错很难发现；现由 assertModuleContract({ snapshotFields }) 在开发期守住。
+     */
+    perception: {
+      fieldLabels: {
+        crystal: '切换晶体',
+        layersOn: '切换图层',
+        cellDisplayMode: '切换晶胞显示',
+        view: '调整视角',
+        hiddenElements: '按元素显隐',
+        atomScale: '调整原子缩放',
+        stickRadius: '调整键粗细',
+      },
+      // ★ 停留时长此前是**空数组**——机制在、恒为空，于是"在同一个晶体上反复切图层
+      //   却始终没打开空隙"这类教学信号完全丢失。填上真正有教学意义的**少数几个**：
+      //   不是全填，因为 dwellMs 会为每个变化字段保留最近 6 次的时长，全填等于白撑大快照。
+      dwellFields: ['crystal', 'layersOn', 'cellDisplayMode'],
+      formatCompact: (snap) => {
+        const s = (snap && snap.state) || {}
+        const it = (snap && snap.interaction) || {}
+        return [
+          '【当前状态】模块 ' + (s.module || 'crystal')
+            + (s.crystal ? ' · ' + (s.crystal.name || s.crystal.id) : '')
+            + '；图层 ' + ((s.layersOn || []).join(',') || '（无）'),
+          '【交互】空闲 ' + Math.round((it.idleMs || 0) / 1000) + 's'
+            + '；切换次数 ' + JSON.stringify(it.toggleCounts || {})
+            + '；最近动作 ' + ((it.recentActions || []).join('→') || '（无）'),
+        ].join('\n')
+      },
+    },
+    /**
+     * 模块自己的**预置演示脚本**（零 token：不经过模型，直接进分镜队列）。
+     * 中枢据此提供 listDemos / playDemo / replayDemo / reviseDemo 四个工具。
+     * 见契约的 demos 字段说明——脚本属模块、播放属中枢。
+     */
+    demos: {
+      list: () => DEMO_SCRIPTS,
+      byId: (id) => demoById(id),
+      /** 清单（给模型看的：只有 id/标题/知识点/步数，**不含每步动作**——渐进式披露） */
+      manifest: () => demoManifest(),
+    },
+
+    /**
+     * 回设完整视角状态（"回到演示前"用）。
+     * ★ 不走 applyActions：视角不是一个"动作"，也没有"答案相关性"，
+     *   因此既不必过校验与夹紧，也不该被练习守卫拦。
+     */
+    setViewState: (s) => (view.setViewState ? view.setViewState(s) : false),
 
     // ---- 契约可选 ----
     onAction(cb) {
@@ -205,9 +422,53 @@ export function createCrystalFacade(opts = {}) {
 
     // ---- 供工具层使用（不属于契约）----
     /** 动作校验（工具层可直接用，避免重复实现） */
-    validate: (name, params) => validateAction(name, params, { crystalIds }),
+    validate: (name, params) => validateAction(name, params, {
+      crystalIds,
+      currentCrystalId: (view.getProps && view.getProps().crystalId) || '',
+    }),
     /** 可用晶体 id 列表（对应工具 listCrystals 的数据源） */
     crystalIds: () => [...crystalIds],
+    /**
+     * 契约的 `listIds` —— id 的**取值域**，供中枢校验模型给的 id 是否真实存在
+     * （CLAUDE.md §一.2：数值一律程序算，模型不得口算或编造）。
+     * ★ 与 crystalIds() 是同一个东西。保留两个名字是过渡期的刻意选择：
+     *   crystalIds() 已被 tools.js 与既有测试引用；listIds 是契约里的正式名字
+     *   （它此前是一处**隐形契约**——被 navigateTo 与 tools.js 悄悄依赖，却没写进契约）。
+     *   待引用点都改用契约名后，crystalIds() 即可删除。
+     */
+    listIds: () => [...crystalIds],
+
+    /**
+     * 本模块声明的前端路由（契约的可选值 `routes`）。
+     *
+     * ★ 为什么必须由模块声明：`navigateTo` 原先在中枢里**硬编码了晶体语义**——
+     *   target 只有 home/crystal/compare，参数写死叫 crystalId。
+     *   接第二个模块时，那个工具要么失效、要么把学生带到**错误的路由**上去
+     *   （实测：在对称性下它拿到 `water` 会去跳 `#/viewer/water`，那是晶体的路由）。
+     *
+     * ★ 现在中枢从各模块的声明**派生** schema 与跳转，不必知道任何模块的路由长什么样。
+     *   `params` 里 `kind:'id'` 的参数会用**该模块自己的** `listIds()` 校验——
+     *   模块的 id 空间只有模块自己知道。
+     */
+    routes: [
+      {
+        target: 'crystal',
+        label: '打开某个晶体的视图',
+        params: { crystalId: { kind: 'id', desc: '晶体 id（来自 listCrystals）' } },
+        hash: (p) => '#/viewer/' + encodeURIComponent(p.crystalId),
+      },
+      {
+        target: 'compare',
+        label: '并排对比两个晶体',
+        params: {
+          crystalId: { kind: 'id', desc: '第一个晶体 id' },
+          otherCrystalId: { kind: 'id', desc: '第二个晶体 id（不能与第一个相同）' },
+        },
+        // 跨参数的约束由**模块自己**表达：中枢不知道"两个晶体相同"为什么没意义
+        validate: (p) => (p.crystalId === p.otherCrystalId ? '两个对象相同，没有可对比的内容' : null),
+        hash: (p) => `#/compare/${encodeURIComponent(p.crystalId)}?b=${encodeURIComponent(p.otherCrystalId)}`,
+      },
+    ],
     /** 晶体元信息查询（对应工具 getCrystalDetail） */
     detailOf: (id) => byId.get(id) || null,
     /** 视角取值说明（供提示词与设置面板） */

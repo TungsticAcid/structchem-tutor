@@ -35,10 +35,18 @@ export const DEFAULT_SETTINGS = {
  * @param {string}   [opts.storageKey='chem-agent.settings']
  * @param {Object}   [opts.defaults]       覆盖/扩展默认值
  * @param {string[]} [opts.clearKeys]      「清除本机全部数据」时要一并清除的其它 localStorage 键
+ * @param {Function} [opts.onClearAll]     「清除本机全部数据」时的额外清理（用于**动态键**：
+ *                                         如对话存储的"索引 + 每会话一键"，静态列表表达不了）
  * @param {Object}   [opts.storage]        localStorage（可注入，便于测试）
  */
 export function createSettingsStore(opts = {}) {
-  const KEY = opts.storageKey || 'chem-agent.settings'
+  // ★ 同 panel.js：存储键**必须由宿主注入**，没有缺省值。
+  //   「中性缺省名」不算修好——只是把「悄悄共享」换成「悄悄各存各的」，两者都查不出来。
+  if (!opts.storageKey) {
+    throw new Error('createSettingsStore 需要 opts.storageKey：'
+      + '存储命名空间必须由宿主注入（契约 HOST_REQUIREMENTS_SHAPE.storage）')
+  }
+  const KEY = opts.storageKey
   const DEFAULTS = Object.assign({}, DEFAULT_SETTINGS, opts.defaults || {})
   const storage = opts.storage || (typeof localStorage !== 'undefined' ? localStorage : null)
 
@@ -68,12 +76,19 @@ export function createSettingsStore(opts = {}) {
 
   function hasKey() { return !!(get().apiKey || '').trim() }
 
-  /** 清除本机全部数据（设置 + 调用方声明的其它键） */
+  /**
+   * 清除本机全部数据。
+   * ★ 三样都要清，缺一都会留下残余：① 设置本身；② 调用方声明的**静态键**
+   *   （学情、悬浮球位置…）；③ 调用方自己管的**动态键**——对话存储有"索引 + 每个
+   *   会话一个键"，静态列表表达不了，故走 `onClearAll` 回调。
+   *   漏掉 ②③ 的表现是"点了清除本机数据，隐私数据其实还在"，且**不报任何错**。
+   */
   function clearAll() {
     try {
       storage.removeItem(KEY)
       for (const k of opts.clearKeys || []) storage.removeItem(k)
     } catch (e) { /* 忽略 */ }
+    try { if (typeof opts.onClearAll === 'function') opts.onClearAll() } catch (e) { /* 忽略 */ }
     cache = null
   }
 

@@ -189,9 +189,17 @@ knowledge/
 
 ## 七、当前状态
 
+> 下表于 2026-10-01 对着**实际文件**核过一遍。此前长期写着"crystal 0/44、orbit 待定"，
+> 而两者其实早已写完——状态表过时的代价是：接手的人会去重写已经存在的东西。
+
 | 模块 | 知识点骨架 | 条目 |
 |---|---|---|
-| crystal | ✅ C1–C8 已定（见 [crystal/](crystal/)） | ⏳ 0 / 约 44 条 |
-| orbit | ⏳ 待定 | ⏳ 需从 orbit 项目迁移 |
-| symmetry | ⏳ 待定 | ⏳ 未开始 |
-| shared | ⏳ 待定 | ⏳ 未开始，优先建对称性 |
+| crystal | ✅ C1–C8 已定（见 [crystal/](crystal/)） | ✅ **44 条已写好**（`crystal:C1-1` … `crystal:C8-6`） |
+| orbit | ✅ K1–K10 已定 | ✅ **42 条已写好**（`orbit:K1-1` … `orbit:K10-6`；`kp` 是**裸值** K1，见 [orbit/index.js](orbit/index.js)） |
+| symmetry | ⏳ P1–P5 待定（见 [symmetry/README.md](symmetry/README.md) 的骨架建议） | ⏳ **0 条**——目前只有特征标表与点群表**数据**（`symmetry/`，非条目）。**这是唯一还空着的模块** |
+| shared | ⏳ 待定 | ⏳ 未开始。已有的两份是**数据真源**而非条目：`shared/elements.js`（元素表）、`shared/formula.js`（公式） |
+
+**准入判据**（何时该写进 `shared/` 而不是某个模块）：这条知识会不会被**两个以上模块**引用？
+会 → 总库；只在某一模块用得上 → 留在该模块。对称性的群论基础（共轭类、不可约表示、
+选择定则）目前只有 symmetry 一个消费者，故先归它——**将来 orbit 要用时再迁**，
+而不是预先"可能有用"地塞进总库。

@@ -1,0 +1,11 @@
+{
+  "name": "@chem-agent/module-contract",
+  "version": "0.1.0",
+  "description": "模块契约 —— 教学模块与智能体中枢共同依赖的第三方（谁都不依赖谁，只依赖它）",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.js"
+  },
+  "comment": "刻意保持零依赖：契约必须能被模块与中枢**各自独立**引用，任何依赖都会把这条边重新接回某一方。"
+}

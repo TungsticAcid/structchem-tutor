@@ -12,17 +12,112 @@
 
 | # | 任务 | 说明 | 位置 |
 |---|---|---|---|
-| 1 | **orbit 接入统一壳** | 照 crystal 的样板做 orbit 的模块层（facade/tools/actions）。orbit 是全局脚本、无 ESM，故需先做 B4 去全局化，或先写一层包 `window.OrbitApp` 的视图适配器 | 重构计划 B4/B6 |
-| 2 | **symmetry 收进 modules/** | 引擎 2733 行仍在 `projects/symmetry/H5/src/symmetry/`；对称性的 UI 壳要重写、接口层要新建（阶段 C） | 重构计划 B7 收尾/阶段 C |
-| 3 | **写知识条目** | 晶体约 44 条（C1–C8）＋ 对称 30–45 条（P1–P5）＋ 总库对称性基础；从 `D:\xjl\study\books\化学电子书籍` 重写（关键两本是**扫描件无文字层**，须用 pymupdf 渲染成图后读图重写） | [packages/knowledge/](packages/knowledge/)、重构计划 D |
-| 4 | **晶体模块继续打磨** | 三维展示已修好（光照/布局/背景/按需渲染，见下「已完成」）。仍有打磨空间：模型在画面里偏小（正交取景可再收紧）、首页卡片缩略图未验证、径向/角度/截面三张图表尚未接入统一壳 | `modules/crystal/`、`apps/web/` |
+| 1 | ~~orbit 接入统一壳~~ | ✅ **已完成**（2026-10-01）：页面移植 · 模块门面 · **9 个工具**（queryOrbital + 8 个 teach）· **5 段演示脚本** · 实机验证通过。**仅剩 P7**（state 成为真源、去 DOM 中介）——那是架构清理，不影响功能 | — |
+| 2 | ~~symmetry 的动作层~~ | ✅ **已完成**（2026-10-01）：词汇表从 1 个扩到 **11 个**（元素显隐 · 逐个元素 · 标签/辅助/原子标签 · 播放与停止操作 · 选中原子 · 外观 · 配色 · 速度/时长/语言）。页面改成"渲染模块状态"，且**用户点按钮与模型下发走同一条通路**。★ 逐个元素用**稳定 key**（`C2#1` 式）而非数组下标 —— 下标是临时 id，交给模型等于让它编造 | `modules/symmetry/facade.js` |
+| 3 | ~~写知识条目~~ | ✅ **已全部写完**（2026-10-01）：晶体 44 · orbit 42 · **对称性 40（P1–P5，新写）**。⏳ **仅剩 `shared/` 总库**——按"会不会被两个以上模块引用"的判据，目前还没有满足条件的内容 | [packages/knowledge/](packages/knowledge/) |
+| 4 | **晶体模块继续打磨** | 取景已修（`VIEW_FIT_MARGIN`，实测模型高占画布 **0.408 → 0.529**，顺带修了竖屏会被左右切掉的隐患）。仍有：首页卡片缩略图未验证、径向/角度/截面三张图表未接入 | `modules/crystal/`、`apps/web/` |
+| 5 | ~~知识库注册~~ | ✅ 已完成（2026-10-01）：三模块 **126 条**全部注册 | `apps/web/src/main.js` |
+| 6 | ~~智能体兼容收尾~~ | ✅ 已完成（2026-10-01）：`assertHostProvides` 落地 · 存储命名空间必须注入 · 转发层退役 · descriptor 与实现双向对账 | 重构计划 F |
+| 7 | **退役 `projects/orbit/`** | ⏳ **代码侧已完全解耦**（`test-core.mjs`、`check-shared-data.mjs` 都已改指活上游，全仓**再无任何代码**读它）。**但仍不能 `rm -rf`**：`projects/orbit/activity/` 是 **git 忽略目录**，里面有**未入库**的方案/清单/题解 .doc 与 **`apikey/`** —— 未入库 = 不在 git 历史里，删了就永久没了。要删先搬走 `activity/`，或只删 `projects/orbit/H5/` | 重构计划 P0 |
+| 8 | **symmetry 没有错因库** | 40 条的 `misconceptions` 只能写成**纯讲解式**（无 `[E-xx]` 前缀）。要出题、要错因诊断，就得先建 symmetry 的 `error-causes` 库 | `modules/symmetry/` |
+| 9 | **已知视觉不一致（低优先）** | `.layer-control` 已从**私有字面量**改为 `--chrome-*`（实测令牌生效：`--chrome-card` #151c33 → 计算值 rgb(21,28,51)，且容器显式声明了 `color`），两处重复也收敛成一份常量。上游 `pages/*.js` 里仍有约 60 处硬编码颜色 | theme-bridge.css 注释 |
+| 10 | **共享核与活上游的 15 处已知分叉** | 把对拍从**死副本**改指活上游后暴露的（此前一直绿，因为比的是陈旧小副本）。已用**双向棘轮**钉在 `KNOWN_UPSTREAM_DIVERGENCES`。三类：① 我们的快照**刻意拍平**（`diffStates` 只比顶层）；② 活上游自己演进（去 `mode.color`、加 `mode.target`/`charts.term`、`realOrbitalName`→`realOrbitalLabel`）；③ **我们的分镜引擎不校验词汇表**——动作不在词汇表里时活上游入队即弃、我们仍接受，**这条是我们该改的** | `packages/agent-core/tools/test-core.mjs` |
+| 11 | **多轨道"教材四面体"的一键设定** | 低阈值下 sp³ 的四瓣本就是"胖"的（前瓣张角 109.47°、后瓣 70.53°，连成一体近似球），四个叠起来看着像四个球——**这不是缺陷**。已加提示条 + 一键切 Slater 型；但"教材那个干净四面体"还需要把阈值抬到约 40% 以上，**界面上还没给出一键设定** | `apps/web/src/pages/orbit.js` |
+| 12 | **验收查出的两处"模型行为"缺口**（接线是通的） | `npm run verify:live` 七项里五项三层全通；另两项的问题**不在接线**：<br>· `crystal-quiz`：模型**不调用 `generateQuiz`**，而是自己算数写题（零额度探针证实该工具在 quiz 节点可取到、且能跑）<br>· `orbit-action`：让它"立刻执行、不要分步演示"地改量子数并切复函数，模型仍倾向**讲解 + 排分镜**而不直接下发（零额度探针证实：手动下发 `setQuantumNumbers{m:1}` + `setWavefunctionMode{complex}` → 快照 `{m:1, wavefunction:'complex'}`，DOM 同步）<br>已按计划 §5.4 把后者标 `flaky`（如实报出、不计入退出码）；前者仍计入。**待定的是产品取向**：状态变更指令该不该被办成教学分镜 | `tools/acceptance.mjs` |
 
 **验证手段已升级**：本环境**可以**在真实浏览器里截图、抓控制台报错、执行表达式了
 （`node tools/screenshot.mjs`，见 §四）。此前文档里写的「本环境无法执行 WebGL」
 已不成立——接手时不要再据此跳过实机验证。
 
-**任务 3 的完整清单与流程已写在作业现场**——打开 `packages/knowledge/crystal/README.md`
-就能看到 C1–C8 每个知识点该覆盖什么、计划多少条、以及从哪些书蒸馏。
+**每个知识库的"该写什么"都写在作业现场**：`packages/knowledge/<模块>/README.md`
+（crystal 的 C1–C8、symmetry 的 P1–P5 骨架与素材来源表都在那里，条目已写完）。
+
+### 已完成（2026-10-01 第三场：杂化/多轨道 · 真发现 · 实机验收）
+
+`npm test` **1438 项断言全绿**（15 个套件；另 15 条"已知分叉"显式列出、不计入）。
+这一场的价值主要在**查出来的东西**——三处都是"跑了才发现"，而且都**不报错**：
+
+| 内容 | 说明 |
+|---|---|
+| **杂化恢复 + 轨道模型可切** | 「进阶：量子态」面板与 9 个杂化预设解除隐藏；新增 `setOrbitalModel`（氢型/Slater 型 + 可调 ζ）。★ 杂化系数**只有一份定义**（搬到 `core/hybrids.js`，state-editor 与词汇表共用） |
+| **多轨道同屏**（用户第 8 条） | sp³/sp²/sp 整组同屏，每个一个颜色、可逐个开关、由模型驱动（`setOrbitals`）。★ 只算**一份**标量场：四个 sp³ 互为旋转（180° 绕 x/y/z）——该恒等式由 test-orbit-core ⑫ 逐点对拍到 1e-12 |
+| **`setOrbitals` / `queryOrbital(hybrids)`** | 方向、杂化成分、两两夹角全部**由系数反解**（不写死 109.47°） |
+| **演示脚本 `sp3Tetrahedron`** | 原有四段**一段都没用到杂化**——补上这段"原子轨道 → 分子形状"的桥 |
+| **★ 真发现一：场缓存键漏了轨道模型** | 切模型后画面**纹丝不动**，且**只有单向**失灵（氢型→Slater 恰好要让盒子变大、被扩展逻辑兜住了，看起来像随机故障）。两处都漏：页面的 `currentFieldKey()` 与 render3d 的 `setSurfaceLevel` 入口守卫。**这是同类错的第三次**（前两次是 Z 与网格分辨率），已写成判据：*凡能让同一组 (n,l,m) 画出不同画面的输入，都得进这个键* |
+| **★ 真发现二：死副本撑起的 15 条假绿** | `test-core.mjs` 的 orbit 对拍一直读 `projects/orbit/H5`——**死副本**（`panel.js` 783 vs 活源 **1561** 行）。改指活上游后红了 15 条。逐条查证：**没有一条是我们写错**（① 我们的快照刻意拍平 ② 活上游自己演进 ③ **我们的分镜引擎不校验词汇表**——那一条是我们该改的）。已用**双向棘轮**钉住 |
+| **★ 真发现三：`--before` 写成函数不执行也不报错** | 两次截图**逐字节相同**，差点据此判"改动没生效"。已让 `screenshot.mjs` 检测到就警告 + 退出码 1 |
+| **★ 真发现四：实机抓到 TDZ 崩溃** | 把 `function sp3(){}`（会提升）换成 `const sp3 = …` 之后，`PRESETS` 在定义阶段就调它 → 页面白屏。**Node 侧测试抓不到**（state-editor 是视图代码，没有离线测试 import 它）——实机验证在这里不是补充，是唯一手段 |
+| **抽 `tools/lib/browser.mjs`** | 空闲端口 · 导航落地校验 · 硬超时 · profile 收尾 · rAF 节流。抽它的理由不是省行数，而是**手抄会丢掉保险** |
+| **新增 `npm run verify:live`** | 三层断言（L1 真调了 / L2 真执行了 / L3 真用了）+ `--dry` 零额度验接线；密钥三条硬纪律（**必须在仓库外**、不进 argv、不进日志） |
+| **晶体取景** | `frustumSize` 不再写死 `DEFAULT_RADIUS × 1.2`：改为按宽高比取较紧的那一边，并实测标定（模型高占画布 **0.408 → 0.529**）。顺带修了竖屏会被左右切掉的隐患 |
+| **`.layer-control`** | 从私有字面量改为 `--chrome-*`（实测令牌生效），两处重复收敛成一份常量，容器显式声明 `color` |
+| **退役 `projects/orbit/` 的代码侧** | 两个读取点（`test-core.mjs` / `check-shared-data.mjs`）全部改指活上游，**全仓再无任何代码读它**。★ 但**不能 `rm -rf`**：`activity/` 是 git 忽略目录，里面有未入库的参赛材料与 `apikey/` |
+
+**这一场反复出现的一个模式**（值得后来者注意）：**四次"通过"里有四次其实是工具/判据的错**——
+`--before` 静默不执行、点群符号上下标导致假阴性（模型写 `C₂ᵥ`、工具结果是 `C2v`）、
+`Runtime.evaluate` 里写顶层 `await` 是语法错误却被吞成"undefined 不是合法 JSON"、
+只取最后一条 assistant 消息而工具调用那条 `content` 是空串。
+**"验证手段本身会出错"这条已经连续三场成立**；每次都要问：这次绿（或红）的，会不会是量错了？
+
+### 已完成（2026-10-01 下半场：对称性条目 + 智能体兼容收尾）
+
+`npm test` **1251 项断言全绿**（13 个套件）。这一轮**没有加功能，全是"把说了没做的事做掉"**，
+而查出来的东西比预想的多——下面每条都是先看到了红色才敢说它绿：
+
+| 内容 | 说明 |
+|---|---|
+| **对称性知识条目 40 条**（P1–P5） | 新写，不是搬的。参考 Cotton / 马中骐 / 李新征讲义 / Visual Group Theory（用户指出除结构化学外还应参考近世代数与群论书）。按"重写不摘录"的红线写；`misconceptions` 用纯讲解式（本模块还没有错因库，带 `[E-xx]` 前缀会被守卫判悬空） |
+| **`test-knowledge.mjs`（新守卫）** | ★ 它**早就被两处源码注释引用，却从来没有这个文件**。补写后立刻守住了四类**静默失效**：kp 写错（`filterBy` 恒空）、kp 与 id 不咬合、`[E-xx]` 悬空、错因的 `kps` 指向不存在的知识点。经两次故障注入验证会红 |
+| **`assertHostProvides` 接线** | 三个模块各建 `host-requirements.js`；**校验点放在各自 `createModule`**（模块要装进两个宿主：统一壳与它自己的独立页，写在中枢里只覆盖前者）。缺必需项抛错、可选缺失进 `degraded` 并在壳里**去重上报** |
+| **descriptor 与实现双向对账** | 晶体把 **8 个 teach 工具 + compareCrystals 一直挂在 `plannedTools` 里自称"尚未实现"**；对称性漏报 2 个已实现工具，还把 `getSnapshot`/`applySceneActions`（**中枢工具**）与 `highlightAtoms`（**动作**）当成待做工具。根因是**反向检查原先只对 orbit 做**——已推广到三个模块。计划中工具 19 → 7 |
+| **对称性晶体支路** | `queryPointGroup({id:'nacl'})` 此前返回 `{symbol:'ERR'}`，**模型会把它当成一个真的点群符号**。改为：宿主注入空间群分析器（WASM 与 Vite 的 `?url` 让模块层无法静态导入），未注入时如实回"未接入"。另修 `listExamples` 把两个晶体也报成 `molecule` |
+| **清出的静默缺陷** | ① `present` 谎报（把"缺席但不算失败"的可选项也算作已提供，三桶成了重叠的两桶）②`opts.onChange` 幽灵参数 ③ 自检的 `ok(cond,msg,detail)` **丢弃 detail**（失败只说不通过、不说为什么）④ 晶体动作 desc 点名了**不存在的工具** `searchCrystals` ⑤ `PUZZLE_HINT` 从未定义——`listExamples` 每次调用都抛 `ReferenceError`，而**没有任何测试调用过它** |
+| **新增守卫：每个工具都调得动** | ⑤ 的教训：**同源断言只保证"名字对得上"，不保证"调得动"**。三个模块的测试现在都用空参数把每个 handler 调一遍（已验证会红） |
+| **对称性条目接入** | 40 条写好后**根本没在壳里注册**（`main.js` 只注册了晶体与轨道）→ agent 一条都读不到，且不报错。已补，并在 test-app 加了"三个命名空间都有条目"的装配断言 |
+| **转发层退役** | `packages/agent-core/contract/module-contract.js`（15 行 shim）引用点全部迁走并删除 |
+
+### 已完成（2026-10-01 上半场：orbit 全量接入）
+
+| 部分 | 内容 |
+|---|---|
+| **P0 定源** | 确认上游 `D:/xjl/program/orbit/H5` 为唯一源（本地 `projects/orbit/H5` 是陈旧小副本：11.6k vs 17.2k 行，缺 4 个整文件，`formula.js` 311 vs 1104 行）。**关键发现**：`selftest.mjs` 的 `orbitActualToolNames()` 一直在读**本地那份死副本**，于是"descriptor ⊆ 实现"这条断言比的是**已经不参与运行**的名字清单——它当时之所以绿，是旧 descriptor 与死副本用了同一批名字（**自检与实现各引一份陈旧来源、互相印证却什么也没守住**）。已改为**构造真实模块**再读 defs |
+| **P1 纯计算层** | 6 个文件转 ESM 进 `modules/orbit/core/`：`math`(1239) `formula`(1104) `sched`(101) `observables`(179) `error-diagnosis`(167) `perception-snapshot`(264)。只改全局挂载/跨文件引用/**反向依赖**（`window.OrbitApp.getState()` 等 → 注入式 `configure()`），算法逐字未动 |
+| **P2 渲染层** | `render3d`(2416) `charts`(1011) `chart-overlay`(190) `layout`(143) 转 ESM。★ 只有 `render3d` 用 THREE（88 处裸引用），迁移面比预想小；three 实为 **r144**（计划里写 r147 不准）。⚠️ 一处**注入文档撒谎**：注释里写"宿主 `configure({getState})` 即可"，却忘了实现 `configure`——已补 |
+| **P3/P4 门面与页面** | 门面按契约实现（`canApplyActions` = **运行时在不在**，见下面的"与计划的偏差"）；页面按上游 `main.js` **忠实移植**（1568 行），并与 `bootstrap.js` 那层接线一并带上 |
+| **P5 工具** | **9 个**：`queryOrbital`（13 种 kind 的确定性查询，防幻觉核心）+ 8 个 teach。为此把 `question-engine`(719) 与 `mastery-model`(121) 也搬了进来——**不搬就只能把 teach 声明撤掉，那是"让自检变绿"而不是"补上功能"** |
+| **P6 演示** | 4 段预置脚本（21/14/13/9 步，共 57 步）搬入 `modules/orbit/demo/scripts.js`，**连同上游那段"实测得来的硬规矩"注释**（阈值读数按 \|ψ\| 判据写、同心壳必须在截面里讲）。★ 上游"一步"是「旁白 + **一组**动作」，而分镜队列"一步"是**一个动作**——在 `demoById` 边界展平，源文件保持可逐字对照 |
+| **CSS 作用域化** | orbit 的 `style.css` 有 **47 个顶层类选择器，24 个与 ui-kit 撞名**、1 个与晶体页撞名（`.panel-body`），必须作用域化到 `.orbit-page`。★ 连带发现两处**不能**作用域化：`chart-overlay` 与 `reference-table` 是挂到 `document.body` 上的，后代选择器匹配不上——症状是浮窗**失去全部定位样式、变成页面末尾的普通块，而动作报 `{ok:true}`、canvas 也真画了东西**。已排除这两个子树，并把令牌一并绑到它们的根上（否则浅色主题下浮窗拿到壳的 `--text:#333`） |
+| **新守卫** | `test-orbit-module.mjs`（**75 项**）：契约合规 · 动作取值域（非法参数必须被拒**且说明原因**）· 工具定义与实现同源 · **演示脚本每一步都可执行**。另 `test-orbit-core.mjs`(102) 与 `test-orbit-engine.mjs`(373)
+
+**本轮踩到并修掉的静默缺陷（都不报错）**：
+1. **`canApplyActions` 恒真会让模型瞎试**——orbit 的动作要落到页面上（状态住在页面闭包里），没有运行时就是受理不了。返回 `true` 只会让模型下发一堆注定失败的动作。**这是与重构计划 P3"orbit 恒真"的偏差，已按契约原意实现**（P7 把 state 搬进模块后才能真正恒真）
+2. **知识条目的 `kp` 与运行时键不一致**——chem-agent 把 `kp` 也加了 `orbit:` 前缀，而 orbit 的运行时（学情 `KP_META`、题库映射）用的是**裸 `K1`**。模型从清单读到 `orbit:K1` 再传给 `generateQuestion` 会得到"未知知识点"，学情也因键对不上而恒为空。已改回裸值，并**更正了那条过严的命名空间守卫**（CLAUDE.md §一.3 的原文是「**id** 一律带命名空间」，`kp` 不在其中——判据是"与消费方的键一致"，不是"凡是标识符就加前缀"）
+3. **空快照与真实快照字段集不同形**——`getSnapshot()` 在"有/无运行时"两条分支下字段不一致（一条删了 `terms`、加了 `isSuperposition`），感知层靠字段差分，字段集飘忽会让痕迹里凭空多出噪声。契约的 `assertModuleContract({snapshotFields})` 抓到了
+4. **`focusChart` / `animateIsosurfaceLevel` / `linkRadialTo3D` 三个动作缺实现**——演示脚本要用，但它们在 scene-bridge 里（不在 main.js 的 ACTIONS）。已补进页面与词汇表（`highlightRadialFeature` 则是 `setRadialMarks` 的别名，脚本里改用正名，不留同义动作）
+5. **页面缺 `bootstrap.js` 那层接线**——量子态编辑器从未 init（叠加态编辑整块不出现）、参考表入口无人监听。从上游移植时 **main.js 与 bootstrap.js 要一起看**
+
+**注意事项（实机观察，非缺陷）**：orbit 页面**首次**构建等值面在这个无头软件渲染环境里要 **10–15 秒**（891 个切片 × 8ms 预算，纯 CPU 的 marching tetrahedra；真实机器有 GPU 快得多）。管线代码与上游逐字一致，不是移植引入的。等值面出来之前画布几乎是空的——这不是坏了。
+
+### 已完成（2026-09-30，本轮接入工作，`npm test` **1109 项断言全绿**）
+
+| 阶段 | 内容 |
+|---|---|
+| **A · 晶体底座同步** | `projects/crystal/H5/src` 与上游逐文件对账：**42 个文件逐字节一致**；3 个页面文件因引用 `agent/*` 而合法分叉（chem-agent 已把智能体层迁出）。逐条核实用户报的**旋转卡顿**已修复：`_onTouchMove` 改用缓存的 `_canvasRect`（不再每帧强制同步布局）、`updateWorldClipPlanes` 有 `isCrystalChange` 守卫、按需渲染 + 1 Hz 兜底 |
+| **A′ 顺手修** | 独立版 `projects/crystal/H5/src/pages/index.js` 缺上游的**白屏修复**（骨架渲染排在 `await import` 之后 → 慢网首次访问白屏，实测 4.16 s）。该文件不引用 `agent/*`，已整份同步 |
+| **B · 晶体智能体层** | `actions.js` 8→**11 个动作**（补 `highlightAtoms`/`openCompareView`/`setEquivalentOrigin`）；`facade.js` 以上游为基底回填 6 项契约增补（`canApplyActions`/`restoreState`/`perception`/`demos`/`listIds`/`setViewState`），并补上 `practiceGuard` 练习守卫与 `currentCrystalId` 校验；`modules/crystal/index.js` 接入 quiz/compute/mastery/skills 注入——**未注入时如实为空**（3 个工具 vs 注入后 12 个） |
+| **B′ 装配层** | `apps/web/src/main.js`：出题引擎/学情/对话存储/收藏夹/公式加载器全部接线；面板接 `store`+`demoFavorites`+`iconSrc`；练习闭环（纯本地、不需密钥）；主动介入（规则来自 registry 聚合，不写死在壳里） |
+| **B″ 四个静默缺陷** | ① **公式永久退化成源码**——渲染器在 `createRenderer` 时就把 `globalThis.katex` 捕获进闭包，而 KaTeX 是懒加载的，那一刻必然还不存在；改为**每次渲染现取**。② **两条主动介入规则永不触发**——descriptor 里写的是 `state.crystalId` / `trace.actionCount` / `trace.layerToggleCounts`，而快照字段叫 `crystal`、痕迹里只有 `toggleCounts`/`recentActions`；不报错、功能整个是死的。③ **浅色主题下面板正文对比度 1.46:1**（WCAG 要求 4.5:1）——面板是恒深色表面却消费随主题翻转的令牌；补 `--chrome-*` 调色板 + **容器必须显式声明 `color`**（只绑变量不够：变量生效 ≠ 结果正确）。④ 晶体模块**没有配色设置**——补 8 项视觉颜色 + 103 个逐元素配色（schema 加 `color`/`palette` 两种字段类型与 `get`/`set` 外挂通道，让弹层是模块存储的**视图**而不是副本） |
+| **B‴ 三维背景随主题** | 兑现"两套都留，随主题切"的后半句。语义：**用户没自定义过就跟随主题，表达过就一尊重重**——"用户改过没有"这个事实记在宿主 store 里（弹层的 `touchedExternal()` 提供信号），而不是去猜 |
+| **C · 对称性 23 项** | 引擎/render/core **19 个文件逐字节搬运**；补齐 `i18n/`（中英）、`ui/info.js`、`space-group.js`（`@spglib/moyo-wasm`，装在仓库根）；页面按上游 `main.js` **忠实移植**（805 行 + 305 行 markup），只做两处必要改造：**CSS 作用域化**（上游的 `:root`/`html,body,#app`/`body` 收进 `.sym-page`——否则会改掉壳的 `--accent` 并把 body 的滚动锁死）与 **DOM 顶层语句收进 `bootSymmetryPage()`**（可随路由反复挂载）。实机验证：门面换苯→D6h/22 个元素、特征标表、动画播放条（播放/暂停/进度/关闭）、点原子出等价原子与稳定化子、中英切换、晶体分支 **NaCl→Fm-3m / CsCl→Pm-3m** |
+| **D · orbit P0+P1** | **定源**：本地 `projects/orbit/H5` 是陈旧小副本（11.6k vs 上游 17.2k 行，缺 4 个整文件），确认上游为唯一源。**纯计算层** 6 个文件转 ESM 进 `modules/orbit/core/`：`math`(1239) `formula`(1104) `sched`(101) `observables`(179) `error-diagnosis`(167) `perception-snapshot`(264)，**只加 export/import、不动逻辑**；打断 4 处反向依赖 `window.OrbitApp.getState()` → 注入式 `configure()` |
+| **新守卫** | `test-orbit-engine.mjs`：把**上游原文件**用 `vm` 沙箱跑起来逐值对拍，**373 项全同**（并验证过它会红：注入 1e-6 偏差立刻报出精确差值）。`test-orbit-core.mjs`：不依赖上游 checkout 的常驻守卫，断言的是**教科书常量**（Eₙ=−13.6/n²、径向节点 n−l−1、1s 的 ⟨r⟩=1.5a₀/Δr=√3/2、2p 峰在 4a₀、d_z² 节锥在魔角 arccos(1/√3)、2s 极值在 3±√5），**102 项**。`apps/web/tools/test-shell.mjs`：壳自身的回归守卫，**28 项** |
+| **死路修复** | 用户报「无法退出到主菜单」。根因：**对称页移植自上游的*单页应用***——它整页就是全部，原本没有也不需要"返回别处"；进了统一壳就成了进得去出不来。查看器/对比页没这个问题只是**碰巧**上游自带返回箭头。修法**放在壳这一层**（`apps/web/src/shell/home-affordance.js`）：路由的 `onAfterMount` 钩子对**每一条非首页路由**统一装「← 门户」，优先塞进页面自己的顶栏（`.page-nav`/`#toolbar`/`.top-bar`），页面自带返回则不插手，完全没有顶栏时退化为固定悬浮——**结构上不可能再出现死路**。逐页去加会一直漏，而"怎么离开一条路由"本来就是路由的职责 |
+
+**本轮踩到的坑（第四次重申第 1 条）**：
+1. **验证手段本身会出错，而且出错时给的是"通过"**——本轮至少 5 次：截图工具的 `--before` 与 `--eval` 同用时被**静默忽略**（据此得出"quiz 节点没有 teach 工具"的假阴性）；`diagnose` 我把对象当参数传（代码没问题）；`energy(n,Z)` 我把 Z 当成了 l；`radialPeaks` 的 2s 极值我记成 2+√5（重解才是 3±√5）；用"数 `window.X` 出现次数"分析依赖，漏掉了 `formula.js` 里 4 处**裸引用** `OM`（被加载冒烟抓到）。**判据：凡"通过"，先让它红一次。**
+2. **改完要再 grep 一遍被改的名字**——全局名→模块名的转换里，同一行的"条件"和"调用"替换规则不同，只改了一半（`window.QuestionEngine && window.QuestionEngine.get` 改了，`window.QuestionEngine.get(id)` 没改）。
+3. **注释里写下的东西必须真的存在**——我写"宿主 `configure({getState})` 即可"，却忘了实现 `configure`。文档与实现不一致比没文档更糟：它看着还挺有道理。
+4. **GBK 控制台 + Store 存根 python**（见记忆 `windows-python-and-console`）：PATH 上的 `python` 退出码 49、零输出、文件没动；控制台编码又会让 `print('✓')` 在**写盘之后**崩掉脚本。
 
 ### 已完成（2026-09-25，27 个提交，`npm test` 546 项断言全绿）
 
@@ -36,7 +131,7 @@
 | **B5** | descriptor 与实现对账，撤掉一批幽灵工具名（**自检曾与 descriptor 用同一批错名字而互相印证**） |
 | **B6** | 模块契约 · crystal 的 facade/tools/actions（**首个契约合规模块**）· 装配层 `app.js`（中枢工具 + 模块工具按节点裁决）· 统一前端 `apps/web` |
 | **B7** | 元素表真源+守卫 · orbit 的 34 条知识条目与 6 个通用技能迁入 · symmetry 特征标表与点群表迁入 |
-| **展示修复** | 三维展示的**两个根因**：① 场景里一盏灯都没有（集成时漏传 `lightConfig`，Phong 材质无光即纯黑 → 表现为「原子没颜色、没质感」）② 栅格项缺 `min-width:0`（canvas 固有宽度撑破栅格 → 「展示区太宽、模型不居中、右栏被挤出屏幕」）。另把三维背景改深色（按 103 个元素色的亮度分布定的：浅底会丢 13 个近白色元素含纯白的氢） |
+| **展示修复** | 三维展示的**两个根因**：① 场景里一盏灯都没有（集成时漏传 `lightConfig`，Phong 材质无光即纯黑 → 表现为「原子没颜色、没质感」）② 栅格项缺 `min-width:0`（canvas 固有宽度撑破栅格 → 「展示区太宽、模型不居中、右栏被挤出屏幕」）。<br>⚠️ **以下这句已过时（2026-09-30 更正）**：此处原写「另把三维背景改深色」。上游后来改成了**白底黑线**（教材插图与投屏的惯例），并把 5 个辅助色按白底压暗（`octahedralColor`/`tetrahedralColor`/`latticePointColor`/两条对角线/氢键色）——理由与实测对比度都写在 `projects/crystal/H5/src/data/settings.js` 的 `DEFAULT_VISUAL_COLORS` 注释里。Stage A 的同步已把它带进来；**"深色主题 vs 浅色主题"由宿主的主题系统管**（三维画布底色随主题切，用户自定义过则尊重用户） |
 | **渲染循环** | 原是无条件 rAF 满速重绘（静止时也烧），改为按需重绘 + 1 Hz 兜底。**实测静止 2 秒渲染帧数 120 → 2**；这也是无头截图把 CPU 打满的根因 |
 | **新工具** | `tools/screenshot.mjs`：一条命令在真实浏览器里截图/抓控制台报错/执行表达式 |
 | 其余 | 修复 `check-crystal-data.mjs`（此前从任何目录都跑不起来）· 修复氢键渲染崩溃（three 旧 API `addAttribute`）· 迁移用户在 orbit 上的 9 处修复并抽出 4 条跨模块设计原则 |
@@ -157,10 +252,47 @@ node tools/screenshot.mjs --out tmp/shot.png                 # 截图（默认 h
 node tools/screenshot.mjs --console                          # 只看控制台 error/warning
 node tools/screenshot.mjs --eval "window.__chemAgent.view.getProps()"
 node tools/screenshot.mjs --wait-for "window.__chemAgent" \
-     --before "…先改状态…" --out tmp/x.png                    # 同一次会话里先改状态再截图
+     --before "(async () => { …先改状态… })()" --out tmp/x.png # 同一次会话里先改状态再截图
 ```
 
+浏览器控制（空闲端口 · 导航落地校验 · 硬超时 · profile 收尾 · rAF 节流）在
+`tools/lib/browser.mjs`。抽它的理由**不是省行数**，而是那几道保险正是手抄时会
+悄悄丢掉的东西——`screenshot.mjs` 自己就写着"不依赖调用方记得"。
+
+⚠️ **三种模式是互斥分支，混用会被静默忽略**（本轮踩到，且产出的是"通过"）：
+工具内部是 `if (--console) … else if (--eval) … else { …--before…截图… }`。
+所以 **`--before` 只在截图分支生效**——与 `--eval` 同用时它**不执行**，
+你拿到的是"没改过状态"的结果，看起来就像"那个功能不存在"。
+需要"先改状态再取数"时，把改动**内联进 `--eval` 的表达式**（async IIFE 即可）。
+
+⚠️ **`--before` 要写成"会被调用的表达式"**：`--before "async () => {…}"`
+求值得到的**是一个函数对象**，它从不执行 —— 于是两次截图逐字节相同，而工具不报错
+（本轮就这么得到过两张"完全一样"的图，差点据此判定"改动没生效"）。
+正确写法是末尾加两个括号。工具现在会检测到并**显式警告 + 退出码 1**。
+
+⚠️ **端口漂移**：vite 在 3001 被占时会自动换到 3002/3003/3004…
+工具默认连 3001，于是可能截到**另一个更早的实例**且全程不报错。
+每次先看 vite 日志里实际那一行，再显式传 `--url`（工具会校验落地地址，传错会拒绝继续）。
+
 它自己起 Edge（Chromium 内核）、连 CDP、收尾自动关浏览器，无需装 puppeteer。
+
+#### 逐项功能检验（真实 API）
+
+```bash
+npm run verify:live -- --key-file "D:/xjl/program/orbit/activity/apikey/orbit.txt" --dry
+npm run verify:live -- --key-file "…/orbit.txt"              # 真跑，**消耗额度**
+```
+
+**不进 `npm test`**：它打真实 LLM，会花钱、依赖网络与密钥。
+
+- **`--dry` 零额度**：起浏览器 → 注入密钥 → 逐路由校验"落地模块 + 期望工具可达"，
+  **不发请求**。它把"接线问题"与"模型行为问题"分开 —— 否则一个 401 会让整轮看起来像接线坏了。
+- **三层断言**（缺一层就会把"调了但没用"判成通过）：L1 `summary.tools` 含期望工具
+  （真的调了，不是凭记忆答）· L2 历史里有 `role:'tool'` 且含程序算出的字段（真的执行了）·
+  L3 那些特征数值出现在最终正文里（真的用了）。
+- **密钥三条硬纪律**：① 密钥文件**必须在仓库之外**，脚本**断言**这一点、落在仓库内就拒绝启动；
+  ② 经 CDP 注入，不经 argv / 不进命令行 / 不落盘；③ 含密钥的表达式**永不进日志**，
+  失败只报固定文案。收尾清 localStorage + 删 profile。
 
 ⚠️ **软件渲染 + 动画循环 = CPU 炸弹**（这是真实事故，不是理论风险：一次验证把 CPU 打满，
 而当时页面只是一个静态晶体）。三道保险已在工具里，但值得知道原理：

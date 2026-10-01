@@ -12,21 +12,30 @@
 /* agent.css — 智能体面板样式（沿用 style.css 的暗色主题变量） */
 
 /* ------------------------------------------------------------------ */
-/* 抽屉打开时：主布局向左压缩，避免遮住右侧控制面板                     */
+/* 抽屉打开时：主布局向左/向上压缩，避免遮住晶体视图                       */
+/* ★ crystal 的主布局类名是 .viewer-page / .compare-page（不是 orbit 的    */
+/*   .topbar/.layout）——原规则匹配不到任何元素，等于"覆盖式"没压缩，          */
+/*   导致晶体仍在屏幕中心被抽屉挡住。这里改成 crystal 的实际类名。            */
 /* ------------------------------------------------------------------ */
 :root { --agent-w: 440px; }
 
-.topbar, .layout {
-  transition: padding-right .24s cubic-bezier(.4, 0, .2, 1);
+.viewer-page, .compare-page {
+  transition: width .24s cubic-bezier(.4, 0, .2, 1), height .24s cubic-bezier(.4, 0, .2, 1);
 }
-body.agent-open .topbar,
-body.agent-open .layout {
-  padding-right: calc(var(--agent-w) + 22px);
+/* ★ 晶体视图宽 = 视口宽 − 抽屉宽，**不再额外留间隙**。
+   原先减了 22px（沿袭 orbit 的 padding 方案），改为 width 方案后那 22px 就成了
+   露在抽屉与视图之间的白缝——拖拽时尤其明显（实测反馈"中间是白色"）。 */
+body.agent-open .viewer-page,
+body.agent-open .compare-page {
+  width: calc(100vw - var(--agent-w, 440px));
 }
-/* 窄屏下抽屉近似全屏，压缩布局反而更糟 —— 此时不压缩 */
+/* 窄屏（手机）：抽屉改为**底部弹出**，晶体视图收缩到上方剩余空间 */
 @media (max-width: 900px) {
-  body.agent-open .topbar,
-  body.agent-open .layout { padding-right: 22px; }
+  body.agent-open .viewer-page,
+  body.agent-open .compare-page {
+    width: 100vw;
+    height: calc(100vh - var(--agent-h, 55vh));
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -38,11 +47,15 @@ body.agent-open .layout {
   bottom: 18px;
   width: 56px;
   height: 56px;
-  border-radius: 50%;
-  overflow: hidden;                 /* 圆形裁切：自然去掉图标四角的多余元素 */
-  background: linear-gradient(135deg, #2b3d6b, #3b2f6b);
-  border: 1px solid #6a7ec9;
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45), 0 0 18px rgba(85, 160, 255, .35);
+  /* ★ 八边形外观由**图片自带的 alpha 遮罩**提供（`public/agent-icon*.png` 的四角是透明的），
+     这里不再做 CSS 裁切。原因是一对相互冲突的限制：
+       · `border-radius` 只能做圆 / 圆角矩形，做不出八边形；
+       · `clip-path` 能做出八边形，但它会**连阴影一起裁掉**——clip 作用在 filter 之后，
+         `drop-shadow` 画在盒子外的部分会被一并切走（实测：八边形出来了，影子没了）。
+     让图片自己就是八边形，两个问题一起消失：`drop-shadow` 跟随图片的**实际形状**，
+     八边形的影子自然也是八边形的。
+     （背景与边框随之去掉——留着它们会在透明的四角处露出方形的底。） */
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -52,7 +65,8 @@ body.agent-open .layout {
   user-select: none;
   transition: transform .15s ease, box-shadow .15s ease;
 }
-.agent-fab:hover { transform: scale(1.06); box-shadow: 0 8px 26px rgba(85, 194, 255, .45), 0 0 22px rgba(120, 120, 255, .5); }
+/* hover 的光晕也走 drop-shadow：`box-shadow` 画的是**方形盒子**的阴影，对八边形的图无效 */
+.agent-fab:hover { transform: scale(1.06); filter: drop-shadow(0 8px 20px rgba(85, 194, 255, .55)); }
 .agent-fab:active { cursor: grabbing; }
 .agent-fab-img {
   width: 100%;
@@ -61,9 +75,29 @@ body.agent-open .layout {
   pointer-events: none;             /* 拖动/点击事件交给悬浮球本身 */
   -webkit-user-drag: none;
 }
+/* 无图标时的文字回退（宿主未提供 iconSrc）。
+   这里用 border-radius 做圆底是安全的：文字没有 alpha 遮罩可依赖，
+   而我们也不需要八边形——见上面那段关于 clip-path 与 drop-shadow 冲突的说明。 */
+.agent-fab-text {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  pointer-events: none;
+}
 .agent-fab-dot {
   position: absolute;
-  top: 2px; right: 2px;
+  /* ★ 位置要在**八边形的切角以内**：原先的 top/right = 2px 落在被切掉的右上角里，
+     八边形裁切之后这个未读小红点会整个消失（而"消失"不会报错，只是学生再也
+     看不到有未读消息）。10px 是能让整枚 12px 圆点落在切角内侧的最小值。 */
+  top: 10px; right: 10px;
   width: 12px; height: 12px;
   border-radius: 50%;
   background: #ff6b6b;
@@ -78,7 +112,9 @@ body.agent-open .layout {
 .agent-drawer {
   position: fixed;
   top: 0; right: 0;
-  width: min(440px, 94vw);
+  /* ★ 宽度读 `--agent-w`（拖拽手柄改的就是它）。写死 440px 时，拖拽只改了
+     晶体视图的宽度、抽屉本身纹丝不动，中间露出白缝或相互重叠（实测反馈）。 */
+  width: min(var(--agent-w, 440px), 94vw);
   height: 100%;
   background: linear-gradient(180deg, #101629, #0d1324);
   border-left: 1px solid var(--line, #2a3558);
@@ -90,6 +126,27 @@ body.agent-open .layout {
   z-index: 1000;
 }
 .agent-drawer.show { transform: translateX(0); }
+
+/* 拖拽调整大小期间：关掉过渡，让抽屉与晶体视图**跟手**同步变化 */
+body.agent-resizing .agent-drawer,
+body.agent-resizing .viewer-page,
+body.agent-resizing .compare-page {
+  transition: none !important;
+}
+
+/* 抽屉可调整大小的拖拽手柄：电脑端贴左边缘（调宽）、手机端贴顶边缘（调高） */
+.agent-resize {
+  position: absolute;
+  left: -4px; top: 0; bottom: 0;
+  width: 10px;
+  cursor: ew-resize;
+  z-index: 10;
+  touch-action: none;
+  background: transparent;
+  transition: background .15s ease;
+}
+.agent-resize:hover,
+.agent-resize:active { background: rgba(85, 194, 255, .35); }
 
 .agent-head {
   display: flex;
@@ -294,6 +351,42 @@ body.agent-open .layout {
 }
 
 /* ------------------------------------------------------------------ */
+/* 动作气泡的逐步行 —— 「引用」按钮挂在行上（panel.js 的 enrichActionBubble） */
+/* ------------------------------------------------------------------ */
+.agent-act-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 1px 0;
+}
+.agent-act-txt { flex: 1 1 auto; }
+/* 校验未通过的那一步：划掉并标出原因，与"已执行"区分开 */
+.agent-act-row.skipped .agent-act-txt { opacity: .55; text-decoration: line-through; }
+.agent-act-skip { color: #ffb27a; flex: 0 0 auto; }
+.agent-act-btn {
+  flex: 0 0 auto;
+  background: rgba(85, 194, 255, .1);
+  border: 1px solid rgba(85, 194, 255, .28);
+  color: #9ad6ff;
+  border-radius: 5px;
+  padding: 0 6px;
+  font-size: 10px;
+  line-height: 16px;
+  cursor: pointer;
+  /* ★ 默认就要**看得见**（.72 而非 0）：本工具主要跑在手机上，那里没有 hover，
+     藏起来的按钮等于不存在。hover 只作为"更醒目"的增强。 */
+  opacity: .72;
+  transition: opacity .15s ease;
+}
+.agent-act-row:hover .agent-act-btn,
+.agent-act-foot .agent-act-btn { opacity: 1; }
+.agent-act-btn:hover { background: rgba(85, 194, 255, .22); }
+.agent-act-ret { margin-top: 4px; opacity: .75; word-break: break-all; }
+/* ★ 它挂在动作气泡（`<details>`）**外面**、紧随其后——这样气泡折叠时也看得见。
+   所以上间距要小（贴住上面的气泡），下间距给足（与下一条消息分开）。 */
+.agent-act-foot { margin: -2px 0 8px; padding-left: 2px; }
+
+/* ------------------------------------------------------------------ */
 /* 输入区                                                              */
 /* ------------------------------------------------------------------ */
 .agent-foot {
@@ -375,6 +468,68 @@ body.agent-open .layout {
 }
 
 /* ------------------------------------------------------------------ */
+/* 练习卡（本地出题：选择 / 判断 / 问答，含退出·提示·看答案）             */
+/* ------------------------------------------------------------------ */
+.agent-practice { display: flex; flex-direction: column; gap: 8px; }
+.agent-practice-head {
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--line-soft, #202b48);
+}
+.agent-practice-kp { font-size: 12px; color: var(--accent, #55c2ff); font-weight: 600; }
+.agent-practice-idx { font-size: 11px; color: var(--text-dim, #9aa7c6); flex: 1; }
+.agent-practice-exit {
+  background: transparent; border: 1px solid var(--line, #2a3558);
+  color: var(--text-dim, #9aa7c6); font-family: inherit; font-size: 11.5px;
+  padding: 3px 9px; border-radius: 7px; cursor: pointer; transition: all .15s ease;
+}
+.agent-practice-exit:hover { border-color: rgba(255,120,120,.5); color: #ff9b9b; }
+.agent-practice-kind {
+  font-size: 10.5px; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
+  background: rgba(85,194,255,.14); color: var(--accent, #55c2ff);
+  border: 1px solid rgba(85,194,255,.3); vertical-align: middle;
+}
+/* 判断题：两个按钮横排（"正确 / 错误"竖排会显得像选择题的四个选项） */
+.agent-judge { flex-direction: row; }
+.agent-judge .agent-opt { flex: 1; text-align: center; }
+/* 问答题：输入框 + 提交 */
+.agent-short { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.agent-short-input {
+  width: 100%; box-sizing: border-box; resize: vertical; min-height: 62px;
+  background: var(--card-2, #1a2340); border: 1px solid var(--line, #2a3558);
+  color: var(--text, #e8ecf7); font-family: inherit; font-size: 13px; line-height: 1.6;
+  padding: 9px 11px; border-radius: 9px; outline: none;
+}
+.agent-short-input:focus { border-color: var(--accent, #55c2ff); }
+.agent-short-submit {
+  align-self: flex-end;
+  background: var(--card-2, #1a2340); border: 1px solid var(--accent, #55c2ff);
+  color: var(--accent, #55c2ff); font-family: inherit; font-size: 12.5px;
+  padding: 6px 14px; border-radius: 8px; cursor: pointer;
+}
+.agent-short-submit:disabled { opacity: .45; cursor: default; }
+/* 提示 / 看答案 工具条 */
+.agent-practice-tools { display: flex; gap: 8px; margin-top: 2px; }
+.agent-practice-tools button {
+  background: transparent; border: 1px solid var(--line, #2a3558);
+  color: var(--text-dim, #9aa7c6); font-family: inherit; font-size: 12px;
+  padding: 5px 12px; border-radius: 8px; cursor: pointer; transition: all .15s ease;
+}
+.agent-practice-tools button:hover:not(:disabled) { border-color: var(--accent, #55c2ff); color: var(--accent, #55c2ff); }
+.agent-practice-tools button:disabled { opacity: .38; cursor: default; }
+/* 反馈块（接在题目卡内，题目与解析并排看才有复盘价值） */
+.agent-practice-fb {
+  margin-top: 4px; padding-top: 8px; border-top: 1px dashed var(--line-soft, #202b48);
+}
+.agent-practice-next-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+.agent-next {
+  background: linear-gradient(135deg, var(--accent, #55c2ff), var(--accent-2, #7a9bff));
+  color: #0b1224; border: none; font-family: inherit; font-weight: 700; font-size: 12.5px;
+  padding: 7px 16px; border-radius: 9px; cursor: pointer;
+}
+.agent-next:disabled { opacity: .5; cursor: default; }
+.agent-short-mine, .agent-short-points { color: var(--text-dim, #9aa7c6); font-size: 12.5px; }
+
+/* ------------------------------------------------------------------ */
 /* 题目卡                                                              */
 /* ------------------------------------------------------------------ */
 .agent-q { display: flex; flex-direction: column; gap: 8px; }
@@ -434,8 +589,33 @@ body.agent-open .layout {
 .agent-proactive.dismissed { opacity: 0; transform: translateX(20px); }
 .agent-pro-head { font-size: 12px; font-weight: 700; color: #ffc85a; margin-bottom: 5px; }
 .agent-pro-body { font-size: 13px; line-height: 1.7; }
-.agent-pro-act { display: flex; gap: 8px; margin-top: 9px; flex-wrap: wrap; }
-.agent-pro-act .agent-btn { font-size: 12px; padding: 5px 11px; }
+/* 主动提示的按钮区。
+   ★ 原先这里只有一行 `.agent-pro-act { display:flex; gap:8px; … }` —— 那其实是
+   **容器**的样式，却写在了 `<button>` 上（迁自 orbit 的多按钮版，错位了）。
+   现在拆开：`.agent-pro-btns` 是容器，`.agent-pro-act` / `.agent-pro-skip` 是按钮。 */
+.agent-pro-btns { display: flex; gap: 8px; margin-top: 9px; flex-wrap: wrap; }
+.agent-pro-act {
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  background: rgba(85, 194, 255, .16);
+  border: 1px solid rgba(85, 194, 255, .4);
+  color: #cfe8ff;
+}
+.agent-pro-act:hover { background: rgba(85, 194, 255, .28); }
+.agent-pro-act:disabled { opacity: .6; cursor: default; }
+/* 「不用了」：刻意比主按钮轻——拒绝是正当选择，但不必抢眼 */
+.agent-pro-skip {
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid rgba(154, 167, 198, .35);
+  color: var(--text-dim, #aab6d2);
+}
+.agent-pro-skip:hover { border-color: rgba(154, 167, 198, .6); color: var(--text, #e8ecf7); }
 
 /* ------------------------------------------------------------------ */
 /* 进阶折叠区（量子态编辑器）—— 视觉权重刻意低于主打功能               */
@@ -647,7 +827,196 @@ body.agent-open .layout {
 /* 移动端                                                              */
 /* ------------------------------------------------------------------ */
 @media (max-width: 640px) {
-  .agent-drawer { width: 100vw; }
+  /* 抽屉从**底部弹出**（bottom sheet），高度由 --agent-h 控制（默认 55vh），
+     顶部拖拽条可调整高度；晶体视图在上方剩余空间（见 body.agent-open .viewer-page） */
+  .agent-drawer {
+    width: 100vw;
+    height: var(--agent-h, 55vh);
+    top: auto; bottom: 0;
+    left: 0; right: auto;
+    border-left: none;
+    border-top: 1px solid var(--line, #2a3558);
+    box-shadow: 0 -12px 42px rgba(0, 0, 0, .5);
+    transform: translateY(105%);
+  }
+  .agent-drawer.show { transform: translateY(0); }
+  /* 手机端：拖拽手柄移到顶部边缘，调高度（ns 光标） */
+  .agent-resize {
+    left: 0; right: 0; top: -4px;
+    width: auto; height: 10px;
+    cursor: ns-resize;
+  }
   .agent-fab { width: 46px; height: 46px; right: 12px; bottom: 12px; }
   .agent-fab-icon { font-size: 21px; }
+}
+
+/* ------------------------------------------------------------------ */
+/* 消息工具条 / 分支切换片 / 会话页                                       */
+/* （都建立在"对话是一棵树"之上，见 store/conversation-store.js）        */
+/* ------------------------------------------------------------------ */
+
+/* 消息下方的工具条：复制 / 编辑重问 / 另起分支 / 重答 */
+.agent-msg-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.agent-msg.user .agent-msg-acts { justify-content: flex-end; }
+
+/* 分支切换片：一个分叉点处列出各条分支，点一下就切过去。
+   ★ 它必须留在**它所在的那条线**上：切到另一条之后，这个分叉点就不在当前路径上了，
+     只靠消息区就找不到回来的路。 */
+.agent-branch-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(85, 194, 255, .06);
+  border: 1px dashed rgba(85, 194, 255, .22);
+  font-size: 11px;
+}
+.agent-branch-label { color: var(--text-dim, #9aa7c6); }
+.agent-branch-chip {
+  background: rgba(85, 194, 255, .1);
+  border: 1px solid rgba(85, 194, 255, .28);
+  color: #9ad6ff;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.agent-branch-chip.active {
+  background: rgba(85, 194, 255, .28);
+  color: #eaf6ff;
+  cursor: default;
+}
+.agent-branch-chip:disabled { opacity: .9; }
+
+/* 复制用的隐藏文本域：`file://` 下 navigator.clipboard 不可用，走这条降级通路 */
+.agent-copy-src {
+  position: fixed;
+  left: -9999px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+/* 会话页：抽屉内的二级页，从右侧滑入（抽屉是 position:fixed，本身即包含块） */
+.agent-conv-page {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #101629, #0d1324);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform .22s cubic-bezier(.4, 0, .2, 1);
+  z-index: 5;
+}
+.agent-conv-page.show { transform: translateX(0); }
+.agent-conv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line, #2a3558);
+}
+.agent-conv-title { font-weight: 700; }
+.agent-conv-sec-t { padding: 8px 12px 2px; font-size: 11px; color: var(--text-dim, #9aa7c6); }
+.agent-conv-list { flex: 1 1 auto; overflow-y: auto; padding: 6px 8px; }
+.agent-conv-empty { padding: 18px 12px; color: var(--text-dim, #9aa7c6); font-size: 12px; }
+.agent-conv-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+}
+.agent-conv-row.active { background: rgba(85, 194, 255, .1); border-color: rgba(85, 194, 255, .3); }
+.agent-conv-left { flex: 1 1 auto; min-width: 0; cursor: pointer; }
+.agent-conv-t { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-conv-meta { font-size: 11px; color: var(--text-dim, #9aa7c6); margin-top: 2px; }
+.agent-conv-acts { display: flex; gap: 4px; flex: 0 0 auto; }
+.agent-conv-foot { padding: 10px 12px; border-top: 1px solid var(--line, #2a3558); }
+
+/* 收藏列表与会话列表同页：给收藏限高，免得它把会话列表挤没（反之亦然） */
+.agent-fav-list { max-height: 38%; flex: 0 0 auto; }
+
+
+/* ------------------------------------------------------------------
+   令牌作用域：面板是**恒深色**表面
+   ------------------------------------------------------------------
+ * 本文件的容器类（悬浮球 / 抽屉）在此把全局令牌重新绑到恒深色调色板。
+ * 不绑的话，浅色主题下面板正文对比度只有 1.46:1 —— 详见 tokens.css 里
+ * 「恒深色表面的调色板」那段实测数据。
+ *
+ * ★ 绑的**是同一个名字**（--text 还是 --text），所以本文件下面上百处
+ *   `var(--text)` / `var(--line)` … 一处都不用改，也不必逐个补 color。
+ */
+.agent-fab,
+.agent-drawer {
+  /**
+   * ★ 这一行是必需的，而且**不能**被上面那组令牌绑定替代。
+   *
+   *   实测（浅色主题）：绑定了令牌之后，`.agent-drawer` 的 `--text` 确实是
+   *   `#e8ecf7`，但它的计算 `color` 仍是 `rgb(51,51,51)` ——因为本规则**从来
+   *   没有声明过 `color`**，未指定颜色的文字一律**继承 `body` 的 `#333`**。
+   *   深灰字压在深色抽屉上就是"文字基本是黑的、看不清"。
+   *
+   *   教训值得单列：**令牌生效 ≠ 结果正确**。绑了变量只说明"变量取对了值"，
+   *   还要有人**用它**。所以下面每个容器都必须显式声明自己的前景色，
+   *   而不是指望"我把变量绑对了，颜色自然就对"。
+   */
+  color: var(--text);
+  --bg: var(--chrome-bg);
+  --bg-2: var(--chrome-bg-2);
+  --card: var(--chrome-card);
+  --card-2: var(--chrome-card-2);
+  --line: var(--chrome-line);
+  --line-soft: var(--chrome-line-soft);
+  --text: var(--chrome-text);
+  --text-dim: var(--chrome-text-dim);
+  --accent: var(--chrome-accent);
+  --accent-2: var(--chrome-accent-2);
+  --active: var(--chrome-active);
+  --on-accent: var(--chrome-on-accent);
+}
+
+/* ------------------------------------------------------------------
+   播放演示时：面板缩为**下半屏**，让画面与旁白同屏
+   ------------------------------------------------------------------
+ * 面板默认 `width: min(440px, 94vw); height: 100%` —— 手机上几乎占满全屏。
+ * 而演示的画面变化发生在**面板后面的三维视图**里，于是学生点了演示却什么都看不到，
+ * 表现为"播放失败"。缩为下半屏后：上面看画面、下面读旁白。
+ *
+ * 只在播放期间生效（由宿主切 body 的 `agent-demo-playing` 类），
+ * 停止后恢复全高——平时全高更适合读长对话。
+ *
+ * ★ 这个类由**宿主**切（见 apps/web/src/main.js 的 syncDemoLayout，挂在
+ *   storyboard.onProgress 上）。样式放在 panel.css 而不是宿主里，是因为
+ *   它修饰的是 `.agent-drawer` —— 谁拥有这个类，谁就该拥有它的变体。
+ */
+body.agent-demo-playing .agent-drawer {
+  /* 桌面端面板本来就窄（440px），不必缩——否则反而挤掉对话的阅读空间 */
+  height: 100%;
+}
+@media (max-width: 640px) {
+  body.agent-demo-playing .agent-drawer {
+    height: 46vh;
+    top: auto;
+    bottom: 0;
+    /* 上边缘给圆角与阴影，让它明显是"底下那一层"而不是浮在中间 */
+    border-top: 1px solid var(--line, var(--chrome-line));
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, .5);
+  }
+  /* 缩为下半屏后，悬浮球要避开它（否则压在面板上） */
+  body.agent-demo-playing .agent-fab {
+    top: 26%;
+  }
 }

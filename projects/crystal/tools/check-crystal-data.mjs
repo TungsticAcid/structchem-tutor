@@ -2,44 +2,44 @@
  * 晶体数据自检脚本
  *
  * 用途：每次增删晶体或修改数据后运行，校验数据自洽性与格式合规性。
- * 运行：node projects/crystal/tools/check-crystal-data.mjs
- *       （可从仓库任意位置运行——路径以脚本自身位置为锚点）
+ * 运行：node tools/check-crystal-data.mjs
  *
  * 设计说明：
- *   脚本用**自身所在位置**解析数据路径，不依赖 process.cwd()。
+ *   本脚本同时校验三份副本（H5 版 + 小程序的两份），因为三者内容必须保持一致，
+ *   仅模块语法不同（export default vs module.exports）。
  *
- * 历史与现状：
- *   原脚本同时校验三份副本（H5 版 + 小程序两份），因为三者内容必须一致。
- *   两套微信小程序已于 2026-09-24 从本仓库移除，故**「副本一致性」检查已废止**
- *   —— 晶体数据现存唯一 JS 源。上游权威源（23 个 CIF）在
- *   modules/crystal/data/cod/。
- *
- * 背景：见 activity/数据核查报告.md 与 modules/crystal/data/cod/COD_COMPARISON_REPORT.md。
- *      数据中曾发现若干自洽性问题（如石英的结构基元误写为方石英的值、
- *      wurtzite 的结构基元错误），故建立此自动检查。
- *
- * TODO（阶段 B7 单源化时）：增加「JS 数据 ↔ 上游 CIF」的交叉校验。
- *   今天检查项只校验数据**自洽**，不校验数据**正确**——三副本一致性检查更是
- *   只保证三份一样。有了 CIF 上游，才有可能把校验从「自洽」提升到「对得上」。
+ * 背景：见 activity/数据核查报告.md。数据中曾发现若干自洽性问题
+ *       （如石英的结构基元误写为方石英的值），故建立此自动检查。
  */
 import { readdirSync, readFileSync, existsSync } from 'fs'
-import { join } from 'path'
+import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
-import { parseFormula } from '../../../packages/knowledge/shared/formula.js'
+// 点阵型式的解析与「点阵点画在哪几个位置」的判据（纯几何、无 three 依赖）
+import { getExplicitLatticeType, latticePointPositions } from '../H5/src/lib/geometry-utils.js'
 
 // ============================================================================
 // 配置
 // ============================================================================
 
-/** 晶体数据目录（相对 ROOT）。现存唯一 JS 源 */
-const SOURCE = 'H5/src/data/crystals'
-
 /**
- * 脚本所在目录的上一级，即 projects/crystal/。
- * 用脚本自身位置而非 process.cwd()，否则从别的目录运行会找不到数据
- * （这正是原实现的缺陷：从仓库根运行会报「副本目录不存在」）。
+ * ★ 本文件是 H5 仓库内的**单副本版**，源自 D:\xjl\program\crystal\tools\check-crystal-data.mjs。
+ *
+ *   原版校验三份副本（H5 + 小程序的两份）的内容一致性——因为它们在同一个 crystal/ 目录下。
+ *   本仓库只保留 H5 一份数据，故去掉「三副本一致性」检查：它在单副本世界里恒真，
+ *   留着只会让人误以为还有别的副本要同步。
+ *
+ *   **保留全部语义校验**（8 项逐晶体检查）——那才是这个脚本真正的价值：
+ *   它当年正是靠这些发现了石英与方石英的结构基元混用。
+ *
+ * ★ ROOT 以**脚本自身位置**为锚点，而不是 process.cwd()。
+ *   ★ chem-agent 侧多一层 H5/（上游 tools 与 src 同级，本仓库 tools 在 H5 之外），故锚点取 `..'/H5'`。
+ *   原版用 cwd，导致从任何目录跑都找不到数据（chem-agent 已修，本仓库的副本此前未受益）。
  */
-const ROOT = fileURLToPath(new URL('..', import.meta.url))
+const COPIES = [
+  { name: 'H5', dir: 'src/data/crystals', exportPrefix: 'export default' },
+]
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'H5')
 
 /** 点阵型式记号 → 晶胞内点阵点数 */
 const LATTICE_POINTS = {
@@ -58,9 +58,70 @@ const SG_TO_LATTICE = { P: 'P', I: 'I', F: 'F', C: 'C', A: 'A', R: 'R' }
 const SPACE_UTILIZATION = { cF: 74.05, hP: 74.05, cI: 68.02 }
 
 // ============================================================================
-// 化学式解析：已抽到共享层 packages/knowledge/shared/formula.js
-// （晶体模块的 queryCrystal 工具算密度也要用它求摩尔质量，两处共用一份实现）
+// 化学式解析
+// ============================================================================
 
+/** 将 Unicode 下标数字转为 ASCII，如 H₂O → H2O */
+function normalizeSubscripts(s) {
+  return s.replace(/[₀-₉]/g, (ch) => String(ch.charCodeAt(0) - 0x2080))
+}
+
+/**
+ * 解析化学式，返回各元素原子数。支持嵌套括号，如 [(NH₂)₂CO]₂。
+ * @param {string} formula
+ * @returns {Record<string, number>}
+ */
+function parseFormula(formula) {
+  const s = normalizeSubscripts(formula)
+  const counts = {}
+
+  function merge(target, source, mult) {
+    for (const [el, n] of Object.entries(source)) {
+      target[el] = (target[el] || 0) + n * mult
+    }
+  }
+
+  function expand(str) {
+    const out = {}
+    let i = 0
+    while (i < str.length) {
+      const ch = str[i]
+      if (ch === '(' || ch === '[') {
+        // 找到配对的右括号（同时跟踪两种括号的嵌套深度）
+        let depth = 1
+        let j = i + 1
+        while (j < str.length && depth > 0) {
+          if (str[j] === '(' || str[j] === '[') depth++
+          else if (str[j] === ')' || str[j] === ']') depth--
+          if (depth === 0) break
+          j++
+        }
+        const inner = str.slice(i + 1, j)
+        // 读取组后的数字倍数
+        let k = j + 1
+        let num = ''
+        while (k < str.length && /\d/.test(str[k])) num += str[k++]
+        merge(out, expand(inner), num ? parseInt(num, 10) : 1)
+        i = k
+      } else if (/[A-Z]/.test(ch)) {
+        let el = ch
+        let j = i + 1
+        if (j < str.length && /[a-z]/.test(str[j])) el += str[j++]
+        let num = ''
+        while (j < str.length && /\d/.test(str[j])) num += str[j++]
+        out[el] = (out[el] || 0) + (num ? parseInt(num, 10) : 1)
+        i = j
+      } else {
+        i++ // 跳过 ≫ 等非化学式字符
+      }
+    }
+    return out
+  }
+
+  return expand(s)
+}
+
+// ============================================================================
 // 校验逻辑
 // ============================================================================
 
@@ -114,6 +175,28 @@ function checkCrystal(crystal, d) {
   if (expect && expect !== m[2]) {
     report('error', crystal,
       `点阵型式与空间群不符：latticeType 记号为 ${m[2]}，但空间群 ${sg} 首字母为 ${sg[0]}`)
+  }
+
+  // --- 2b. 点阵点画法必须与数据声明的带心方式一致 ---
+  //   ★ 这条是"数据 ↔ 渲染器"的**对账**，本文件原先没有：它只校验数据自洽，
+  //     而渲染器自己另有一套"该画在哪"的判据 —— 两边互不相干，于是 CsCl 把点阵点
+  //     画到体心这件事错了很久没人发现（用户报上来的：数据说 cP、画出来是 bcc）。
+  //     判据抽到 geometry-utils 之后，这里就能直接对账。
+  //     带心字母 → 惯用晶胞里应显示的**位置数**（8 顶点 + 带心位置）。
+  //     注意别和 LATTICE_POINTS（每个晶胞**含**几个点阵点）混：cF 是"画 14 个位置、
+  //     每胞含 4 个点阵点"，两者不是一回事。
+  const SHOWN_POSITIONS = { P: 8, I: 9, F: 14, C: 10, A: 10, B: 10, R: 10 }
+  const resolved = getExplicitLatticeType(d)
+  if (!resolved) {
+    report('error', crystal,
+      `点阵型式没能从数据里显式解析（${d.latticeType}）——会回落到按原子位置的启发式，可能画错`)
+  } else {
+    const shown = latticePointPositions(resolved, d).length
+    const wantShown = SHOWN_POSITIONS[m[2]]
+    if (wantShown !== undefined && shown !== wantShown) {
+      report('error', crystal,
+        `点阵点画法与数据不符：${d.latticeType} 应显示 ${wantShown} 个位置，实际 ${shown} 个`)
+    }
   }
 
   // --- 3. 结构基元自洽性：结构基元原子数 × 点阵点数 == 晶胞原子数 ---
@@ -178,8 +261,8 @@ function checkCrystal(crystal, d) {
 // 主流程
 // ============================================================================
 
-function loadCrystal(file) {
-  const text = readFileSync(join(ROOT, SOURCE, file), 'utf-8')
+function loadCrystal(dir, file) {
+  const text = readFileSync(join(ROOT, dir, file), 'utf-8')
   // 剥离模块语法，得到纯对象字面量
   const body = text
     .replace(/^\s*export\s+default\s*/, '')
@@ -189,18 +272,21 @@ function loadCrystal(file) {
 }
 
 function main() {
-  // --- 数据目录存在性 ---
-  // 打印解析后的绝对路径，便于诊断路径问题（而不是只报一个相对路径）
-  const dataDir = join(ROOT, SOURCE)
-  if (!existsSync(dataDir)) {
-    console.log(`✗ 晶体数据目录不存在：${dataDir}`)
-    process.exit(1)
+  // --- 副本存在性 ---
+  for (const c of COPIES) {
+    if (!existsSync(join(ROOT, c.dir))) {
+      console.log(`✗ 副本目录不存在：${c.dir}`)
+      process.exit(1)
+    }
   }
 
+  // --- 数据源目录 ---
+  const baseDir = COPIES[0].dir
+  const files = readdirSync(join(ROOT, baseDir)).filter((f) => f.endsWith('.js')).sort()
+
   // --- 逐晶体校验 ---
-  const files = readdirSync(dataDir).filter((f) => f.endsWith('.js')).sort()
   for (const f of files) {
-    const { data } = loadCrystal(f)
+    const { data } = loadCrystal(baseDir, f)
     checkCrystal(f.replace('.js', ''), data)
   }
 
@@ -211,8 +297,8 @@ function main() {
   console.log('═'.repeat(70))
   console.log(`晶体数据自检报告`)
   console.log('═'.repeat(70))
-  console.log(`数据源：${SOURCE}`)
   console.log(`晶体总数：${files.length}`)
+  console.log(`数据目录：${baseDir}（单副本）`)
 
   if (errors.length) {
     console.log(`\n【必须修复 ${errors.length} 项】`)

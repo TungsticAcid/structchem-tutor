@@ -35,6 +35,20 @@ export class BaseComponent {
       this._props[key] = (options.props && options.props[key] !== undefined) ? options.props[key] : defVal
     }
 
+    // ★ 传了但**没声明**的属性会被静默丢掉：上面只遍历已声明的键，而 setProps() 照单全收。
+    //   症状是"首渲染少一个值、动一下又正常"，极难反查——实测踩过：LayerControl 的
+    //   atomScale / opacity 漏声明，滑块首渲染回落到 min 显示成 0.30，拖一下才变成真实的
+    //   1.00。这里直接报警，让下一个漏声明的键当场可见，而不是等谁来肉眼发现。
+    if (options.props) {
+      const undeclared = Object.keys(options.props).filter((k) => !(k in propDefs))
+      if (undeclared.length) {
+        console.warn(
+          `[${ctor.name}] 属性 ${undeclared.map((k) => `"${k}"`).join('、')}`
+          + ' 未在 static properties 中声明，构造函数会丢掉它们（只有 setProps 认得）'
+        )
+      }
+    }
+
     // 初始化数据
     this._data = { ...(ctor.data || {}) }
 
@@ -283,6 +297,26 @@ export class BaseComponent {
         }
       })
       this._container._changeBound = true
+    }
+
+    // data-input 系列（range 滑块等**需要边拖边响应**的控件）
+    // ★ 为什么单列一套：`change` 对 range 只在**松手**时触发，拖动过程中完全静默；
+    //   而调"原子透明度"这类参数时用户要边拖边看效果（松手才变会让人以为坏了）。
+    //   机制与 data-change 完全一致，只是监听 `input`。
+    if (!this._container._inputBound) {
+      this._container.addEventListener('input', (e) => {
+        const el = e.target && e.target.closest ? e.target.closest('[data-input]') : null
+        if (!el) return
+        const action = el.dataset.input
+        const handler = this.methods && this.methods[action]
+        if (action && typeof handler === 'function') {
+          handler.call(this, {
+            currentTarget: { dataset: el.dataset },
+            target: e.target
+          })
+        }
+      })
+      this._container._inputBound = true
     }
   }
 }

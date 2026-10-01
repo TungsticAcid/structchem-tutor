@@ -52,6 +52,8 @@ const LAYOUT_TRANSITION_MS = 240
  * @param {Function} [cfg.hasKey]     () => boolean
  * @param {Function} [cfg.openSettings]
  * @param {Function} [cfg.afterLayoutChange] 开合抽屉后的重绘钩子
+ * @param {Object} [cfg.store]        对话存储（分支树）。给了它才有「分支切换 / 多会话 /
+ *                                    消息工具条 / 刷新后卡片仍在」；不给时退化成单条线。
  */
 export function createPanel(cfg = {}) {
   const doc = cfg.doc || (typeof document !== 'undefined' ? document : null)
@@ -65,10 +67,31 @@ export function createPanel(cfg = {}) {
   const escapeHtml = R.escapeHtml
   const renderRich = R.renderRich
 
-  const POS_KEY = cfg.storageKey || 'chem-agent.panel.fabPos'
+  /**
+   * 悬浮球位置的存储键。
+   *
+   * ★ **必须由宿主注入，没有缺省值**（契约 HOST_REQUIREMENTS_SHAPE.storage）。
+   *   原先缺省是 `chem-agent.panel.fabPos` —— 那**恰好等于壳实际用的键**，
+   *   于是「忘了注入」不会有任何症状，只会让组件与壳悄悄共享一个存储项。
+   *   而同一台机器上跑两个壳（apps/web 与某个模块的独立页）时，
+   *   两者的悬浮球位置会互相覆盖，且**谁都查不出来**。
+   *
+   * ★ 「随便取个中性名当缺省」不算修好：那只是把「悄悄共享」换成「悄悄各存各的」，
+   *   同样查不出来。所以这里**直接抛错**。
+   */
+  if (!cfg.storageKey) {
+    throw new Error('createPanel 需要 cfg.storageKey：存储命名空间必须由宿主注入'
+      + '（契约 HOST_REQUIREMENTS_SHAPE.storage 要求缺省值不得指向任何具体命名空间）。'
+      + '例如：storageKey: \'chem-agent.panel.fabPos\'')
+  }
+  const POS_KEY = cfg.storageKey
   const SEQ_TOOL = cfg.sequenceToolName || 'applySceneActions'
   const ACTION_LABEL = cfg.actionLabels || {}
   const getShowReasoning = cfg.getShowReasoning || (() => true)
+  // 对话存储（分支树）。为 null 时面板仍可用，只是没有分支片/多会话/消息工具条。
+  const store = cfg.store || null
+  // 演示收藏夹（存本机）。为 null 时只是没有「收藏」按钮与收藏列表。
+  const favorites = cfg.demoFavorites || null
   const afterLayoutChange = cfg.afterLayoutChange || (() => {
     // 复用主控制器已有的 window resize 通路（它会 resize 三维并重绘全部图表）
     setTimeout(() => window.dispatchEvent(new Event('resize')), LAYOUT_TRANSITION_MS + 40)
@@ -76,7 +99,7 @@ export function createPanel(cfg = {}) {
 
   let fab, drawer, msgBox, inputEl, sendBtn, stopBtn, dot
   let demoBar, demoIdx, demoText, demoNextHint
-  let demoPrev, demoNext, demoAuto, demoStop, demoReplay, demoDismiss
+  let demoPrev, demoNext, demoAuto, demoManual, demoStop, demoReplay, demoRestore, demoDismiss
   let layoutRedrawTimer = null
   let demoHideTimer = null
   let cur = null
@@ -89,8 +112,14 @@ export function createPanel(cfg = {}) {
   function build() {
     // ---- 悬浮球 ----
     fab = E('div', { class: 'agent-fab', title: cfg.fabTitle || '教学智能体（可拖动）' }, [
-      // 图标为位图设计稿；圆形裁切会自然去掉四角的多余元素
-      E('img', { class: 'agent-fab-img', src: cfg.iconSrc || '', alt: 'AI' }),
+      // 图标为位图设计稿；圆形裁切会自然去掉四角的多余元素。
+      // ★ 没给 iconSrc 时**不建 img**，退回文字——而不是放一个 `src=''` 的 img。
+      //   空 src 会让浏览器把"当前页面 URL"当成图片地址去请求，于是每次打开
+      //   都报一个 404（实测踩到：悬浮球显示成破图）。图标是宿主**可选**提供的，
+      //   不该因为没提供就报错。
+      cfg.iconSrc
+        ? E('img', { class: 'agent-fab-img', src: cfg.iconSrc, alt: '' })
+        : E('span', { class: 'agent-fab-text', text: cfg.fabText || 'AI' }),
     ])
     dot = E('span', { class: 'agent-fab-dot' })
     fab.appendChild(dot)
@@ -98,6 +127,58 @@ export function createPanel(cfg = {}) {
 
     // ---- 抽屉 ----
     drawer = E('div', { class: 'agent-drawer' })
+
+    // ★ 可调整大小：电脑端拖**左边缘**调宽度、手机端拖**顶边缘**调高度。
+    //   拖拽直接改 CSS 变量 --agent-w / --agent-h，晶体视图经
+    //   `body.agent-open .viewer-page` 的 calc() 自动跟随，无需 JS 布局。
+    const resizeHandle = E('div', { class: 'agent-resize', title: '拖拽调整大小' })
+    drawer.appendChild(resizeHandle)
+    {
+      let dragging = false
+      const isMobile = () => !!(doc.defaultView && doc.defaultView.matchMedia
+        && doc.defaultView.matchMedia('(max-width: 640px)').matches)
+      const pt = (e) => {
+        if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+        return { x: e.clientX, y: e.clientY }
+      }
+      const onMove = (e) => {
+        if (!dragging) return
+        e.preventDefault()
+        const { x, y } = pt(e)
+        const vw = doc.defaultView ? doc.defaultView.innerWidth : 0
+        const vh = doc.defaultView ? doc.defaultView.innerHeight : 0
+        if (isMobile()) {
+          // 手机端：高度 = 屏幕底到拖拽点（夹在 30vh–90vh）
+          const h = Math.max(30, Math.min(90, Math.round((vh - y) / vh * 100)))
+          doc.documentElement.style.setProperty('--agent-h', h + 'vh')
+        } else {
+          // 电脑端：宽度 = 屏幕右缘到拖拽点（夹在 280px–90vw）
+          const w = Math.max(280, Math.min(vw * 0.9, Math.round(vw - x)))
+          doc.documentElement.style.setProperty('--agent-w', w + 'px')
+        }
+      }
+      const onUp = () => {
+        if (!dragging) return
+        dragging = false
+        // ★ 松手后恢复过渡：拖拽期间给它设了 `agent-resizing`（去掉 transition），
+        //   否则每帧都触发 0.24s 的动画，滑块跟手但画面滞后、看起来"拖不动"
+        if (doc.body) doc.body.classList.remove('agent-resizing')
+        redrawAfterLayout()   // 拖完重新取景（晶体视图尺寸已变）
+      }
+      resizeHandle.addEventListener('mousedown', () => {
+        dragging = true
+        if (doc.body) doc.body.classList.add('agent-resizing')
+      })
+      resizeHandle.addEventListener('touchstart', (e) => {
+        dragging = true
+        if (doc.body) doc.body.classList.add('agent-resizing')
+        e.preventDefault()
+      }, { passive: false })
+      doc.addEventListener('mousemove', onMove)
+      doc.addEventListener('touchmove', onMove, { passive: false })
+      doc.addEventListener('mouseup', onUp)
+      doc.addEventListener('touchend', onUp)
+    }
 
     const head = E('div', { class: 'agent-head' })
     head.appendChild(E('span', { class: 'agent-head-title', text: cfg.title || '教学智能体' }))
@@ -130,10 +211,43 @@ export function createPanel(cfg = {}) {
     demoPrev = mkAct('◀ 上一步', () => SB && SB.prev())
     demoNext = mkAct('下一步 ▶', () => SB && SB.next(), 'primary')
     demoAuto = mkAct('连续播放', () => SB && SB.autoPlay())
+    // ★ 「⏸ 逐步」是**连播切回逐步的唯一出口**。没有它，学生点过一次「连续播放」
+    //   之后，此后所有演示都只能一路播完——界面上再没有任何按钮能把节奏改回来
+    //   （orbit 实测过这条：manual 只降不升）。
+    demoManual = mkAct('⏸ 逐步', () => SB && SB.setManual && SB.setManual(true))
     demoStop = mkAct('■ 停止', () => SB && SB.stop(), 'stop')
     demoReplay = mkAct('↻ 重新演示', () => SB && SB.replay(), 'primary')
-    demoDismiss = mkAct('结束', () => SB && SB.stop())
-    ;[demoPrev, demoNext, demoAuto, demoStop, demoReplay, demoDismiss].forEach((b) => demoBtns.appendChild(b))
+    // ★ 「收起」只隐藏这条控制条，**不动播放状态**。原先它调的是 stop()，于是学生
+    //   "看完顺手收起"之后就再也重播不了（队列被清空了）——那条演示其实还在记录里，
+    //   只是界面上已经没有入口把它放回来。
+    demoDismiss = mkAct('收起', () => hideBar())
+    /**
+     * 「↩ 回到演示前」——一键把视图还原到这一轮演示**开始之前**的样子。
+     *
+     * ★ 为什么需要它：演示会改动学生费心调好的图层、外观与视角，还可能跳到别的页面
+     *   （`openCompareView` 会跳去对比页）。播完之后他要的是"刚才那个样子"。
+     *   「上一步」做不到这件事——它一次只退一格，且演示 `stop()` 之后快照就被清空了。
+     *
+     * ★ 恢复前必须**先 stop()**：否则循环还在跑，恢复完的下一步又会把画面改回去。
+     * ★ 演示若跳到过别的页面，要先按快照里的 `route` 跳回来再恢复
+     *   （视图状态是落在**那个页面**上的，在别的页面上恢复不了）。
+     */
+    demoRestore = mkAct('↩ 回到演示前', async () => {
+      if (!SB) return
+      SB.stop()
+      const snap = typeof SB.beforeSnapshot === 'function' ? SB.beforeSnapshot() : null
+      const cur = (typeof location !== 'undefined') ? location.hash : ''
+      if (snap && snap.route && cur && snap.route !== cur) {
+        location.hash = snap.route
+        // 等路由把页面换回来并注册新的适配器（`registerViewerPage` 在 mount 末尾）
+        await new Promise((r) => setTimeout(r, 320))
+      }
+      const r = SB.restoreBefore()
+      addChip(r.ok ? '已回到演示前的状态' : ('恢复失败：' + r.error), r.ok ? 'info' : 'warn')
+      if (r.ok) hideBar()
+    })
+    ;[demoPrev, demoNext, demoAuto, demoManual, demoStop, demoReplay, demoRestore, demoDismiss]
+      .forEach((b) => demoBtns.appendChild(b))
     demoTop.appendChild(demoIdx)
     demoTop.appendChild(demoBtns)
     demoText = E('div', { class: 'agent-demo-text', text: '' })
@@ -267,15 +381,54 @@ export function createPanel(cfg = {}) {
   // ---------------------------------------------------------------------------
   // 消息渲染
   // ---------------------------------------------------------------------------
-  function addMsg(html, cls) {
+  function addMsg(html, cls, mid) {
     const m = E('div', { class: 'agent-msg ' + (cls || ''), html })
+    // ★ 记住它对应树里的哪个节点：重答 / 编辑重问 / 分支片都靠它定位。
+    //   不传 mid 时行为与从前完全一致（面板可以脱离分支树单独使用）。
+    if (mid) m.dataset.mid = mid
     msgBox.appendChild(m)
     scrollDown()
     return m
   }
   function scrollDown() { msgBox.scrollTop = msgBox.scrollHeight }
 
-  function addUser(text) { addMsg(escapeHtml(text), 'user') }
+  /**
+   * 往消息流追加一张**卡片**（任意 HTML），返回元素引用。
+   *
+   * ★ 为什么需要它，而不是让调用方自己 document.querySelector 找回卡片元素：
+   *   参考实现的题目卡是这么做的——`document.querySelector('.agent-msg.assistant:last-of-type')`
+   *   拿到刚插入的元素再绑定选项按钮。那个写法有个致命脆弱点：
+   *   一旦模型在同一轮里又插了一条 assistant 消息（完全可能，它可能先说一句再出题），
+   *   `last-of-type` 就指向了**别的元素**，四个选项按钮全部绑不上——
+   *   而**页面不报错、只是点了没反应**。这类"看起来正常、实际失效"的故障最难查。
+   *   `addCard` 直接返回元素引用，从根上消灭这个失败模式。
+   *
+   * @param {string} html
+   * @param {string} [cls] 附加类名
+   * @returns {HTMLElement}
+   */
+  function addCard(html, cls, opts) {
+    const el = E('div', { class: 'agent-card' + (cls ? ' ' + cls : '') })
+    el.innerHTML = html
+    msgBox.appendChild(el)
+    scrollDown()
+    // ★ **持久化展示卡**的能力已就绪：`role:'card'` 节点留在对话链上、参与路径，
+    //   但被 `projection()` 过滤掉——于是"卡片能持久化"与"卡片不污染协议历史"
+    //   可以同时成立。
+    //   ⚠️ 但**当前没有调用方传 `opts.kind`**，这是刻意的：题目卡/反馈卡的交互
+    //   （点选项判分）在恢复时**无法重新绑定事件**，持久化之后只会变成一个
+    //   "能点、但点了没反应"的陷阱——那正是本仓库记过的、最难排查的一类故障。
+    //   要真正启用，得同时提供"卡片恢复钩子"（由 quiz/ui.js 注册一个重建函数）。
+    if (opts && opts.kind && store && typeof store.appendCard === 'function') {
+      const raw = String(html)
+      store.appendCard(opts.kind, Object.assign({}, opts.meta || {}, {
+        html: raw.length > 8192 ? raw.slice(0, 8192) : raw,
+      }))
+    }
+    return el
+  }
+
+  function addUser(text, mid) { return addMsg(escapeHtml(text), 'user', mid) }
 
   /** 助手消息：思考折叠 + 流式正文 */
   function beginAssistant() {
@@ -358,7 +511,14 @@ export function createPanel(cfg = {}) {
     }
   }
 
-  /** 动作气泡：把"智能体动了什么"显式呈现出来 */
+  /**
+   * 动作气泡：把"智能体动了什么"显式呈现出来。
+   *
+   * ★ 每一行是**独立元素**（`.agent-act-row[data-i]`），而不是一整块 textContent
+   *   ——因为要按行挂「引用」按钮：气泡渲染的是模型给的**原始**动作数组，而队列里
+   *   只有校验通过的部分，两者会错位；第 i 行究竟属于演示的第几步，由工具回执里的
+   *   `perAction[i]` 给出（见 enrichActionBubble）。
+   */
   function addActionBubble(name, argsOrActions, result) {
     const ok = !(result && result.error)
     const d = E('details', { class: 'agent-action ' + (ok ? '' : 'bad') })
@@ -367,6 +527,7 @@ export function createPanel(cfg = {}) {
     const acts = (name === SEQ_TOOL && Array.isArray(argsOrActions))
       ? argsOrActions
       : [{ action: name, params: argsOrActions }]
+    d._acts = acts                        // 供 enrichActionBubble 逐行挂按钮
 
     const lines = acts.map((a) => describeAction(a.action, a.params || a))
     d.appendChild(E('summary', {
@@ -374,12 +535,556 @@ export function createPanel(cfg = {}) {
         (lines.length > 1 ? '<span class="agent-act-more">等 ' + lines.length + ' 个动作</span>' : ''),
     }))
     const body = E('div', { class: 'agent-act-body' })
-    body.textContent = lines.join('\n') +
-      (result ? '\n\n返回：' + JSON.stringify(result).slice(0, 400) : '')
+    // 逐一行（带序号，便于与「演示 #N 的第 M 步」对照）
+    acts.forEach((a, i) => {
+      body.appendChild(E('div', { class: 'agent-act-row', 'data-i': String(i) }, [
+        E('span', { class: 'agent-act-txt', text: (i + 1) + '. ' + lines[i] }),
+      ]))
+    })
+    if (result) {
+      body.appendChild(E('div', {
+        class: 'agent-act-ret',
+        text: '返回：' + JSON.stringify(result).slice(0, 400),
+      }))
+    }
     d.appendChild(body)
+    d._body = body
     msgBox.appendChild(d)
     scrollDown()
     return d
+  }
+
+  /**
+   * 把工具回执里的 `perAction` / `demoId` 落到气泡上：
+   *   · 校验失败的那一行标出「未执行：原因」
+   *   · 每一行挂「引用」按钮（把"演示 #N 的第 M 步"写进输入框）
+   *   · 气泡底部挂「↻ 重播这个演示」
+   *
+   * ★ 为什么按钮要挂在**行**上：学生最容易产生的错位感是"我明明说的是第 3 步，
+   *   它却改了第 5 步"。让他直接点那一行的「引用」，括号里的步号由 `perAction` 算出，
+   *   就不会指错；而这段文本随工具回执存档，**刷新之后引用依然准确**。
+   */
+  function enrichActionBubble(d, result) {
+    if (!d || !d._acts || !result || !d._body) return
+    const perAction = result.perAction
+    const demoId = result.demoId
+    const total = result.totalSteps
+    const rows = d._body.querySelectorAll('.agent-act-row')
+    for (let i = 0; i < rows.length; i++) {
+      const pa = Array.isArray(perAction) ? perAction[i] : null
+      if (pa && pa.ok === false) {
+        rows[i].classList.add('skipped')
+        rows[i].appendChild(E('span', {
+          class: 'agent-act-skip',
+          text: '未执行：' + (pa.error || '参数不合法'),
+        }))
+        continue
+      }
+      if (!demoId) continue
+      // perAction 给的是绝对步号；它缺失时退回"行号即步号"（两者通常一致）
+      const stepIndex = (pa && pa.stepIndex != null) ? pa.stepIndex : i
+      const btn = E('button', {
+        class: 'agent-act-btn', text: '引用', type: 'button',
+        title: '引用这一步提整改意见',
+      })
+      btn.onclick = () => quoteStep(d._acts[i], { demoId, stepIndex, total })
+      rows[i].appendChild(btn)
+    }
+    if (!demoId) return
+    const foot = E('div', { class: 'agent-act-foot' })
+    const rb = E('button', { class: 'agent-act-btn', text: '↻ 重播这个演示', type: 'button' })
+    rb.onclick = () => { const SB = cfg.storyboard; if (SB && SB.replay) SB.replay(demoId) }
+    foot.appendChild(rb)
+    // ★ 「收藏」是**人的判断**——哪条演示值得反复看，程序猜不出来（见 store/demo-favorites.js）。
+    //   存的是**步骤清单**而不是画面截图，所以以后回放仍然是对的（截图会过时）。
+    if (favorites) {
+      const fb = E('button', {
+        class: 'agent-act-btn', text: '☆ 收藏', type: 'button',
+        title: '把这条演示存到本机，之后随时可重播',
+      })
+      fb.onclick = () => {
+        const SB = cfg.storyboard
+        const rec = SB && SB.getDemo ? SB.getDemo(demoId) : null
+        if (!rec || !rec.steps || !rec.steps.length) { fb.textContent = '演示已失效'; return }
+        const r = favorites.save('', rec.steps.map((s) => ({
+          action: s.name || s.action, params: s.params, speech: s.speech,
+        })), { origin: rec.origin })
+        fb.textContent = r.ok ? '★ 已收藏' : '（收藏失败）'
+        fb.disabled = true
+      }
+      foot.appendChild(fb)
+    }
+    // ★ 挂到气泡**外面**（作为它的下一个兄弟），而不是 details 内部。
+    //   动作气泡默认是**折叠**的（`<details>` 只露出一行摘要），把按钮塞在里面
+    //   等于没放——学生看不到「重播」「收藏」，反馈就是"放不了之前的演示"
+    //   （实测：按钮一直在，只是藏起来了）。
+    if (d.parentNode && d.parentNode.insertBefore) d.parentNode.insertBefore(foot, d.nextSibling)
+    else d._body.appendChild(foot)
+  }
+
+  /**
+   * 把"引用这一步"写成一句**可寻址**的话放进输入框，学生接着写整改意见即可。
+   * ★ 写的是结构化指认（演示 #N 的第 M 步），不是自然语言转述：模型据此能精确
+   *   调到 `reviseDemo` 的 demoId 与 index，不必猜。
+   */
+  function quoteStep(act, opts) {
+    if (!inputEl) return
+    const demoId = opts && opts.demoId
+    const stepIndex = (opts && opts.stepIndex) || 0
+    const total = (opts && opts.total) || '?'
+    const what = act ? describeAction(act.action, act.params || act) : ''
+    const n = String(demoId).replace(/^d/, '')
+    inputEl.value = '【整改演示】演示 #' + n + ' 的第 ' + (stepIndex + 1) + ' 步（共 ' + total + ' 步）'
+      + (what ? '「' + what + '」' : '')
+      + '\n我想改成：'
+    inputEl.focus()
+    if (inputEl.setSelectionRange) {
+      const p = inputEl.value.length
+      inputEl.setSelectionRange(p, p)
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 分支 / 会话 / 消息工具条
+  //
+  // ★ 这一组能力都建立在"对话是一棵树"之上（见 store/conversation-store.js）：
+  //   · 编辑某条提问 = 从它那里**分叉**（原分支一个字节不删）
+  //   · 切换分支 = 把叶指针移过去，然后按新路径整体重渲染
+  //   · 复制原文 = 取**存档里的源文本**，绝不从 DOM 反解析
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * 复制到剪贴板。
+   * ★ 走"隐藏 textarea + execCommand"降级而不是只用 `navigator.clipboard`：后者要求
+   *   secure context，而本工具定位是纯前端、可 `file://` 直接打开——在那里
+   *   `navigator.clipboard` 是 undefined，直接调用会**静默失败**（按钮点了没反应）。
+   * @returns {boolean}
+   */
+  function copyText(text, btn) {
+    const t = String(text == null ? '' : text)
+    let ok = false
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+        navigator.clipboard.writeText(t)
+        ok = true
+      }
+    } catch (e) { ok = false }
+    if (!ok) {
+      try {
+        const ta = E('textarea', { class: 'agent-copy-src' })
+        ta.value = t
+        doc.body.appendChild(ta)
+        ta.select()
+        ok = !!(doc.execCommand && doc.execCommand('copy'))
+        doc.body.removeChild(ta)
+      } catch (e) { ok = false }
+    }
+    if (btn && btn.textContent != null) {
+      const old = btn.textContent
+      btn.textContent = ok ? '已复制' : '复制失败'
+      setTimeout(() => { btn.textContent = old }, 1200)
+    }
+    return ok
+  }
+
+  /**
+   * 给一条消息挂工具条（复制 / 编辑重问 / 另起分支 / 重答）。
+   * @param {HTMLElement} wrap    消息元素
+   * @param {string} mid          节点 id（树里的）
+   * @param {'user'|'assistant'} role
+   * @param {string} srcText      **存档里的源文本**（不是 DOM 文本）
+   */
+  function attachActs(wrap, mid, role, srcText) {
+    if (!wrap || !srcText || !store) return
+    const bar = E('div', { class: 'agent-msg-acts' })
+    const mk = (label, fn, title) => {
+      const b = E('button', { class: 'agent-act-btn', text: label, type: 'button', title: title || label })
+      b.onclick = fn
+      return b
+    }
+    // ★ 复制的是**源文本**：DOM 里是 KaTeX 渲染后的 HTML，`textContent` 会把
+    //   `$\frac{1}{2}$` 变成 `21`——公式源码彻底丢失，而学生复制它正是为了贴到作业里。
+    bar.appendChild(mk('复制', (ev) => copyText(srcText, ev && ev.target), '复制原文（含公式源码）'))
+    if (role === 'user') {
+      bar.appendChild(mk('编辑重问', () => editUserMsg(mid, srcText), '改一下这句，从它这里重新问'))
+      bar.appendChild(mk('另起分支', () => forkInto(mid), '保留这句，在它之后另开一条分支'))
+    } else if (role === 'assistant') {
+      bar.appendChild(mk('重答', () => reanswer(mid), '让模型重新回答这一条'))
+    }
+    wrap.appendChild(bar)
+  }
+
+  /**
+   * 有回合在跑就先停掉。
+   * ★ 切分支 / 编辑重问 / 重答**都必须先停**：否则旧回合结束时的那次"整体落盘"，
+   *   会按**新的**叶指针把尾巴接上去——接错线且不报错。
+   */
+  function stopRunning() {
+    try { if (cfg.onStop) cfg.onStop() } catch (e) { /* 停不下来也不该阻断后续操作 */ }
+  }
+
+  /** 把某条提问填回输入框，并把叶指针退到它的父节点（= 从那里重新问） */
+  function editUserMsg(mid, text) {
+    if (!store) return
+    const n = store.nodeById(mid)
+    if (!n) return
+    stopRunning()
+    inputEl.value = text || n.content || ''
+    store.branchFrom(n.parent)
+    renderPath()
+    inputEl.focus()
+    if (inputEl.setSelectionRange) {
+      const p = inputEl.value.length
+      inputEl.setSelectionRange(p, p)
+    }
+    addChip('已把这句填回输入框——改完发送，原来的回答会作为另一条分支保留', 'info')
+  }
+
+  /** 另起分支：保留这句，在它**之后**开一条新的（原来的回答不删） */
+  function forkInto(mid) {
+    if (!store) return
+    stopRunning()
+    store.branchFrom(mid)
+    renderPath()
+    addChip('已在这条之后另开一条分支——接着说即可（原来的仍在）', 'info')
+  }
+
+  /** 重答：回到这条回答**对应的那次提问**，把同一句话重发一次 */
+  function reanswer(mid) {
+    if (!store || typeof cfg.send !== 'function') return
+    const path = store.path()
+    const i = path.findIndex((x) => x.id === mid)
+    if (i < 0) return
+    let ask = null
+    for (let k = i; k >= 0; k--) {
+      if (path[k].role === 'user' && path[k].origin !== 'continuation') { ask = path[k]; break }
+    }
+    if (!ask) return
+    stopRunning()
+    // ★ 从**提问本身**分叉（而不是提问的父节点）：这样"提问"是两条分支的公共前缀，
+    //   树里只有**一个**提问节点，旧回答与新回答作为它的两个儿子并列——这正是"重答"
+    //   的语义（重新回答这一个问题）。
+    //   若从提问**之前**分叉，提问会被重新 append 一遍，树里出现两个相同的提问，
+    //   新回答看起来是"接着旧对话聊"，而不是"重答"（实测反馈）。
+    store.branchFrom(ask.id)
+    renderPath()
+    // ★ 发起重答：不重复发"提问"，而是给一条**不显示**的内部指令。
+    //   origin:'internal' 的消息进协议历史（模型据此知道"上面这个问题要重答"），
+    //   但 renderPath 不渲染它（见 renderPath 对 internal 的跳过）——学生看到的是
+    //   连续的"提问 → 新回答"，中间不会冒出一句奇怪的话。
+    cfg.send('（请重新回答我上面的那个问题，给出一份全新的回答。）', { origin: 'internal' })
+  }
+
+  /** 某条分支有多长（从它往下走到底） */
+  function countBranch(nodeId) {
+    let n = 1
+    let cur = nodeId
+    let guard = 0
+    while (guard++ < 500) {
+      const kids = store.childrenOf(cur)
+      if (!kids.length) break
+      cur = kids[kids.length - 1]
+      n++
+    }
+    return n
+  }
+
+  /**
+   * 分支切换片：在一个分叉点处列出各条分支，点一下就切过去。
+   * ★ 为什么必须有它：切到另一条分支后，原来那个分叉点就不在**当前路径**上了，
+   *   只靠消息区**找不到回去的路**。所以分叉片留它所在的那条线上，作为回程标记。
+   */
+  function branchBar(fork) {
+    const bar = E('div', { class: 'agent-branch-bar' })
+    const kids = fork.children || []
+    bar.appendChild(E('span', {
+      class: 'agent-branch-label',
+      text: '⑂ 这处分出 ' + kids.length + ' 条：',
+    }))
+    const onPath = new Set(store.path().map((x) => x.id))
+    kids.forEach((cid, i) => {
+      const n = store.nodeById(cid)
+      if (!n) return
+      const tip = String(n.content || '').replace(/\s+/g, ' ').slice(0, 14) || '（无正文）'
+      const isCur = onPath.has(cid)
+      const chip = E('button', {
+        class: 'agent-branch-chip' + (isCur ? ' active' : ''),
+        text: (i + 1) + '. ' + tip + ' · ' + countBranch(cid) + ' 条',
+        type: 'button',
+        title: isCur ? '当前正在这条分支上' : '切到这条分支',
+      })
+      if (isCur) chip.disabled = true
+      else {
+        chip.onclick = () => {
+          stopRunning()
+          store.switchLeaf(cid)
+          renderPath()
+        }
+      }
+      bar.appendChild(chip)
+    })
+    return bar
+  }
+
+  /**
+   * 从当前分支的历史重建**演示记录**（幂等）。
+   * ★ 抽出来是因为它必须与 renderPath 同步执行：对话历史是"模型下发过哪些动作"
+   *   的唯一来源，而"刷新后还能重播/引用"完全依赖它。
+   */
+  function syncDemosFromPath(path) {
+    const SB = cfg.storyboard
+    if (!SB || typeof SB.syncDemosFromHistory !== 'function') return
+    const list = []
+    for (const n of (path || [])) {
+      if (n.role !== 'tool') continue
+      let res = null
+      try { res = JSON.parse(n.content || 'null') } catch (e) { res = null }
+      if (!res || !res.demoId) continue
+      let acts = null
+      for (const m of (path || [])) {
+        if (m.role !== 'assistant' || !Array.isArray(m.tool_calls)) continue
+        const tc = m.tool_calls.find((t) => t && t.id === n.tool_call_id)
+        if (!tc) continue
+        try {
+          const a = JSON.parse((tc.function && tc.function.arguments) || '{}')
+          acts = a.actions || null
+        } catch (e) { acts = null }
+        break
+      }
+      if (!acts) continue
+      list.push({ demoId: res.demoId, actions: acts, origin: 'agent', ts: n.ts })
+    }
+    try { SB.syncDemosFromHistory(list) } catch (e) { /* 重建失败不该影响渲染 */ }
+  }
+
+  /**
+   * 按**当前分支**整体重渲染消息区。
+   *
+   * ★ 为什么需要它：有了分支之后，"消息区"不再是只能追加的——切分支要整体换一遍。
+   *   刷新后的恢复也走同一条路。原先那段恢复逻辑写在 assemble.js 里，只认
+   *   user/assistant 的**正文字段**，于是动作气泡、题目卡、主动提示卡**刷新后全部消失**；
+   *   这里改为同时还原 tool 消息（重建动作气泡，含「引用」与「重播」）与卡片。
+   *
+   * @param {Object} [tree] 省略则从 store 现取
+   */
+  function renderPath(tree) {
+    if (!store && !tree) return
+    const t = tree || { path: store.path(), forks: store.forkPoints() }
+    const path = t.path || []
+
+    // tool_call_id → { name, args }：重建动作气泡要用
+    const calls = new Map()
+    for (const n of path) {
+      if (n.role !== 'assistant' || !Array.isArray(n.tool_calls)) continue
+      for (const tc of n.tool_calls) {
+        if (!tc || !tc.id) continue
+        let args = {}
+        try { args = JSON.parse((tc.function && tc.function.arguments) || '{}') } catch (e) { args = {} }
+        calls.set(tc.id, { name: tc.function && tc.function.name, args })
+      }
+    }
+    // 分叉点 → 它的孩子
+    const forkMap = new Map()
+    for (const f of (t.forks || [])) forkMap.set(f.id || '__root__', f)
+
+    msgBox.innerHTML = ''
+    const rootFork = forkMap.get('__root__')
+    if (rootFork) msgBox.appendChild(branchBar(rootFork))
+    if (!path.length) { renderEmptyState(); return }
+
+    for (const n of path) {
+      if (n.role === 'user') {
+        // 内部消息不渲染成学生提问：continuation（截断续写提示）、internal（面板代发
+        // 的指令，如"重答"）——否则刷新后它们看起来像学生自己说的话。
+        if (n.origin === 'continuation' || n.origin === 'internal') continue
+        attachActs(addUser(n.content, n.id), n.id, 'user', n.content)
+      } else if (n.role === 'assistant') {
+        if (n.content) attachActs(addMsg(renderRich(n.content), 'assistant', n.id), n.id, 'assistant', n.content)
+      } else if (n.role === 'tool') {
+        const c = calls.get(n.tool_call_id)
+        if (!c) continue
+        // ★ `applySceneActions`（SEQ_TOOL）是**工具名**、不在 actionLabels 表里——
+        //   它走的是"承载一次多动作"那条单独分支（见 onToolCall）。
+        //   漏掉这个例外，刷新后**所有动作气泡都会被跳过**（而界面只是"什么都没有"，
+        //   不报错）——这条被实机验证抓到过。
+        if (c.name !== SEQ_TOOL && !ACTION_LABEL[c.name]) continue
+        let res = null
+        try { res = JSON.parse(n.content || 'null') } catch (e) { res = null }
+        const acts = c.args && Array.isArray(c.args.actions) ? c.args.actions : c.args
+        const bubble = addActionBubble(c.name, acts, res)
+        if (bubble) enrichActionBubble(bubble, res)
+      } else if (n.role === 'card') {
+        if (n.meta && n.meta.html) addCard(n.meta.html, 'agent-card-' + (n.kind || 'card'))
+      }
+      const f = forkMap.get(n.id)
+      if (f) msgBox.appendChild(branchBar(f))
+    }
+    scrollDown()
+    // ★ 演示记录从历史重建（幂等）。**必须留在渲染路径末尾**：它正是"刷新后
+    //   仍能重播 / 仍能引用某一步"的唯一来源。
+    syncDemosFromPath(path)
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // 会话页（多会话）
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /** 会话页容器（懒创建；不进抽屉的常规流，靠 .show 滑入） */
+  let convPage = null
+
+  function fmtTime(ts) {
+    if (!ts) return ''
+    const d = new Date(ts)
+    const p = (n) => String(n).padStart(2, '0')
+    return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+  }
+
+  /**
+   * 会话页：列出本机的会话，可切换 / 改名 / 删除 / 新建。
+   *
+   * ★ 为什么要有独立一页而不是塞进消息流：一是会话可能有二十个，塞进去会把对话挤没；
+   *   二是"切换会话"是一次**整体替换**（换文档、换历史、换渲染），与消息流的语义不同。
+   */
+  function enterConvPage() {
+    if (!store || typeof store.sessions !== 'function') {
+      addChip('当前未接入对话存储，无法管理会话', 'warn')
+      return
+    }
+    if (!convPage) { convPage = buildConvPage(); drawer.appendChild(convPage) }
+    renderConvList()
+    renderFavList()
+    convPage.classList.add('show')
+  }
+  function leaveConvPage() { if (convPage) convPage.classList.remove('show') }
+
+  function buildConvPage() {
+    const page = E('div', { class: 'agent-conv-page' })
+    const head = E('div', { class: 'agent-conv-head' })
+    head.appendChild(E('span', { class: 'agent-conv-title', text: '会话' }))
+    const back = E('button', { class: 'agent-act-btn', text: '返回', type: 'button' })
+    back.onclick = () => leaveConvPage()
+    head.appendChild(back)
+    page.appendChild(head)
+    page.appendChild(E('div', {
+      class: 'agent-conv-sec-t',
+      text: '全部会话（只存本机，不上传）',
+    }))
+    const list = E('div', { class: 'agent-conv-list' })
+    page.appendChild(list)
+    // ★ 收藏的演示：与"会话"并列的一个分区——两者都是"存本机、随时取用"的东西，
+    //   放在同一页里，学生想"再看一遍那条好的"时只有一个地方要记。
+    if (favorites) {
+      page.appendChild(E('div', { class: 'agent-conv-sec-t', text: '收藏的演示（点一下重播）' }))
+      const favList = E('div', { class: 'agent-conv-list agent-fav-list' })
+      page.appendChild(favList)
+      page._favList = favList
+    }
+    const foot = E('div', { class: 'agent-conv-foot' })
+    const add = E('button', { class: 'agent-btn sm primary', text: '＋ 新会话', type: 'button' })
+    add.onclick = () => {
+      stopRunning()
+      store.newSession()
+      if (cfg.syncConversation) cfg.syncConversation()
+      renderPath()
+      renderConvList()
+    }
+    foot.appendChild(add)
+    page.appendChild(foot)
+    page._list = list
+    return page
+  }
+
+  function renderConvList() {
+    const box = convPage && convPage._list
+    if (!box) return
+    box.innerHTML = ''
+    const list = store.sessions()
+    if (!list.length) {
+      box.appendChild(E('div', { class: 'agent-conv-empty', text: '还没有会话' }))
+      return
+    }
+    for (const s of list) {
+      const row = E('div', { class: 'agent-conv-row' + (s.active ? ' active' : '') })
+      const left = E('div', { class: 'agent-conv-left' }, [
+        E('div', { class: 'agent-conv-t', text: s.title || '新对话' }),
+        E('div', {
+          class: 'agent-conv-meta',
+          text: (s.count || 0) + ' 个节点 · ' + fmtTime(s.at) + (s.active ? ' · 当前' : ''),
+        }),
+      ])
+      left.onclick = () => {
+        if (s.active) return
+        stopRunning()
+        store.switchSession(s.id)
+        if (cfg.syncConversation) cfg.syncConversation()
+        renderPath()
+        renderConvList()
+      }
+      row.appendChild(left)
+
+      const acts = E('div', { class: 'agent-conv-acts' })
+      const rn = E('button', { class: 'agent-act-btn', text: '改名', type: 'button' })
+      rn.onclick = (ev) => {
+        if (ev && ev.stopPropagation) ev.stopPropagation()
+        const v = window.prompt('会话名称', s.title || '')
+        if (v != null) { store.renameSession(s.id, v); renderConvList() }
+      }
+      const del = E('button', { class: 'agent-act-btn', text: '删除', type: 'button' })
+      del.onclick = (ev) => {
+        if (ev && ev.stopPropagation) ev.stopPropagation()
+        if (!window.confirm('删除这个会话？不可恢复。')) return
+        stopRunning()
+        store.deleteSession(s.id)
+        if (cfg.syncConversation) cfg.syncConversation()
+        renderPath()
+        renderConvList()
+      }
+      acts.appendChild(rn)
+      acts.appendChild(del)
+      row.appendChild(acts)
+      box.appendChild(row)
+    }
+  }
+
+  /** 收藏的演示列表（点一下即重播） */
+  function renderFavList() {
+    const box = convPage && convPage._favList
+    if (!box || !favorites) return
+    box.innerHTML = ''
+    const list = favorites.list()
+    if (!list.length) {
+      box.appendChild(E('div', {
+        class: 'agent-conv-empty',
+        text: '还没有收藏——演示时点动作气泡上的「☆ 收藏」即可',
+      }))
+      return
+    }
+    for (const f of list) {
+      const row = E('div', { class: 'agent-conv-row' })
+      const left = E('div', { class: 'agent-conv-left' }, [
+        E('div', { class: 'agent-conv-t', text: '★ ' + f.label }),
+        E('div', { class: 'agent-conv-meta', text: f.steps.length + ' 步 · ' + fmtTime(f.at) }),
+      ])
+      left.onclick = () => {
+        const SB = cfg.storyboard
+        if (!SB || typeof SB.loadDemo !== 'function') return
+        stopRunning()
+        leaveConvPage()                 // 收起会话页，让学生看见画面
+        const r = SB.loadDemo(f.steps, { origin: 'favorite', reason: 'favorite' })
+        if (!r || !r.ok) addChip('无法播放这条收藏：' + ((r && r.error) || ''), 'warn')
+      }
+      row.appendChild(left)
+      const acts = E('div', { class: 'agent-conv-acts' })
+      const del = E('button', { class: 'agent-act-btn', text: '删除', type: 'button' })
+      del.onclick = (ev) => {
+        if (ev && ev.stopPropagation) ev.stopPropagation()
+        favorites.remove(f.key)
+        renderFavList()
+      }
+      acts.appendChild(del)
+      row.appendChild(acts)
+      box.appendChild(row)
+    }
   }
 
   /** 动作的中文描述（可由 cfg.describeAction 完全接管，或靠 actionLabels 查表） */
@@ -469,6 +1174,10 @@ export function createPanel(cfg = {}) {
               '<span class="agent-act-err">· ' + failed.length + ' 个动作未执行</span>')
           }
         }
+        // ★ 把回执里的 perAction / demoId 落到气泡上：逐行「引用」+ 底部「重播这个演示」。
+        //   少了这一步，"演示可寻址"在界面上就没有落点——学生看到的是 6 行动作，
+        //   却没法指着其中一行说"我要改这一步"。
+        enrichActionBubble(lastBubble, info.result)
         lastBubble = null
       },
       onDone(summary) {
@@ -512,14 +1221,22 @@ export function createPanel(cfg = {}) {
     demoBar.classList.toggle('manual', m === 'manual')
     demoBar.classList.toggle('auto', m === 'auto')
     demoBar.classList.toggle('done', m === 'done')
+    demoBar.classList.toggle('stopped', m === 'stopped')
     const isManual = (m === 'manual')
     const isDone = (m === 'done')
+    const isStopped = (m === 'stopped')
     demoPrev.classList.toggle('hidden', !(isManual || isDone))   // 结束后也能退回去重看
     demoNext.classList.toggle('hidden', !isManual)
     demoAuto.classList.toggle('hidden', !isManual)
-    demoStop.classList.toggle('hidden', isDone)
+    // 「⏸ 逐步」只在**连播中**显示：它要解决的正是"连播中想改回逐步却无路可走"
+    demoManual.classList.toggle('hidden', isManual || isDone || isStopped)
+    demoStop.classList.toggle('hidden', isDone || isStopped)
     demoReplay.classList.toggle('hidden', !isDone)
-    demoDismiss.classList.toggle('hidden', !isDone)
+    demoDismiss.classList.toggle('hidden', !(isDone || isStopped))
+    // 「↩ 回到演示前」：只要**捕获到过**演示前状态就显示 —— 播放中、播完、被停止都算。
+    //   它不看 phase（`done` / `auto` / `manual` 都可能需要退回去），故直接问 storyboard。
+    const canBack = !!(SB && typeof SB.state === 'function' && SB.state().canRestoreBefore)
+    if (demoRestore) demoRestore.classList.toggle('hidden', !canBack)
   }
 
   function renderStep(evt) {
@@ -556,10 +1273,13 @@ export function createPanel(cfg = {}) {
     demoIdx.textContent = '已退回 · 已完成 ' + evt.index + '/' + evt.total + ' 步'
     setBarMode('manual')
     demoPrev.disabled = !(evt.index > 0)
-    const st = evt.step || {}
-    demoText.textContent = st.speech || st.label || '（已回到上一步之前）'
+    // ★ 主文字显示"现在**停在**哪儿"（`at`），而不是"下一步要重播什么"（`step`）。
+    //   若两者是同一句旁白，退回前后文字不变，学生会以为"上一步没生效"（实测反馈）。
+    const at = evt.at || {}
+    demoText.textContent = at.speech || at.label || '（回到最开始）'
     demoText.classList.toggle('muted', false)
     demoNextHint.classList.remove('hidden')
+    const st = evt.step || {}
     demoNextHint.textContent = '下一步（重播）：' + (st.label || '')
   }
 
@@ -626,7 +1346,20 @@ export function createPanel(cfg = {}) {
         case 'auto': renderAuto(evt); break
         case 'queued': renderQueued(evt); break
         case 'done': renderDone(evt); break
-        case 'stopped': hideBar(); break
+        case 'stopped':
+          // ★ 停止后**不直接隐藏**控制条：演示已经改动了画面（图层/外观/视角，
+          //   还可能跳去了别的页面），而"学生中途不想看了"恰恰是最想退回去的时刻。
+          //   保留一条只含「↩ 回到演示前」与「收起」的窄条；没有可恢复状态才真隐藏。
+          if (SB && typeof SB.state === 'function' && SB.state().canRestoreBefore) {
+            demoBar.classList.remove('hidden', 'bad')
+            demoIdx.textContent = '演示已停止'
+            demoText.textContent = ''
+            demoNextHint.classList.add('hidden')
+            setBarMode('stopped')
+          } else {
+            hideBar()
+          }
+          break
         default: break
       }
     })
@@ -650,9 +1383,13 @@ export function createPanel(cfg = {}) {
   return {
     init, destroy, open, close, toggle, markUnread, renderEmptyState,
     addMsg, addUser, addChip, addActionBubble, beginAssistant, runAgent, send: doSend,
+    addCard,
     renderRich,
+    // 分支 / 会话 / 消息工具条（都建立在"对话是一棵树"之上）
+    renderPath, attachActs, copyText, editUserMsg, reanswer, forkInto, branchBar,
+    enterConvPage, leaveConvPage,
     /** 供测试/调试取用内部节点 */
-    nodes: () => ({ fab, drawer, msgBox, inputEl, sendBtn, stopBtn, dot, demoBar }),
+    nodes: () => ({ fab, drawer, msgBox, inputEl, sendBtn, stopBtn, dot, demoBar, convPage }),
     setInput: (v) => { inputEl.value = v },
   }
 }

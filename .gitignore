@@ -33,3 +33,7 @@ project.private.config.json
 
 # 开发过程产物（截图工具的默认输出目录）
 tmp/
+
+# 参赛材料（配音文本等）不入库 —— 与 projects/orbit/.gitignore 的约定一致。
+# 若要连它一起发布，删掉这条再 git add 即可（注意：一旦提交就进了历史，撤不回来）。
+/activity/

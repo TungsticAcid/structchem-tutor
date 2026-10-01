@@ -1,0 +1,64 @@
+/**
+ * home-affordance.css —— 「回门户」入口的样式
+ *
+ * ★ 为什么用**主题无关**的中性深色胶囊，而不是 `color: inherit` 或 `var(--accent)`：
+ *   它会被塞进三种底色完全不同的顶栏里，其中两种是页面**硬编码**的、不随主题变：
+ *     · 晶体库 `.page-nav`      → 硬编码 `background:#fff`（白）
+ *     · 对称页 `#toolbar`       → 深色毛玻璃 `rgba(30,34,48,.88)`
+ *     · 查看器/对比页            → 深色渐变（但它们自带返回，本控件不进去）
+ *   若用 `color: inherit`，深色主题下会得到"浅色文字压在硬编码的白栏上" → 看不见；
+ *   若用 `var(--accent)`，浅色主题的蓝在深色栏上又偏暗。
+ *   而"白底上的深色胶囊"与"深底上的深色胶囊"**都读得清**，且看起来像同一件应用外框
+ *   ——它本来就是壳的控件，不该去模仿每个页面的配色。
+ *
+ * ★ 放在顶栏内（而非固定悬浮）是首选：顶栏都是 `display:flex`，插到最前面即第一项。
+ *   只有页面完全没有顶栏结构时才退化为 `.shell-home--float`。
+ */
+
+.shell-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+
+  height: 28px;
+  margin-right: 10px;
+  padding: 0 11px;
+  border-radius: 14px;
+
+  background: rgba(28, 32, 48, .74);
+  color: #eef2fb;
+  border: 1px solid rgba(255, 255, 255, .2);
+  backdrop-filter: blur(6px);
+
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1;
+  letter-spacing: .02em;
+  cursor: pointer;
+  /* 它是**出口**，不是页面内容：默认克制一点，指上去才提亮 */
+  opacity: .82;
+  transition: opacity .15s ease, background .15s ease, transform .1s ease;
+}
+
+.shell-home:hover { opacity: 1; background: rgba(28, 32, 48, .9); }
+.shell-home:active { transform: scale(.96); }
+.shell-home:focus-visible { outline: 2px solid #7ab7ff; outline-offset: 2px; }
+
+.shell-home__arrow { font-size: 14px; line-height: 1; }
+
+/* 兜底形态：页面没有可用顶栏时固定在左上角。
+   z-index 要高于页面常见的 30/200/1000 几档（见各页面样式），否则会被压住。 */
+.shell-home--float {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  left: 12px;
+  margin: 0;
+  z-index: 3000;
+}
+
+/* 窄屏：只留箭头，省出顶栏空间（顶栏在手机上本来就挤） */
+@media (max-width: 560px) {
+  .shell-home__label { display: none; }
+  .shell-home { padding: 0 9px; gap: 0; }
+}

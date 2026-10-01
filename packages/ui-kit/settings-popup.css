@@ -79,3 +79,101 @@
   display: flex;
   justify-content: flex-end;
 }
+
+
+/* ------------------------------------------------------------------
+   令牌作用域：设置弹层是**恒深色**表面
+   ------------------------------------------------------------------
+ * 与 panel.css 的 `.agent-drawer` 同一回事（那段有实测对比度数据）：
+ * 弹层的底色写死为深色，故令牌也必须钉在深色一档，
+ * 否则浅色主题下弹层里的标签与说明文字会继承全局的浅色令牌而糊掉。
+ */
+.agent-overlay {
+  /**
+   * ★ 必须显式声明 color——弹层与 `.agent-settings-box` 都**没有** color 声明，
+   *   未指定颜色的文字会一路继承 `body` 的 `#333`（浅色主题），
+   *   而弹层底色是写死的深色渐变：深灰字压在深色上就是看不清。
+   *   （实测同 panel.css 的 `.agent-drawer`：只绑变量不声明 color 是不够的，
+   *     "令牌生效"不等于"结果正确"。）
+   */
+  color: var(--text);
+  --bg: var(--chrome-bg);
+  --bg-2: var(--chrome-bg-2);
+  --card: var(--chrome-card);
+  --card-2: var(--chrome-card-2);
+  --line: var(--chrome-line);
+  --line-soft: var(--chrome-line-soft);
+  --text: var(--chrome-text);
+  --text-dim: var(--chrome-text-dim);
+  --accent: var(--chrome-accent);
+  --accent-2: var(--chrome-accent-2);
+  --active: var(--chrome-active);
+  --on-accent: var(--chrome-on-accent);
+}
+
+/* ------------------------------------------------------------------
+   取色器与元素调色板
+   ------------------------------------------------------------------
+ * 这一组配合 settings-popup.js 的 `color` 与 `palette` 两种字段类型。
+ * 颜色值全部走 `--chrome-*`？**不**——弹层的作用域已把全局令牌重新绑到
+ * 恒深色调色板（见 `.agent-overlay` 那段），所以这里直接写语义色即可。
+ */
+
+/* 取色器 + 十六进制文本框：并排，色块固定宽，文本吃剩余宽度 */
+.agent-colorrow { display: flex; align-items: center; gap: 8px; }
+
+.agent-color {
+  /* ★ 去掉浏览器给 input[type=color] 的默认内边距与边框装饰，
+     否则它看起来像一个"带白边的方框"，在深色弹层里格外突兀 */
+  padding: 0;
+  width: 42px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.agent-color::-webkit-color-swatch-wrapper { padding: 2px; }
+.agent-color::-webkit-color-swatch { border: 0; border-radius: 4px; }
+
+.agent-hex {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-math, ui-monospace, monospace);
+  letter-spacing: .02em;
+}
+
+/* 元素调色板：一格一元素。用 auto-fill 让它随弹层宽度自动增减列数 */
+.agent-palette {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(26px, 1fr));
+  gap: 3px;
+  max-height: 168px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .22);
+}
+
+.agent-swatch {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  min-height: 22px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 4px;
+  padding: 0;
+  cursor: pointer;
+  /* ★ 元素色里有近白色的（氢是纯白 #FFFFFF），深色底上会和边框糊在一起；
+     这层内阴影给每个格子一条可辨的轮廓，不依赖底色本身 */
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .28);
+  transition: transform .1s ease;
+}
+.agent-swatch:hover { transform: scale(1.12); }
+.agent-swatch.active {
+  /* 选中态要**明显到不可能看错**：它决定了下一次取色作用在哪个元素上 */
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}

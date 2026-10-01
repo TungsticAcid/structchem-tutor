@@ -12,8 +12,9 @@
  * 阶段 B6 建统一壳后，模块改为直接引用真源、副本删除，届时本脚本的对应条目
  * 也随之退役（会在这里显式报出"副本已不存在"，而不是静默跳过）。
  */
-import { readdirSync, readFileSync } from 'fs'
+import { readdirSync, readFileSync, existsSync } from 'fs'
 import { fileURLToPath, pathToFileURL } from 'url'
+import { isAbsolute } from 'node:path'
 
 const HERE = new URL('.', import.meta.url)
 // packages/knowledge/tools/ → 仓库根需要三级
@@ -22,11 +23,22 @@ const repo = (p) => fileURLToPath(new URL('../../../' + p, HERE))
 const importAbs = (absPath) => import(pathToFileURL(absPath).href)
 
 /**
+ * orbit 上游（对拍用）的位置。与 `test-core.mjs`、`test-orbit-engine.mjs` 同一约定。
+ *
+ * ★ 2026-10-01：这里原先写死 `projects/orbit/H5/skills/index.js`，而那是**死副本**
+ *   （与活上游差近一倍体量）。改指活上游之后，本仓库里就**再没有**任何代码读
+ *   `projects/orbit/` 了 —— 那正是能把它删掉的前提。
+ */
+const UPSTREAM = process.env.ORBIT_UPSTREAM || 'D:/xjl/program/orbit/H5'
+const UPSTREAM_SKILLS = UPSTREAM + '/skills/index.js'
+
+/**
  * 加载 orbit 的自注册脚本（IIFE 挂 window.*），拿回它注册的数组。
  * 用于与迁移后的 packages/ 版本做逐字比对。
+ * ★ 接受**绝对路径**（上游在仓库之外）；相对路径仍按仓库根解析。
  */
 function loadOrbitGlobal(relPath, globalName) {
-  const src = readFileSync(repo(relPath), 'utf-8')
+  const src = readFileSync(isAbsolute(relPath) ? relPath : repo(relPath), 'utf-8')
   let captured = []
   const win = { [globalName]: { register: (list) => { captured = list } } }
   new Function('window', src)(win)   // eslint-disable-line no-new-func
@@ -145,33 +157,47 @@ console.log('\n【orbit 知识条目与通用技能】')
   const { ENTRIES, registerInto: regKnowledge } = await import(new URL('../orbit/index.js', HERE).href)
   const { SKILLS, registerInto: regSkills } = await import(new URL('../../skills/common/index.js', HERE).href)
 
-  ok(ENTRIES.length === 34, `知识条目 ${ENTRIES.length} 条（应为 34）`)
+  // ★ 2026-10-01 从 34 补到 42：补齐了 K1-4 / K9-7 / K10-1..6
+  //   （上游本来就是 42 条；之前那 8 条只在上游，没迁过来）
+  ok(ENTRIES.length === 42, `知识条目 ${ENTRIES.length} 条（应为 42，与上游一致）`)
   ok(SKILLS.length === 6, `通用技能 ${SKILLS.length} 个（应为 6）`)
-  ok(ENTRIES.every((e) => String(e.id).startsWith('orbit:') && String(e.kp).startsWith('orbit:')),
-    '全部条目的 id 与 kp 都带 orbit: 命名空间')
+  // ★ 只查 id。CLAUDE.md §一.3 的约定是「**id** 一律带命名空间」——`kp` 不在其中：
+//   它是**模块运行时自己的键**（orbit 的学情与题库都用裸 K1），加前缀会让模型
+//   拿到的 kp 与出题引擎认的键对不上，而那种失效不报错。详见 orbit/index.js
+//   assertNamespaced 的说明。
+ok(ENTRIES.every((e) => String(e.id).startsWith('orbit:')),
+    '全部条目的 id 都带 orbit: 命名空间')
+ok(ENTRIES.every((e) => !String(e.kp).includes(':')),
+    '全部条目的 kp 都是裸值（与 orbit 运行时消费的键一致）')
   ok(SKILLS.every((s) => !String(s.name).includes(':')), '技能不带命名空间（学科无关，全模块共用）')
   ok(ENTRIES.every((e) => (e.misconceptions || []).length > 0),
     '每条知识条目都有 misconceptions（错因诊断的来源）')
 
-  // 与 orbit/H5 旧副本逐字段比对（忽略命名空间前缀）
-  const orig = loadOrbitGlobal('projects/orbit/H5/knowledge/entries/index.js', 'Knowledge')
-  const origS = loadOrbitGlobal('projects/orbit/H5/skills/index.js', 'Skills')
-  ok(orig.length === ENTRIES.length, `orbit/H5 旧副本条目数一致（${orig.length}）`)
-
-  const strip = (s) => String(s).replace(/^orbit:/, '')
-  let diffs = []
-  for (let i = 0; i < orig.length && i < ENTRIES.length; i++) {
-    const o = orig[i]
-    const n = ENTRIES[i]
-    if (strip(n.id) !== o.id) diffs.push(`${o.id}: id 变了 → ${n.id}`)
-    if (strip(n.kp) !== o.kp) diffs.push(`${o.id}: kp 变了 → ${n.kp}`)
-    for (const f of ['title', 'source', 'body']) if (o[f] !== n[f]) diffs.push(`${o.id}.${f} 不一致`)
-    for (const f of ['keywords', 'misconceptions']) {
-      if (JSON.stringify(o[f] || []) !== JSON.stringify(n[f] || [])) diffs.push(`${o.id}.${f} 不一致`)
-    }
-  }
-  ok(diffs.length === 0, '知识条目与旧副本逐字一致（除命名空间前缀）',
-    diffs.slice(0, 4).join('; ') + (diffs.length > 4 ? ` …共 ${diffs.length} 处` : ''))
+  /**
+   * ★ 「知识条目与 orbit/H5 旧副本逐字段比对」这两条**已退役**（2026-10-01）。
+   *
+   *   它比对的 `projects/orbit/H5/knowledge/entries/index.js` 是一份**没有任何消费者**
+   *   的死副本（重构计划 P0 已认定它陈旧；实测它与上游本就不同：462 vs 643 行）。
+   *   真源是 `packages/knowledge/orbit/entries.js`。
+   *
+   *   两件事让它从"守卫"变成了"噪声源"：
+   *     ① 它按**下标**逐条比。补进 8 条（K1-4 / K9-7 / K10-1..6）之后插入位置一错开，
+   *        它就报出 193 处"不一致"，而实际上原 34 条**正文一字未改** —— 全是假警报。
+   *        这类守卫比没有更糟：它会把真问题淹掉。
+   *     ② 它把"维护两份副本"变成了常态。而 CLAUDE.md §五 的约定正是
+   *        「模块改为直接引用真源后，副本与对应守卫条目一并退役」。
+   *
+   *   现在由上面那几条断言守着（id 带命名空间 · kp 是裸值 · 每条都有 misconceptions），
+   *   它们比的是**真源自己**，不依赖任何副本。
+   *   技能那条比对保留：技能副本目前仍与真源一致，且技能没有第二份真源。
+   */
+  // ★ 上游不在时**显式跳过**并说明原因：静默通过会得到"守卫绿着、其实什么也没比"，
+  //   硬失败则会让测试链在别人机器上红。与 test-orbit-engine.mjs 同一套语义。
+  if (!existsSync(UPSTREAM_SKILLS)) {
+    console.log('  ⚠ 跳过技能副本比对：未找到上游 ' + UPSTREAM_SKILLS)
+    console.log('    换机器时用环境变量指定：ORBIT_UPSTREAM=<path-to>/orbit/H5')
+  } else {
+  const origS = loadOrbitGlobal(UPSTREAM_SKILLS, 'Skills')
 
   let sdiffs = []
   for (let i = 0; i < origS.length && i < SKILLS.length; i++) {
@@ -182,7 +208,8 @@ console.log('\n【orbit 知识条目与通用技能】')
       if (JSON.stringify(o[f] || []) !== JSON.stringify(n[f] || [])) sdiffs.push(`${o.name}.${f}`)
     }
   }
-  ok(sdiffs.length === 0, '通用技能与旧副本逐字一致', sdiffs.join('; '))
+  ok(sdiffs.length === 0, '通用技能与上游逐字一致', sdiffs.join('; '))
+  }
 }
 
 // ============================================================================
@@ -199,12 +226,12 @@ console.log('\n【与共享核心的集成】')
   const sc = createCatalog({ key: 'name' })
   const nk = regKnowledge(kc)
   const ns = regSkills(sc)
-  ok(nk === 34, `知识条目装入目录 ${nk} 条`)
+  ok(nk === 42, `知识条目装入目录 ${nk} 条（应为 42）`)
   ok(ns === 6, `技能装入目录 ${ns} 个`)
 
   // 清单：带命名空间、剔除 body、保留关键词
   const idx = kc.index()
-  ok(idx.length === 34 && idx.every((e) => !('body' in e)), '清单剔除 body（渐进式披露）')
+  ok(idx.length === 42 && idx.every((e) => !('body' in e)), '清单剔除 body（渐进式披露）')
   ok(idx[0].id.startsWith('orbit:'), '清单里的 id 带命名空间', idx[0].id)
 
   const manifest = buildManifestText({ knowledge: kc, skills: sc })
@@ -216,9 +243,9 @@ console.log('\n【与共享核心的集成】')
   ok(!!first && !!first.body && first.body.length > 30, 'load 能取到正文')
   ok(Array.isArray(first.misconceptions) && first.misconceptions.length > 0, 'load 带回 misconceptions')
 
-  // 按知识点取同组条目：filterBy('kp', 'orbit:K3')
-  const kp3 = kc.filterBy('kp', 'orbit:K3')
-  ok(kp3.length > 0, `filterBy('kp','orbit:K3') 取到 ${kp3.length} 条`)
+  // 按知识点取同组条目。★ 键是**裸 K3**（orbit 运行时的约定），不是 orbit:K3
+  const kp3 = kc.filterBy('kp', 'K3')
+  ok(kp3.length > 0, `filterBy('kp','K3') 取到 ${kp3.length} 条（裸键，与 orbit 运行时一致）`)
 
   // 命名空间缺失时必须拒绝装入（而不是悄悄放进去、与别的模块撞名）
   // ★ 直接测纯校验函数，而不是往被导入的数组里塞坏数据——

@@ -118,16 +118,23 @@ chem-agent/
 # 依赖（three + vite 装在仓库根，因为源码分布在 packages/ modules/ projects/ apps/ 下）
 npm install
 
-# 全部自检（约 543 项断言：共享核 · ui-kit · viewer · 数据真源 · 模块 · 装配层）
+# 全部自检（1438 项断言：共享核 · ui-kit · viewer · 数据真源 · 模块 · 装配层 · 壳）
 npm test
 
-# 统一前端：一个入口，晶体模块已接通
+# 统一前端：一个入口，三个模块都已接通
 cd apps/web && npm run dev        # → http://localhost:3001
 
-# 原模块独立页（过渡期仍在，收编完成后退役）
-cd projects/crystal/H5 && npm run dev
-cd projects/orbit/H5    && python -m http.server 8000   # orbit 仍是离线单页，双击亦可
+# 实机验证（真实浏览器：截图 / 抓报错 / 执行表达式）
+node tools/screenshot.mjs --console
+node tools/screenshot.mjs --wait-for "window.__chemAgent" --out tmp/shot.png
+
+# 逐项功能检验（**打真实 LLM，消耗额度，故不进 npm test**）
+npm run verify:live -- --key-file "<仓库外的密钥文件>" --dry      # 零额度：只验接线
+npm run verify:live -- --key-file "<仓库外的密钥文件>"             # 真跑三层断言
 ```
+
+> 原模块独立页（过渡期仍在）：`cd projects/crystal/H5 && npm run dev`。
+> orbit 已不再需要独立启动 —— 它已是统一壳里的一个模块。
 
 ---
 

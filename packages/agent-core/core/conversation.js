@@ -136,7 +136,15 @@ export function createConversation(opts = {}) {
       onError: handlers.onError || (() => {}),
     }
 
-    if (userText) history.push({ role: 'user', content: userText })
+    // origin 供展示层区分"学生真的问了"与"面板/系统代发"：否则刷新之后，内部消息
+    // （截断续写提示、面板代发的指令）会被渲染成一条**可编辑的学生提问**。
+    if (userText) {
+      history.push({
+        role: 'user',
+        content: userText,
+        origin: (handlers && handlers.origin) || 'user',
+      })
+    }
 
     const settings = getSettings() || {}
     if (!settings.apiKey) {
@@ -204,6 +212,9 @@ export function createConversation(opts = {}) {
 
         // 记录 assistant 消息（含工具调用），保持历史完整
         const asstMsg = { role: 'assistant', content: out.content || '' }
+        // ★ 思考内容只**存档、不上行**（projection 会剥掉它）：存下来是为了刷新之后
+        //   「思考」折叠区与"没有正文"的诊断说明能一字不差地重现——原先它随刷新丢失。
+        if (streamedReasoning) asstMsg.reasoning = streamedReasoning
         if (out.toolCalls.length) {
           asstMsg.tool_calls = out.toolCalls.map((t) => ({
             id: t.id, type: 'function',
@@ -250,6 +261,7 @@ export function createConversation(opts = {}) {
             continues++
             history.push({
               role: 'user',
+              origin: 'continuation',
               content: '（上一条回复因长度上限被截断，请从中断处继续写完，不要重复已经写过的内容。'
                 + '公式务必写成：行内 $…$ 不跨行，独立成行的 $$…$$ 独占一行。）',
             })

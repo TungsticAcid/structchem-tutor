@@ -121,6 +121,87 @@ export function detectLatticeType(crystalData) {
   return 'sc'
 }
 
+/**
+ * Pearson 符号的**第二个字母 = 带心方式** → 内部代码（决定点阵点画在哪几个位置）。
+ * P 简单 / I 体心 / F 面心 / C 底心（A、B 同为单面带心）/ R 菱形。
+ */
+const PEARSON_CENTERING = { p: 'sc', i: 'bcc', f: 'fcc', c: 'cbase', a: 'cbase', b: 'cbase', r: 'rHex' }
+
+/**
+ * 从晶体数据里读**点阵型式**（= 点阵点该画在哪些位置）。
+ *
+ * ★ 以数据里的 **Pearson 符号**为准：`简单立方(cP)` 里的 `cP` 把"晶系字母 + 带心字母"
+ *   都编码了，取第二个字母就是带心方式。这比逐个匹配中文名可靠得多 ——
+ *   "简单立方／简单四方／简单六方"的带心方式**都是 P**、点阵点都只在八个顶点上，
+ *   靠中文关键字永远列不全（原实现就是这么漏的，见下）。
+ *
+ * ★ 实测踩过（用户报「CsCl 点阵点有问题」）：原判据只有 底心／体心／面心／r心／六方／金刚石
+ *   六支，**没有 P**，于是 CsCl 的 `简单立方(cP)` 读到 null，回落到按**原子位置**的启发式
+ *   `detectLatticeType()` —— 它看见体心有 Cs⁺ 就判成 `bcc`，点阵点在**体心**画了一个出来。
+ *   而"CsCl 的点阵点只在顶点、体心没有"恰恰是这个工具要教的那一点：画错等于把要纠正的
+ *   错误结论当成了正确答案。
+ *   同一原因还让 co2／perovskite／pyrite／rutile 等共 6 个晶体画错（23 个里 7 个走了启发式）。
+ *
+ * @returns {string|null} 内部代码；null 表示数据没写、需要调用方回落到启发式
+ */
+export function getExplicitLatticeType(crystalData) {
+  const lt = (crystalData.latticeType || '').toLowerCase()
+  if (!lt) return null
+
+  // ① Pearson 符号优先（括号里恰好两个字母，取第二个 = 带心字母）
+  const pearson = lt.match(/\(\s*[a-z]([a-z])\s*\)/)
+  if (pearson) {
+    const code = PEARSON_CENTERING[pearson[1]]
+    if (code) return code
+  }
+
+  // ② 数据没写 Pearson 符号时，退回中文关键字（判据保持原样，勿删）
+  if (lt.includes('底心') || lt.includes('oc') || lt.includes('c心') || lt.includes('oa') || lt.includes('ob')) return 'cbase'
+  if (lt.includes('体心') || lt.includes('ci') || lt.includes('bcc')) return 'bcc'
+  if (lt.includes('面心') || lt.includes('cf') || lt.includes('fcc')) return 'fcc'
+  if (lt.includes('r心') || lt.includes('rhex')) return 'rHex'
+  if (lt.includes('六方') || lt.includes('hp')) return 'hcp'
+  if (lt.includes('金刚石') || lt.includes('diamond')) return 'diamond'
+  return null
+}
+
+/**
+ * 惯用晶胞里**要显示的点阵点位置**（分数坐标）。
+ *
+ * ★ 为什么把这段从渲染器里抽出来：它决定"画出来对不对"，而判据本身是纯几何、不碰 three。
+ *   抽出来之后 `tools/check-crystal-data.mjs` 就能拿**数据自己声明的 Pearson 符号**
+ *   跟它直接对账 —— 这两边原先各有一套知识（数据守卫的表说 cP 每个晶胞 1 个点阵点，
+ *   渲染器却按自己那套画），互不相干，于是 CsCl 画错了很久没人发现。
+ *
+ * ★ 显示的是**惯用晶胞的 8 个顶点 + 带心位置**，不是"每个晶胞含几个点阵点"：
+ *   前者是给人看的画面约定（cF 画 14 个球），后者是化学计量（cF 每胞 4 个）。两者别混。
+ *
+ * @param {string} latticeType 内部代码（sc/bcc/fcc/diamond/cbase/rHex/hcp）
+ * @param {Object} crystalData 用来判定 R 心是 obverse 还是 reverse
+ * @returns {number[][]} 分数坐标列表
+ */
+export function latticePointPositions(latticeType, crystalData = {}) {
+  const pos = []
+  for (let i = 0; i <= 1; i++)
+    for (let j = 0; j <= 1; j++)
+      for (let k = 0; k <= 1; k++) pos.push([i, j, k])
+
+  if (latticeType === 'bcc') pos.push([0.5, 0.5, 0.5])
+  if (latticeType === 'fcc' || latticeType === 'diamond') {
+    pos.push([0.5, 0.5, 0.0], [0.5, 0.0, 0.5], [0.0, 0.5, 0.5],
+      [0.5, 0.5, 1.0], [0.5, 1.0, 0.5], [1.0, 0.5, 0.5])
+  }
+  if (latticeType === 'cbase') pos.push([0.5, 0.5, 0.0], [0.5, 0.5, 1.0])
+  // R 心六方：obverse (2/3,1/3,1/3)+(1/3,2/3,2/3) 或 reverse (1/3,2/3,1/3)+(2/3,1/3,2/3)
+  if (latticeType === 'rHex') {
+    const near = (p, x, y, z) => Math.abs(p[0] - x) < 0.05 && Math.abs(p[1] - y) < 0.05 && Math.abs(p[2] - z) < 0.05
+    const hasReverse = (crystalData.atoms || []).some(g => g.positions.some(p => near(p, 0.3333, 0.6667, 0.3333)))
+    if (hasReverse) pos.push([0.3333, 0.6667, 0.3333], [0.6667, 0.3333, 0.6667])
+    else pos.push([0.6667, 0.3333, 0.3333], [0.3333, 0.6667, 0.6667])
+  }
+  return pos
+}
+
 function orderFaceVertices(vertIndices, allVerts) {
   if (vertIndices.length <= 3) return [...vertIndices]
   const remaining = new Set(vertIndices)
@@ -307,4 +388,4 @@ export function getWSCellGeometry(crystalData) {
   return { vertices: verts, edges, facePlanes }
 }
 
-export default { fractionalToCartesian, getCellVertices, getCellEdges, getCellCenteredOffset, detectLatticeType, getWSCellGeometry, extractCenteringVectors }
+export default { fractionalToCartesian, getCellVertices, getCellEdges, getCellCenteredOffset, detectLatticeType, getExplicitLatticeType, latticePointPositions, getWSCellGeometry, extractCenteringVectors }

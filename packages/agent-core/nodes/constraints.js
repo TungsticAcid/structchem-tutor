@@ -41,10 +41,25 @@
  *   "列了一批没人实现的名字"，这次是把"语义与模块无关、且确实有人实现"的工具
  *   归到中枢名下。
  */
+/**
+ * 中枢（shell）**实际提供**的工具，按类别分组。
+ *
+ * ★ 本表必须与 `app.js` 的 `createShellTools` **逐名对齐**。
+ *
+ *   此前的漂移：表里只登记了 5 个，而中枢实际提供了 10 个——`declareIntent`、
+ *   `listDemos`、`playDemo`、`replayDemo`、`navigateTo`、`reviseDemo` 都没登记。
+ *   之所以一直没有暴露问题，是因为 `buildRegistry()` 把 shell 的定义与模块的定义
+ *   **按类合并**后一并交给注册表，于是授权实际是"**按类全放行**"：表里少写名字
+ *   不影响谁能用，但也意味着**未登记的那几个不被任何断言覆盖**——对账断言
+ *   （`assert-nodes`）只遍历这张表。
+ *
+ *   登记完整之后，"幽灵名"统计才真正覆盖全部中枢工具。**新增中枢工具时，
+ *   这里与 app.js 必须同时改。**
+ */
 export const CORE_TOOLS = {
   read: ['getSnapshot'],
-  query: ['listSceneActions', 'loadKnowledge', 'loadSkill'],
-  hand: ['applySceneActions'],
+  query: ['listSceneActions', 'loadKnowledge', 'loadSkill', 'listDemos', 'declareIntent'],
+  hand: ['applySceneActions', 'playDemo', 'replayDemo', 'reviseDemo', 'navigateTo'],
   teach: [],
 }
 
@@ -74,13 +89,40 @@ export function toolsOf(...classes) {
  * 节点规格字段说明：
  *   role       该节点是什么（写进系统提示的角色段）
  *   grants     工具类别授权：read / query / hand / teach
- *   allowExtra 在授权类别之外额外允许的具体工具
+ *   roles      按**角色**授权（见下方 ROLE_SPEC）——节点表达"我要一个出题工具"，
+ *              由**当前模块**决定它叫 `generateQuiz`（晶体）还是 `generateQuestion`（轨道）
+ *   allowExtra 在授权类别之外额外允许的具体工具（**只用于中枢工具**，如 declareIntent）
  *   deny       从授权类别中剔除的具体工具
  *   input      输入边界
  *   output     输出契约（模型必须产出什么）
  *   forbidden  硬性禁令（违反即为缺陷，需在评测中拦截）
  *   fallback   失败/不可用时的降级行为
+ *
+ * ★ 为什么要有 `roles`（2026-10-01）：
+ *   `allowExtra` 里原先写的是**晶体专名的工具名**，而工具名各模块不同 ——
+ *   `quiz` 节点放行的是 `generateQuiz`，而 orbit 的同类工具叫 `generateQuestion`。
+ *   后果是**静默的**：orbit 下"出题"节点一个出题工具都拿不到（只剩 queryOrbital），
+ *   不报错、不崩、selftest 也绿（它用的是所有模块工具的**并集**，并集里两个名字都在）。
+ *
+ *   补字面名只是修好今天这一个症状，加第四个模块还要再补一次，漏了依旧是静默失效。
+ *   改成角色后，模块自己声明"我的出题工具叫什么"，中枢不必知道任何模块的工具名。
+ *
+ * ★ `roles` 与 `grants` 的分工：类别粒度太粗（给 `teach` 节点加 'teach' 类会连带
+ *   放开 checkAnswer，教学法节点顺手判卷——与 quiz 节点那段的道理相同）；
+ *   字面名粒度太细（写死了模块名字）。角色正好是"意图"这一层。
  */
+export const ROLE_SPEC = {
+  quizGen: { label: '出题', desc: '生成一道题（题干+选项+答案），不改动当前画面' },
+  explainConcept: { label: '概念讲解', desc: '对某个知识点做结构化讲解' },
+  diagnose: { label: '错因诊断', desc: '判定错因并给出诊断动作' },
+  answerCheck: { label: '判卷', desc: '判定学生作答的正误' },
+  variant: { label: '变式题', desc: '围绕同一知识点生成变式题' },
+  feynmanStart: { label: '发起费曼复述' },
+  feynmanEval: { label: '评估费曼复述' },
+  recommend: { label: '推荐下一步' },
+  learningEvent: { label: '记学情', desc: '把一次学习事件写进学情（各模块自己的学情实现）' },
+}
+
 export const NODES = {
 
   // --------------------------------------------------------------------------
@@ -88,6 +130,13 @@ export const NODES = {
     title: '意图分流',
     role: '你负责判断用户想做什么，然后转交对应节点。你自己不产生任何教学内容。',
     grants: ['read', 'query'],
+    // ★ 本节点的 output 要求"仅输出结构化的 {intent, confidence, slots}"，
+    //   但按上面的授权，模型**无法通过工具表达意图**——它只能吐自由文本 JSON。
+    //   解析自由文本是脆的：模型会加代码块、加解释、加中文引号、漏引号，
+    //   而解析失败时我们又只能静默降级，连"它到底想说什么"都拿不到。
+    //   故单点放行 `declareIntent`：意图成为**结构化的工具参数**，不再靠文本解析。
+    //   纪律仍然成立——route 没有 hand 授权，拿不到 applySceneActions，动不了画面。
+    allowExtra: ['declareIntent'],
     input: ['用户原话', '当前场景快照'],
     output: '仅输出结构化的 {intent, confidence, slots}，不输出讲解文字',
     forbidden: [
@@ -104,6 +153,16 @@ export const NODES = {
     role: '你负责讲解知识点，并且边讲边把视图调到与该知识点对应的状态。'
         + '讲解必须落到画面上——只用文字描述结构，等于没讲。',
     grants: ['read', 'query', 'hand'],
+    // ★ explain 也放行 declareIntent（与 route 节点一样）。
+    //   本地关键词未命中时**不该**把节点切到 route 去"问一次意图"——route 只有
+    //   read+query，那一轮就拿不到 applySceneActions，"讲解要落到画面上"在首轮就失效。
+    //   这条设计缺陷是被 tools/test-agent-core.mjs 当场抓出的（发"帮我打开化学键"
+    //   未命中关键词 → 工具集缩到最小 → showBonds 没生效）。
+    //   正确做法：模型在 explain 下照常工作，若识别出更强的意图再请求切换。
+    allowExtra: ['declareIntent'],
+    // ★ 概念讲解：角色而不是工具名——orbit 有 explainConcept，crystal 没有（它不声明即可）。
+    //   原先 explain 节点**没有**这一项，于是 orbit 的 explainConcept 只在判卷节点可见。
+    roles: ['explainConcept'],
     input: ['知识点 id', '学情画像（决定讲解深度）'],
     output: '讲解文本 + 动作序列（每步含 speech 旁白），单次 4–8 个动作',
     forbidden: [
@@ -120,6 +179,18 @@ export const NODES = {
     role: '你负责生成练习题。',
     grants: ['read', 'query'],
     // ★ 注意：quiz 节点没有任何 hand 授权——它动不了画面
+    //
+    // ★ 单点放行**出题**这一个角色，而**不是**给 grants 加 'teach'：
+    //   后者会连带把 checkAnswer 一起放开，出题节点就获得了判卷能力——
+    //   它可能"顺手"把答案判了，绕过学生作答这一环。
+    //   「能用权限表达的就不要用文字表达」在这里的具体含义就是：
+    //   想让出题节点能出题但不能判卷，唯一的正确做法是单点放行。
+    //
+    // ★ 用**角色**而不是工具名（2026-10-01）：原先这里写的是 `generateQuiz`——
+    //   那是**晶体专名**。orbit 的同类工具叫 `generateQuestion`，于是 orbit 下这个
+    //   节点一个出题工具都拿不到，而**没有任何东西会红**。现在由模块自己声明
+    //   "我的出题工具叫什么"（见各模块 createModule 的 roles）。
+    roles: ['quizGen'],
     input: ['知识点 id', '晶体 id', '难度层级'],
     output: '题干 + 4 选项（每项带错因标签）+ 正确答案 + 知识点归属 + presetView',
     forbidden: [
@@ -139,8 +210,15 @@ export const NODES = {
     role: '你负责判定答案并归因错因。答错时你的任务不是给答案，'
         + '而是把画面切到能让学生自己看出矛盾的状态。',
     grants: ['read', 'query', 'hand', 'teach'],
-    deny: ['applySceneActions'],   // 只能用诊断动作，不能自由操控
-    allowExtra: ['getDiagnosisActions'],
+    // ★ 只能用诊断动作，不能自由操控。`reviseDemo` 也必须一并挡掉：它是 hand 类，
+    //   而 hand 类是**按类全放行**的——不显式 deny 就会自动落到本节点，
+    //   而"整改演示"与"判卷时不许乱动画面"直接冲突（学生正看着诊断动作，画面不该被改）。
+    deny: ['applySceneActions', 'reviseDemo'],
+    // ★ 工具名修正（迁入本仓库时）：原写作 getDiagnosisActions，而
+    //   descriptor 的 plannedTools 与 skills/common 的 misconception-probe 步骤
+    //   用的都是 `diagnoseError`。三处不一致，只有这里用了那个不存在的名字
+    //   —— 白名单写着幽灵名，模型看不到它，诊断节点就拿不到诊断工具。
+    allowExtra: ['diagnoseError'],
     input: ['题目', '学生答案'],
     output: '正误 + 错因类型 + 诊断动作序列 + 引导话术（不得含答案明文）',
     forbidden: [
@@ -172,7 +250,17 @@ export const NODES = {
     role: '你负责按选定教学法技能推进对话。你的纪律来自技能本身的'
         + 'when / steps / exit / cautions，而不是自己的发挥。',
     grants: ['read', 'query', 'hand'],
-    allowExtra: ['evaluateExplanation'],
+    // ★ 工具名修正（迁入本仓库时）：原写作 evaluateExplanation，与实际命名
+    //   （orbit 的 evaluateFeynman，晶体侧费曼复述也用同一名字）不一致。
+    //   费曼复述是参赛演示脚本的场景 D，故它与其配套工具都要单点放行：
+    //   startFeynmanCheck 发起、evaluateFeynman 评估、recordLearningEvent 记学情、
+    //   recommendNext 推荐下一步。
+    //
+    // ★ 改成**角色**（2026-10-01）：其中 `recordLearningEvent` 是**晶体专名**——
+    //   orbit 的同类工具叫 `updateMastery`，于是"记学情"在 orbit 下永远拿不到
+    //   （不报错，只是学情不落盘）。其余三个名字两侧恰好相同，但一并角色化，
+    //   免得下一个模块再踩同一个坑。
+    roles: ['feynmanStart', 'feynmanEval', 'recommend', 'learningEvent'],
     input: ['技能名（由 route 选定或用户指定）', '知识点'],
     output: '按技能 steps 推进的对话；每次推进须能对应到某一步',
     forbidden: [
@@ -208,12 +296,24 @@ export const NODES = {
     title: '结构对比',
     role: '你负责对比两个对象的结构差异，并引导用户自己找出差异维度。',
     grants: ['read', 'query', 'hand'],
-    allowExtra: ['openCompareView'],
+    // ★ 原先此处写 allowExtra: ['openCompareView'] —— 那是**概念混淆**：
+    //   白名单管的是**工具**，而"打开对比视图"是**动作**（经 applySceneActions 下发，
+    //   见 module/actions.js 的 VOCAB）。把它当工具名登记，只会让 assert-nodes 报幽灵名
+    //   （因为没有任何 handler 叫这个名字）。compare 节点本就有 hand 授权，
+    //   动作经由 applySceneActions 走，无需额外放行。
     input: ['两个对象 id'],
-    output: '对比维度表 + 差异点列表 + 并排视图',
+    output: '对比维度表 + 差异点列表 + 并排视图。'
+      + '★ 维度表与差异点来自 compareCrystals({a,b})——它只查数据、**不需要三维视图**，'
+      + '所以"比较 A 和 B"在任何页面上都答得出来；并排画面另用 '
+      + 'navigateTo({target:"compare", crystalId, otherCrystalId})（**仅当当前已有视图时**'
+      + '才考虑经 applySceneActions 下发）。',
     forbidden: [
       '★ 两个 id 必须来自上游工具返回的原值，禁止编造或从自然语言推断',
       '对比结论必须基于结构化字段，不得主观评价',
+      '★ 当前没有三维视图时，**不要**用 applySceneActions 去"打开两个晶体"——'
+        + '它只会返回"没有可驱动的视图"，而学生什么也没得到（实测反馈：'
+        + '学生说"比较 NaCl 和 CsCl"，得到的就是这么一条报错）。'
+        + '先用 compareCrystals 把数据对比讲清楚；学生要看画面时再 navigateTo 跳到对比页。',
     ],
     fallback: '任一 id 缺失 → 先调用检索工具补全',
   },
@@ -233,9 +333,13 @@ export const NODES = {
  * @param {string} nodeName  节点名
  * @param {Object} [moduleTools] 当前模块贡献的**已实现**工具，形如
  *        { read: [...], query: [...], hand: [...], teach: [...] }
+ * @param {Object} [roles] 当前模块的**角色映射**，形如
+ *        { quizGen: 'generateQuiz', learningEvent: 'recordLearningEvent' }。
+ *        ★ 必须传**当前模块那一份**，不能传所有模块的并集——角色是每模块各自的绑定，
+ *          并集会让 A 模块的角色解析出 B 模块的工具名。
  * @returns {string[]} 该节点可调用的工具名列表
  */
-export function resolveTools(nodeName, moduleTools = {}) {
+export function resolveTools(nodeName, moduleTools = {}, roles = {}) {
   const node = NODES[nodeName];
   if (!node) throw new Error(`未知决策节点：${nodeName}`);
 
@@ -246,10 +350,17 @@ export function resolveTools(nodeName, moduleTools = {}) {
     for (const t of moduleTools[cls] || []) granted.add(t);
   }
 
-  // 2. 额外允许
+  // 2. 按**角色**取（节点说"我要一个出题工具"，模块说"我那叫 generateQuestion"）。
+  //    模块未声明该角色时**跳过**——那是"这个模块没有这个能力"，不是错误。
+  for (const r of node.roles || []) {
+    const t = roles[r];
+    if (t) granted.add(t);
+  }
+
+  // 3. 额外允许（现在只用于**中枢工具**，如 declareIntent）
   for (const t of node.allowExtra || []) granted.add(t);
 
-  // 3. 剔除
+  // 4. 剔除
   for (const t of node.deny || []) granted.delete(t);
 
   return [...granted].sort();

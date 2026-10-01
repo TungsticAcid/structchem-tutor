@@ -190,11 +190,51 @@ section('与 descriptor 对账：声明的工具必须真的实现')
 // ============================================================================
 {
   const { default: descriptor } = await import('../../../packages/agent-core/registry/descriptors/crystal.js')
-  const actual = new Set(T.names())
+
+  // ★ "已实现"必须按**跑起来的模块**算，不能只看 tools.js 那一份。
+  //   本模块的工具由三处提供：
+  //     tools.js（基础）· teach-tools.js（注入 quiz 才有）· compare-tools.js（注入 compute 才有）
+  //   此前这里只取 `T.names()`（= tools.js 那一份），于是 descriptor 一旦声明
+  //   teach/compare 类工具，它就误报"声明了却没实现"——**检查的视野比现实窄，
+  //   红的是一个正确的声明**。现在改为构造真实模块（与壳的装配方式一致），
+  //   与 selftest ⑤-3 用同一个"已实现"的定义，两处不会再各说各话。
+  const { createModule } = await import('../index.js')
+  const stub = new Proxy({}, { get: () => () => ({}) })
+  const built = createModule({
+    view: {
+      setProps() {}, getProps() { return {} }, setView() {}, resetView() {},
+      getViewState() { return {} }, isReady() { return true },
+    },
+    catalog: CATALOG,
+    loadData: (id) => DATA[id] || null,
+    quiz: stub, compute: stub, mastery: stub, skills: stub,
+    practiceGuard: () => new Set(),
+  })
+  const actual = new Set(Object.values(built.defs).flat().map((d) => d.function.name))
+
+  // ★ 同源断言只保证"名字对得上"，**不保证"调得动"**。
+  //   对称性模块的 listExamples 就因为引用了一个从未定义的常量，
+  //   每次调用都抛 ReferenceError 而长期无人发现。
+  //   这里用空参数把每个工具都调一遍：允许返回 {error:…}，只断言**不抛异常**。
+  //   ★ 用桩引擎注入时，弱桩（返回 {}）可能暴露"工具依赖引擎返回形状"的问题——
+  //     那正是要暴露的：真实的弱返回也不该让工具崩。
+  {
+    const threw = []
+    for (const [name, fn] of Object.entries(built.handlers)) {
+      try { await fn({}) } catch (e) { threw.push(`${name}: ${e.message}`) }
+    }
+    check(`★ ${Object.keys(built.handlers).length} 个工具用空参数调用都不抛异常`
+      + '（允许返回 error 字段，不允许崩）', threw.length === 0, threw.join(' | '))
+  }
+
   const declared = Object.values(descriptor.tools || {}).flat()
   const notImplemented = declared.filter((n) => !actual.has(n))
   check('crystal descriptor 的 tools 里没有"声明了却没实现"的名字',
     notImplemented.length === 0, '未实现：' + notImplemented.join(','))
+  // 反向：实现了却没声明 → 模型看不到它（功能存在却不可用）
+  const undeclared = [...actual].filter((n) => !declared.includes(n))
+  check('crystal 已实现的工具都已在 descriptor 里声明',
+    undeclared.length === 0, '漏声明：' + undeclared.join(','))
   const planned = Object.values(descriptor.plannedTools || {}).flat()
   check('descriptor 的 plannedTools 与 tools 不重叠',
     planned.every((n) => !declared.includes(n)),

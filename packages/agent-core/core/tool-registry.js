@@ -70,7 +70,10 @@ export function createToolRegistry(opts = {}) {
    */
   function setNode(nodeName, extraByClass) {
     currentNode = nodeName
-    const names = resolveTools(nodeName, contribute(extraByClass))
+    // ★ roles 是**当前模块**的角色映射（见 constraints.js 的 ROLE_SPEC）。
+    //   必须与 tools 同源：注册表是按当前模块重建的，角色也跟着换，
+    //   否则会出现"工具换了、角色还是上一个模块的"这种半新半旧状态。
+    const names = resolveTools(nodeName, contribute(extraByClass), opts.roles || {})
     allowed = new Set(names)
     // 白名单允许但本模块没实现的，主动报出来（见 missing 的说明）
     const miss = missing()

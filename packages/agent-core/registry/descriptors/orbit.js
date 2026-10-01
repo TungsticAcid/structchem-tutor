@@ -20,8 +20,26 @@ export default {
   id: 'orbit',
   title: '原子轨道',
   scale: 'full',
-  // 现状指向模块独立页；统一壳建成后改为壳内模块入口（B6）
-  entry: 'projects/orbit/H5/index.html',
+  /**
+   * 授课次序（1 = 最先讲）。
+   *
+   * ★ 为什么这个字段在这里、而不是宿主的展示层：
+   *   "哪一章先讲"是**学科事实**，不是视觉偏好；而且它要被多处共用——
+   *   首页的排列、接入的优先级、将来"模块清单"的展示都以它为准。
+   *   放进宿主配置的话，加一个模块就要在"学科"与"界面"两处各写一遍。
+   *
+   * ★ 当前取值的依据（待按实际授课校正）：结构化学教材的通行章节顺序是
+   *   量子力学基础 → **原子结构** → 双原子分子 → 分子对称性 →
+   *   多原子分子 → 配合物 → 晶体结构。
+   *   本仓库现有三个模块分别落在「原子结构 / 分子对称性 / 晶体结构」。
+   *   ⚠️ 三本结构化学教材都是扫描件（无文字层、无 PDF 书签），目录读不出来——
+   *   这是按学科常识定的**初始值**，改这一个数字即可校正，不需要动代码。
+   */
+  teachingOrder: 1,
+  // 已接入统一壳：路由 `#/orbit`（apps/web 的 router）。
+  // ★ 原值 `projects/orbit/H5/index.html` 指向的是**上游独立页**，不是本仓库的入口。
+  //   orbit 接入后，壳里通过路由进入；那个独立页将来退役（重构计划 P0/P7）。
+  entry: '#/orbit',
 
   capabilities: {
     orbitals: ['原子轨道', '波函数', '量子数', '径向分布', '角度分布', '节面', '节点',
@@ -37,24 +55,46 @@ export default {
   // 已实现：只列**模块专属**工具。
   // ★ getSnapshot / listSceneActions / applySceneActions 不在其中——它们语义与模块
   //   无关，已归中枢提供（CORE_TOOLS + packages/agent-core/app.js）。
-  //   orbit 的 tool-registry 里仍有这三个的实现，那是它作为独立应用时的历史遗留；
-  //   阶段 B4 去全局化时不再迁移它们，只把 queryOrbital 等专属工具接过来。
   tools: {
     read: [],
     query: ['queryOrbital'],
     hand: [],
+    /**
+     * teach 类由**注入的引擎**提供实现（见 modules/orbit/tools.js 的 `if (quiz)` 等）。
+     * ★ 它们在壳里是**真的挂着**的：宿主向 createOrbitModule 注入了出题引擎
+     *   （core/question-engine.js）、错因诊断（core/error-diagnosis.js）、
+     *   学情（store/mastery.js）与技能目录。缺任一项时对应那几个会**如实为空**，
+     *   而下面的声明必须与"注入了什么"一致——自检 ⑤-3 会从**模块实现**反向核对。
+     */
     teach: ['explainConcept', 'generateQuestion', 'diagnoseError', 'generateVariant',
             'startFeynmanCheck', 'evaluateFeynman', 'updateMastery', 'recommendNext'],
+  },
+
+  /**
+   * 设计上需要、但**尚未实现**的工具（不参与节点白名单解析）。
+   * 目前为空——orbit 的模块专属工具已全部落地到 modules/orbit/tools.js。
+   */
+  plannedTools: {
+    teach: [],
   },
 
   proactiveRules: [
     {
       id: 'orbit-m-fiddling',
       desc: '反复调 m 却没切过实/复模式 → 主动解释两者差别',
+      /**
+       * ★ 字段名要对着**感知层的实参**写（这是本仓库反复踩的一类静默失效）：
+       *   `check(trace, state)` 里的 trace 是 `perception.getTrace()`，它的
+       *   `toggleCounts` 以 **fieldLabels 的值**为键（见 modules/orbit/facade.js
+       *   的 perception.fieldLabels），**不是动作名**。
+       *   所以这里必须写 `'切换磁量子数'`，写 `setM` 会恒为 undefined——
+       *   规则永不触发、不报错、功能整个是死的（晶体那两条就是这么坏掉的）。
+       *   `state` 是**门面的快照**，字段名见 getSnapshot（wavefunction ✓）。
+       */
       check: (trace, state) =>
-        (trace.toggleCounts?.setM || 0) >= 6 &&
-        (trace.toggleCounts?.setWavefunctionMode || 0) === 0 &&
-        state.wavefunction === 'real',
+        ((trace && trace.toggleCounts && trace.toggleCounts['切换磁量子数']) || 0) >= 6
+        && ((trace && trace.toggleCounts && trace.toggleCounts['实轨道/复轨道']) || 0) === 0
+        && state && state.wavefunction === 'real',
       suggest: [],
     },
   ],

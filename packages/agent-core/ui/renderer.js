@@ -19,7 +19,12 @@
  * @param {Object} [opts.katexOptions] 传给 KaTeX 的选项
  */
 export function createRenderer(opts = {}) {
-  const katex = opts.katex || (typeof globalThis !== 'undefined' ? globalThis.katex : null)
+  /**
+   * 显式注入的 KaTeX（测试桩 / 多端复用）。**注入后恒定**——这样测试拿到的行为
+   * 是可预期的，不会因为全局里恰好有没有 katex 而变。
+   * 未注入时**不在这里捕获** `globalThis.katex`，改到每次渲染时现取（见 katexHtml）。
+   */
+  const injectedKatex = opts.katex || null
   const KATEX_OPTS = Object.assign(
     { throwOnError: false, trust: true, output: 'html' },
     opts.katexOptions || {},
@@ -54,6 +59,15 @@ export function createRenderer(opts = {}) {
 
   /** 单个公式 → KaTeX HTML；KaTeX 缺席或报错时退化为等宽源码 */
   function katexHtml(tex, display) {
+    // ★ 每次渲染时**现取** globalThis.katex，而不是在 createRenderer 时捕获一次。
+    //
+    //   理由：KaTeX（277 KB）是**懒加载**的（见 ui/katex-loader.js），而面板在页面
+    //   启动时就构造了渲染器——那一瞬间 `window.katex` 必然还不存在。
+    //   若在构造时捕获，闭包里的 katex 就永远是 null，于是**所有公式永久退化成
+    //   `<code>` 源码**；而且**完全不报错**，因为"没有 katex"本就是渲染器的一条
+    //   正常降级路径。这类"降级路径掩盖了集成缺陷"的情形在本仓库已记过多次。
+    //   现取之后：懒加载完成的那一刻起，后续消息里的公式就正常渲染了。
+    const katex = injectedKatex || (typeof globalThis !== 'undefined' ? globalThis.katex : null)
     if (!katex) return '<code>' + escapeHtml(tex) + '</code>'
     try {
       return katex.renderToString(tex, Object.assign({ displayMode: display }, KATEX_OPTS))

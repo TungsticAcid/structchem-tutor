@@ -36,7 +36,12 @@ const registry = new Map();
  *        这是合并成 N 模块后，中枢唯一需要读的字段。
  *
  * ---- 以下均为可选，按规模取舍 ----
- * @param {string} [mod.entry]     模块前端入口（URL 或相对路径）
+ * @param {string} [mod.entry]     模块入口。★ **当前没有任何代码读它**（2026-10-01 核实：
+ *        注册层不规范化、壳不消费），它只是元数据——写下来是为了让人知道"这个模块从哪儿进"。
+ *        三个模块现在都填**统一壳里的路由**（`#/crystal` / `#/orbit` / `#/symmetry`）。
+ *        此前晶体与对称性填的是 `projects/<id>/H5/index.html`（旧的独立页）——
+ *        那个值会让人以为入口还在旧页面上，已在同一天改掉。
+ *        若将来要做"每个模块可独立成应用"（用户要求之一），这里就是记录其入口的地方。
  * @param {string} [mod.knowledge] 知识条目目录（相对 packages/knowledge/）
  * @param {string} [mod.skills]    技能目录（相对 packages/skills/）
  * @param {Object} [mod.tools]     本模块贡献的工具，按类别分组

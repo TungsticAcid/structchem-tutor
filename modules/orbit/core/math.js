@@ -1,0 +1,1356 @@
+/**
+ * math.js（orbit 模块 · 纯计算层）
+ *
+ * 原子轨道物理/数学引擎（波函数、径向与角度节点、等值面、叠加态）
+ *
+ * ★ 来自上游 `orbit/H5/`，转 ESM 时**只改了全局挂载那一行与结尾的导出**，
+ *   内部逻辑逐字未动——P1 的纪律是"只加 export/import，不动逻辑"，
+ *   这样将来与上游对拍时 diff 是可读的。
+ * ★ 本文件**不引用 DOM**，可在 Node 里直接测试。
+ */
+/**
+ * math.js — 原子轨道物理/数学引擎（纯 JS，无外部依赖）
+ *
+ * 统一约定：
+ *   - 玻尔半径 a0 = 1（所有长度以 a0 为单位）。
+ *   - 球坐标 (r, θ, φ)：θ 为与 z 轴的夹角（极角，0..π），φ 为方位角（0..2π）。
+ *   - 所有波函数均为归一化形式：∫|ψ|² dV = 1。
+ *   - ★ **核电荷数恒为 Z = 1，即氢原子**。径向函数里没有 Z 因子（见 radialR），
+ *     全程序也没有核电荷数入口。角度部分与 Z 无关，对类氢离子同样适用；
+ *     所以"这是氢原子还是类氢离子"的准确回答是：**展示的是氢原子（Z=1）**。
+ *
+ * 说明：这里之所以不用 NumPy/Pyodide（~15MB，首屏慢、移动端不友好），是因为
+ * 氢原子波函数所需的数学（广义拉盖尔、关联勒让德、球谐函数）用少量递推公式
+ * 即可在 JS 中精确实现，n≤6 时阶乘不越界、float64 精度足够。
+ */
+const OM = (function () {
+  'use strict';
+
+  // ---------------------------------------------------------------------------
+  // 复数运算
+  // ---------------------------------------------------------------------------
+  class Complex {
+    constructor(re, im) {
+      this.re = re;
+      this.im = im;
+    }
+    add(o) { return new Complex(this.re + o.re, this.im + o.im); }
+    sub(o) { return new Complex(this.re - o.re, this.im - o.im); }
+    mul(o) {
+      return new Complex(
+        this.re * o.re - this.im * o.im,
+        this.re * o.im + this.im * o.re
+      );
+    }
+    timesReal(s) { return new Complex(this.re * s, this.im * s); }
+    /** 模长 |z| = sqrt(re² + im²) */
+    abs() { return Math.hypot(this.re, this.im); }
+    /** 模平方 |z|² */
+    abs2() { return this.re * this.re + this.im * this.im; }
+    /** 辐角 arg(z) ∈ (-π, π] */
+    arg() { return Math.atan2(this.im, this.re); }
+    /** 共轭 */
+    conj() { return new Complex(this.re, -this.im); }
+  }
+  /** e^{iφ} = cosφ + i sinφ */
+  Complex.expI = function (phi) { return new Complex(Math.cos(phi), Math.sin(phi)); };
+
+  // ---------------------------------------------------------------------------
+  // 阶乘 / 双阶乘（小范围，精确整数）
+  // ---------------------------------------------------------------------------
+  const factCache = [1];
+  function factorial(n) {
+    if (n < 0) return 1;
+    while (factCache.length <= n) {
+      const k = factCache.length;
+      factCache.push(factCache[k - 1] * k);
+    }
+    return factCache[n];
+  }
+  /** (2m-1)!! = 1·3·5···(2m-1)，要求 m ≥ 0 */
+  function doubleFactorial(m) {
+    let r = 1;
+    for (let i = 1; i <= m; i++) r *= (2 * i - 1);
+    return r;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 广义拉盖尔多项式 L_k^α(x)（递推，k = 次数 = n-l-1，α = 2l+1）
+  // ---------------------------------------------------------------------------
+  function laguerre(k, alpha, x) {
+    if (k === 0) return 1;
+    let Lk2 = 1;                          // L_{0}
+    let Lk1 = 1 + alpha - x;              // L_{1}
+    if (k === 1) return Lk1;
+    for (let i = 2; i <= k; i++) {
+      // (i)L_i = (2i-1+α-x)L_{i-1} - (i-1+α)L_{i-2}
+      const L = ((2 * i - 1 + alpha - x) * Lk1 - (i - 1 + alpha) * Lk2) / i;
+      Lk2 = Lk1;
+      Lk1 = L;
+    }
+    return Lk1;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 关联勒让德函数 P_l^m(x)，0 ≤ m ≤ l，x = cosθ
+  // 递推式已含 Condon–Shortley 相因子 (-1)^m（见 P_m^m 的定义）。
+  // ---------------------------------------------------------------------------
+  function assocLegendre(l, m, x) {
+    m = Math.abs(m);
+    if (m > l) return 0;
+    const s = Math.sqrt(Math.max(0, (1 - x) * (1 + x)));   // sinθ, 数值更稳
+    // P_m^m = (-1)^m (2m-1)!! (1-x²)^{m/2}
+    let Pm = (m % 2 === 0 ? 1 : -1) * doubleFactorial(m) * Math.pow(s, m);
+    if (l === m) return Pm;
+    // P_{m+1}^m = (2m+1) x P_m^m
+    let Pm1 = (2 * m + 1) * x * Pm;
+    if (l === m + 1) return Pm1;
+    let Pk2 = Pm, Pk1 = Pm1;
+    for (let k = m + 2; k <= l; k++) {
+      // (k-m)P_k^m = (2k-1) x P_{k-1}^m - (k-1+m)P_{k-2}^m
+      const Pk = ((2 * k - 1) * x * Pk1 - (k - 1 + m) * Pk2) / (k - m);
+      Pk2 = Pk1;
+      Pk1 = Pk;
+    }
+    return Pk1;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 径向波函数 R_{n,l}(r; Z)（a0 = 1）
+  //
+  // 类氢离子（核电荷数 Z）与氢的关系是一条**纯标度关系**：
+  //     R_{n,l}(r; Z) = Z^{3/2} · R_{n,l}(Z·r; Z = 1)
+  // 也就是"把 r 换成 Zr、再在归一化常数上补 Z^{3/2}"；角度部分与 Z **完全无关**。
+  // Z = 1 时退化为氢原子 —— 所以引入 Z 没有重推任何公式，只是把标度写出来。
+  //
+  // ★ 为什么写成 `2*z*r` 而不是先算 `2*r` 再乘 z：Z = 1 时前者与旧实现**逐位相同**
+  //   （乘 1 与除以 2 在 IEEE754 下都是精确运算），这是本批的硬红线 ——
+  //   引入 Z 不允许让任何既有数值发生变化。同理 e^{-ρ/2} 与旧的 e^{-r/(na₀)} 等价。
+  // ---------------------------------------------------------------------------
+  // 轨道模型：**氢型 / Slater 型（STO）**
+  // ---------------------------------------------------------------------------
+  /**
+   * ★ 为什么要有这个开关（2026-10-01）：
+   *
+   *   真实的类氢 2s 在 r ≈ 2a₀ 处有一个**径向节点**，而 2p 没有。于是
+   *   ψ(sp³) = ½R₂₀Y₀₀ + ½R₂₁(…) 在外层干涉反向——**画出来的形状与教材那个干净的
+   *   定向瓣不一样**（实测：r ≳ 2.5 后反方向的 |ψ| 反而更大）。这不是 bug，
+   *   是真实的类氢波函数；**教材上的 sp³ 瓣是角度部分的简化画法**。
+   *
+   *   而 **Slater 型轨道没有径向节点**：径向形式是 `r^(n−1)·e^(−ζr)`，
+   *   同一个 n 下 s 与 p **共用同一个径向因子**。于是径向部分被整体提出去，
+   *   剩下的是**纯角度形状**——教材那个瓣自然就出来了（实测：STO 下
+   *   ψ(+d)/ψ(−d) 在任何 r 上都恰好是 −2，即与 r 无关）。
+   *
+   *   两者都是**真实的物理模型**，不是"真 vs 卡通"：
+   *     · 氢型 —— 精确解，与知识条目里"2s 有径向节点"一致（**默认**）
+   *     · STO  —— 计算化学最小基组用的形式，也是教材插图的来源
+   *   切换本身就是很好的一课：**为什么会不一样**。
+   */
+  let radialModel = 'hydrogenic';
+  /** ζ 的手工覆盖（Slater 规则给出的值，如碳的 2s/2p ≈ 1.625）；null 表示用 Z/n */
+  let radialZetaOverride = null;
+
+  /**
+   * 切换轨道模型。
+   * @param {'hydrogenic'|'slater'} model
+   * @param {number} [zeta] STO 的 ζ；省略则用 Z/n（纯氢型标度）。
+   *        ★ 本应用没有电子组态数据，故**不自动算 Slater 规则的 σ**——
+   *          想用那个值就直接填进来（碳的 2s/2p 标准值是 1.625）。
+   */
+  function setRadialModel(model, zeta) {
+    radialModel = (model === 'slater') ? 'slater' : 'hydrogenic';
+    radialZetaOverride = (typeof zeta === 'number' && zeta > 0) ? zeta : null;
+    return getRadialModel();
+  }
+  function getRadialModel() {
+    return { model: radialModel, zeta: radialZetaOverride };
+  }
+  /** 当前生效的 ζ：手工覆盖优先，否则 Z/n */
+  function slaterZeta(n, Z) {
+    if (radialZetaOverride) return radialZetaOverride;
+    const z = (Z > 0) ? Z : 1;
+    return z / n;
+  }
+  /**
+   * Slater 型径向函数：R(r) = N · r^(n−1) · e^(−ζr)，N = (2ζ)^(n+½)/√((2n)!)。
+   * 归一化按 ∫₀^∞ R² r² dr = 1（因 ∫r^(2n)·e^(−2ζr)dr = (2n)!/(2ζ)^(2n+1)）。
+   * ★ 与 l **无关**——这正是它没有径向节点的原因，也是它给出干净方向瓣的原因。
+   */
+  function slaterR(n, l, r, Z) {
+    const zeta = slaterZeta(n, Z);
+    const N = Math.pow(2 * zeta, n + 0.5) / Math.sqrt(factorial(2 * n));
+    return N * Math.pow(r, n - 1) * Math.exp(-zeta * r);
+  }
+
+  // ---------------------------------------------------------------------------
+  function radialR(n, l, r, Z) {
+    // ★ STO 分支：整个应用（ψ / 密度 / 图表 / 节点 / 峰值）都经本函数取径向，
+    //   所以只改这一处就完成**全局一致**的切换——不存在"三维换了、2D 图没换"。
+    if (radialModel === 'slater') return slaterR(n, l, r, Z);
+    const z = (Z > 0) ? Z : 1;                          // 兜底：不传或传非法值都按 Z=1
+    const a0 = 1;
+    const rho = (2 * z * r) / (n * a0);                 // 无量纲量 2Zr/(n·a0)
+    const norm = Math.sqrt(
+      Math.pow((2 * z) / (n * a0), 3) *
+      factorial(n - l - 1) / (2 * n * factorial(n + l))
+    );
+    return norm * Math.pow(rho, l) * Math.exp(-rho / 2) * laguerre(n - l - 1, 2 * l + 1, rho);
+  }
+  /** R_nl(r;Z)² */
+  function radialR2(n, l, r, Z) { const R = radialR(n, l, r, Z); return R * R; }
+  /**
+   * 径向分布函数 D(r) = r²|R(r)|²（径向概率密度）。
+   * ★ 这里用的是**物理半径 r**，不是 Zr —— D(r)dr 是"落在 [r, r+dr] 薄球壳内"的概率，
+   *   换 Z 只是把整个分布往内压（∝1/Z），不是把自变量也换掉。
+   */
+  function radialDistribution(n, l, r, Z) { return r * r * radialR2(n, l, r, Z); }
+
+  // ---------------------------------------------------------------------------
+  // 角度部分的进一步分离：Y_l^m(θ,φ) = Θ_{l,m}(θ) · Φ_m(φ)
+  //
+  // ★ 为什么把它拆出来：教材讲分离变量到 ψ = R(r)·Y(θ,φ) 就停了，但 Y 还能再分，
+  //   ψ = R(r)·Θ(θ)·Φ(φ)。本程序原先只到 Y 这一层，学生看不到"角度部分其实是两个
+  //   单变量函数的乘积"。界面上 Θ 与 Φ 各占一幅极坐标图，就是为了把这一层露出来。
+  //
+  // ★ 拆分**不是重新推导**，而是把 yNorm 拆成两个常数的乘积 —— 所以下面直接把
+  //   yNorm 定义成 thetaNorm × PHI_NORM。这样"Y = Θ·Φ"在**结构上**恒成立；若两边
+  //   各写一份常数，那是"碰巧相等"，日后改归一化就会悄悄失配。
+  //   （已对拍：复球谐 max|Y − Θ·Φ| = 0，实球谐 2.2e-16，见 README 的验证一节。）
+  // ---------------------------------------------------------------------------
+  /** Φ_m(φ) 的归一化常数 1/√(2π)，使 ∫₀^{2π}|Φ|²dφ = 1 */
+  const PHI_NORM = 1 / Math.sqrt(2 * Math.PI);
+
+  /** Θ_{l,m}(θ) 的归一化常数 √((2l+1)/2 · (l−|m|)!/(l+|m|)!)，使 ∫₀^π|Θ|²sinθdθ = 1 */
+  function thetaNorm(l, m) {
+    const am = Math.abs(m);
+    return Math.sqrt(((2 * l + 1) / 2) * (factorial(l - am) / factorial(l + am)));
+  }
+
+  /** Φ_m(φ) 的归一化常数（无 l、m 依赖，单独给出以便公式卡片直接引用） */
+  function phiNorm() { return PHI_NORM; }
+
+  /**
+   * ★★★ Condon–Shortley 相因子在两档下**不能共用**，这是本文件最容易踩的一处约定。
+   *
+   *   复球谐：Y_l^m = N_l^m · P_l^{|m|}(cosθ) · e^{imφ}，那个 P **必须**带 (-1)^{|m|}。
+   *     教材表 4.2.2 的 Θ_{1±1} = ∓(√3/2)sinθ 里那个 ∓ 就是它；表 4.2.3 复数列的
+   *     Y_11 = −√(3/8π) e^{iφ} sinθ 里的负号也是它。→ **保留**。
+   *
+   *   实球谐：由 ±m 两个复解线性组合而来（教材：|2p_x⟩ = (1/√2)(−|211⟩+|21−1⟩)）。
+   *     组合系数里那个 (−1)^m 恰好把相因子**约掉**，所以表 4.2.3 实数列写的是
+   *     Y_{p_x} = +√(3/4π) sinθcosφ —— **没有负号**。→ **不能保留**。
+   *
+   *   项目原先两档共用同一个 thetaFunc，实档便整体多出一个 (-1)^{|m|}。这个符号只在
+   *   |m| 为**奇数**时显形，而它恰好是"整体符号为约定、不影响 |ψ|²"那句话的盲区：
+   *   对**复**解整体相位确实无所谓，但实解是有名字的函数（p_x 就该在 +x 为正、
+   *   那个瓣才是红的），符号一错，名字与图形当场对不上。
+   */
+  function csPhase(m) { return (Math.abs(m) % 2 === 0) ? 1 : -1; }
+
+  /**
+   * 极角函数 Θ_{l,m}(θ) —— ψ = R(r)·Θ(θ)·Φ(φ) 中间那一段，**实数**。
+   * 即关联勒让德 P_l^{|m|}(cosθ) 乘上自己的归一化常数。
+   * ★ 带 Condon–Shortley 相因子 —— 对应**复数解**，与教材表 4.2.2 逐项一致。
+   *   实数解请用 thetaFuncReal。
+   */
+  function thetaFunc(l, m, theta) {
+    return thetaNorm(l, m) * assocLegendre(l, Math.abs(m), Math.cos(theta));
+  }
+
+  /**
+   * 实数解的极角函数 Θ_{l,m}(θ)：即去掉 Condon–Shortley 相因子的那一个。
+   * ★ 存在的理由是**恒等式**：Y_{l,m}(实数解) ≡ thetaFuncReal · phiFuncReal，
+   *   逐点成立。若实档继续用带相因子的 thetaFunc，这条恒等式就会差一个 (-1)^{|m|}，
+   *   Θ/Φ 卡片底部那行"max|Θ|×max|Φ| = max|Y|"的数字会对不上 —— 而那张卡的全部
+   *   卖点就是"相乘"这件事可以被逐位核对。
+   */
+  function thetaFuncReal(l, m, theta) {
+    return csPhase(m) * thetaFunc(l, m, theta);
+  }
+
+  /**
+   * 方位角函数 Φ_m(φ) 的**复数**形式：(1/√(2π))·e^{imφ}。
+   * 模恒为 1/√(2π)、与 φ 无关 —— 复解画出来就是一个圆，"复数解的图像是一个圆圈"说的就是这件事。
+   */
+  function phiFuncComplex(m, phi) {
+    return Complex.expI(m * phi).timesReal(PHI_NORM);
+  }
+
+  /**
+   * 方位角函数 Φ_m(φ) 的**实数**形式（由 ±m 两个复解线性组合并归一化而来）。
+   *   m = 0 → 1/√(2π)（常数，与 φ 无关）
+   *   m > 0 → √(2/π)·cos(mφ)
+   *   m < 0 → √(2/π)·sin(|m|φ)
+   * ★ 那个 √2 与 angularReal 里的 √2 同源（实解要重新归一化，因为
+   *   ∫cos²(mφ)dφ = π 而非 2π），**不能漏**，漏了就不是 Y 的因子了。
+   */
+  function phiFuncReal(m, phi) {
+    const am = Math.abs(m);
+    if (am === 0) return PHI_NORM;
+    const c = Math.SQRT2 * PHI_NORM;                 // = √2/√(2π) = 1/√π
+    return m > 0 ? c * Math.cos(am * phi) : c * Math.sin(am * phi);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 角度部分：复球谐 Y_l^m 与 实球谐 Y_{l,m}
+  // ---------------------------------------------------------------------------
+  /** 球谐归一化系数 N_l^m（不含相因子）= Θ 的常数 × Φ 的常数（见上面那段说明） */
+  function yNorm(l, m) {
+    return thetaNorm(l, m) * PHI_NORM;
+  }
+
+  /**
+   * 复球谐函数 Y_l^m(θ, φ)（复数）。
+   * 约定：基于含 Condon–Shortley 相因子的 P_l^{|m|}；|Y|² 与 φ 无关（这是复轨道
+   * "绕 z 轴对称环/锥面"的来源）。整体相因子为约定，不影响密度 |
+   * .
+   * 密度 |ψ|²。
+   */
+  function angularComplex(l, m, theta, phi) {
+    const am = Math.abs(m);
+    const P = assocLegendre(l, am, Math.cos(theta));
+    const base = yNorm(l, m) * P;                       // 实数幅值
+    const e = Complex.expI(m * phi);                    // e^{imφ}
+    return (new Complex(base, 0)).mul(e);
+  }
+
+  /**
+   * 实球谐函数 Y_{l,m}(θ, φ)（实数）。
+   * m=0 → P_l^0 型（沿 z）；m>0 → cos(mφ) 型（如 p_x）；m<0 → sin(|m|φ) 型（如 p_y）。
+   *
+   * ★ 不带 Condon–Shortley 相因子（csPhase）—— 见上面那段说明：实解是 ±m 两个复解
+   *   线性组合的产物，组合系数里的 (−1)^m 把它约掉了。去掉之后：
+   *     · Y_{p_x} 在 +x 方向为**正**，与这个名字（及教材表 4.2.3）一致；
+   *     · Y = thetaFuncReal · phiFuncReal 逐点成立（Θ/Φ 卡片靠这条）。
+   *   对**复**解则相反，相因子必须保留 —— 那是教材表 4.2.2/4.2.3 的写法。
+   */
+  function angularReal(l, m, theta, phi) {
+    const am = Math.abs(m);
+    const P = assocLegendre(l, am, Math.cos(theta)) * csPhase(m);
+    const N = yNorm(l, m);
+    if (am === 0) return N * P;
+    if (m > 0) return Math.SQRT2 * N * P * Math.cos(am * phi);
+    return Math.SQRT2 * N * P * Math.sin(am * phi);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 波函数与概率密度
+  // ---------------------------------------------------------------------------
+  /**
+   * 复波函数 ψ_nlm(r,θ,φ)。mode: 'complex' | 'real'。Z = 核电荷数（默认 1）。
+   * 返回 Complex（real 模式下虚部恒为 0）。
+   */
+  function psiComplex(n, l, m, r, theta, phi, mode, Z) {
+    const R = radialR(n, l, r, Z);
+    if (mode === 'real') {
+      return new Complex(R * angularReal(l, m, theta, phi), 0);
+    }
+    return (new Complex(R, 0)).mul(angularComplex(l, m, theta, phi));
+  }
+  /** 概率密度 |ψ|²（实数，密度云/等值面/截面均基于此） */
+  function psiDensity(n, l, m, r, theta, phi, mode, Z) {
+    const R = radialR(n, l, r, Z);
+    const ang = (mode === 'real')
+      ? Math.abs(angularReal(l, m, theta, phi))
+      : angularComplex(l, m, theta, phi).abs();
+    return R * R * ang * ang;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 采样用元数据：径向范围、峰值、角度峰值（带缓存，键 = 量子数+模式）
+  // ---------------------------------------------------------------------------
+  const metaCache = new Map();
+
+  /**
+   * 计算径向采样的 rMax 与 D(r) 峰值。
+   * 经典尺度 ~n²·a0，取扫描上限 2n²+8 足够覆盖尾端。
+   */
+  /**
+   * 径向采样的 rMax 与 D(r) 峰值（类氢，核电荷数 Z）。带缓存（**键含 Z**）。
+   *
+   * ★ 关于"尾部"的实情（现有注释曾声称取到 D 降到峰值 1e-4 处，其实到不了）：
+   *   对 n ≥ 2，扫描范围 2n²+8 **不够长**，D(r) 在范围内并没有降到 1e-4·峰值，
+   *   于是 tail 一直取到扫描上限 —— rExtent 实际退化成"常数 2n²+8.6"（同 n 的
+   *   各 l 完全相同）。实测 3p 的真实 1e-4 尾部在 38.3，而 rExtent 给的是 26.6。
+   *   **这不影响观感**：按峰值归一化后，1e-3 量级的尾部与零在图上无从分辨
+   *   （见径向分布图，曲线在右缘已贴合横轴）。所以这里保持原行为不动 ——
+   *   真要改成扫到真尾部，反而会把有效区间压到左半侧。
+   *   写清楚是为了让"rExtent 为什么与 l 无关"这件事有个解释，免得后人当成 bug 去改。
+   *
+   * ★ 实现选择：**直接按 Z 重扫**，而不是"算出 Z=1 的结果再按标度换算"。
+   *   标度换算是可行的（D(r;Z) = Z·D(Zr;1)），但那样每一处都要把代数推对；
+   *   而 isoNeckHalf 那类量的标度是 Z^{−5/2} 这种，推错一次就是静默的错误结果。
+   *   直接重扫只有一个要求：把 z 传进 radialR —— 而 radialR 的 Z=1 路径已验过逐位不变。
+   */
+  function samplingRadius(n, l, Z) {
+    const z = (Z > 0) ? Z : 1;
+    const key = 'r' + n + '-' + l + '-z' + z;
+    if (metaCache.has(key)) return metaCache.get(key);
+    // ★ 扫描范围必须一起按 1/Z 缩，否则标度关系不成立 —— 这不是可有可无的细节：
+    //   2n²+8 对 n≥2 的**所有 l 都不够长**（D(r) 在范围内没降到 1e-4·峰值），于是
+    //   tail 一直取到扫描上限、rMax 退化成"常数 2n²+8.6"（既有缺陷，Z=1 时实测
+    //   2s/2p/2d 的 rExtent 完全相同）。Z 大时真尾部落进范围内、不再饱和，
+    //   于是"一个饱和一个不饱和"，实测 rExtent 的标度偏差高达 53%。
+    //   范围跟着缩之后，两个 Z 在**同一相对位置**饱和，rMax_Z = rMax₁/Z 精确成立；
+    //   而 Z=1 时 (2n²+8)/1 === 2n²+8，逐位不变。
+    const scanMax = (2 * n * n + 8) / z;           // 经典尺度 ~n²·a0，取富余上限
+    const steps = 800;
+    // 第一次扫描：求 D(r) 峰值（稳定基准）
+    let stableMax = 0;
+    for (let i = 0; i <= steps; i++) {
+      const r = (scanMax * i) / steps;
+      const d = radialDistribution(n, l, r, z);
+      if (d > stableMax) stableMax = d;
+    }
+    // 第二次扫描：从峰值基准确定有效尾部范围
+    let tail = 0;
+    for (let i = 0; i <= steps; i++) {
+      const r = (scanMax * i) / steps;
+      const d = radialDistribution(n, l, r, z);
+      if (d > 1e-4 * stableMax) tail = r;
+    }
+    // ★ 尾部那个 +0.6 是**长度**余量，必须一起缩为 0.6/Z —— 否则 rExtent 就不严格满足
+    //   "长度量缩为 1/Z" 了（实测 Z=2/3 时偏差可达 54%，那会让图表横轴与截面视窗偏大）。
+    //   Z=1 时 0.6/1 === 0.6，逐位不变。
+    const result = { rMax: tail + 0.6 / z, maxD: stableMax };
+    metaCache.set(key, result);
+    return result;
+  }
+
+  /** 角度部分 |Y|² 的最大值（对 θ 与,实模式下 φ 求 max），用于拒绝采样 */
+  function samplingAngleMax(l, m, mode) {
+    const key = 'a' + l + '-' + m + '-' + mode;
+    if (metaCache.has(key)) return metaCache.get(key);
+    const pts = 720;
+    let mx = 0;
+    if (mode === 'complex') {
+      for (let i = 0; i <= pts; i++) {
+        const t = (Math.PI * i) / pts;
+        const v = angularComplex(l, m, t, 0).abs2();
+        if (v > mx) mx = v;
+      }
+    } else {
+      for (let i = 0; i <= pts; i++) {
+        const t = (Math.PI * i) / pts;
+        for (let j = 0; j <= pts; j++) {
+          const p = (2 * Math.PI * j) / pts;
+          const w = angularReal(l, m, t, p);
+          const v = w * w;
+          if (v > mx) mx = v;
+        }
+      }
+    }
+    metaCache.set(key, mx);
+    return mx;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 颜色工具（轨道基础色、相位着色）
+  // ---------------------------------------------------------------------------
+  /** 各角量子数 l 对应轨道类型（s/p/d/f/g/h） */
+  const SUBSHELL = ['s', 'p', 'd', 'f', 'g', 'h'];
+  /** 基础色（HSL，0..360 色相 / 0..1 饱和度与亮度） */
+  const SUBSHELL_COLOR = [
+    { h: 210, s: 0.75, l: 0.60 },   // s 蓝
+    { h: 140, s: 0.70, l: 0.60 },   // p 绿
+    { h: 28,  s: 0.85, l: 0.62 },   // d 橙
+    { h: 285, s: 0.65, l: 0.62 },   // f 紫
+    { h: 340, s: 0.65, l: 0.64 },   // g 玫红
+    { h: 180, s: 0.60, l: 0.60 },   // h 青
+  ];
+  /** HSL→RGB，返回 [0..1] 三元组 */
+  function hslToRgb(h, s, l) {
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const hp = h / 60;
+    const x = c * (1 - Math.abs((hp % 2) - 1));
+    let r = 0, g = 0, b = 0;
+    if (hp < 1) { r = c; g = x; }
+    else if (hp < 2) { r = x; g = c; }
+    else if (hp < 3) { g = c; b = x; }
+    else if (hp < 4) { g = x; b = c; }
+    else if (hp < 5) { r = x; b = c; }
+    else { r = c; b = x; }
+    const m = l - c / 2;
+    return [r + m, g + m, b + m];
+  }
+  /** 轨道基础色（返回 THREE 风格 [r,g,b] 0..1） */
+  function lColor(l) {
+    const c = SUBSHELL_COLOR[Math.min(l, SUBSHELL_COLOR.length - 1)];
+    return hslToRgb(c.h, c.s, c.l);
+  }
+  /** 相位着色：色相由相位决定，亮度由强度（0..1）决定 */
+  function phaseColor(phase, intensity) {
+    const hue = ((phase / (2 * Math.PI)) % 1 + 1) % 1 * 360;
+    return hslToRgb(hue, 0.85, 0.15 + 0.65 * intensity);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 色彩空间：sRGB → 线性（three r152+ 的 vertexColors 要的就是线性量）
+  // ---------------------------------------------------------------------------
+  /**
+   * sRGB(0..1) → 线性 sRGB。传递函数与 three 内部**逐位一致**
+   * （见 three/src/math/ColorManagement.js 的 SRGBToLinear 分支），
+   * 并由 test-orbit-core 的对拍断言钉住。
+   *
+   * ★ 不 import three：本文件是**零依赖、可在 Node 里直接测**的纯计算层，
+   *   为了三个常量把它变成"依赖渲染库"不划算；而常量一致性有测试保证。
+   */
+  function srgbToLinear(c) {
+    return c <= 0.04045 ? c * 0.0773993808 : Math.pow(c * 0.9478672986 + 0.0521327014, 2.4);
+  }
+
+  /**
+   * 把一组 sRGB 顶点色转成 three 要的线性量，**返回新数组**（不改入参）。
+   *
+   * ★ 为什么必须有这一步：three r152+ 起 ColorManagement 默认开启，`color` 顶点属性
+   *   被当作**线性工作空间**值，输出时再做 linear→sRGB 编码。而本模块的
+   *   `phaseColor` / `lColor` / `hslToRgb` 产出的是 **sRGB**——2D 图那一侧
+   *   （canvas 2D）要的正是 sRGB，所以 `phaseColor` **一个字都不能改**。
+   *   直接把它写进顶点属性会被**再编码一次**：0.5 输出成 0.735，颜色整体洗白。
+   *   实测一个 s 轨道色 (0.30, 0.60, 0.90) 会显示成 ≈(0.58, 0.80, 0.95) ——
+   *   饱和度从 0.67 掉到 0.39，这就是"灰蒙蒙"的来源。
+   *
+   * ★ 这是**移植回归**，不是设计取舍：上游跑在 three r144 上，那时 ColorManagement
+   *   默认关闭、顶点色不做任何转换，所以上游不转换是**对的**。移植到 r170 后
+   *   同一份数值的含义变了。修它不是"挑个更好看的颜色"，是**恢复上游外观**。
+   *
+   * ★ 为什么返回新数组而不是就地改：页面会缓存 cloud 对象并在显隐切换时重复上传。
+   *   就地改会让第二次上传**再转一遍**（把线性值当 sRGB 再转），颜色一轮比一轮暗，
+   *   而**不报错**。
+   */
+  function srgbToLinearArray(arr) {
+    const out = new arr.constructor(arr.length);
+    for (let i = 0; i < arr.length; i++) out[i] = srgbToLinear(arr[i]);
+    return out;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 相位色的**判据**：只有这两个函数，别处不要再写第三遍
+  //
+  // ★ 为什么必须收敛成两处：三维等值面、截面热力图、球谐曲面原先各自就地写了
+  //   一遍判据，结果**分了叉** —— 三维与截面的「复函数」分支都写成 `arg(Y)`
+  //   （只取角度部分的辐角），把径向的符号丢掉了，于是"径向节点两侧颜色翻转"
+  //   在复函数档下完全看不见。实测 4p（3 层壳、2 个径向节点）：
+  //       实函数档  红蓝红蓝红蓝（正确，跨节点翻转）
+  //       复函数档  红红红蓝蓝蓝（错误，壳层不翻转）
+  //   而这两处的注释恰恰写着"不能只看 sign(Y)：径向节点两侧 R 会变号"。
+  //   **判据写三遍，迟早分叉；写一遍就不会。**
+  //
+  // ★ 两个函数的分工（用错就是上面那个 bug 的变体）：
+  //   · `psiPhase`     —— 完整波函数 ψ = R(r)·Y(θ,φ) 的相位。
+  //                      用于**三维等值面**与**截面热力图**（那里画的是完整 ψ）。
+  //   · `angularPhase` —— 只有角度部分 Y(θ,φ) 的相位，**不含 R**。
+  //                      用于**球谐曲面**与 Θ/Φ 卡片（那两处本来就没有径向信息 ——
+  //                      球谐曲面画的是 r = |Y|，硬乘一个 R 反而是错的）。
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 完整波函数 ψ 的相位（弧度）—— 三维等值面与截面热力图的取色依据。
+   *
+   * 判据一律取**完整 ψ 的相位**：
+   *   · 叠加态   → arg(Σ cᵢψᵢ)，干涉项天然含在内
+   *   · 实函数   → ψ 是实数，相位只有 0 / π，即 sign(R(r)·Y_real(θ,φ))
+   *   · 复函数   → arg(R(r)·Y_complex(θ,φ)) = arg(Y_complex) + (R<0 ? π : 0)
+   *     ★ 最后这一项就是先前漏掉的东西：不乘 R 的话，径向节点两侧不会变号。
+   *
+   * @param terms  叠加态分量数组；非空时优先，此时忽略 mode/n/l/m
+   * @param phases 叠加态各项的相对相位（弧度）
+   */
+  function psiPhase(mode, n, l, m, r, theta, phi, terms, phases, Z) {
+    const z = (Z > 0) ? Z : 1;
+    if (terms && terms.length) {
+      return psiSuperposition(terms, r, theta, phi, phases, z).arg();
+    }
+    if (mode === 'real') {
+      return radialR(n, l, r, z) * angularReal(l, m, theta, phi) >= 0 ? 0 : Math.PI;
+    }
+    return psiComplex(n, l, m, r, theta, phi, 'complex', z).arg();
+  }
+
+  /**
+   * 只有角度函数 Y(θ,φ) 的相位（弧度）—— 球谐曲面与 Θ/Φ 卡片的取色依据。
+   *
+   * ★ 这里**故意不乘 R(r)**：这两处画的本来就是角度部分（球谐曲面 r = |Y|、
+   *   Θ/Φ 卡画两个因子），它们没有径向信息，乘上 R 只会把"径向节点"这件事
+   *   错误地混进来。需要完整 ψ 的相位时用 psiPhase。
+   */
+  function angularPhase(mode, l, m, theta, phi) {
+    if (mode === 'real') {
+      return angularReal(l, m, theta, phi) >= 0 ? 0 : Math.PI;
+    }
+    return angularComplex(l, m, theta, phi).arg();
+  }
+
+
+  // ---------------------------------------------------------------------------
+  // 点云采样：按 |ψ|² 重要性采样（概率上即真实的电子分布）
+  // ---------------------------------------------------------------------------
+  /**
+   * 采样 N 个三维点，返回 { positions, colors, extent }。
+   * positions/colors 为 Float32Array（position 长度 3N，color 长度 3N）。
+   * extent 为坐标内最大绝对半径（用于相机取景）。
+   * colorMode：'phase' 相位着色（实函数 → ±红/青双色，复函数 → 彩虹相位）；
+   *            'orbital' 轨道色（按 l 的支壳层基础色，亮度随密度）。
+   */
+  function samplePoints(n, l, m, mode, N, colorMode, Z) {
+    const zc = (Z > 0) ? Z : 1;
+    const usePhase = (colorMode !== 'orbital');
+    const { rMax, maxD } = samplingRadius(n, l, zc);
+    const maxAng = samplingAngleMax(l, m, mode);
+    const extent = rMax * 1.05;
+
+    // 先采样位置、强度与相位（相位在采样时顺手算出，避免二次遍历重算）
+    const pos = new Float32Array(N * 3);
+    const tmpDensity = new Float32Array(N);
+    const tmpPhase = usePhase ? new Float32Array(N) : null;
+    let maxShiftDensity = 0;
+    let count = 0, guard = 0;
+    while (count < N && guard < N * 200) {
+      guard++;
+      // —— 径向：拒绝采样 r ~ D(r)
+      const r = rMax * Math.random();
+      const d = radialDistribution(n, l, r, zc);
+      if (d < maxD * Math.random()) continue;
+      // —— 方向：均匀球面 (θ,φ)，按 |Y|² 拒绝接收（复模式与 φ 无关）
+      const cosTheta = 2 * Math.random() - 1;
+      const theta = Math.acos(cosTheta);
+      const phi = 2 * Math.PI * Math.random();
+      let Yre = 0, ang2 = 0;
+      if (mode === 'real') {
+        Yre = angularReal(l, m, theta, phi);
+        ang2 = Yre * Yre;
+      } else {
+        ang2 = angularComplex(l, m, theta, phi).abs2();
+      }
+      if (ang2 < maxAng * Math.random()) continue;
+
+      const x = r * Math.sin(theta) * Math.cos(phi);
+      const y = r * Math.sin(theta) * Math.sin(phi);
+      const z = r * Math.cos(theta);
+      pos[3 * count] = x;
+      pos[3 * count + 1] = y;
+      pos[3 * count + 2] = z;
+      // 粒子亮度 ∝ 概率密度 |ψ|² = R²|Y|²（用 d/r² * ang2 表示，避免再算一次）
+      const density = r > 1e-9 ? (d / (r * r)) * ang2 : 0;
+      tmpDensity[count] = density;
+      if (density > maxShiftDensity) maxShiftDensity = density;
+      if (usePhase) {
+        // 相位走**共享判据** OM.psiPhase（取完整 ψ 的相位）。
+        // ★ 这里原先是第三个"漏了 R(r)"的地方：复函数分支写成 arg(angularComplex)，
+        //   与三维等值面、截面热力图同源 —— 而且上方注释写着"复函数取 arg ψ"。
+        //   粒子云与那两处一起修掉，现在全项目只有 math.js 里那一个判据。
+        tmpPhase[count] = psiPhase(mode, n, l, m, r, theta, phi, null, null, zc);
+      }
+      count++;
+    }
+    const nUsed = count;
+    // —— 第二遍：生成颜色
+    const colors = new Float32Array(nUsed * 3);
+    const base = lColor(l);
+    for (let i = 0; i < nUsed; i++) {
+      const t = maxShiftDensity > 0 ? tmpDensity[i] / maxShiftDensity : 0;
+      const k = Math.pow(t, 0.7);
+      if (usePhase) {
+        const col = phaseColor(tmpPhase[i], k);
+        colors[3 * i] = col[0]; colors[3 * i + 1] = col[1]; colors[3 * i + 2] = col[2];
+      } else {
+        // 轨道色：基础色 + 亮度随密度增强（下限稍高，避免稀疏点过暗）
+        colors[3 * i] = 0.50 + (base[0] - 0.50) * k;
+        colors[3 * i + 1] = 0.50 + (base[1] - 0.50) * k;
+        colors[3 * i + 2] = 0.52 + (base[2] - 0.52) * k;
+      }
+    }
+    return {
+      positions: pos.subarray ? pos.subarray(0, nUsed * 3).slice() : pos,
+      colors: colors,
+      extent: extent,
+      count: nUsed,
+    };
+  }
+
+  /**
+   * 相位 → 颜色（供三维着色复用：点云 / 等值面共用同一套配色）。
+   * 实函数传入 0 或 π，即得青/红双色。
+   */
+  function phaseColorFor(mode, realVal, cplx, intensity) {
+    const phase = (mode === 'real') ? (realVal >= 0 ? 0 : Math.PI) : cplx.arg();
+    return phaseColor(phase, intensity);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 快捷工具：轨道标签 / 取景范围 / 直角→球坐标
+  // ---------------------------------------------------------------------------
+  function orbitLabel(n, l, m, mode) {
+    const sub = SUBSHELL[Math.min(l, SUBSHELL.length - 1)];
+    return n + sub + (mode === 'complex' ? ' (复)' : ' (实)');
+  }
+  /** 轨道尾部半径（类氢）—— 随 Z 缩为 1/Z，由 samplingRadius 的标度自动带出 */
+  function rExtent(n, l, Z) {
+    return samplingRadius(n, l, Z).rMax;
+  }
+
+  /**
+   * |ψ|² 的全局峰值 = max_r R(r)² × max|Y|²（类氢，核电荷数 Z）。
+   * 有了它，"阈值占峰值的比例"才能先于标量场被换算成绝对值，
+   * 进而决定网格范围（否则峰值↔范围↔阈值会循环依赖）。
+   * ★ 与 samplingRadius 同一口径：直接按 Z 重扫，而不是按标度换算（理由见那里的注释）。
+   */
+  function maxDensity(n, l, m, mode, Z) {
+    const z = (Z > 0) ? Z : 1;
+    const Ymax2 = samplingAngleMax(l, m, mode);
+    // 扫描范围跟着 1/Z 缩 —— 否则格距相对于（已被压缩的）峰值位置变粗，
+    // 峰值取不准，标度关系就带上了网格量化误差（实测 Z=3 时 1.1e-3）。
+    const scanMax = (2 * n * n + 14) / z;
+    const steps = 900;
+    let maxR2 = 0;
+    for (let i = 0; i <= steps; i++) {
+      const r = (scanMax * i) / steps;
+      const R = radialR(n, l, r, z);
+      if (R * R > maxR2) maxR2 = R * R;
+    }
+    return maxR2 * Ymax2;
+  }
+
+  /**
+   * 等值面阈值换算：把面板上的**读数**（占峰值的比例）换成**绝对阈值**（|ψ|² 的值）。
+   *
+   * ★ 这是全项目**唯一**的换算出口 —— 取景（网格范围）、标尺、三维里真正抽等值面的
+   *   那一行、以及面板上显示的百分比，四处都必须走它。
+   *   判据取 `|ψ|²` 时：阈值 = f · max|ψ|²；
+   *   判据取 `|ψ|` 时：读数是"占 **|ψ|** 峰值的比例"，故 |ψ|² 阈值 = (f·max|ψ|)² = f²·max|ψ|²。
+   *   于是「10% 的 |ψ|²」与「√0.10 ≈ 31.6% 的 |ψ|」给出**同一个绝对阈值 = 同一个面**。
+   *
+   * ★ 为什么强调"唯一"：这条口径分叉过一次 —— 抽等值面那一行写成了
+   *   `读数 × 场峰值`（纯线性、漏了平方），而其余三处都平方。后果是面板上明写着
+   *   `10.0% |ψ|² ⟺ 31.6% |ψ|`，两个读数画出来却是两个完全不同的面
+   *   （实测 52252 个顶点 vs 2736 个）。用户是从界面上看出这个矛盾的。
+   *
+   * ★ 叠加态用「无干涉参考峰值」Σ|cᵢ|²peakᵢ 而不是实际扫描峰值：干涉会让实际峰值
+   *   高出近 2 倍，按它取值曲面会远小于单一轨道并碎成几块（见其说明）。
+   *
+   * @param {string} psiCrit 'psi2' | 'psi'
+   * @param {number} fraction 面板读数（占峰值的比例）
+   * @returns {number} |ψ|² 的绝对阈值
+   */
+  function isoLevelAbs(n, l, m, mode, Z, terms, fraction, psiCrit) {
+    const peak = (terms && terms.length)
+      ? superpositionRefPeak(terms, Z)
+      : maxDensity(n, l, m, mode, Z);
+    return (psiCrit === 'psi') ? fraction * fraction * peak : fraction * peak;
+  }
+
+  /**
+   * 给定阈值 level（|ψ|² 的绝对值，非比值）下，等值面的最外延半径。
+   *
+   * 原理：|ψ|² = R(r)²·|Y(θ,φ)|²，而 |Y| 在球面上的最大值为 Ymax，
+   * 故半径 r 的球面上 |ψ|² 的最大值为 R(r)²·Ymax²。只需沿 r 扫描
+   * R(r)²·Ymax² ≥ level 的最外层交点即可。
+   *
+   * 用途：把行进四面体的网格范围收紧到"等值面实际所在区域"，
+   * 而不是按波函数的渐近尾部（后者可能大出数倍）。同分辨率下格距
+   * 可因此细数倍——这对 p 轨道节面附近两瓣之间的窄缝尤其关键。
+   */
+  function isoRadius(n, l, m, mode, level, Z) {
+    const z = (Z > 0) ? Z : 1;
+    if (!(level > 0)) return rExtent(n, l, z);
+    const Ymax2 = samplingAngleMax(l, m, mode);
+    const scanMax = (2 * n * n + 14) / z;   // 同样跟着 1/Z 缩，免得格距量化污染标度
+    const steps = 900;
+    let rOuter = 0;
+    for (let i = 0; i <= steps; i++) {
+      const r = (scanMax * i) / steps;
+      const R = radialR(n, l, r, z);
+      if (R * R * Ymax2 >= level) rOuter = r;
+    }
+    // 下限 0.5 a₀ 是"别让网格退化"的保底；Z 大时整体尺度缩小，保底也随之缩
+    // （Z = 1 时 0.5/1 === 0.5，逐位不变）
+    return Math.max(rOuter, 0.5 / z);
+  }
+  /**
+   * 等值面"细颈"的半宽 —— 等值面离**角度节面**的最近距离。
+   *
+   * 用途：判断曲面是否出现了网格分辨不出的窄缝。例：4p 在 3.5% 阈值下，最内层壳
+   * 上下两瓣在核附近只隔 0.274 a₀，而网格单元格就有 0.82 a₀ —— 缝隙比单元格还小，
+   * 网格必然把两瓣连成一个"花生"。有这个量才能**提前判断**该不该上细网格。
+   *
+   * 推导：|ψ|² = R(r)²·|Y|² ≥ level ⇒ |Y| ≥ √level/|R(r)|。
+   * 角度节面上 |Y| = 0；而"离节面多远"这个几何量正比于 r（角度节面都过原点：锥面是
+   * θ=常数、平面是 φ=常数，到原点的距离都随 r 线性增长），于是
+   *   最近距离 = (√level / Ymax) · min_r ( r / |R(r)| )。
+   *
+   * ★ 这是**下界**（推导里对角度取了最宽松的取值），偏保守：宁可多触发一次精细化，
+   *   也不要把真正需要精细化的情况漏掉。
+   * l = 0 没有角度节面 → 不存在细颈，返回 Infinity。
+   */
+  function isoNeckHalf(n, l, m, mode, level, rMax, Z) {
+    const z = (Z > 0) ? Z : 1;
+    if (l < 1 || !(level > 0)) return Infinity;
+    const Ymax = Math.sqrt(Math.max(0, samplingAngleMax(l, m, mode || 'real')));
+    if (!(Ymax > 0)) return Infinity;
+    let best = Infinity;
+    const steps = 600;
+    for (let i = 1; i <= steps; i++) {
+      const r = (rMax * i) / steps;
+      const R = Math.abs(radialR(n, l, r, z));
+      if (R < 1e-12) continue;
+      const v = r / R;
+      if (v < best) best = v;
+    }
+    if (!isFinite(best)) return Infinity;
+    return (Math.sqrt(level) / Ymax) * best;
+  }
+
+  /**
+   * 全部"空档"：每两层壳之间的**中点半径** + 该空档的**宽度**。
+   *
+   * 中点可放"必然无曲面"的分界球面 —— 局部精细化要把粗/细两张网格分开，而分界球面
+   * 若被曲面穿过，两套网格就会在交界处各画一遍（重叠、z-fighting、碎三角片）。
+   *
+   * 依据（**严格**，不依赖任何估计）：|ψ|² = R(r)²·|Y|² ≤ R(r)²·Ymax²，故
+   *   {|ψ|² ≥ level} ⊆ { R(r)²·Ymax² ≥ level }
+   * 后者沿 r 是一串区间（每层径向壳一个）；区间之间那整个空档里，对所有角度都有
+   * |ψ|² < level —— 取其中点即可。
+   *
+   * 宽度是**安全闸门**的依据：分派判据看的是"单元有没有一部分落在球内"，所以只有当
+   * 空档宽到容得下跨界单元的伸出量时，才不会出现"同一个单元既含曲面、又被判到另一
+   * 侧"（推导见 render3d.js 的 planFinePatch）。只有一层壳时返回空数组（无法分层）。
+   *
+   * 局部精细化据此**逐层外扩**：盒子覆盖到第几层，由 planFinePatch 按"不越界"与
+   * "分辨率够"两道关权衡决定。
+   */
+  function shellGaps(n, l, m, mode, level, Z) {
+    const z = (Z > 0) ? Z : 1;
+    if (!(level > 0)) return [];
+    const Ymax2 = samplingAngleMax(l, m, mode || 'real');
+    if (!(Ymax2 > 0)) return [];
+    const scanMax = (2 * n * n + 14) / z;      // 范围跟着 1/Z 缩（理由同 maxDensity）
+    const steps = 2000;
+    const bands = [];
+    let start = -1;
+    for (let i = 0; i <= steps; i++) {
+      const r = (scanMax * i) / steps;
+      const R = radialR(n, l, r, z);
+      const ok = R * R * Ymax2 >= level;
+      if (ok && start < 0) start = r;
+      else if (!ok && start >= 0) { bands.push({ from: start, to: r }); start = -1; }
+    }
+    if (start >= 0) bands.push({ from: start, to: scanMax });
+    const gaps = [];
+    for (let i = 0; i + 1 < bands.length; i++) {
+      gaps.push({
+        r: (bands[i].to + bands[i + 1].from) / 2,
+        width: bands[i + 1].from - bands[i].to,
+      });
+    }
+    return gaps;
+  }
+
+  /**
+   * 各层径向壳的"峰值占全局峰值的比例"（内→外）。
+   *
+   * 用途：**按轨道推荐等值面阈值**。等值面判据是 |ψ|² = R(r)²·|Y|² ≥ level，而沿
+   * |Y| 最大的那个方向，一层壳能否出现只取决于它的 max R(r)² 够不够高 —— 于是
+   * "要让第 k 层壳也显示出来"就要求 level < 该壳的峰值占比。这正是 30% 阈值下
+   * "3p 只有两瓣"、10% 阈值下"4s 是一个光滑小球"的原因（实测见 render3d.js 的
+   * planFinePatch 与 README）。
+   *
+   * 壳的边界取**径向节点**（那才是壳的严格分界，R=0）；只有一层壳时返回 [1]。
+   * 比例只涉及 R(r)，与 (m, mode) 无关，故不接收这两个参数。
+   * ★ 结论也与 Z **无关**（分子分母同缩 Z³）—— 所以各 Z 的推荐阈值是同一个百分比。
+   *   这里仍接收 Z 并让扫描范围跟着 1/Z 缩，是为了让网格与 Z=1 的网格严格对齐，
+   *   使"与 Z 无关"是精确成立而不是近似成立。
+   *
+   * @returns {number[]} 各壳 maxR² / 全局 maxR²，按半径内→外排列
+   */
+  function shellPeakFractions(n, l, Z) {
+    const z = (Z > 0) ? Z : 1;
+    const zeros = radialZeros(n, l, z);
+    if (!zeros.length) return [1];                 // n-l-1 = 0：只有一层壳
+    const scanMax = (2 * n * n + 10) / z;
+    const steps = 3000;
+    const R2 = new Float64Array(steps + 1);
+    let gMax = 0;
+    for (let i = 0; i <= steps; i++) {
+      const R = radialR(n, l, (scanMax * i) / steps, z);
+      R2[i] = R * R;
+      if (R2[i] > gMax) gMax = R2[i];
+    }
+    if (!(gMax > 0)) return [1];
+    const bounds = [0].concat(zeros, [scanMax]);
+    const out = [];
+    for (let k = 0; k + 1 < bounds.length; k++) {
+      const a = bounds[k], b = bounds[k + 1];
+      let mx = 0;
+      for (let i = 0; i <= steps; i++) {
+        const r = (scanMax * i) / steps;
+        if (r >= a && r <= b && R2[i] > mx) mx = R2[i];
+      }
+      if (mx / gMax > 1e-9) out.push(mx / gMax);
+    }
+    return out.length ? out : [1];
+  }
+
+  /**
+   * 径向节点半径 —— 即 R_{n,l}(r;Z) = 0 的 r 值（个数应为 n-l-1，与 Z 无关）。
+   * 用变号扫描 + 二分细化求根（对多项式×指数形式足够精确）。
+   * ★ 节点**个数**与 Z 无关，但**位置**随 Z 缩为 1/Z（R(r;Z) ∝ R(Zr;1)），故这里按 Z 重扫。
+   */
+  function radialZeros(n, l, Z) {
+    const zc = (Z > 0) ? Z : 1;                       // 核电荷数（注意：别再叫 z，下面有个根半径）
+    const zeros = [];
+    if (n - l - 1 <= 0) return zeros;
+    const rMax = 2 * n * n + 10;                      // Z ≥ 1 时节点只会更靠内，此范围富余
+    const steps = 3000;
+    let prev = radialR(n, l, 1e-6, zc);
+    for (let i = 1; i <= steps; i++) {
+      const r = (rMax * i) / steps;
+      const v = radialR(n, l, r, zc);
+      // ★ 零点**恰好落在扫描网格点上**时 v 是精确的 0：原判据里的 `v !== 0` 会把这个
+      //   变号整个跳过（prev 也跟着变成 0，下一轮再比还是被跳过），于是这个节点
+      //   被静默漏掉。实测 R_53(20)：rho = 2·20/5 = 8 为整数，L_1^7(8) = 8 − 8 = 0
+      //   是**精确零**，而 20 又正好是网格点（rMax=60、steps=3000），于是 5f 的径向
+      //   节点在界面上标不出来、推荐阈值也跟着算偏。
+      //   处理：把网格点上的 0 直接记为一个零点，并用 NaN 断开"上一个值"的比较链，
+      //   避免下一轮拿它当相反符号再数一次。
+      if (v === 0) { zeros.push(r); prev = NaN; continue; }
+      if (!Number.isNaN(prev) && prev !== 0 && (v > 0) !== (prev > 0)) {
+        let a = (rMax * (i - 1)) / steps, b = r;
+        for (let k = 0; k < 50; k++) {
+          const c = (a + b) / 2;
+          if ((radialR(n, l, c, zc) > 0) === (radialR(n, l, a, zc) > 0)) a = c; else b = c;
+        }
+        const root = (a + b) / 2;
+        if (root > 1e-3 / zc) zeros.push(root);       // 下限也随 Z 缩，否则 Z 大时会漏掉最内层
+      }
+      prev = v;
+    }
+    return zeros;
+  }
+
+  /**
+   * 角度节面几何 —— 返回 { cones: [θ…], planes: [φ…] }。
+   *   cones  ：P_l^{|m|}(cosθ) = 0 的极角 → 以 z 轴为轴的锥面
+   *   planes ：实函数且 m≠0 时，cos(mφ)/sin(mφ) = 0 的方位角 → 过 z 轴的平面
+   * 注：复函数 |Y| 与 φ 无关，故无 planes。
+   */
+  function angularNodes(l, m, mode) {
+    const am = Math.abs(m);
+    const cones = [];
+    const steps = 3000;
+    let prev = assocLegendre(l, am, Math.cos(1e-6));
+    for (let i = 1; i <= steps; i++) {
+      const th = (Math.PI * i) / steps;
+      const v = assocLegendre(l, am, Math.cos(th));
+      if (prev !== 0 && v !== 0 && (v > 0) !== (prev > 0)) {
+        let a = (Math.PI * (i - 1)) / steps, b = th;
+        for (let k = 0; k < 50; k++) {
+          const c = (a + b) / 2;
+          if ((assocLegendre(l, am, Math.cos(c)) > 0) === (assocLegendre(l, am, Math.cos(a)) > 0)) a = c; else b = c;
+        }
+        const tk = (a + b) / 2;
+        // 排除极点附近的退化解（那是 P_l^m 的端点行为，不是真正的节面）
+        if (tk > 1e-2 && tk < Math.PI - 1e-2) cones.push(tk);
+      }
+      prev = v;
+    }
+    const planes = [];
+    if (mode === 'real' && am > 0) {
+      // 平面 φ 与 φ+π 等价，故在 [0, π) 内取 am 个
+      for (let k = 0; k < am; k++) {
+        planes.push(m > 0 ? ((2 * k + 1) * Math.PI) / (2 * am) : (k * Math.PI) / am);
+      }
+    }
+    return { cones, planes };
+  }
+
+  /**
+   * 轨道节点汇总（供出题与讲解引用，全部确定性计算）
+   */
+  function nodes(n, l) {
+    return { radial: n - l - 1, angular: l, total: n - 1 };
+  }
+
+  /**
+   * 能级（类氢，eV）：E_n = −13.6·Z²/n² —— 只依赖 n 与核电荷数 Z。
+   * ★ Z 是通过 `z*z` 进去的：Z = 1 时 `-13.6*1*1` 与原来的 `-13.6` 逐位相同。
+   */
+  function energy(n, Z) {
+    const z = (Z > 0) ? Z : 1;
+    return -13.6 * z * z / (n * n);
+  }
+
+  /** 能级简并度（不含自旋）—— 与 Z 无关 */
+  function degeneracy(n) { return n * n; }
+
+  /** 径向分布 D(r)=r²R² 的峰值半径（可能有多个局部极大，全部返回）；位置随 Z 缩为 1/Z */
+  function radialPeaks(n, l, Z) {
+    const zc = (Z > 0) ? Z : 1;
+    const rMax = 2 * n * n + 10;                      // Z ≥ 1 时峰值只会更靠内，此范围富余
+    const steps = 3000;
+    const peaks = [];
+    let prev = radialDistribution(n, l, 1e-6, zc);
+    let cur = radialDistribution(n, l, rMax / steps, zc);
+    for (let i = 2; i <= steps; i++) {
+      const r = (rMax * i) / steps;
+      const next = radialDistribution(n, l, r, zc);
+      if (cur > prev && cur >= next && cur > 1e-12) {
+        // 抛物线插值细化
+        const h = rMax / steps;
+        const denom = prev - 2 * cur + next;
+        const delta = Math.abs(denom) > 1e-30 ? (0.5 * (prev - next)) / denom : 0;
+        peaks.push(r - h + delta * h);
+      }
+      prev = cur; cur = next;
+    }
+    return peaks;
+  }
+
+  /**
+   * 轨道形状描述（全部由 (l,m,mode) 规则判定，不靠模型想象）。
+   *
+   * ★ 瓣数有闭式。角度部分是 P_l^|m|(cosθ) 乘 cos/sin(|m|φ)：
+   *   · φ 方向：|m| > 0 时 cos(|m|φ) 把一圈分成 **2|m|** 个正负交替的扇区；|m| = 0 时无 φ 依赖（算 1 份）
+   *   · θ 方向：P_l^|m| 在 (0,π) 内有 **l−|m|** 个零点 ⇒ **l−|m|+1** 段正负交替
+   *   相乘即实解瓣数 = (|m| > 0 ? 2|m| : 1) × (l−|m|+1)（m = 0 时按惯例只报"主瓣"，不含同轴的环）。
+   *   复解的密度与 φ 无关，只剩 θ 方向的 l−|m|+1 段 —— 表现为**同轴的几个环**
+   *   （|m| = l 时是 1 个，即在赤道上那个"轮胎"）。
+   *
+   * ★ 原先实解一律写 2|m|，**只对 |m| = l 成立**：于是 d_xz / d_yz（实为 4 瓣）被报成 2 瓣，
+   *   与同一个返回里的 shape = '四叶草形' 自相矛盾。而返回值经 tool-registry 的 queryOrbital
+   *   直接进模型上下文、会被念给学生听 —— 属"数值型事实"错误，必须修。
+   *   （对照：知识库 index.js 一直写着"d：四叶草形。m=0 是 dz²（沿 z 的双瓣 + 赤道环）"，
+   *     即知识库本来就比这个函数准确。）
+   */
+  function shapeDescribe(l, m, mode) {
+    const am = Math.abs(m);
+    if (l === 0) {
+      return { shape: '球形', lobes: 1, axis: '各向同性（密度与 θ、φ 都无关）' };
+    }
+    const axis = mode === 'complex'
+      ? '绕 z 轴旋转对称（密度与 φ 无关）'
+      : (am === 0 ? '沿 z 轴' : '在 xy 平面内定向（' + (m > 0 ? 'cos' : 'sin') + am + 'φ 型）');
+    if (mode === 'complex') {
+      const rings = l - am + 1;
+      return {
+        shape: rings === 1 ? '环形（赤道环）' : (rings + ' 个同轴环（由锥形节面隔开）'),
+        lobes: rings, axis,
+      };
+    }
+    // 实解：m = 0 按惯例只数主瓣（d_z² 是"两瓣 + 赤道环"，不把环算成一瓣）
+    const lobes = (am === 0) ? 2 : (2 * am) * (l - am + 1);
+    const names = { 2: '哑铃形（双瓣）', 3: '三瓣形', 4: '四叶草形', 6: '六瓣形', 8: '八瓣形' };
+    let shape = names[lobes] || (lobes + ' 瓣形');
+    // m = 0 且 l ≥ 2 的轨道，按 l 一律叫"四叶草形"会与画面不符（它另有同轴的环）
+    if (am === 0 && l === 2) shape = '哑铃形（双瓣）+ 赤道环';
+    else if (am === 0 && l === 3) shape = '哑铃形（双瓣）+ 两个同轴环';
+    return { shape, lobes, axis };
+  }
+
+  /**
+   * 为体数据计算预生成 R²(r) 的查表器。
+   *
+   * 动机：计算 |ψ|² 标量场时，每个网格节点都要算一次 R(r)，而 R 含
+   * Math.pow + Math.exp + 拉盖尔递推——是整个场计算里最贵的部分。
+   * 但 R 只依赖 (n,l,r)，在固定 (n,l) 下可用一维查表 + 线性插值替代，
+   * 精度损失可忽略（R 光滑；l≥1 时 r→0 处 R∝rˡ 且绝对量趋零）。
+   *
+   * 实测收益：等值面模式下单次重建从 ~1200ms 降到 ~250ms 量级。
+   */
+  function makeRadialLUT(n, l, rMax, samples, Z) {
+    const zc = (Z > 0) ? Z : 1;
+    const N = samples || 8192;
+    const inv = N / rMax;
+    const tab = new Float64Array(N + 2);
+    for (let i = 0; i <= N + 1; i++) {
+      const R = radialR(n, l, i / inv, zc);
+      tab[i] = R * R;
+    }
+    return function R2(r) {
+      if (!(r > 0)) return tab[0];
+      if (r >= rMax) return 0;
+      const x = r * inv;
+      const i = x | 0;
+      const f = x - i;
+      return tab[i] + (tab[i + 1] - tab[i]) * f;
+    };
+  }
+
+  /**
+   * 在给定网格上快速求 |ψ|²（用 R² 查表 + 解析角度部分）。
+   * 与 psiDensity 结果一致，但快得多——专供等值面/粒子云的体数据计算。
+   */
+  function makePsiDensityFast(n, l, m, mode, rMax, Z) {
+    const R2 = makeRadialLUT(n, l, rMax, null, Z);
+    if (mode === 'real') {
+      return function (r, theta, phi) {
+        const Y = angularReal(l, m, theta, phi);
+        return R2(r) * Y * Y;
+      };
+    }
+    return function (r, theta, phi) {
+      return R2(r) * angularComplex(l, m, theta, phi).abs2();
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // 叠加态：ψ = Σᵢ cᵢ ψᵢ · e^{iφᵢ}
+  //   ★ 干涉项 |ψ|² = Σᵢⱼ cᵢ*cⱼ ψᵢ*ψⱼ e^{i(φᵢ−φⱼ)} 在"先复数求和、再取模方"中
+  //     自然出现——这正是叠加区别于"概率简单相加"的本质，也是本功能的核心教学点。
+  //   ★ φᵢ 是**相对相位**（φ = ΔE·t/ħ），不是真实时间：真实频率达 10¹⁵ Hz 量级，
+  //     不可视化；而干涉图样只依赖相对相位，故用相对相位作参数既物理正确又可见。
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 叠加态复波函数。terms = [{n,l,m,mode,c:{re,im}}]；phases 为各项相对相位（弧度）。
+   * Z 是**原子**的属性（不是分量的），故整条叠加态共用一个 Z。
+   */
+  function psiSuperposition(terms, r, theta, phi, phases, Z) {
+    const z = (Z > 0) ? Z : 1;
+    let re = 0, im = 0;
+    for (let i = 0; i < terms.length; i++) {
+      const t = terms[i];
+      const psi = psiComplex(t.n, t.l, t.m, r, theta, phi, t.mode || 'real', z);
+      const ph = phases ? phases[i] : 0;
+      const cp = Math.cos(ph), sp = Math.sin(ph);
+      // 先做 e^{iφ} 旋转，再乘复系数 c
+      const pr = psi.re * cp - psi.im * sp;
+      const pi = psi.re * sp + psi.im * cp;
+      re += t.c.re * pr - t.c.im * pi;
+      im += t.c.re * pi + t.c.im * pr;
+    }
+    return new Complex(re, im);
+  }
+
+  /** 叠加态概率密度 |ψ|²（含干涉项） */
+  function densitySuperposition(terms, r, theta, phi, phases, Z) {
+    const p = psiSuperposition(terms, r, theta, phi, phases, Z);
+    return p.re * p.re + p.im * p.im;
+  }
+
+  /**
+   * 叠加态是否为定态：**各分量能量是否简并**。
+   * 简并 → 整体时间因子可提到求和号外，取模后消失 → 密度不随时间变化（仍是定态）。
+   * 例：2ψ_{3dz²} + 3ψ_{3dxy} 是同能量组合 → 定态，呈静态干涉图样。
+   * ★ 判据是"能量是否相等"，而 Z² 是所有分量共有的因子，故结论与 Z 无关 ——
+   *   参数仍传下去，免得日后有人在这里加与 Z 有关的项时踩坑。
+   */
+  function isStationary(terms, Z) {
+    if (!terms || terms.length < 2) return true;
+    const E0 = energy(terms[0].n, Z);
+    for (let i = 1; i < terms.length; i++) {
+      if (Math.abs(energy(terms[i].n, Z) - E0) > 1e-9) return false;
+    }
+    return true;
+  }
+
+  /** 叠加态取景半径（各分量外延的最大值）；位置随 Z 缩为 1/Z */
+  function superpositionExtent(terms, Z) {
+    let m = 1;
+    (terms || []).forEach((t) => {
+      const e = rExtent(t.n, t.l, Z);
+      if (e > m) m = e;
+    });
+    return m;
+  }
+
+  /**
+   * 叠加态的「取景参考半径」。
+   *
+   * ★ 不能用 superpositionExtent（那是各分量的**渐近尾部**，可能比实际内容大 2–3 倍），
+   *   否则取景过松、轨道在画面里缩成一小团。
+   *   这里取「各分量在自身 30% 峰值处的等值面外延」的最大值——与单一本征态的取景基准一致。
+   */
+  function superpositionRefExtent(terms, Z) {
+    const REF = 0.30;
+    let m = 1.2;
+    (terms || []).forEach(function (t) {
+      const pk = maxDensity(t.n, t.l, t.m, t.mode || 'real', Z);
+      const e = isoRadius(t.n, t.l, t.m, t.mode || 'real', REF * pk, Z) * 1.12;
+      if (e > m) m = e;
+    });
+    return m;
+  }
+
+  /**
+   * 叠加态的「无干涉参考峰值」= Σ|cᵢ|²·peakᵢ。
+   *
+   * ★ 这是**等值面阈值**该用的基准，而不是实际扫描峰值：
+   *   干涉会让实际峰值显著高于此值（相长干涉实测可达近 2 倍），
+   *   若按实际峰值取 30%，得到的曲面会比单一轨道小得多、还会碎成几块，
+   *   看起来像"渲染坏了"。按参考峰值取阈值，叠加态的曲面尺寸与形状才与单一轨道可比。
+   *
+   * （粒子云的拒绝采样必须用**实际**峰值，见 maxDensitySuperposition。）
+   */
+  function superpositionRefPeak(terms, Z) {
+    let s = 0;
+    (terms || []).forEach(function (t) {
+      const w = t.c.re * t.c.re + t.c.im * t.c.im;
+      s += w * maxDensity(t.n, t.l, t.m, t.mode || 'real', Z);
+    });
+    return s > 0 ? s : 1e-12;
+  }
+
+  /**
+   * 叠加态在给定绝对阈值 level（|ψ|²）下的等值面外延半径 —— 用于定标量场的网格范围。
+   *
+   * 原理与 isoRadius 相同，只是把"单一分量"换成"叠加态的上界"：
+   *   |ψ|² = |Σ cᵢψᵢ|² ≤ ( Σ |cᵢ|·Rᵢ(r)·Ymaxᵢ )²  ≡ S(r)²
+   * （三角不等式。Rᵢ(r) 是第 i 个分量的**径向部分**，
+   *   Ymaxᵢ 是其**角度部分** Y(θ,φ) 在球面上的最大绝对值。）
+   * 于是沿 r 扫描 S(r) ≥ √level 的最外层交点即可。
+   *
+   * ★ 这是**严格上界**，用它定网格绝不会把曲面裁掉。
+   *   反过来，"各分量各自外延取最大"在叠加态里会**低估**——相长干涉会把密度
+   *   抬高，实际的等值面伸得比任何单个分量都远，低阈值下就会被网格盒子切出
+   *   平的边缘（这正是叠加态低阈值出现"平切面"的原因）。
+   */
+  function superpositionIsoRadius(terms, level, Z) {
+    const zc = (Z > 0) ? Z : 1;
+    if (!terms || !terms.length) return 1.2;
+    if (!(level > 0)) return superpositionExtent(terms, zc);
+    const need = Math.sqrt(level);
+    let nMax = 1;
+    const parts = terms.map(function (t) {
+      if (t.n > nMax) nMax = t.n;
+      return {
+        c: Math.sqrt(t.c.re * t.c.re + t.c.im * t.c.im),     // |cᵢ|
+        n: t.n, l: t.l,
+        y: Math.sqrt(Math.max(0, samplingAngleMax(t.l, t.m, t.mode || 'real'))),  // √(max|Y|²)
+      };
+    });
+    const scanMax = 2 * nMax * nMax + 14;
+    const steps = 900;
+    let rOuter = 0;
+    for (let i = 0; i <= steps; i++) {
+      const r = (scanMax * i) / steps;
+      let s = 0;
+      for (let k = 0; k < parts.length; k++) {
+        const p = parts[k];
+        s += p.c * Math.abs(radialR(p.n, p.l, r, zc)) * p.y;
+      }
+      if (s >= need) rOuter = r;
+    }
+    return Math.max(rOuter, 0.5 / zc);
+  }
+
+  /**
+   * 叠加态的 |ψ|² 的峰值估计（粗网格扫描）。
+   * 不能简单用各分量峰值之和——分量之间可能**相长干涉**，峰值会更高，
+   * 也可能相消。扫描一遍最可靠（几千次求值，代价可忽略）。
+   */
+  function maxDensitySuperposition(terms, Z) {
+    const zc = (Z > 0) ? Z : 1;
+    if (!terms || !terms.length) return 1e-12;
+    const rMax = superpositionExtent(terms, zc) * 0.9;
+    const NR = 60, NT = 24, NP = 32;
+    let mx = 0;
+    for (let ir = 1; ir <= NR; ir++) {
+      const r = (rMax * ir) / NR;
+      for (let it = 0; it <= NT; it++) {
+        const th = (Math.PI * it) / NT;
+        for (let ip = 0; ip < NP; ip++) {
+          const ph = (2 * Math.PI * ip) / NP;
+          const v = densitySuperposition(terms, r, th, ph, null, zc);
+          if (v > mx) mx = v;
+        }
+      }
+    }
+    return mx > 0 ? mx : 1e-12;
+  }
+
+  /**
+   * 叠加态的粒子云采样：直接对整体 |ψ|² 做三维拒绝采样。
+   * （叠加态不能像单一本征态那样把径向与角度分开处理——干涉项是 r 与 (θ,φ) 的耦合项。）
+   */
+  function samplePointsSuperposition(terms, N, colorMode, phases, Z) {
+    const zc = (Z > 0) ? Z : 1;
+    const rMax = superpositionExtent(terms, zc) * 1.05;
+    const peak = maxDensitySuperposition(terms, zc);
+    const pos = new Float32Array(N * 3);
+    const cols = new Float32Array(N * 3);
+    const phArr = new Float32Array(N);
+    const dArr = new Float32Array(N);
+    let maxD = 0, count = 0, guard = 0;
+    const usePhase = (colorMode !== 'orbital');
+
+    while (count < N && guard < N * 400) {
+      guard++;
+      const r = rMax * Math.pow(Math.random(), 1 / 3);   // 球内均匀
+      const u = 2 * Math.random() - 1;
+      const th = Math.acos(u);
+      const ph = 2 * Math.PI * Math.random();
+      const v = densitySuperposition(terms, r, th, ph, phases, zc);
+      if (v < peak * Math.random()) continue;
+      pos[3 * count] = r * Math.sin(th) * Math.cos(ph);
+      pos[3 * count + 1] = r * Math.sin(th) * Math.sin(ph);
+      pos[3 * count + 2] = r * Math.cos(th);
+      dArr[count] = v;
+      if (v > maxD) maxD = v;
+      if (usePhase) phArr[count] = psiSuperposition(terms, r, th, ph, phases, zc).arg();
+      count++;
+    }
+    const nUsed = count;
+    const base = lColor(terms[0].l);
+    for (let i = 0; i < nUsed; i++) {
+      const t = maxD > 0 ? dArr[i] / maxD : 0;
+      const k = Math.pow(t, 0.7);
+      if (usePhase) {
+        const col = phaseColor(phArr[i], k);
+        cols[3 * i] = col[0]; cols[3 * i + 1] = col[1]; cols[3 * i + 2] = col[2];
+      } else {
+        cols[3 * i] = 0.50 + (base[0] - 0.50) * k;
+        cols[3 * i + 1] = 0.50 + (base[1] - 0.50) * k;
+        cols[3 * i + 2] = 0.52 + (base[2] - 0.52) * k;
+      }
+    }
+    return {
+      positions: pos.subarray(0, nUsed * 3).slice(),
+      colors: cols.subarray(0, nUsed * 3).slice(),
+      extent: rMax,
+      count: nUsed,
+    };
+  }
+
+  function cartToSpherical(x, y, z) {
+    const r = Math.hypot(x, y, z);
+    const theta = r > 1e-9 ? Math.acos(Math.max(-1, Math.min(1, z / r))) : 0;
+    const phi = Math.atan2(y, x);
+    return { r: r, theta: theta, phi: phi };
+  }
+
+  return {
+    Complex, factorial, laguerre, assocLegendre,
+    radialR, radialR2, radialDistribution,
+    angularComplex, angularReal,
+    // 角度部分的两个因子（Y = Θ·Φ）与各自的归一化常数：界面上的 Θ/Φ 卡片、
+    // 公式卡片的分段展示都用它们，不要在图里另写一份归一化
+    thetaFunc, thetaFuncReal, csPhase, thetaNorm, phiFuncComplex, phiFuncReal, phiNorm,
+    psiComplex, psiDensity,
+    samplingRadius, samplingAngleMax,
+    samplePoints,
+    lColor, phaseColor, phaseColorFor, hslToRgb,
+    // 轨道模型：氢型 / Slater 型（STO）——切换的**唯一入口**（见函数上方的说明）
+    setRadialModel, getRadialModel, slaterR,
+    // 色彩空间：渲染层写 `color` 顶点属性前必须过这一步（见函数上方的说明）
+    srgbToLinear, srgbToLinearArray,
+    // 相位色的**判据**（只有这两个，别处不要再写第三遍 —— 先前写三遍就分叉了）：
+    // psiPhase 用于完整 ψ（三维等值面 / 截面热力图），angularPhase 用于纯角度函数
+    // （球谐曲面 / ΘΦ 卡片）。用哪个见各自上方的注释。
+    psiPhase, angularPhase,
+    orbitLabel, rExtent, isoRadius, maxDensity, cartToSpherical,
+    /** 读数 → 绝对阈值的**唯一**换算出口（取景 / 标尺 / 抽面 / 面板显示四处共用） */
+    isoLevelAbs,
+    radialZeros, angularNodes, nodes, energy, degeneracy, radialPeaks, shapeDescribe,
+    isoNeckHalf, shellGaps, shellPeakFractions,
+    makeRadialLUT, makePsiDensityFast,
+    psiSuperposition, densitySuperposition, isStationary, superpositionExtent,
+    maxDensitySuperposition, superpositionRefPeak, superpositionRefExtent,
+    superpositionIsoRadius,
+    samplePointsSuperposition,
+    SUBSHELL, SUBSHELL_COLOR,
+  };
+})();
+
+export { OM }
+export default OM

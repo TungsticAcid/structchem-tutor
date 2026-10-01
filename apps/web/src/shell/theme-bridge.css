@@ -1,0 +1,62 @@
+/**
+ * theme-bridge.css — 把两套 CSS 变量对接起来
+ *
+ * ★ 为什么需要这个文件：项目里现在有**两套**设计令牌，各管一半，于是主题切换只生效一半——
+ *   · `packages/ui-kit/tokens.css`（壳自己的）：`--bg` / `--text` / `--line` / `--accent`…
+ *     `:root` 是暗色，`[data-theme="light"]` 是浅色。
+ *   · `projects/crystal/H5/src/styles/global.css`（crystal 页面的）：`--color-bg` / `--color-text`…
+ *     只有**一套**（浅色），取值写死。
+ *
+ *   实测的后果：门户用了 tokens 的 `--text`（暗色主题下是**浅色文字**），
+ *   而 `body` 的背景由 crystal 的 `--color-bg` 决定（**固定浅灰**）——
+ *   于是暗色主题下变成"白字浅底"，几乎看不清。
+ *
+ * ★ 对接而不是统一改名的理由：crystal 的 `global.css` 是**上游的**（它自己的独立应用也在用）。
+ *   把它的变量改名会让两个仓库分叉；而在壳里做一次**映射**，两边都保持原样。
+ *   （顺带说明：tokens.css 的浅色 `--bg` 取值与 crystal 的 `--color-bg` **完全相同**，
+ *     说明浅色那套本来就是从 crystal 的令牌表抄来的——所以这个映射是名正言顺的对接。）
+ *
+ * ★ 加载顺序要紧：本文件必须在 crystal 的 `global.css` **之后**引入，
+ *   否则映射会被后者的 `:root` 覆盖掉。
+ *
+ * ★ 局限（已知，不掩饰）：crystal 的页面里还有约 60 处**硬编码**的 UI 颜色
+ *   （`#fff` / `#f5f5f5` / `#333` …），它们不会跟随主题。本文件只解决"变量层"的对接，
+ *   那些硬编码要靠"把页面颜色改成引用令牌"逐步消化（见重构计划的 P2）。
+ *   ——之所以先做变量层：它一次性解决**门户**与**所有用变量写样式的部分**，
+ *     而门户是本次的交付重点。
+ */
+
+/* ---- 1. 页面底色与文字色跟随主题 ---- */
+html, body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ---- 2. crystal 的令牌 → ui-kit 的令牌 ---- */
+/* 放在 :root 上：crystal 的 global.css 也是写在 :root 里的，同层覆盖靠加载顺序取胜 */
+:root {
+  --color-bg: var(--bg);
+  --color-bg2: var(--bg-2);
+  --color-text: var(--text);
+  --color-text-light: var(--text-dim);
+  --color-text-muted: var(--text-dim);
+  --color-border: var(--line);
+  --color-white: var(--surface, #fff);      /* 卡片底色：浅色主题下是白，暗色下是面板色 */
+  --color-primary: var(--accent);
+}
+
+/* ---- 3. 页面容器：crystal 的页面各自写死了浅底色，这里统一交给令牌 ---- */
+/*
+ * 这几条是**覆盖**：crystal 的页面在自己的 <style> 里写了 `.index-page { background: #f5f5f5 }`
+ * 之类的规则。它们的选择器优先级与本文件相同（都是类选择器），
+ * 靠"后加载"取胜——但内联 <style> 在运行时插入到 <head>，**晚于**本文件。
+ * 所以这里必须用 `:where()` 之外的提升手段：加一层 `body` 前缀提高优先级。
+ * ⚠️ 只覆盖"整页容器"这一层；页面内部的控件颜色仍由各自页面负责。
+ */
+body .index-page,
+body .viewer-page,
+body .compare-page,
+body .lib-page {
+  background: var(--bg);
+  color: var(--text);
+}

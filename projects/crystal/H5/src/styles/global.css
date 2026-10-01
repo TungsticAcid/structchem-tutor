@@ -37,6 +37,11 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  /* ★ 阻止 overscroll 链到浏览器的"下拉刷新"（pull-to-refresh）。
+     本应用是满屏交互（晶体旋转/平移），没有任何页面滚动，
+     但手机浏览器仍会把"从顶部下拉"判成刷新——双保险之一，
+     另一道是画布上的 touch-action:none。 */
+  overscroll-behavior: none;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

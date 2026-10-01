@@ -200,9 +200,15 @@ section('settings-popup：声明式表单与密钥安全')
       const n = {
         tag, className: '', textContent: '', children: [], attrs: {}, dataset: {},
         // 真实 DOM 里 setAttribute 会**反射**到同名属性（type/value/placeholder 都是），
-        // 桩必须照做，否则 'el() 写 attrs、代码读属性' 的组合会让测试假通过
+        // 桩必须照做，否则 'el() 写 attrs、代码读属性' 的组合会让测试假通过。
+        // ★ 同理，**赋值也要能反射回属性**（`input.placeholder = 'x'`）——
+        //   只写 getter 会让"重算提示文案"这类实现直接抛
+        //   `Cannot set property placeholder of #<Object> which has only a getter`，
+        //   而那在真实 DOM 里是完全合法的操作。
         get type() { return n.attrs.type || '' },
+        set type(v) { n.attrs.type = String(v) },
         get placeholder() { return n.attrs.placeholder || '' },
+        set placeholder(v) { n.attrs.placeholder = String(v) },
         get value() { return n._value !== undefined ? n._value : (n.attrs.value || '') },
         set value(v) { n._value = String(v) },
         checked: false,

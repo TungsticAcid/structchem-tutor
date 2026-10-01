@@ -13,7 +13,7 @@
  */
 import { createCrystalFacade } from '../facade.js'
 import { validate, listActions, LAYER_PROPS } from '../actions.js'
-import { assertModuleContract } from '../../../packages/agent-core/contract/module-contract.js'
+import { assertModuleContract } from '../../../packages/module-contract/index.js'
 
 let pass = 0
 let fail = 0

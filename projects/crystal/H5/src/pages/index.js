@@ -26,14 +26,33 @@ export class IndexPage {
   async mount(container) {
     this._container = container
 
-    // 加载晶体卡片组件
-    if (!CrystalCardClass) {
-      const mod = await import('../components/crystal-card.js')
-      CrystalCardClass = mod.CrystalCard
-    }
-
+    // ★ 先把**页面骨架**渲染出来，再等懒加载的卡片组件。
+    //
+    //   原实现把 `container.innerHTML = this._render()` 放在 `await import(...)`
+    //   之后，于是那个 chunk 到达之前 `#app` 一直是**空的**——整个首页白屏。
+    //   本地 dev／本地 preview 看不出来（chunk 是磁盘文件、近乎瞬时），
+    //   但线上**首次访问**（chunk 不在浏览器缓存里）要等一个完整的 RTT：
+    //   实测用 `--latency 700` 复现，空白持续了 **4.16 秒**；而刷新之所以"好了"，
+    //   只是因为此时 chunk 已进 HTTP 缓存（实测反馈："打开只有顶部栏，刷新才正常"）。
+    //
+    //   现在的顺序：骨架（顶栏／分类栏／占位）立即出现 → 卡片组件到位后填充。
+    //   懒加载的收益（主包小 5.6KB）保留，但不再阻塞首屏任何内容。
     container.innerHTML = this._render()
     this._bindEvents(container)
+
+    if (!CrystalCardClass) {
+      try {
+        const mod = await import('../components/crystal-card.js')
+        CrystalCardClass = mod.CrystalCard
+      } catch (e) {
+        // 加载失败要说出来——否则用户面对的是一片"永远加载中"的网格，
+        // 而控制台之外没有任何线索（这类静默失败最难自查）。
+        console.error('[index] 晶体卡片组件加载失败：', e)
+        const grid = container.querySelector('#cardGrid')
+        if (grid) grid.innerHTML = '<div class="list-empty">卡片组件加载失败，请刷新页面重试</div>'
+        return
+      }
+    }
     this._renderCards()
   }
 
@@ -63,7 +82,11 @@ export class IndexPage {
 
       <div class="crystal-list">
         <div class="card-grid" id="cardGrid">
-          ${filtered.length === 0 ? `<div class="list-empty">暂无该分类的晶体数据</div>` : ''}
+          ${filtered.length === 0
+            ? `<div class="list-empty">暂无该分类的晶体数据</div>`
+            /* ★ 骨架阶段的占位：卡片组件是懒加载的，先给一句话比给一个空白网格好
+               （`_renderCards()` 会把它清掉）。见 mount 里关于首屏时序的说明。 */
+            : `<div class="list-empty">正在加载晶体预览…</div>`}
         </div>
       </div>
     </div>

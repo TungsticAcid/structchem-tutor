@@ -109,7 +109,11 @@ export const VOCAB = {
   loadCrystal: {
     label: '切换晶体',
     group: '结构',
-    desc: '切换到指定晶体。id 必须来自 searchCrystals / listCrystals 返回的原值',
+    // ★ 只许点名**真实存在**的工具：这段 desc 会经 listSceneActions 喂给模型，
+    //   此前写的是 "id 必须来自 searchCrystals / listCrystals"——而 searchCrystals
+    //   根本不存在（它在 descriptor 的 plannedTools 里）。模型照着这句话会去调一个
+    //   不存在的名字，白费一轮。给模型看的文本里出现的每个名字都必须能调得动。
+    desc: '切换到指定晶体。id 必须来自 listCrystals 返回的原值（或 getCrystalDetail 查过的）',
     params: { crystalId: 'string' },
   },
   setLayer: {
@@ -157,6 +161,50 @@ export const VOCAB = {
       stickRadius: `number ${APPEARANCE_RANGES.stickRadius.join('~')}`,
       opacity: `number ${APPEARANCE_RANGES.opacity.join('~')}`,
     },
+  },
+  /**
+   * ★ 「可解释的晶体学动作」的一个例子：高亮不是"把球涂成红色"这种通用操作，
+   *   而是"把某个元素的原子点亮"——它服务于**配位环境、等效点系**这类概念，
+   *   是 grade 节点做可视化诊断的主要手段（"高亮中心球周围的配位原子"）。
+   *
+   *   实现用材质 emissive 而非改 color：元素色本身是教学信息，不能丢。
+   */
+  highlightAtoms: {
+    label: '高亮元素',
+    group: '图层',
+    desc: '高亮指定元素的原子（发光突出，**不改变元素本身的颜色**）。'
+      + '传空数组可取消全部高亮。用于讲解配位环境、等效点系等概念',
+    params: { elements: 'string[]（元素符号数组，如 ["Na","Cl"]）' },
+  },
+  /**
+   * 并排对比：把当前晶体与另一个晶体放到对比页左右并排。
+   * 用于"NaCl 和 CsCl 有什么区别"这类问题——数据由 compareCrystals 给出，
+   * 这个动作负责把两个结构**摆到学生眼前**。
+   */
+  openCompareView: {
+    label: '并排对比',
+    group: '结构',
+    desc: '把当前晶体与指定的另一个晶体并排显示（跳转到对比视图）。两个 id 都必须真实存在',
+    params: { b: 'string（第二个晶体的 id）' },
+  },
+  /**
+   * ★ **切换晶胞原点**（"谁在顶点、谁在体心"）。
+   *
+   *   CsCl 型这类晶体有两种**等价**的画法：顶点为 Cs⁺（Cl⁻ 在体心）或顶点为 Cl⁻
+   *   （Cs⁺ 在体心）。结构是同一个，但**数配位时差别很大**：
+   *   学生要数"Cs⁺ 周围有几个 Cl⁻"，就该让 Cs⁺ 落在**体心**——否则画面中心那个是
+   *   Cl⁻，他数出来的是 Cl⁻ 的配位，**眼睛看到的与耳朵听到的对不上**（实测反馈）。
+   *   所以"讲谁的配位就让谁到体心"是该动作的主要用法。
+   *
+   *   可选值由晶体数据给出（`data/crystals/csCl.js` 的 `equivalentSettings`），
+   *   本动作只负责选一项；`getCrystalDetail` 会把那张表原样返回给模型。
+   */
+  setEquivalentOrigin: {
+    label: '切换晶胞原点',
+    group: '结构',
+    desc: '切换等价的晶胞原点表示（如 CsCl 的「顶点为 Cs⁺」/「顶点为 Cl⁻」）。'
+      + '★ 要数某个离子的配位时，先把它**切到体心**再数——中心那个原子才是"被数的那个"',
+    params: { index: 'int ≥ 0（equivalentSettings 的下标，0 起）' },
   },
 }
 
@@ -217,6 +265,15 @@ export function validate(name, p, ctx = {}) {
       if (CELL_MODES.indexOf(p.mode) < 0) return { err: `mode 应为 ${CELL_MODES.join('/')}` }
       return { params: { mode: p.mode } }
     }
+    case 'setEquivalentOrigin': {
+      const i = Math.round(Number(p.index))
+      if (!Number.isFinite(i) || i < 0) {
+        return { err: 'index 应为 ≥ 0 的整数（equivalentSettings 的下标，见 getCrystalDetail）' }
+      }
+      // ★ 上界不在这里判：可选原点**随晶体而异**（多数晶体只有一项），
+      //   由视图层按当前晶体实际有几项来夹——在这里写死一个上界只会误伤。
+      return { params: { index: i } }
+    }
     case 'setAtomVisibility': {
       const el = p.element
       if (typeof el !== 'string' || !el.trim()) return { err: '需要 element（元素符号）' }
@@ -234,6 +291,31 @@ export function validate(name, p, ctx = {}) {
         return { err: `至少要给一项：${Object.keys(APPEARANCE_RANGES).join(' / ')}` }
       }
       return { params: out }
+    }
+    case 'highlightAtoms': {
+      const els = p.elements
+      if (!Array.isArray(els)) {
+        return { err: 'elements 应为元素符号数组，如 ["Na"]；传空数组可取消高亮' }
+      }
+      // 只保留非空字符串并去重；空数组是合法输入（表示取消高亮）
+      const clean = [...new Set(els.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim()))]
+      if (els.length && !clean.length) {
+        return { err: 'elements 里没有有效的元素符号' }
+      }
+      return { params: { elements: clean } }
+    }
+    case 'openCompareView': {
+      const b = p.b
+      if (typeof b !== 'string' || !b) return { err: '需要 b（第二个晶体的 id）' }
+      if (ctx.crystalIds && !ctx.crystalIds.has(b)) {
+        return { err: `未知晶体 id：${b}（id 必须来自检索工具返回的原值，不可编造）` }
+      }
+      // 与当前晶体相同则没有可对比的内容——这一点在动作层就拦下，
+      // 免得跳过去看到一个"左右一样"的页面
+      if (ctx.currentCrystalId && ctx.currentCrystalId === b) {
+        return { err: '第二个晶体与当前晶体相同，没有可对比的内容' }
+      }
+      return { params: { b } }
     }
     default:
       return { err: `未知动作：${name}（可用动作见 listSceneActions）` }

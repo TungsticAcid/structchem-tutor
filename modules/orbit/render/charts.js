@@ -1,0 +1,1025 @@
+/**
+ * charts.js（orbit 模块 · 渲染层）
+ *
+ * 二维图表：径向分布、角度分布、截面图（与卡片共用同一份 sectionView 状态）
+ *
+ * ★ 来自上游 `orbit/H5/`。转 ESM 时只改了：全局挂载 → 模块导出、
+ *   跨文件全局引用 → import、**反向依赖宿主状态的那几处 → 注入**。
+ *   算法与几何处理逐字未动。
+ */
+import { OM } from '../core/math.js'
+
+/**
+ * charts.js — 2D 图表（纯 Canvas 手绘，无外部图表库）
+ *
+ * 包含三类图表：
+ *   1. 径向曲线：R(r) / R(r)² / D(r)，可多选叠加，各自按峰值归一化。
+ *      （D(r)² 已移除：它的零点与峰值和 D(r) 完全相同，却常被误当成独立的物理量。）
+ *   2. 角度部分的两个因子：Θ(θ) 与 Φ(φ) 各自的极坐标图 —— 用来把 Y = Θ·Φ 讲清楚。
+ *      ★ 球谐曲面 Y 本身**不在这里**：它已并入主三维视图（见 render3d.js 的
+ *        updateAngular），这样它就能和完整波函数共用同一套相机与操作。
+ *   3. 截面热力图：|ψ|²（可切换相位着色）在 xy / xz / yz 平面上的彩色图。
+ *
+ * 统一使用设备像素比（devicePixelRatio）缩放，保证高分屏清晰。
+ */
+const Charts = (function () {
+  'use strict';
+
+  // --- Canvas 基础工具 --------------------------------------------------------
+  function setup(canvas) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = canvas.clientWidth || 300;
+    const h = canvas.clientHeight || 200;
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+    }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    return { ctx, w, h };
+  }
+
+  // 基于 canvas 元素上的"字符"设置，绘制淡色网格/轴（通用）
+  function drawFrame(ctx, w, h, pad) {
+    ctx.strokeStyle = 'rgba(120,135,170,0.35)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(pad.l, pad.t, w - pad.l - pad.r, h - pad.t - pad.b);
+  }
+
+  /**
+   * 在 canvas 上画一段**含变量**的数学文字：变量用斜体，其余（数字、函数名、括号、
+   * 单位、中文）用正体。
+   *
+   * ★ 为什么需要它：`fillText` 只能整段一种字体，而"变量斜体、数字与函数名正体"
+   *   是数学排版的基本约定，也是本项目其余各处（KaTeX 公式、面板标签、顶栏符号）的口径。
+   *   只有 canvas 这一路做不到 —— 于是三张 2D 图的说明文字里，ψ、Y、Θ、Φ、R、r、x、y、z
+   *   全是正体（用户第 5 条）。做法就是按段切换 `ctx.font` 逐段画。
+   *
+   * ★ 斜体字体由**调用方当前的 ctx.font** 派生（在字号前插 "italic "），
+   *   所以调用点不必另给一个字体串 —— 原来怎么写还怎么写，只是把字符串拆成段。
+   *
+   * ★ 逐段画时必须把 textAlign 临时改成 left 自己算起点：否则每一段都会各自按
+   *   center/right 对齐到锚点，几段文字会叠在一起。
+   *
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {string} s 用 `*` 标出斜体段的文字，如 `'*Θ*(*θ*)'`、`'*R*(*r*)*²*'`
+   *                   （奇数号段为斜体；这些标注里不会出现真的星号）
+   * @param {number} x 锚点（尊重调用方设置的 textAlign）
+   * @param {number} y 基线
+   * @param {boolean} [halo] 是否先描一圈深色底再填字（压在彩色填充上的标签需要，见 axisLabel）
+   */
+  function fillMath(ctx, s, x, y, halo) {
+    const parts = s.split('*').map(function (t, i) { return [t, i % 2 === 1]; });
+    const base = ctx.font;
+    const it = /italic/.test(base) ? base : base.replace(/^(\s*)/, '$1italic ');
+    const ws = parts.map(function (p) {
+      ctx.font = p[1] ? it : base;
+      return ctx.measureText(p[0]).width;
+    });
+    const total = ws.reduce(function (a, b) { return a + b; }, 0);
+    const al = ctx.textAlign;
+    let cx = x;
+    if (al === 'center') cx = x - total / 2;
+    else if (al === 'right' || al === 'end') cx = x - total;
+    ctx.textAlign = 'left';
+    parts.forEach(function (p, i) {
+      ctx.font = p[1] ? it : base;
+      if (halo) ctx.strokeText(p[0], cx, y);
+      ctx.fillText(p[0], cx, y);
+      cx += ws[i];
+    });
+    ctx.textAlign = al;
+    ctx.font = base;
+  }
+
+  // --- 强度配色（深蓝 → 蓝 → 青 → 黄 → 红，类火图） ----------------------------
+  const STOPS = [
+    [0.00, 8, 14, 40],
+    [0.25, 34, 82, 170],
+    [0.50, 43, 182, 216],
+    [0.75, 255, 211, 77],
+    [1.00, 255, 77, 77],
+  ];
+  function colorScale(t) {
+    t = Math.max(0, Math.min(1, t));
+    for (let i = 1; i < STOPS.length; i++) {
+      if (t <= STOPS[i][0]) {
+        const [t0, r0, g0, b0] = STOPS[i - 1];
+        const [t1, r1, g1, b1] = STOPS[i];
+        const k = (t - t0) / (t1 - t0);
+        return [
+          Math.round(r0 + (r1 - r0) * k),
+          Math.round(g0 + (g1 - g0) * k),
+          Math.round(b0 + (b1 - b0) * k),
+        ];
+      }
+    }
+    return [STOPS[STOPS.length - 1][1], STOPS[STOPS.length - 1][2], STOPS[STOPS.length - 1][3]];
+  }
+
+  // 等高线用的亮色序列（每层一个色，便于区分层级）
+  const CONT_COLORS = [
+    [150, 210, 255], [120, 255, 190], [255, 235, 130], [255, 165, 95],
+    [255, 120, 190], [200, 150, 255], [150, 180, 255], [255, 255, 255],
+  ];
+
+  // --- 径向曲线 ---------------------------------------------------------------
+  // ★ 只有 R / R² / D 三条。原先还有 D²，但 D ≥ 0 恒成立，平方**不改变极值点与零点**，
+  //   画出来只是同一条曲线换个纵轴刻度，对"辨析径向节点"这个教学目的没有增量，
+  //   故从界面、函数表、配色表、名称表一并移除。
+  const RADIAL_FN = {
+    // Z 作最后一个参数（类氢）—— 径向曲线随 Z 缩为 1/Z，不传就画错
+    R:  (n, l, r, Z) => OM.radialR(n, l, r, Z),
+    R2: (n, l, r, Z) => OM.radialR2(n, l, r, Z),
+    D:  (n, l, r, Z) => OM.radialDistribution(n, l, r, Z),
+  };
+  const RADIAL_PALETTE = {
+    R: [120, 200, 255],
+    R2: [120, 255, 200],
+    D: [255, 190, 90],
+  };
+  // ★ 值里用 `*` 标出斜体段（变量斜体、括号与数字正体）—— 见 fillMath 的说明。
+  const RADIAL_NAME = { R: '*R*(*r*)', R2: '*R*(*r*)²', D: '*D*(*r*)' };
+
+  // 径向图的特征标注状态（由 scene-bridge 的 highlightRadialFeature 驱动）
+  let radialHighlight = null;
+  let lastRadialArgs = null;
+
+  /**
+   * 求某个径向函数的"特征半径"。
+   *   D 的峰值/零点直接用 math.js 的确定性函数（数值求极值 / 求根）
+   *   R 的零点与 D 相同（R=0 ⟺ r²R²=0），峰值需自行扫描 |R|
+   * 全部由计算层给出，不依赖视觉推断。
+   */
+  function computeFeature(target, feature, n, l, Z) {
+    if (target === 'D') {
+      return feature === 'peak' ? OM.radialPeaks(n, l, Z) : OM.radialZeros(n, l, Z);
+    }
+    if (feature === 'zeros') return OM.radialZeros(n, l, Z);
+    // |R| 的局部极大
+    const rMax = OM.rExtent(n, l, Z);
+    const steps = 1200;
+    const h = rMax / steps;
+    const out = [];
+    let a = Math.abs(OM.radialR(n, l, 1e-9, Z));
+    let b = Math.abs(OM.radialR(n, l, h, Z));
+    for (let i = 2; i <= steps; i++) {
+      const c = Math.abs(OM.radialR(n, l, (rMax * i) / steps, Z));
+      if (b > a && b >= c && b > 1e-12) out.push((rMax * (i - 1)) / steps);
+      a = b; b = c;
+    }
+    return out;
+  }
+
+  /**
+   * 当前**实际会画出来**的特征标线。
+   *
+   * ★ 标线跟着**曲线显隐**走：只标当前可见曲线对应的半径。原先这两件事是割裂的——
+   *   曲线能开关，标线却只由外部的 highlightRadialFeature 动作驱动、界面上没有入口，
+   *   于是"关了 R 却还留着 R 的峰值线"，很难控制。
+   *
+   * ★ 峰值与节点**可同时展示**（features 是集合，不是单选）。原先只能二选一，而
+   *   "峰值与节点同屏"正是辨析 R 与 D 最直观的一屏：D 的峰在 R 的节点之间。
+   *   绘制上再区分线型——峰值实线、节点虚线——两类标线同屏时不会混淆。
+   * @returns {Array<{r:number, col:number[], f:string}>}
+   */
+  function computeMarks(n, l, whichList, Z) {
+    const hl = radialHighlight;
+    if (!hl || !hl.features.length) return [];
+    const t = hl.target;
+    const showR = whichList.indexOf('R') >= 0 || whichList.indexOf('R2') >= 0;
+    const showD = whichList.indexOf('D') >= 0;
+    const marks = [];
+    hl.features.forEach(function (f) {
+      if ((t === 'R' || t === 'ALL') && showR) {
+        computeFeature('R', f, n, l, Z).forEach((r) => marks.push({ r: r, col: RADIAL_PALETTE.R, f: f }));
+      }
+      if ((t === 'D' || t === 'ALL') && showD) {
+        computeFeature('D', f, n, l, Z).forEach((r) => marks.push({ r: r, col: RADIAL_PALETTE.D, f: f }));
+      }
+    });
+    // 去重：同一类特征下 R 与 D 的零点完全相同（D = r²R²），重复画只会叠成一条。
+    // ★ 按 (特征, 半径) 去重，不按半径单独去重 —— 否则"D 的峰值"与"R 的节点"碰巧同
+    //   半径时会被误并成一条，剩谁的颜色看遍历顺序，那是随机的。
+    const uniq = [];
+    marks.forEach((m) => {
+      if (!uniq.some((u) => u.f === m.f && Math.abs(u.r - m.r) < 1e-6)) uniq.push(m);
+    });
+    return uniq;
+  }
+
+  /**
+   * 设置/清除径向图的特征标注。
+   * @param {string|null} target 'R' | 'D' | 'ALL'；null 表示清除
+   * @param {string|string[]} features 'peak' | 'zeros'，或它们的数组（可同时标注）
+   */
+  function setRadialHighlight(target, features) {
+    let list = [];
+    if (target && features) list = Array.isArray(features) ? features.slice() : [features];
+    list = list.filter((f) => f === 'peak' || f === 'zeros');
+    radialHighlight = (target && list.length) ? { target: target, features: list } : null;
+    if (lastRadialArgs) {
+      const a = lastRadialArgs;
+      drawRadial(a.canvas, a.n, a.l, a.whichList, a.Z);
+    }
+  }
+
+  function drawRadial(canvas, n, l, whichList, Z) {
+    lastRadialArgs = { canvas: canvas, n: n, l: l, whichList: whichList.slice(), Z: Z };
+    const { ctx, w, h } = setup(canvas);
+    const pad = { l: 46, r: 16, t: 16, b: 34 };
+    drawFrame(ctx, w, h, pad);
+    const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+
+    const rEnd = OM.rExtent(n, l, Z) * 1.02;
+    const N = 360;
+    const curves = whichList.map((key) => {
+      const fn = RADIAL_FN[key];
+      let mx = 0;
+      const pts = [];
+      for (let i = 0; i <= N; i++) {
+        const r = (rEnd * i) / N;
+        const v = fn(n, l, r, Z);
+        pts.push(v);
+        if (Math.abs(v) > mx) mx = Math.abs(v);
+      }
+      return { key, pts, mx: mx || 1e-12 };
+    });
+
+    const signed = whichList.includes('R');
+    const yMin = signed ? -1 : 0, yMax = 1;
+    // 值 → 像素 y 的统一映射（有负值时纵轴从 -1 到 +1）
+    const valueToY = (v) => pad.t + ih * (1 - (v - yMin) / (yMax - yMin));
+
+    // 水平网格线 + 刻度（纵轴值，支持负值）
+    ctx.strokeStyle = 'rgba(120,135,170,0.18)';
+    ctx.fillStyle = 'rgba(170,185,215,0.7)';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.lineWidth = 1;
+    const yTicks = signed ? [-1, -0.5, 0, 0.5, 1] : [0, 0.2, 0.4, 0.6, 0.8, 1];
+    yTicks.forEach((tv) => {
+      const gy = valueToY(tv);
+      ctx.beginPath(); ctx.moveTo(pad.l, gy); ctx.lineTo(w - pad.r, gy); ctx.stroke();
+      ctx.fillText(tv.toFixed(tv % 1 === 0 ? 1 : 2), pad.l - 34, gy + 4);
+    });
+    // 垂直网格线（r 轴）
+    for (let g = 0; g <= 5; g++) {
+      const gx = pad.l + (iw * g) / 5;
+      ctx.beginPath(); ctx.moveTo(gx, pad.t); ctx.lineTo(gx, h - pad.b); ctx.stroke();
+      const rv = (rEnd * g) / 5;
+      ctx.fillText(rv.toFixed(1), gx - 8, h - pad.b + 16);
+    }
+    // 轴标签
+    ctx.fillStyle = 'rgba(200,210,235,0.9)';
+    ctx.font = '12px system-ui, sans-serif';
+    // x 轴：钟标居中偏右、**压在刻度数字下面一行**（原先 x = w−pad.r−34 与最后一个
+    // 刻度（如 41.4）横向重叠，看着挤在一起）
+    fillMath(ctx, '*r* (*a*₀)', w - pad.r - 46, h - 4);
+    // y 轴：原先写作 (pad.l − 68) = 负坐标 → 一半画到画布外被裁，看着像"数幅度"。
+    // 改放在绘图区左上方的留白里（那里正好空着，图例在右上）
+    ctx.fillText('归一化值', pad.l + 2, pad.t - 5);
+
+    // 绘制各曲线（按其峰值归一化，便于比较节点结构）
+    curves.forEach((c) => {
+      const col = RADIAL_PALETTE[c.key];
+      ctx.strokeStyle = 'rgb(' + col.join(',') + ')';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      for (let i = 0; i <= N; i++) {
+        const x = pad.l + (iw * i) / N;
+        const y = valueToY(c.pts[i] / c.mx);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
+
+    // 特征标注（峰值 / 节点）—— 辨析 R 与 D 的核心手段（口径见 computeMarks）
+    const marks = computeMarks(n, l, whichList, Z);
+    if (marks.length) {
+      ctx.save();
+      ctx.lineWidth = 1.6;
+      ctx.font = '10px system-ui, sans-serif';
+      let row = 0;
+      marks.forEach((m) => {
+        if (!(m.r >= 0) || m.r > rEnd) return;
+        const gx = pad.l + (iw * m.r) / rEnd;
+        // ★ 峰值画实线、节点画虚线：两类标线同屏时（第 17 条）不靠颜色也能分清
+        ctx.setLineDash(m.f === 'zeros' ? [3, 3] : []);
+        ctx.strokeStyle = 'rgba(' + m.col.join(',') + ',0.95)';
+        ctx.beginPath(); ctx.moveTo(gx, pad.t); ctx.lineTo(gx, pad.t + ih); ctx.stroke();
+        ctx.fillStyle = 'rgb(' + m.col.join(',') + ')';
+        // 标签分两行交错，避免相邻标线的数值贴在一起
+        ctx.fillText(m.r.toFixed(2), Math.min(gx + 3, w - pad.r - 30), pad.t + 12 + (row % 2) * 12);
+        row++;
+      });
+      ctx.restore();
+    }
+
+    // 图例
+    let lx = w - pad.r - 150;
+    curves.forEach((c) => {
+      const col = RADIAL_PALETTE[c.key];
+      ctx.fillStyle = 'rgb(' + col.join(',') + ')';
+      ctx.fillRect(lx, pad.t + 2, 12, 3);
+      ctx.fillStyle = 'rgba(220,228,245,0.9)';
+      ctx.font = '11px system-ui, sans-serif';
+      fillMath(ctx, RADIAL_NAME[c.key], lx + 15, pad.t + 6);
+      lx += 64;
+    });
+  }
+
+  // --- 角度部分的两个因子：Θ(θ) 与 Φ(φ) ---------------------------------------
+  /**
+   * 把分离变量再拆一层：Y(θ,φ) = Θ(θ)·Φ(φ)，左右各一幅极坐标图。
+   *
+   * ★ 为什么值得单独一张卡：教材讲到 ψ = R(r)·Y(θ,φ) 通常就停了，学生看不到
+   *   "角度部分自己还能分成两个**单变量**函数的乘积"。左右并排、中间一个「×」，
+   *   这件事才看得见；底部那行再把 max|Θ| × max|Φ| = max|Y| 的真实数字写出来，
+   *   让"相乘"从一句话变成可核对的事实。
+   *
+   * ★ 两幅图的极角基准**不同**，图上必须各自标清楚，否则学生会以为能叠在一起：
+   *     Θ 画在 xz 平面，极角 = θ，自 **+z（朝上）** 起算；
+   *     Φ 画在 xy 平面，极角 = φ，自 **+x（朝右）** 起算。
+   *
+   * ★ 曲线的视觉半径各按**自身峰值**归一化（与径向图的约定一致），那只影响形状
+   *   看起来多大；乘积关系由底部那行的**真实数值**保证，不依赖视觉半径。
+   *
+   * @param mode      'real' | 'complex' —— **Θ 与 Φ 都随档变**：
+   *                  复解 Θ 带 Condon–Shortley 相因子（教材表 4.2.2）、Φ 取模画成"一个圆圈"；
+   *                  实解 Θ 去掉该相因子、Φ 取 cos/sin。
+   *                  ★ 两档都满足 Y = Θ·Φ 逐点成立 —— 底部那行数字就是这条恒等式的兑现。
+   * @param colorMode 'orbital' | 'phase' —— 线条的着色方式，**与三维视图同源**。
+   *                  原先这张卡自作主张"是复解就按相位彩虹"，于是三维选了支壳层色
+   *                  而这里仍是彩虹，两处对不上（学生对照时颜色不一致）。
+   *                  现在由调用方传 **deriveColorMode() 的派生值**（见 main.js）：
+   *                    · 'phase'   → 按该点因子的正负 / 相位取色（与三维同一个 phaseColor 出口）
+   *                    · 'orbital' → 单色描边（复解的 Φ 是个圆，单色反而更能显出它"模为常数"）
+   */
+  function drawThetaPhi(canvas, l, m, mode, colorMode) {
+    const { ctx, w, h } = setup(canvas);
+    const padX = 6;
+    const colW = (w - padX * 2) / 2;
+    const Rho = Math.min(colW * 0.84, h * 0.34);
+    const cy = h * 0.55;
+    const cxT = padX + colW * 0.5;        // 左：Θ 的极点
+    const cxP = padX + colW * 1.5;        // 右：Φ 的极点
+    const N = 360;
+
+    // ---- 采样两个因子 ----
+    // ★ Θ 必须**按档取**：复解用带 Condon–Shortley 相因子的 thetaFunc（= 教材表 4.2.2），
+    //   实解用去掉了相因子的 thetaFuncReal。混用会让实档的底部那行
+    //   "max|Θ| × max|Φ| = max|Y|" 差一个 (-1)^{|m|} —— 而这张卡的全部意义
+    //   就是"相乘"可以被逐位核对，符号一对不上，卡片的论点就塌了。
+    const thetaOf = (mode === 'complex') ? OM.thetaFunc : OM.thetaFuncReal;
+    const thArr = [], TH = [], phArr = [], PH = [];
+    let mxT = 0, mxP = 0;
+    for (let i = 0; i <= N; i++) {
+      const t = (Math.PI * i) / N;
+      thArr.push(t);
+      const v = thetaOf(l, m, t);
+      TH.push(v);
+      if (Math.abs(v) > mxT) mxT = Math.abs(v);
+    }
+    for (let i = 0; i <= N; i++) {
+      const p = (2 * Math.PI * i) / N;
+      phArr.push(p);
+      const v = (mode === 'complex')
+        ? OM.phiFuncComplex(m, p).abs()
+        : OM.phiFuncReal(m, p);
+      PH.push(v);
+      if (Math.abs(v) > mxP) mxP = Math.abs(v);
+    }
+    if (mxT < 1e-12) mxT = 1e-12;
+    if (mxP < 1e-12) mxP = 1e-12;
+
+    // ---- 极坐标网格（两幅共用）----
+    // 8 条 45° 辐射线对"自 +z 起"与"自 +x 起"两种基准是**同一组**线，
+    // 所以不必分两套画法，只有角标文字不同。
+    ctx.strokeStyle = 'rgba(120,135,170,0.2)';
+    ctx.lineWidth = 1;
+    for (const cx of [cxT, cxP]) {
+      for (const fr of [0.5, 1.0]) {
+        ctx.beginPath(); ctx.arc(cx, cy, Rho * fr, 0, Math.PI * 2); ctx.stroke();
+      }
+      for (let deg = 0; deg < 360; deg += 45) {
+        const a = (deg * Math.PI) / 180;
+        ctx.beginPath(); ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Rho * Math.sin(a), cy - Rho * Math.cos(a));
+        ctx.stroke();
+      }
+    }
+
+    // ---- 角节面方向（第 10 条）----
+    // 这张卡上画的是 Θ(θ) 与 Φ(φ) 两个**因子**，而它们的**零点**正是角度节面所在的方向：
+    //   · Θ(θ_k) = 0 → 那个零点是"以 z 轴为轴、半顶角 θ_k"的**圆锥面**
+    //   · Φ(φ_k) = 0 → 那个零点是"过 z 轴、方位角 φ_k"的**平面**
+    // 但一张极坐标图只能画出方向、画不出面。所以用淡色虚线把**角度**标出来 ——
+    // 这样学生能把"图上这条线"与"三维视图里那个节面"对上，而不必自己换算角度。
+    // ★ 画在曲线之前：它是参考线，压在半透明的瓣上面会看不清瓣本身。
+    (function drawNodeRays() {
+      const cones = OM.angularNodes(l, m, mode).cones;    // Θ 的零点（两档相同）
+      // φ 的零点只在**实数解且 m≠0** 时存在（复解的 |Φ| 是常数，没有零点）
+      const planes = (mode === 'real') ? OM.angularNodes(l, m, mode).planes : [];
+      const groups = [
+        { cx: cxT, list: cones, sym: 'θ', base: 'z' },    // 左图：极角自 +z 起
+        { cx: cxP, list: planes, sym: 'φ', base: 'x' },   // 右图：方位角自 +x 起
+      ];
+      groups.forEach(function (g) {
+        g.list.forEach(function (ang, k) {
+          // 方向单位向量。两幅图的极坐标约定与各自曲线的 toXY 一致：
+          //   Θ：x = sinθ, y = −cosθ（自 +z 起）    Φ：x = cosφ, y = −sinφ（自 +x 起）
+          const dx = (g.sym === 'θ') ? Math.sin(ang) : Math.cos(ang);
+          const dy = (g.sym === 'θ') ? -Math.cos(ang) : -Math.sin(ang);
+          ctx.save();
+          ctx.strokeStyle = 'rgba(255,138,212,0.5)';      // 与三维的节面标注同一支粉色
+          ctx.lineWidth = 1.4;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.moveTo(g.cx, cy);
+          ctx.lineTo(g.cx + Rho * dx, cy + Rho * dy);
+          ctx.stroke();
+          ctx.restore();
+          // 角度写在射线末端外侧。多个零点时交替远近一点，避免文字叠在一起。
+          const rLab = Rho * (1.12 + (k % 2) * 0.11);
+          ctx.save();
+          ctx.fillStyle = 'rgba(255,190,235,0.95)';
+          ctx.font = '11px system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          fillMath(ctx, '*' + g.sym + '*=' + Math.round((ang * 180) / Math.PI) + '°',
+            g.cx + rLab * dx, cy + rLab * dy + 4);
+          ctx.restore();
+        });
+      });
+    })();
+
+    // ---- 曲线：先填充（回路闭合自然成瓣）再逐段描边 ----
+    /**
+     * THREE 风格的三元组（0..1）→ CSS 颜色。
+     * ★ 必须 ×255：`phaseColor` / `lColor` 返回的是 **0..1**（见 math.js 的注释），
+     *   而 CSS 的 rgba() 是 0..255 量纲 —— 直接拼会把 0.9 当成 0.9/255，画出一条黑线（实测踩过）。
+     */
+    const cssOf = function (c, a) {
+      return 'rgba(' + Math.round(c[0] * 255) + ',' + Math.round(c[1] * 255) +
+        ',' + Math.round(c[2] * 255) + ',' + a + ')';
+    };
+    // ★ 第 6 条：正负双色不再手写色值，而是**由三维那套 phaseColor 算出来** ——
+    //   这样"与三维视图是同一套约定"由代码保证，而不是靠一句随时会过期的注释。
+    //   原先这里是蓝/橙，而三维是红/青，那句说明其实一直是假的（用户看出来了）。
+    const POS = cssOf(OM.phaseColor(0, 0.62), 0.95);          // 相位 0 → 红（三维实解正瓣同源）
+    const NEG = cssOf(OM.phaseColor(Math.PI, 0.62), 0.95);    // 相位 π → 青
+    const FILL = 'rgba(140,175,225,0.13)';                    // 瓣的填充：中性淡色，两档通用
+
+    /**
+     * @param cx      极点 x
+     * @param count   采样点数（分段数 = count）
+     * @param toXY    (i) → [x, y]
+     * @param colorAt (i) → 第 i 段描边用的 CSS 颜色
+     */
+    function strokeCurve(cx, count, toXY, colorAt) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      for (let i = 0; i <= count; i++) { const p = toXY(i); ctx.lineTo(p[0], p[1]); }
+      ctx.closePath();
+      ctx.fillStyle = FILL; ctx.fill();
+      ctx.lineWidth = 2.2;
+      for (let i = 0; i < count; i++) {
+        const p0 = toXY(i), p1 = toXY(i + 1);
+        ctx.strokeStyle = colorAt(i);
+        ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+      }
+    }
+
+    // 着色口径：由调用方传入 **deriveColorMode() 的派生值**（判据的推论，见 main.js），
+    // 与三维视图同源 —— 不再是一个可以单独设置的开关。
+    //   'orbital' → 单色（就用该支壳层的基础色，与三维纯色同源）
+    //   'phase'   → 正负 / 相位取色
+    const usePhase = (colorMode === 'phase');
+    const PLAIN = cssOf(OM.lColor(l), 0.95);
+
+    // ---- 左：Θ(θ) 的**完整剖面** ----
+    // ★ 为什么不能只沿 θ∈[0,π] 画一遍：θ 只扫过半个平面，而半径取 |Θ| 恒为非负，
+    //   于是曲线**全部落在 x ≥ 0 的半边**（x = |Θ|·sinθ，sinθ ≥ 0）。
+    //   角度分布的剖面是"绕 z 轴旋转体的截面"，左右两侧都要画 —— 常见的 p_z 角度分布图
+    //   是**两个相切的整圆**，只画右半边会变成两段半圆弧，与上面那张
+    //   三维球谐曲面（用完整球面映射，两个整球）**对不上**。
+    //   故：先沿 θ: 0→π 走右侧，再沿 θ: π→0 折回走左侧（x 取负），拼成闭合回路。
+    const sT = Rho / mxT;
+    const kOf = function (i) { return i <= N ? i : (2 * N - i); };   // 折返
+    const rightOf = function (i) { return i <= N; };
+    strokeCurve(cxT, 2 * N, function (i) {
+      const k = kOf(i);
+      const r = Math.abs(TH[k]) * sT;
+      const x = r * Math.sin(thArr[k]);
+      return [cxT + (rightOf(i) ? x : -x), cy - r * Math.cos(thArr[k])];
+    }, usePhase
+      // ★ Θ 在**两档下都是实函数**（复解与实解的差别只在那个 CS 相因子），没有"相位沿
+      //   方位角缠绕"这回事 —— 所以它在相位模式下也是正负双色，而不是彩虹。
+      ? function (i) { return TH[kOf(i)] >= 0 ? POS : NEG; }
+      : function () { return PLAIN; });
+
+    // ---- 右：Φ(φ) ----
+    // 这里 φ 扫满 2π，本身就把左右两侧都走到了（r = |cos φ| 的两瓣正是两个整圆），
+    // 不需要像 Θ 那样折返。
+    const sP = Rho / mxP;
+    strokeCurve(cxP, N, function (i) {
+      const r = Math.abs(PH[i]) * sP;
+      return [cxP + r * Math.cos(phArr[i]), cy - r * Math.sin(phArr[i])];
+    }, !usePhase
+      ? function () { return PLAIN; }          // 单色：复解的 Φ 是个圆，单色反而更显出"模为常数"
+      : (mode === 'complex')
+        // ★ 必须用 **Φ 自己的相位**（= m·φ），不能走 angularPhase。
+        //   后者算的是"完整角度部分 Y 的相位"，而本图把 θ 固定在 0 —— 极点处 Θ(0) = 0，
+        //   于是 Y ≡ 0，arg(0) 完全由浮点噪声的符号决定（实测 φ<90° 给 π、其余给 0），
+        //   画出来是红/青随机拼凑的两色 —— 那**不是**相位缠绕，只是噪声。
+        //   而这张卡要展示的恰恰是"复解的 Φ 模为常数（一个圆）、相位沿方位角均匀绕一圈"，
+        //   所以相位就该直接取 e^{imφ} 的辐角。
+        ? function (i) {
+            return cssOf(OM.phaseColor(OM.phiFuncComplex(m, phArr[i]).arg(), 0.62), 0.95);
+          }
+        : function (i) { return PH[i] >= 0 ? POS : NEG; });
+
+    // ---- 标注 ----
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(200,210,235,0.95)';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    fillMath(ctx, '*Θ*(*θ*)', cxT, 14);
+    fillMath(ctx, '*Φ*(*φ*)', cxP, 14);
+    // 中间的乘号 —— 整张卡的论点就是它
+    ctx.fillStyle = 'rgba(150,170,210,0.9)';
+    ctx.font = 'bold 15px system-ui, sans-serif';
+    ctx.fillText('×', w * 0.5, cy + 5);
+
+    // 极角基准：两幅不同，各自标出。
+    // ★ 位置取"圆内、离描边约 14px"（贴边写会被描边压住）；并且**先描一圈底色再填字** ——
+    //   浅色文字直接压在橙/青填充上对比度不够，实测 −z 几乎看不出来。光晕让它在任何
+    //   瓣色下都读得清，代价只是多一次 strokeText。
+    ctx.font = '10px system-ui, sans-serif';
+    const axisLabel = function (t, x, y, align) {
+      ctx.textAlign = align || 'center';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(10,15,31,0.9)';
+      ctx.fillStyle = 'rgba(206,219,244,0.98)';
+      fillMath(ctx, t, x, y, true);        // true = 先描一圈底色（压在瓣色上也要读得清）
+    };
+    const INSET = 15;
+    axisLabel('+*z*', cxT, cy - Rho + INSET);
+    axisLabel('−*z*', cxT, cy + Rho - 4);
+    axisLabel('+*y*', cxP, cy - Rho + INSET);
+    axisLabel('+*x*', cxP + Rho - 8, cy - 4, 'right');
+
+    // ---- 底部：把"相乘"落成可核对的数字 ----
+    // ★ max|Y| 取两因子峰值之积。Y = Θ·Φ 且两个自变量独立，所以 |Y| 的最大值
+    //   必在两个峰值处同时取到 —— 这是**恒等式而非近似**（验证脚本会与网格实测的
+    //   max|Y| 对照，见 README 的验证一节）。
+    ctx.textAlign = 'center';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(170,190,225,0.9)';
+    const f3 = function (x) { return x.toFixed(3); };
+    fillMath(ctx, 'max:  *Θ* ' + f3(mxT) + '  ×  *Φ* ' + f3(mxP) + '  =  *Y* ' + f3(mxT * mxP),
+                 w * 0.5, h - 5);
+  }
+
+  // --- 截面图 -------------------------------------------------------------
+  const PLANES = { xy: '*xy* 平面', xz: '*xz* 平面', yz: '*yz* 平面' };
+
+  /**
+   * 截面视图窗口（缩放 / 平移）。由 main.js 的事件绑定驱动（滚轮缩放、拖拽平移、
+   * 双击复位），UX 口径与三维视图一致。
+   *
+   * ★ 核心设计：让**视窗恒等于采样窗口** —— drawSection 采样 (u,v) ∈ 视窗，而
+   *   marchSquareSegments 假定采样网格铺满画布（dx = w/(G-1)）。只要这个等式成立，
+   *   热力图 / 等高线 / 节面 / 数值标注**全都不用改**，改的只是"采样哪一块区域"。
+   *   反之若"采样全范围、绘图时再缩放"，就得动 marchSquareSegments 与所有标注的坐标。
+   *
+   * 缺省（scale=1、cu=cv=0）时视窗正是原来的 [-E, E]，行为与改造前完全一致。
+   */
+  const SECTION_SCALE_MIN = 0.25, SECTION_SCALE_MAX = 8;
+  const sectionView = { scale: 1, cu: 0, cv: 0, userAdjusted: false };
+
+  /**
+   * 当前截面是不是"整面为节面"（该平面上 |ψ|² ≈ 0）。
+   *
+   * ★ 第 11 条：提成模块级，是为了把守卫加在**数据入口**（zoomSection / panSection 的
+   *   开头）而不是逐个事件上。卡片图与浮窗图共用同一组控制函数，加在这里两处一起生效，
+   *   main.js 的 wheel / pointerdown / pointermove 三个处理不必各写一遍（写了也容易漏）。
+   *   原先是 drawSection 里的局部量，外面拿不到 —— 于是节面上缩放手势照旧生效，
+   *   "整片空白还能放大"看着像卡住了。
+   */
+  let sectionIsNodal = false;
+
+  /** 截面视窗的半宽（世界单位）：缺省时跟随全范围 E = rExtent × 1.05 */
+  function sectionHalfWidth(n, l, Z) {
+    return (OM.rExtent(n, l, Z) * 1.05) / sectionView.scale;
+  }
+  // 数值格式化：小的概率密度用科学计数法
+  function fmtNum(x) {
+    const ax = Math.abs(x);
+    if (ax !== 0 && (ax < 1e-3 || ax >= 1e4)) return x.toExponential(1);
+    return x.toFixed(3);
+  }
+
+  /**
+   * 截面视图控制 —— 供 main.js 的事件绑定调用。
+   * 视图状态留在这里而不是 main.js：它直接决定采样窗口，属于绘制的一部分。
+   */
+  function zoomSection(factor, anchorU, anchorV) {
+    if (sectionIsNodal) return false;          // 整面为节面：没有可缩放的内容（第 11 条）
+    const s0 = sectionView.scale;
+    const s1 = Math.max(SECTION_SCALE_MIN, Math.min(SECTION_SCALE_MAX, s0 * factor));
+    if (s1 === s0) return false;
+    if (anchorU != null && anchorV != null) {
+      // 让锚点在视窗里的**相对位置保持不变**（"放大看指针底下这一块"）：
+      // 旧偏移 d = a − cu 对应归一化 d·s0/E；要求新归一化相同 ⇒ cu' = a + (cu − a)·s0/s1
+      const k = s0 / s1;
+      sectionView.cu = anchorU + (sectionView.cu - anchorU) * k;
+      sectionView.cv = anchorV + (sectionView.cv - anchorV) * k;
+    }
+    sectionView.scale = s1;
+    sectionView.userAdjusted = true;
+    return true;
+  }
+
+  /** 平移视窗（世界单位；正值 = 视窗中心向右 / 向下移动） */
+  function panSection(du, dv) {
+    if (sectionIsNodal) return false;          // 同上（第 11 条）
+    sectionView.cu += du;
+    sectionView.cv += dv;
+    sectionView.userAdjusted = true;
+    return true;
+  }
+
+  function resetSectionView() {
+    sectionView.scale = 1; sectionView.cu = 0; sectionView.cv = 0;
+    sectionView.userAdjusted = false;
+  }
+
+  /** 视窗状态只读副本（供 main.js 换算像素↔世界坐标、以及决定是否显示复位按钮与光标） */
+  function sectionState() {
+    return {
+      scale: sectionView.scale, cu: sectionView.cu, cv: sectionView.cv,
+      userAdjusted: sectionView.userAdjusted,
+      nodal: sectionIsNodal,
+    };
+  }
+
+  // 统一的坐标轴 + 平面名 + 方向标签
+  function drawSectionFrame(ctx, w, h, plane, win) {
+    ctx.strokeStyle = 'rgba(200,210,235,0.35)';
+    ctx.lineWidth = 1;
+    // ★ 十字线（u=0 / v=0）随视窗移动 —— 原先写死在 w/2、h/2，缩放平移后就不对了。
+    //   线跑出画布时不画（免得在边缘留下一条看着像轴线的假线）。
+    const x0 = win ? ((0 - win.u0) / (2 * win.hu)) * w : w / 2;
+    const y0 = win ? ((0 - win.v0) / (2 * win.hv)) * h : h / 2;
+    if (x0 >= 0 && x0 <= w) { ctx.beginPath(); ctx.moveTo(x0, 0); ctx.lineTo(x0, h); ctx.stroke(); }
+    if (y0 >= 0 && y0 <= h) { ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(w, y0); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(220,228,245,0.92)';
+    ctx.font = '12px system-ui, sans-serif';
+    fillMath(ctx, PLANES[plane], 8, 18);
+    // 轴名固定贴在**绘图区边缘**：它说明的是"横/纵轴各是什么"，与视窗位置无关
+    const lab = plane === 'xy' ? ['x', 'y'] : plane === 'xz' ? ['x', 'z'] : ['y', 'z'];
+    fillMath(ctx, '*' + lab[0] + '*', w - 14, h / 2 - 6);
+    fillMath(ctx, '*' + lab[1] + '*', w / 2 + 6, 16);
+  }
+
+  // 2D 行进方块：网格 vals(Gx×Gy) 上提取 level 等高线线段（像素坐标）
+  function marchSquareSegments(vals, Gx, Gy, level, w, h) {
+    const segs = [];
+    const at = (i, j) => vals[j * Gx + i];
+    const dx = w / (Gx - 1), dy = h / (Gy - 1);
+    for (let j = 0; j < Gy - 1; j++) {
+      for (let i = 0; i < Gx - 1; i++) {
+        const v00 = at(i, j), v10 = at(i + 1, j), v11 = at(i + 1, j + 1), v01 = at(i, j + 1);
+        let bits = 0;
+        bits |= (v00 >= level ? 1 : 0);
+        bits |= (v10 >= level ? 1 : 0) << 1;
+        bits |= (v11 >= level ? 1 : 0) << 2;
+        bits |= (v01 >= level ? 1 : 0) << 3;
+        if (bits === 0 || bits === 15) continue;
+        const X = i * dx, Y = j * dy;
+        const lp = (va, vb, ax, ay, bx, by) => {
+          const t = (level - va) / ((vb - va) || 1e-12);
+          return [ax + t * (bx - ax), ay + t * (by - ay)];
+        };
+        const pt = [null, null, null, null];   // 0下 1右 2上 3左
+        if ((bits & 1) !== ((bits >> 1) & 1)) pt[0] = lp(v00, v10, X, Y, X + dx, Y);
+        if (((bits >> 1) & 1) !== ((bits >> 2) & 1)) pt[1] = lp(v10, v11, X + dx, Y, X + dx, Y + dy);
+        if (((bits >> 2) & 1) !== ((bits >> 3) & 1)) pt[2] = lp(v11, v01, X + dx, Y + dy, X, Y + dy);
+        if (((bits >> 3) & 1) !== (bits & 1)) pt[3] = lp(v01, v00, X, Y + dy, X, Y);
+        const cross = [0, 1, 2, 3].filter((e) => pt[e]);
+        if (cross.length === 2) {
+          segs.push([pt[cross[0]], pt[cross[1]]]);
+        } else if (cross.length === 4) {
+          // 鞍点：用中心平均消歧
+          const c = (v00 + v10 + v11 + v01) / 4;
+          if (c >= level) segs.push([pt[0], pt[1]], [pt[2], pt[3]]);
+          else segs.push([pt[1], pt[2]], [pt[3], pt[0]]);
+        }
+      }
+    }
+    return segs;
+  }
+
+  // 无填色等高线 + 节面(白线) + 数值标注
+  function drawContour(ctx, vals, Gx, Gy, w, h, maxV, n, l, m, mode, plane, uv2xyz, win, nodalPlane, Z, sup, supPhases) {
+    ctx.fillStyle = '#0a0f1f';                 // 暗底，突出线条
+    ctx.fillRect(0, 0, w, h);
+    if (nodalPlane) {                          // 整面为节面
+      ctx.fillStyle = 'rgba(255,170,90,0.95)';
+      ctx.font = '13px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      fillMath(ctx, '本平面为节面 · |*ψ*|² ≈ 0', w / 2, h / 2 - 6);
+      ctx.textAlign = 'left';
+      return;
+    }
+    // 等高线层：对数间距（0.6%→100% 峰值，8 层，疏密合适）；保存每层线段供线上标注
+    const NLEV = 8, lf0 = 0.006, lf1 = 1.0;
+    const levelCols = [];
+    for (let i = 0; i < NLEV; i++) {
+      const frac = Math.pow(10, Math.log10(lf0) + (Math.log10(lf1) - Math.log10(lf0)) * i / (NLEV - 1));
+      const L = frac * maxV;
+      const col = CONT_COLORS[i % CONT_COLORS.length];
+      const segs = marchSquareSegments(vals, Gx, Gy, L, w, h);
+      levelCols.push({ L: L, col: col, segs: segs });
+      ctx.strokeStyle = 'rgb(' + col.join(',') + ')';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (const s of segs) { ctx.moveTo(s[0][0], s[0][1]); ctx.lineTo(s[1][0], s[1][1]); }
+      ctx.stroke();
+    }
+    // 节面（ψ=0）：实函数用符号变化线；复函数用极小层描出密度=0 区域
+    let nodeSegs = null;
+    if (sup) {
+      // 叠加态的节面：Σcᵢψᵢ 的**实部**过零处（各分量的径向与角度符号都算进去了）。
+      // 不能沿用下面那条 (n,l,m) 的单分量路径 —— 那样画的是某个分量的节面，
+      // 与这张图真正画着的叠加态不是一回事。
+      const sg = new Float32Array(Gx * Gy);
+      for (let j = 0; j < Gy; j++) {
+        for (let i = 0; i < Gx; i++) {
+          const u = win.u0 + (2 * win.hu * i) / (Gx - 1);
+          const v = win.v0 + (2 * win.hv * j) / (Gy - 1);
+          const [x, y, z] = uv2xyz(u, v);
+          const r = Math.hypot(x, y, z);
+          const th = r > 1e-9 ? Math.acos(Math.max(-1, Math.min(1, z / r))) : 0;
+          const ph = Math.atan2(y, x);
+          sg[j * Gx + i] = OM.psiSuperposition(sup, r, th, ph, supPhases, Z).re;
+        }
+      }
+      nodeSegs = marchSquareSegments(sg, Gx, Gy, 0, w, h);
+    } else if (mode === 'real') {
+      const sg = new Float32Array(Gx * Gy);
+      for (let j = 0; j < Gy; j++) {
+        for (let i = 0; i < Gx; i++) {
+          const u = win.u0 + (2 * win.hu * i) / (Gx - 1);
+          const v = win.v0 + (2 * win.hv * j) / (Gy - 1);
+          const [x, y, z] = uv2xyz(u, v);
+          const r = Math.hypot(x, y, z);
+          const th = r > 1e-9 ? Math.acos(Math.max(-1, Math.min(1, z / r))) : 0;
+          const ph = Math.atan2(y, x);
+          sg[j * Gx + i] = OM.psiComplex(n, l, m, r, th, ph, 'real', Z).re;   // 含径向+角度符号
+        }
+      }
+      nodeSegs = marchSquareSegments(sg, Gx, Gy, 0, w, h);
+    } else {
+      nodeSegs = marchSquareSegments(vals, Gx, Gy, maxV * 1e-4, w, h);
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    for (const s of nodeSegs) { ctx.moveTo(s[0][0], s[0][1]); ctx.lineTo(s[1][0], s[1][1]); }
+    ctx.stroke();
+    // 数值直接标在线上（贪心避让：优先较长线段，且与已标文字保持间距；暗色底板保证可读）
+    const placed = [];
+    for (let i = 0; i < NLEV; i++) {
+      const L = levelCols[i].L, col = levelCols[i].col;
+      let best = null;
+      for (const s of levelCols[i].segs) {
+        const mx = (s[0][0] + s[1][0]) / 2, my = (s[0][1] + s[1][1]) / 2;
+        const len = Math.hypot(s[1][0] - s[0][0], s[1][1] - s[0][1]);
+        if (mx < 4 || mx > w - 4 || my < 4 || my > h - 4) continue;   // 出界跳过
+        let clear = true;
+        for (const pl of placed) if (Math.hypot(mx - pl.x, my - pl.y) < 26) { clear = false; break; }
+        if (clear && (!best || len > best.len)) best = { x: mx, y: my, len: len };
+      }
+      if (best) {
+        drawContourLabel(ctx, fmtNum(L), best.x, best.y, col);
+        placed.push({ x: best.x, y: best.y });
+      }
+    }
+    // 说明
+    ctx.fillStyle = 'rgba(200,215,240,0.8)';
+    ctx.font = '10px system-ui, sans-serif';
+    fillMath(ctx, '等高线 |*ψ*|² · 白线 = 节面 (*ψ* = 0)', 8, h - 6);
+  }
+
+  // 在等高线上标数值：深色底板 + 同层色文字，居中于 (x,y)
+  function drawContourLabel(ctx, text, x, y, col) {
+    ctx.save();
+    ctx.font = '10px system-ui, sans-serif';
+    const tw = ctx.measureText(text).width;
+    ctx.fillStyle = 'rgba(8,12,24,0.85)';
+    ctx.fillRect(x - tw / 2 - 3, y - 7, tw + 6, 14);
+    ctx.fillStyle = 'rgb(' + col.join(',') + ')';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function drawSection(canvas, n, l, m, mode, plane, sectionMode, Z, terms, relPhase,
+                       psiCrit, levelFraction) {
+    const { ctx, w, h } = setup(canvas);
+    // ★ 叠加态（第 G 批）：截面图是四张 2D 图里**唯一**能直接画叠加态的 —— 在平面上求
+    //   |ψ_super|² 即可，densitySuperposition 已经算得动。Θ/Φ 卡与径向分布不行：
+    //   Σcᵢψᵢ 只有在各分量 n 相同时才能因子化出角度部分，一般做不到。
+    const sup = (terms && terms.length) ? terms : null;
+    const supPhases = sup ? sup.map(function (t, i) { return i * (relPhase || 0); }) : null;
+    // ★ 视窗**纵横比与画布一致** ⇒ 两轴的"像素/玻尔"相等，圆就是圆。
+    //   纵向按轨道所需的全范围（E），横向随之放大到 E·w/h —— 画布被铺满，
+    //   多出来的只是左右两侧的**空白范围**（轨道伸不出 E，w ≥ h 时不会被裁）。
+    //   观感尺寸（像素/玻尔 = h/(2E)）只由**高度**决定，所以抽屉开合不改比例、不改形状，
+    //   只改左右两侧空白的多少。
+    // ★ 叠加态要按**叠加态自己的尺度**取景：它可能含有 n 比滑块大的分量（如 ψ_1s+ψ_3s），
+    //   沿用 rExtent(n,l) 会把外层分量裁掉。
+    const E = sup
+      ? (OM.superpositionExtent(sup, Z) * 1.05) / sectionView.scale
+      : sectionHalfWidth(n, l, Z);
+    const vh = E, vw = E * (w / h);
+    const win = { u0: sectionView.cu - vw, v0: sectionView.cv - vh, hu: vw, hv: vh };
+    // ★ 采样网格也要**与视窗同比**（Gx/Gy = w/h）：否则横向样本被摊薄 2.6 倍，
+    //   等高线与等值面虚线会明显变糙、且横向比纵向糊。采样总面积封顶（约 30 万次）。
+    //   计算分辨率随缩放提高：视窗缩到 1/4 后仍用 160 拉大就是插值糊，"放大"等于没做。
+    const Gy = Math.max(160, Math.min(512, Math.round(160 * sectionView.scale)));
+    const Gx = Math.max(Gy, Math.min(Math.round(Gy * (w / h)), Math.round(300000 / Gy)));
+    // 平面内坐标 (u,v) → 空间 (x,y,z)
+    const uv2xyz = (u, v) => {
+      if (plane === 'xy') return [u, v, 0];
+      if (plane === 'xz') return [u, 0, v];
+      return [0, u, v];      // yz
+    };
+
+    // 采样 |ψ|²（相位模式下再采相位）
+    const vals = new Float32Array(Gx * Gy);
+    const phases = new Float32Array(Gx * Gy);
+    let maxV = 0;
+    for (let j = 0; j < Gy; j++) {
+      for (let i = 0; i < Gx; i++) {
+        const u = win.u0 + (2 * win.hu * i) / (Gx - 1);
+        const v = win.v0 + (2 * win.hv * j) / (Gy - 1);
+        const [x, y, z] = uv2xyz(u, v);
+        const r = Math.hypot(x, y, z);
+        const th = r > 1e-9 ? Math.acos(Math.max(-1, Math.min(1, z / r))) : 0;
+        const ph = Math.atan2(y, x);
+        const dd = sup
+          ? OM.densitySuperposition(sup, r, th, ph, supPhases, Z)
+          : OM.psiDensity(n, l, m, r, th, ph, mode, Z);
+        vals[j * Gx + i] = dd;
+        if (dd > maxV) maxV = dd;
+        if (sectionMode === 'phase') {
+          // 与三维等值面**共用同一个判据**（OM.psiPhase）。原先这里独立写了一遍，
+          // 且复函数分支同样写成 arg(Y)、漏掉 R(r) —— 与三维错得一模一样，所以
+          // 两张图"看起来很一致"、也就没人发现它们一起错了。
+          phases[j * Gx + i] = sup
+            ? OM.psiSuperposition(sup, r, th, ph, supPhases, Z).arg()
+            : OM.psiPhase(mode, n, l, m, r, th, ph, null, null);
+        }
+      }
+    }
+    const nodalPlane = maxV < 1e-10;      // 该平面密度近似为 0 → 节面
+    sectionIsNodal = nodalPlane;          // 同步给模块级，供 zoom/pan 的守卫与光标判断（第 11 条）
+    if (maxV < 1e-12) maxV = 1e-12;
+
+    if (sectionMode === 'contour') {
+      // ★ maxV 是**视窗内**的峰值：放大后颜色映射与 8 层等高线会整体重标定（越放大越亮）。
+      //   这是有意选择 —— 放大看暗部（外层壳、概率尾巴）正是这个功能的目的。
+      drawContour(ctx, vals, Gx, Gy, w, h, maxV, n, l, m, mode, plane, uv2xyz, win, nodalPlane, Z, sup, supPhases);
+      drawSectionFrame(ctx, w, h, plane, win);
+      return;
+    }
+
+    // 密度 / 相位：填色热力图
+    const tmp = document.createElement('canvas');
+    tmp.width = Gx; tmp.height = Gy;
+    const tctx = tmp.getContext('2d');
+    const img = tctx.createImageData(Gx, Gy);
+    const data = img.data;
+    // ★ 整面为节面时**必须给一个统一色**：此时 vals 处处 ≈ 0，而 phases 是"数值零"
+    //   的辐角 —— 纯噪声。相位档会把噪声映射成一整片随机色，看着像有结构，实际什么都没有。
+    //   （用户第 4 条：3p_y 的 xz 截面显示为节面，图像却不是纯色。）
+    const flat = nodalPlane ? colorScale(0) : null;
+    for (let p = 0; p < Gx * Gy; p++) {
+      const o = p * 4;
+      if (flat) {
+        data[o] = flat[0]; data[o + 1] = flat[1]; data[o + 2] = flat[2]; data[o + 3] = 255;
+        continue;
+      }
+      const t = Math.pow(vals[p] / maxV, 0.55);
+      let rgb = colorScale(t);
+      if (sectionMode === 'phase') {
+        const hue = ((phases[p] / (2 * Math.PI)) % 1 + 1) % 1 * 360;
+        const hsl = OM.hslToRgb(hue, 0.85, 0.15 + 0.62 * t);
+        rgb = [Math.round(hsl[0] * 255), Math.round(hsl[1] * 255), Math.round(hsl[2] * 255)];
+      }
+      data[o] = rgb[0]; data[o + 1] = rgb[1]; data[o + 2] = rgb[2]; data[o + 3] = 255;
+    }
+    tctx.putImageData(img, 0, 0);
+    // ★ 视窗纵横比已与画布一致（见 win 的说明），所以这里是 1:1 贴合，不是拉伸
+    ctx.drawImage(tmp, 0, 0, w, h);
+
+    drawSectionFrame(ctx, w, h, plane, win);
+
+    // ★ 第 6 条：把**当前等值面对应的那条线**画出来。
+    //   三维里那个面，在截面上就是这一条 —— 有了它，"阈值调到多少、三维就缩到哪里"
+    //   才能在两张图之间对上号。阈值换算走 OM.isoLevelAbs（与三维同一个出口）。
+    //   兜底值取 'psi'，与 index.html 上带 active 的判据按钮一致（那儿才是默认的真源）。
+    if (!nodalPlane && levelFraction > 0) {
+      const thr = OM.isoLevelAbs(n, l, m, mode, Z, sup, levelFraction, psiCrit || 'psi');
+      if (thr > 0 && thr < maxV) {
+        const segs = marchSquareSegments(vals, Gx, Gy, thr, w, h);
+        if (segs.length) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+          ctx.lineWidth = 1.6;
+          ctx.setLineDash([6, 3]);
+          ctx.beginPath();
+          for (const sg of segs) { ctx.moveTo(sg[0][0], sg[0][1]); ctx.lineTo(sg[1][0], sg[1][1]); }
+          ctx.stroke();
+          ctx.setLineDash([]);
+          // 线上不给文字（密集处会糊），只在左下角标一行说明。
+          // ★ 用**画布坐标**（不随绘图区平移）：这一行起于左侧留白，只有尾端压在绘图区左下角。
+          const pf = levelFraction * 100;
+          ctx.fillStyle = 'rgba(255,255,255,0.9)';
+          ctx.font = '11px system-ui, sans-serif';
+          ctx.textAlign = 'left';
+          fillMath(ctx, '虚线 = 当前等值面（' + (pf >= 10 ? pf.toFixed(1) : pf.toFixed(2)) + '% 峰值）', 8, h - 8);
+        }
+      }
+    }
+
+    // 节面提示（填色模式下，把"空白"变成教学点）—— 分两行居中，避开右边缘的 `x` 轴名
+    if (nodalPlane) {
+      ctx.fillStyle = 'rgba(255,170,90,0.95)';
+      ctx.font = '13px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      fillMath(ctx, '本平面为节面', w / 2, h / 2 - 4);
+      fillMath(ctx, '|*ψ*|² ≈ 0', w / 2, h / 2 + 16);
+      ctx.textAlign = 'left';
+    }
+    // 颜色图例（画布右下角；视窗横向拉宽后，右侧那一片本来就是空白，不会压到轨道上）
+    drawSectionLegend(ctx, w, h, sectionMode === 'phase', maxV);
+  }
+
+  // 颜色图例：右上角竖直色条 + 数值标注
+  function drawSectionLegend(ctx, w, h, phaseMode, maxV) {
+    const bw = 11, bh = Math.min(104, h * 0.4);
+    const x = w - bw - 20, y = h - bh - 14;
+    ctx.strokeStyle = 'rgba(220,228,245,0.4)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - 0.5, y - 0.5, bw + 1, bh + 1);
+    // 逐像素填充色条：顶部为高端值/相位 0，底部为低端
+    for (let i = 0; i < bh; i++) {
+      const tt = 1 - i / bh;
+      let rgb;
+      if (phaseMode) {
+        const hue = (i / bh) * 360;
+        const hsl = OM.hslToRgb(hue, 0.85, 0.6);
+        rgb = [Math.round(hsl[0] * 255), Math.round(hsl[1] * 255), Math.round(hsl[2] * 255)];
+      } else {
+        rgb = colorScale(tt);
+      }
+      ctx.fillStyle = 'rgb(' + rgb.join(',') + ')';
+      ctx.fillRect(x, y + i, bw, 1);
+    }
+    // 标注
+    ctx.fillStyle = 'rgba(220,228,245,0.9)';
+    ctx.font = '10px system-ui, sans-serif';
+    // ★ 说明文字一律画在色条**上方、右对齐**（原先：相位档画在 y + bh + 15，而色条是
+    //   贴底摆的（y = h − bh − 14），那一行落在画布**外**，整句被裁掉只剩半个字；
+    //   密度档画在 x − 8 左对齐，一路向右铺过去，压到右边缘的横轴标签 x 上）。
+    //   右对齐到色条左侧就不会与任何东西打架。
+    ctx.textAlign = 'right';
+    if (phaseMode) {
+      ctx.fillText('0', x + bw + 4, y + 9);
+      ctx.fillText('π', x + bw + 4, y + bh / 2 + 3);
+      ctx.fillText('2π', x + bw + 4, y + bh + 3);
+      ctx.fillStyle = 'rgba(180,196,225,0.75)';
+      fillMath(ctx, '相位 arg *ψ*', x - 6, y - 5);
+    } else {
+      ctx.fillText('最大', x + bw + 4, y + 9);
+      ctx.fillText('0', x + bw + 4, y + bh + 3);
+      ctx.fillStyle = 'rgba(180,196,225,0.75)';
+      fillMath(ctx, '|*ψ*|² 最大 ' + fmtNum(maxV), x - 6, y - 5);
+    }
+    ctx.textAlign = 'left';   // 恢复默认，别把对齐状态漏给后面画的图元
+  }
+
+  return {
+    drawRadial, drawThetaPhi, drawSection, setRadialHighlight,
+    /** 截面视图控制（缩放 / 平移 / 复位），由 main.js 的事件绑定驱动 */
+    zoomSection, panSection, resetSectionView, sectionState, sectionHalfWidth,
+    /** 调试/测试：给定曲线显隐时实际会画的标线（只读，不改变状态） */
+    _marksDebug: (n, l, whichList, Z) => computeMarks(n, l, whichList, Z),
+  };
+})();
+
+export { Charts }
+export default Charts

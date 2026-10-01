@@ -47,9 +47,9 @@ export default {
       { "type": "2-fold", "color": "#2196F3", "direction": [1, 1, 0], "position": [0, 0, 0] }
     ],
     "mirrors": [
-      { "color": "rgba(255,255,255,0.3)", "normal": [1, 0, 0], "distance": 0 },
-      { "color": "rgba(255,255,255,0.3)", "normal": [0, 1, 0], "distance": 0 },
-      { "color": "rgba(255,255,255,0.3)", "normal": [0, 0, 1], "distance": 0 }
+      { "color": "rgba(60,60,60,0.35)", "normal": [1, 0, 0], "distance": 0 },
+      { "color": "rgba(60,60,60,0.35)", "normal": [0, 1, 0], "distance": 0 },
+      { "color": "rgba(60,60,60,0.35)", "normal": [0, 0, 1], "distance": 0 }
     ]
   }
 }
