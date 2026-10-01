@@ -11,7 +11,7 @@ const LANG_KEY = 'symmetry_viewer_lang'
 /** 界面文案（zh 为默认，亦作回退） */
 const MESSAGES = {
   zh: {
-    brand: '对称视界',
+    brand: '点群观鉴',
     hint: '左键拖动旋转 · 右键拖动平移 · 滚轮缩放 · 双击复位',
     'tool.symmetry': '对称元素',
     'tool.labels': '标签',
@@ -60,7 +60,7 @@ const MESSAGES = {
     'elem.i': '反演中心', 'elem.E': '恒等元素'
   },
   en: {
-    brand: 'Symmetry Viewer',
+    brand: 'Point Group Viewer',
     hint: 'Drag to rotate · Right-drag to pan · Wheel to zoom · Double-click to reset',
     'tool.symmetry': 'Symmetry elements',
     'tool.labels': 'Labels',

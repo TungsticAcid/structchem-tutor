@@ -8,6 +8,7 @@ import { getCovalentRadius } from '../../../packages/knowledge/shared/elements.j
 import { getElementColor, getElementRadius, getAppearance } from '../data/settings.js'
 import { createAtomMaterial, createBondMaterial } from './materials.js'
 import { fractionalToCartesian, getCellVertices, getCellEdges, getCellCenteredOffset } from '../core/lattice.js'
+import { computeCentroid } from '../core/structure.js'
 
 /** 球棍模型中原子半径系数（移植 crystal BALL_STICK_FACTOR） */
 const BALL_STICK_FACTOR = 0.3
@@ -57,14 +58,9 @@ function buildAtomLabelSprite(element, radius, color) {
  * @param {Array} atoms - [{ element, xyz: [x,y,z] }]
  * @returns {[number,number,number]}
  */
-export function computeCentroid(atoms) {
-  const c = [0, 0, 0]
-  if (!atoms || atoms.length === 0) return c
-  for (const a of atoms) {
-    c[0] += a.xyz[0]; c[1] += a.xyz[1]; c[2] += a.xyz[2]
-  }
-  return [c[0] / atoms.length, c[1] / atoms.length, c[2] / atoms.length]
-}
+// ★ 定义已搬到 core/structure.js（门面也要用它，而门面不能引 render 层）。
+//   这里保留再导出，页面原有 import 不必改。
+export { computeCentroid } from '../core/structure.js'
 
 /**
  * 基于共价半径自动检测化学键（距离 < rA + rB + 容差 则成键）

@@ -310,10 +310,22 @@ const Orbit3D = (function () {
     viewCtl.setAutoRotate(true);
 
     // 灯光（供表面使用）
-    const ambient = new THREE.AmbientLight(0xffffff, 0.55);
-    const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+    //
+    // ★ 光强为什么整体乘 π：这是 three 官方迁移指引里写明的一步，不是随手调参。
+    //   上游跑在 **r147**，那时 `WebGLRenderer.useLegacyLights` 默认为 `true`
+    //   （"旧光照"）；r155 起默认改成物理正确的模式，r165 更把该开关整个删掉。
+    //   同一组 intensity 在两种模式下的亮度差约 **π 倍**，所以把上游的数值原样搬过来，
+    //   画面会明显变暗 —— 实测轨道瓣的平均亮度：独立版 **132.8**、移植版 **91.1**（暗 31%），
+    //   而背景色、饱和度、光照方向、材质参数全都一致（逐项比对过，只剩这一个变量）。
+    //   ★ 补上 π 之后实测 **144.7** —— 比独立版亮 9%。这 9% 是**预期的**：
+    //     补偿不是一个纯标量（环境光与方向光的贡献比例不同、高光还会截顶），
+    //     π 是官方给的整体系数，不是按某张截图凑出来的数。宁可落在"略亮"这一侧：
+    //     用户报的就是"偏暗"，而"略亮"在两种光线下都不刺眼。
+    const LEGACY_LIGHT_SCALE = Math.PI;
+    const ambient = new THREE.AmbientLight(0xffffff, 0.55 * LEGACY_LIGHT_SCALE);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.0 * LEGACY_LIGHT_SCALE);
     dir.position.set(3, -2, 5);
-    const dir2 = new THREE.DirectionalLight(0x88aaff, 0.35);
+    const dir2 = new THREE.DirectionalLight(0x88aaff, 0.35 * LEGACY_LIGHT_SCALE);
     dir2.position.set(-4, 3, -2);
     scene.add(ambient, dir, dir2);
 

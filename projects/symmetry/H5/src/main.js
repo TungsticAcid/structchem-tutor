@@ -432,7 +432,7 @@ async function loadStructure(structure, title, options = {}) {
       elements: symmetryElements,
       characterTable: getCharacterTable(result.symbol)
     }
-    console.log(`[对称视界] ${info.title} → ${result.symbol}（${result.name}）`)
+    console.log(`[点群观鉴] ${info.title} → ${result.symbol}（${result.name}）`)
   } else {
     const { group, radius: r } = buildCrystalScene(structure, { atomScale })
     root.add(group)
@@ -453,7 +453,7 @@ async function loadStructure(structure, title, options = {}) {
       elements: symmetryElements,
       characterTable: getCharacterTable(result.pointGroup)
     }
-    console.log(`[对称视界] ${info.title} → ${result.hmSymbol}（${result.number} 号，${result.pointGroup}）`)
+    console.log(`[点群观鉴] ${info.title} → ${result.hmSymbol}（${result.number} 号，${result.pointGroup}）`)
   }
 
   // 对称元素（每个元素独立 Group，支持独立显隐 + 标签）

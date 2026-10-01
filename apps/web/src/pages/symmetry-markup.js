@@ -249,7 +249,7 @@ export const SYMMETRY_HTML = `  <div class="sym-page">
 
     <!-- 顶部工具栏 -->
     <div data-page-topbar id="toolbar">
-      <div class="brand" data-i18n="brand">对称视界</div>
+      <div class="brand" data-i18n="brand">点群观鉴</div>
       <div class="example-select" id="example-select">
         <div class="es-current" id="example-current">选择示例</div>
         <div class="es-list" id="example-list" hidden></div>

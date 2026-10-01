@@ -165,7 +165,45 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
   const keys = f2.listSymmetryElements().map((e) => e.key)
 
   check('发布了对称元素的稳定 key（形如 C2#1，不是数组下标）',
-    keys.length > 0 && keys.every((k) => /^[A-Za-z]+\d*#\d+$/.test(k)), keys.join(','))
+    keys.length > 0 && keys.every((k) => /^[A-Za-z][A-Za-z0-9_]*#\d+$/.test(k)), keys.join(','))
+  // ★ 判据要写"意图"，而不是一条随手定的正则：
+  //   ① 稳定 —— 同一个分子上、同一类元素的第 n 个，换成另一个分子后
+  //      "第 n 个"仍指同一类里的同一个位置（数组下标做不到这点，见 §3.1 的说明）；
+  //   ② 可数 —— 每类从 #1 连续编号，不重不漏，否则模型拿到 `sigma_v#7` 却只有 3 个。
+  //   原先只写了 `^[A-Za-z]+\d*#\d+$`，把细分后的 `sigma_v#1` 判成了不合格 ——
+  //   而下划线是 `refineSymmetryElements` 给 σ 分类（σh/σv/σd）后的正常 type 名。
+  {
+    const byType = new Map()
+    for (const k of keys) {
+      const [t, n] = k.split('#')
+      if (!byType.has(t)) byType.set(t, [])
+      byType.get(t).push(Number(n))
+    }
+    let bad = []
+    for (const [t, ns] of byType) {
+      const sorted = ns.slice().sort((a, b) => a - b)
+      for (let i = 0; i < sorted.length; i++) if (sorted[i] !== i + 1) bad.push(`${t}: ${ns.join(',')}`)
+    }
+    check('每类 key 的序号从 1 连续编号（不重不漏）', bad.length === 0, bad.join(' | '))
+    check('key 不重复', new Set(keys).size === keys.length)
+  }
+  // ★ 针对 2026-10-01 那个 bug 的回归守卫：**门面必须发布细分后的 key**。
+  //   门面原先只做 `identifyPointGroup`，而页面还多做一步 `refineSymmetryElements`
+  //   —— 细分前 σ 的 type 全是 `sigma`、细分后才分成 `sigma_h`/`sigma_v`/`sigma_d`。
+  //   于是门面发布的 `sigma#1..7` 在页面的元素清单里**一个都不存在**：
+  //   苯的 7 个反映面既点不动也播不了（`findIndex` 恒为 −1），而且不报任何错。
+  //   这条断言直指根因：有 σ 的分子上，**不许**出现裸 `sigma` 这类 key。
+  {
+    const bare = []
+    for (const id of ['benzene', 'water', 'ammonia', 'naphthalene']) {
+      const fx = createModule({ initialId: id }).facade
+      for (const e of fx.listSymmetryElements()) {
+        if (/^(sigma|σ)#/.test(e.key)) bare.push(`${id}:${e.key}`)
+      }
+    }
+    check('σ 的 key 已按 σh/σv/σd 细分（与页面共用同一条细分管线）',
+      bare.length === 0, bare.join(','))
+  }
 
   check('setSymmetryVisible 改得动状态',
     f2.applyActions([{ action: 'setSymmetryVisible', params: { visible: false } }]).ok

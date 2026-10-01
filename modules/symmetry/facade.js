@@ -18,7 +18,8 @@
  */
 import { identifyPointGroup } from './engine/pointGroup.js'
 // ★ key 的生成规则**只有那一处定义**（页面把 key 对到场景对象时用的是同一个函数）
-import { elementKeyList, defaultVisibleKeys } from './engine/elementNaming.js'
+import { elementKeyList, defaultVisibleKeys, refineSymmetryElements } from './engine/elementNaming.js'
+import { computeCentroid } from './core/structure.js'
 import { EXAMPLES } from './data/examples-index.js'
 
 /**
@@ -118,7 +119,17 @@ export function createSymmetryFacade(opts = {}) {
     if (!ex) return null
     if (cachedFor === currentId && cached) return cached
     try {
-      cached = identifyPointGroup(ex.structure)
+      const raw = identifyPointGroup(ex.structure)
+      // ★ 必须与页面走**同一条细分管线**（`refineSymmetryElements`），否则两边
+      //   发布的 key 会对不上 —— 这不是理论风险，是实测的 bug：
+      //   细分前 σ 的 type 全是 `sigma`（key 为 `sigma#1..7`），细分后才分成
+      //   `sigma_h` / `sigma_v` / `sigma_d`（key 为 `sigma_v#1` 等）。
+      //   门面此前只做 identifyPointGroup，于是它发布的 7 个 σ key 在页面那份
+      //   元素清单里**一个都不存在** → 苯的 7 个反映面既**点不动也播不了**
+      //   （`currentSymmetryItems.findIndex` 恒为 −1），而且**不报任何错**。
+      const elements = refineSymmetryElements(
+        raw.symbol, raw.elements, ex.structure.atoms, computeCentroid(ex.structure.atoms))
+      cached = Object.assign({}, raw, { elements })
       cachedFor = currentId
     } catch (e) {
       // 识别失败不该让整个模块失效——如实记下失败原因，让模型据此回应

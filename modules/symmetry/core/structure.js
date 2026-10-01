@@ -83,3 +83,24 @@ export function deriveFormula(structure) {
   }
   return Object.keys(counts).sort().map(el => counts[el] > 1 ? `${el}${counts[el]}` : el).join('')
 }
+
+/**
+ * 原子坐标的重心（简单算术平均）。
+ *
+ * ★ 为什么从 `render/scene-builder.js` 搬到这里（2026-10-01）：
+ *   门面（模块层）也要用它 —— `refineSymmetryElements` 判"某个方向有没有原子"
+ *   需要这个中心。而门面**不能 import render 层**（模块层不得依赖视图实现，
+ *   那条约束是为了让模块能在 Node 里直接测）。它本身是三行纯算术，与渲染无关，
+ *   当初放在 scene-builder 里只是顺手。
+ * ★ 为什么必须是**同一个函数**：页面的元素细分用它、门面也用它是前提 ——
+ *   两个"重心"算法一旦有细微差别，细分出来的 σv/σd 就可能不同，
+ *   于是两边的 key 又对不上（这正是本次要修的 bug 的形态）。
+ */
+export function computeCentroid(atoms) {
+  const c = [0, 0, 0]
+  if (!atoms || atoms.length === 0) return c
+  for (const a of atoms) {
+    c[0] += a.xyz[0]; c[1] += a.xyz[1]; c[2] += a.xyz[2]
+  }
+  return [c[0] / atoms.length, c[1] / atoms.length, c[2] / atoms.length]
+}
