@@ -68,6 +68,19 @@ import { registerAll, listModules as listDeclaredModules, collectProactiveRules,
 import { router } from './shell/router.js'
 import { installHomeButton } from './shell/home-affordance.js'
 import './shell/home-affordance.css'
+// i18n：先 import 字典（模块顶层自注册），再拿运行时。
+// ★ 字典文件必须是**纯数据 + 相对路径**（守卫在 Node 里 import 它，`@i18n` 别名 Node 不认）。
+import './i18n/shell.js'
+// 宿主侧各区的字典。**在这里统一 import**（而不是让各区自己找地方）：
+//   一个入口能一眼看全"全站的译文来自哪几本字典"，漏 import 一本的表现是
+//   "那一区的界面照旧中文"且**不报错**（字典没注册 = sweep 查不到）。
+//   ★ 模块自己的字典（orbit/crystal/symmetry）由**模块入口** import —— 它们要能独立跑。
+import './i18n/pages.js'
+import '@ui-kit/i18n.js'
+// ★ 面板字典要被**真的加载**：守卫只看"登记过"，看不见"字典没被 import" ——
+//   而 `t()` 查不到键会**把键名当文案原样返回**，界面照旧是中文且不报错。
+import '@core/ui/i18n.js'
+import { i18n, t, tsrc, startAutoSweep, STORAGE_KEY as UI_LANG_KEY } from '@i18n/index.js'
 // ★ orbit 的样式整体被作用域化到 `.orbit-page`（见该文件头部）：它的 47 个顶层类
 //   选择器里有 24 个与 ui-kit 撞名、1 个与晶体页撞名，全局引入会改掉**别的页面**。
 import './pages/orbit-page.css'
@@ -197,7 +210,13 @@ void setVisualColor   // 保留引用：默认值由 @crystal/data/settings.js �
 // ★ 渐进式披露的分界：`heavy` 字段**不进系统提示**，只留 id/kp/标题/关键词。
 //   判据是"这个字段是用来**选择哪一条**的，还是**加载后才用**的？"
 //   5 条时看不出差别，44 条时会变成 130+ 条误解文本压在系统提示里。
-const knowledge = createCatalog({ key: 'id', heavy: ['body', 'misconceptions'] })
+// ★ 知识条目**不进 DOM**（清单进系统提示、正文进对话上下文），所以 `sweep()` 一个字
+//   也换不到 —— 必须**在取条目的那一刻**按语言映射。包一层而不是改 `catalog.js`：
+//   那是技能库也用的通用内核，不该知道"知识条目怎么翻"。`register` 原样透传，
+//   注册内容与时机完全不变。
+import '@knowledge/i18n.js'   // 副作用：把知识库译文表注册进 @i18n
+import { wrapCatalogForLang, setKnowledgeLang } from '@knowledge/i18n.js'
+const knowledge = wrapCatalogForLang(createCatalog({ key: 'id', heavy: ['body', 'misconceptions'] }))
 const skills = createCatalog({ key: 'name', heavy: ['steps', 'phrases', 'cautions'] })
 regOrbitKnowledge(knowledge)     // 42 条（id 形如 orbit:K3-1；kp 是**裸值** K3）
 regCrystalKnowledge(knowledge)   // 44 条（id 形如 crystal:C1-1）
@@ -378,21 +397,30 @@ const MODULES_BY_ID = { crystal, symmetry, orbit }
 /**
  * 界面语言（宿主级偏好）。
  *
- * ★ 下发走的是**点群观鉴模块的门面动作** `setLanguage`，而不是宿主伸手去改
- *   模块内部的 i18n。这样人改与模型改是同一条通路：模块自己持有这个状态，
- *   页面的 `renderFromState` 再把它落到 i18n 上，感知快照与痕迹也跟着有。
- *   （此前页面的语言下拉直接调 `i18n.setLang`，模型那边完全不知情。）
- * ★ 宿主另存一份：首页要据此把分段控件的高亮画对。两份由这条通路保持同步。
- * ★ 目前有 i18n 的只有「点群观鉴」一个页面 —— 首页那行如实写了这一点，
- *   不假装它已经全局生效。
+ * ★ 现在有**两个**消费者，缺一不可：
+ *   ① `@i18n` 运行时本身 —— 全站的键式取值（`t()`）与 DOM 扫描替换（`sweep`）。
+ *   ② 点群观鉴模块 —— 它有自己的 i18n（移植自上游，带 `symmetry_viewer_lang`）。
+ *      下发走的是**模块的门面动作** `setLanguage`，而不是宿主伸手去改它的内部状态，
+ *      这样人改与模型改是同一条通路：模块自己持有状态，页面 `renderFromState`
+ *      再把它落到 i18n 上，感知快照与痕迹也跟着有。
+ *   ★ 只做 ① 的表现是"顶栏变了、点群观鉴页没变"；只做 ③ 则是反过来；
+ *     少了 ② 则"界面全英文、模型读到的知识条目还是中文"。
+ *     三者写在同一处，才不会有人只改一半。
+ * ★ 存储键共用运行时导出的 `STORAGE_KEY`（`chem-agent.ui-lang`）——
+ *   宿主另写一个字面量就会出现两处键名，改一个忘一个。
+ * ★ 语言是**宿主级偏好**：模块页换语言不该重建几何（orbit 的等值面要十几秒），
+ *   各页面自己订阅 `langchange` 决定"重渲染什么"。
  */
-const UI_LANG_KEY = 'chem-agent.ui-lang'
 function getUiLang() {
   try { return localStorage.getItem(UI_LANG_KEY) === 'en' ? 'en' : 'zh' } catch (e) { return 'zh' }
 }
 function setUiLang(lang) {
   const v = (lang === 'en') ? 'en' : 'zh'
-  try { localStorage.setItem(UI_LANG_KEY, v) } catch (e) { /* 不可用时只是不记忆 */ }
+  // ① 运行时（它自己会落盘、会派发 langchange，也会同步 <html lang>）
+  try { i18n.setLang(v, { force: true }) } catch (e) { /* 运行时不可用时不影响下面的模块下发 */ }
+  // ② 知识库：条目在**读取那一刻**按语言映射（它不进 DOM，扫描替换够不着）
+  try { setKnowledgeLang(v) } catch (e) { /* 译文表未加载时忽略 */ }
+  // ③ 点群观鉴模块
   try {
     symmetry.facade.applyActions([{ action: 'setLanguage', params: { lang: v } }])
   } catch (e) { /* 模块未就绪（装配早期）——下一次换页会重来 */ }
@@ -443,8 +471,30 @@ const settings = createSettingsStore({
 
 const settingsPopup = createSettingsPopup({
   store: settings,
-  // 智能体自身的设置 + **界面主题** + **模块自己的小参数**，用同一套声明式 schema
+  // 智能体自身的设置 + **界面**（语言/主题）+ **模块自己的小参数**，用同一套声明式 schema
   schema: DEFAULT_SCHEMA.concat([
+    {
+      /**
+       * 界面语言。
+       *
+       * ★ 走 `get`/`set` **外挂通道**（与配色那批同一机制）：语言的真源是 i18n 运行时
+       *   自己的持久化（`chem-agent.ui-lang`），设置弹层只是它的一个**视图** ——
+       *   塞进宿主 settings store 就等于同一份数据两个真源（改一处另一处不变）。
+       * ★ 为什么要有这一项：此前**只有首页**那一行能换语言，用户报"除了首页，
+       *   似乎无切换语言处"。设置弹层在每一页都能打开（面板 ⚙ / 首页入口），
+       *   所以它是第二个、也是与模块无关的入口。
+       * ★ `onChange` 是**立即生效**（不等按保存）：语言是"所见即所得"的偏好，
+       *   改完要马上看到效果；`set` 里再判一次"值没变就不动"，
+       *   免得按「保存」时白白重挂一次页面。
+       */
+      key: 'uiLang',
+      label: '界面语言',
+      type: 'select',
+      options: [['zh', '中文'], ['en', 'English']],
+      get: () => getUiLang(),
+      set: (v) => { if (v !== getUiLang()) setUiLang(v) },
+      onChange: (v) => { if (v !== getUiLang()) setUiLang(v) },
+    },
     {
       key: 'theme',
       label: '界面主题',
@@ -453,7 +503,14 @@ const settingsPopup = createSettingsPopup({
       hint: '晶体三维视图的背景会一并切换（白底更接近教材插图与课堂投屏）',
     },
   ], crystal.settings),
-  groups: DEFAULT_GROUPS.concat([
+  groups: [
+    /**
+     * ★ 「界面」排在第一组：它是**用户第一次打开设置最可能想调的东西**，
+     *   而且与模块无关（英语用户第一件事就是把界面切成英文）。
+     * ★ 顺序即优先级；每组可折叠，第一组默认展开（见 settings-popup 的 makeSection）。
+     */
+    { title: '界面', keys: ['uiLang', 'theme'], open: true },
+  ].concat(DEFAULT_GROUPS, [
     {
       title: '晶体模块参数（模块自己声明的）',
       keys: ['atomScale', 'stickRadius', 'opacity', 'cellDisplayMode'],
@@ -538,17 +595,23 @@ const app = createAgentApp({
   //   此前它只在模块内部用于推荐，模型每轮都在不了解学生底细的情况下出题。
   mastery: masteryRouter,
   node: 'explain',
+  /**
+   * 系统提示词（**发给模型**，不进 DOM）。
+   *
+   * ★ 为什么是 getter 而不是字符串常量：`buildSystem()` 每轮请求都会读它
+   *   （见 `app.js`），写成常量的话"用户在应用里把语言切到英文"之后，模型拿到的
+   *   仍然是中文提示词 —— 表现是"界面全英文、回答还是中文"，而且不报错。
+   *   getter 让它在**每次组提示词时**现取当前语言。
+   * ★ 数值纪律按模块给：原先这段写死了"必须用 queryCrystal"，而在轨道/对称性
+   *   模块下那个工具根本不存在，模型照它去调只会失败。模块自己的 roleHint
+   *   已经写了各模块的数值纪律（见各模块的 index.js），这里只是宿主侧覆盖。
+   */
   prompts: {
-    role: '你是结构化学教学智能体，服务于结构化学课程的教与学。'
-      + '你不是问答机器人，而是能感知用户在做什么、能动手把话演示出来的教学智能体——'
-      + '凡是可以用三维视图演示的，都要用 applySceneActions 演示，而不是只用文字描述。',
-    // ★ 数值纪律**按模块**给：原先这段写死了"必须用 queryCrystal"，
-    //   而在轨道/对称性模块下那个工具根本不存在，模型照它去调只会失败。
-    //   模块自己的 roleHint 已经写了各模块的数值纪律（见 modules/*/index.js）。
+    get role() { return t('shell.prompt.role') },
     moduleRoles: {
-      crystal: '涉及配位数、空隙数、晶胞参数、密度等一切数值，必须用 queryCrystal 取得，不要口算。',
-      orbit: '节面数、径向峰位、能级、简并度等一切数值必须用 queryOrbital 取得，不要凭记忆或口算。',
-      symmetry: '点群符号与对称元素清单一律用 queryPointGroup 取得；晶体示例走空间群（同一条命令）。',
+      get crystal() { return t('shell.prompt.roleCrystal') },
+      get orbit() { return t('shell.prompt.roleOrbit') },
+      get symmetry() { return t('shell.prompt.roleSymmetry') },
     },
   },
   /**
@@ -577,7 +640,13 @@ const app = createAgentApp({
     if (!id) return
     try {
       const mod = listDeclaredModules().find((m) => m.id === id)
-      panel.addChip(`已切到「${(mod && mod.title) || id}」模块`, 'info')
+      // ★ 原文里带变量 ⇒ **必须走键**：扫描替换做不到（"已切到「晶体」模块"与
+      //   "已切到「原子轨道」模块"是两条不同原文）。见 packages/i18n 顶部的"两张表"说明。
+      // ★ 模块名本身也要翻一道：descriptor 的 `title` 是中文原文，登记在 agent 区的
+      //   `text` 表里 —— 但**嵌进句子之后就不再是一个独立的文本节点**，扫描替换够不着它。
+      //   不翻的表现是英文句子里嵌着中文模块名（"Switched to the「晶体结构」module"）。
+      const modTitle = (mod && mod.title) || id
+      panel.addChip(t('shell.panel.switched', { title: tsrc(modTitle) || modTitle }), 'info')
     } catch (e) { /* 面板尚未就绪（装配早期）——提示可省，但绝不能因此中断切模块 */ }
     const route = MODULE_HOME_ROUTE[id]
     if (route && router.currentPath === '/') location.hash = route
@@ -660,6 +729,14 @@ syncDemoLayout()
 // ---------------------------------------------------------------------------
 panel = createPanel({
   title: '教学智能体',
+  /**
+   * ★ `t` 注入：面板**不能**自己 import i18n（它被 chem-agent 之外的宿主复用，
+   *   加硬依赖会破坏那条约定），所以译文函数由宿主注进去。
+   * ★ 面板里的"键"就是**带占位符的中文原文**（`'第 {index}/{total} 步'`）——
+   *   没有注入时它就地填占位符，输出与改造前的字符串拼接**逐字节相同**；
+   *   注入后中文模式同句、英文模式 `Step 3/6`。见 packages/agent-core/ui/i18n.js。
+   */
+  t,
   // 对话存储（分支树）：面板据此提供分支片 / 消息工具条 / 多会话 / 刷新还原
   store: convStore,
   // 演示收藏夹：动作气泡上的「☆ 收藏」与会话页里的收藏列表
@@ -717,7 +794,24 @@ panel = createPanel({
     return (m && m.greeting)
       || '<b>我是结构化学教学智能体</b><br>直接问就行——我能查数据、也能把结论演示到画面上。'
   },
-  actionLabels: crystal.actionLabels,
+  /**
+   * 动作气泡的短标签。
+   *
+   * ★ **三个模块的标签要合并**：此前只传了 `crystal.actionLabels`，于是在轨道/对称性
+   *   页面下发的动作气泡显示的是**动作名本身**（`setQuantumNumbers`）而不是中文标签 ——
+   *   从前没暴露是因为那时只在晶体页用过动作气泡。
+   * ★ 三个模块的动作名互不重复，合并是安全的；同名的以后者为准（面板按动作名查表）。
+   * ★ 兼容"值是函数"的模块（有的模块把它做成取值器，好跟着语言走）——就地求值。
+   */
+  actionLabels: (() => {
+    const pick = (m) => {
+      try {
+        const v = m && m.actionLabels
+        return (typeof v === 'function' ? v() : v) || {}
+      } catch (e) { return {} }
+    }
+    return Object.assign({}, pick(crystal), pick(orbit), pick(symmetry))
+  })(),
   sequenceToolName: 'applySceneActions',
   getShowReasoning: () => settings.get().showReasoning,
   storyboard: app.storyboard,
@@ -856,7 +950,7 @@ try {
     panel.renderPath()
     const path = convStore.path()
     if (path.length) {
-      panel.addChip(`已恢复上次的对话（共 ${path.length} 条）——右上角菜单可开新会话`, 'info')
+      panel.addChip(t('shell.panel.restored', { n: path.length }), 'info')
     }
   }
 } catch (e) {
@@ -977,7 +1071,23 @@ router.start()
 docScroll.sync()
 app.start()
 
+/**
+ * i18n：**盯住整个 body**（而不是某一棵子树）。
+ *
+ * ★ 为什么要盯：壳与两个模块页面的渲染代码频繁重写 innerHTML（图表标签、读数、
+ *   提示），上游移植代码又要求"逐字忠实"、不能逐个改成 `t()`。于是只有一条路 ——
+ *   让运行时盯着 DOM，命中字典就换（这套机制见 packages/i18n/index.js 的 startAutoSweep）。
+ * ★ 为什么必须是 body 而不是 `#app`：智能体面板挂在 **document.body** 上
+ *   （跨路由存活），它的菜单、空态、提示条都在 `#app` 之外。只盯 `#app`
+ *   会出现"页面全英文、面板还是中文"——而且不报错。
+ * ★ 终止性：只有命中字典的节点才会被改写，改写后的英文不可能再命中中文原文表，
+ *   所以下一轮没有可写的。见 startAutoSweep 的注释。
+ */
+startAutoSweep(document.body)
+
 if (!settings.hasKey()) {
+  // ★ 这里保持中文原文即可：它是 **DOM 文本**，由运行时的扫描替换翻（text 表里有）。
+  //   改写成 t() 反而多一处要维护的键，而行为完全一样。
   panel.addChip('尚未配置 API Key：点面板右上角「设置」填写你自己的模型密钥', 'warn')
 }
 
@@ -999,6 +1109,12 @@ window.__chemAgent = {
   getAdapter: getCrystalAdapter,
   // 主题：实机验证"切换后 data-theme 与解析结果都对"时用（也便于排查配色问题）
   theme: { set: setTheme, get: getTheme, onThemeChange },
+  /**
+   * i18n 运行时（实机验证"切语言真的生效、且切回来也能还原"时用）。
+   * ★ 为什么要暴露它：光看覆盖率守卫绿是不够的 —— 守卫读源码，证明不了界面上真的变了。
+   *   实机核对的判据是"英文模式下无残留中文"，而切换与还原只能从这里驱动。
+   */
+  i18n,
   /** 内容库清单（验证渐进式披露：清单不含 body） */
   manifest: () => ({ knowledge: knowledge.index(), skills: skills.index() }),
   loadKnowledge: (id) => knowledge.load(id),

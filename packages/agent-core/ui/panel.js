@@ -63,6 +63,29 @@ export function createPanel(cfg = {}) {
   // （否则调用方以为注入了，实际仍在用全局 document）
   const E = (tag, attrs, children) => el(tag, attrs, children, doc)
 
+  // ---------------------------------------------------------------------------
+  // 取词函数（i18n 接缝）
+  // ---------------------------------------------------------------------------
+  /**
+   * ★ 面板**绝不 import i18n** —— 它被 chem-agent 之外的宿主复用，把 `@i18n`
+   *   变成硬依赖，就等于把"可复用组件"降级成"只能在本产品里跑"。
+   *   宿主可以注入 `cfg.t`（与 packages/i18n 的 `t` 同签名：`(key, vars) => string`，
+   *   支持 `{name}` 占位符）。
+   *
+   * ★ 没注入时回退到"就地填占位符"，而面板交给 T 的键**就是那句中文原文**
+   *   （`'第 {index}/{total} 步'`）—— 于是老宿主拿到的字符串与改造前**逐字节相同**。
+   *
+   * ★ 为什么回退**不是** `(s) => s`：那样 `T('第 {index}/{total} 步', {…})` 会把
+   *   带大括号的模板原样返回，老宿主的界面直接变成一堆 `{index}` —— "行为不变"
+   *   就不成立了。回退必须自己把占位符填掉。
+   */
+  const fillVars = (s, vars) => {
+    const str = String(s == null ? '' : s)
+    if (!vars) return str
+    return str.replace(/\{(\w+)\}/g, (m, k) => (vars[k] === undefined ? m : String(vars[k])))
+  }
+  const T = (typeof cfg.t === 'function') ? cfg.t : fillVars
+
   const R = createRenderer({ katex: cfg.katex })
   const escapeHtml = R.escapeHtml
   const renderRich = R.renderRich
@@ -87,6 +110,17 @@ export function createPanel(cfg = {}) {
   const POS_KEY = cfg.storageKey
   const SEQ_TOOL = cfg.sequenceToolName || 'applySceneActions'
   const ACTION_LABEL = cfg.actionLabels || {}
+  /**
+   * 分镜引擎的**顶层**别名。
+   *
+   * ★ 这里必须有一份：`setBarMode` 与 `applyProgress` 在 `build()` **之外**，
+   *   而原先只有 `build()` 里那个 `const SB = cfg.storyboard` —— 于是它们在
+   *   `SB.state()` 那一行抛 `ReferenceError: SB is not defined`。
+   *   症状很隐蔽：控制条的按钮显隐都已经改完了（那几行在抛错点之前），
+   *   只有最后一行「↩ 回到演示前」的显隐没执行，异常却会顺着
+   *   `onProgress` 回调抛回分镜引擎。测试也抓不到（离线测试从不触发进度事件）。
+   */
+  const SB = cfg.storyboard || null
   const getShowReasoning = cfg.getShowReasoning || (() => true)
   // 对话存储（分支树）。为 null 时面板仍可用，只是没有分支片/多会话/消息工具条。
   const store = cfg.store || null
@@ -98,6 +132,7 @@ export function createPanel(cfg = {}) {
   })
 
   let fab, drawer, msgBox, inputEl, sendBtn, stopBtn, dot
+  let headTitleEl
   let demoBar, demoIdx, demoText, demoNextHint
   let demoPrev, demoNext, demoAuto, demoManual, demoStop, demoReplay, demoRestore, demoDismiss
   let layoutRedrawTimer = null
@@ -105,13 +140,20 @@ export function createPanel(cfg = {}) {
   let cur = null
   let disposed = false
   let offProgress = null
+  /**
+   * 最近一次分镜进度事件。
+   * ★ 换语言时要拿它把控制条**按新语言重画一遍** —— 步号/旁白提示是 `t()` 现算的，
+   *   已经写进 DOM 的那份 `第 3/6 步` 不会被扫描替换回头（它不在 text 表里）。
+   *   不重画的表现是"切了语言，控制条还是旧语言"，而且**不报错**。
+   */
+  let lastProgress = null
 
   // ---------------------------------------------------------------------------
   // 构建 UI
   // ---------------------------------------------------------------------------
   function build() {
     // ---- 悬浮球 ----
-    fab = E('div', { class: 'agent-fab', title: cfg.fabTitle || '教学智能体（可拖动）' }, [
+    fab = E('div', { class: 'agent-fab', title: cfg.fabTitle || T('教学智能体（可拖动）') }, [
       // 图标为位图设计稿；圆形裁切会自然去掉四角的多余元素。
       // ★ 没给 iconSrc 时**不建 img**，退回文字——而不是放一个 `src=''` 的 img。
       //   空 src 会让浏览器把"当前页面 URL"当成图片地址去请求，于是每次打开
@@ -181,7 +223,8 @@ export function createPanel(cfg = {}) {
     }
 
     const head = E('div', { class: 'agent-head' })
-    head.appendChild(E('span', { class: 'agent-head-title', text: cfg.title || '教学智能体' }))
+    headTitleEl = E('span', { class: 'agent-head-title', text: cfg.title || T('教学智能体') })
+    head.appendChild(headTitleEl)
 
     const acts = E('div', { class: 'agent-head-acts' })
     const mkBtn = (label, fn, cls) => {
@@ -207,7 +250,6 @@ export function createPanel(cfg = {}) {
       b.onclick = fn
       return b
     }
-    const SB = cfg.storyboard
     demoPrev = mkAct('◀ 上一步', () => SB && SB.prev())
     demoNext = mkAct('下一步 ▶', () => SB && SB.next(), 'primary')
     demoAuto = mkAct('连续播放', () => SB && SB.autoPlay())
@@ -243,7 +285,7 @@ export function createPanel(cfg = {}) {
         await new Promise((r) => setTimeout(r, 320))
       }
       const r = SB.restoreBefore()
-      addChip(r.ok ? '已回到演示前的状态' : ('恢复失败：' + r.error), r.ok ? 'info' : 'warn')
+      addChip(r.ok ? '已回到演示前的状态' : T('恢复失败：{error}', { error: r.error }), r.ok ? 'info' : 'warn')
       if (r.ok) hideBar()
     })
     ;[demoPrev, demoNext, demoAuto, demoManual, demoStop, demoReplay, demoRestore, demoDismiss]
@@ -261,7 +303,7 @@ export function createPanel(cfg = {}) {
     const foot = E('div', { class: 'agent-foot' })
     inputEl = E('textarea', {
       class: 'agent-input-text', rows: '1',
-      placeholder: cfg.placeholder || '问相关的问题，或让我演示…（Enter 发送，Shift+Enter 换行）',
+      placeholder: cfg.placeholder || T('问相关的问题，或让我演示…（Enter 发送，Shift+Enter 换行）'),
     })
     inputEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend() }
@@ -480,22 +522,23 @@ export function createPanel(cfg = {}) {
           const u = o.usage || {}
           if (u.completion_tokens != null) {
             const det = u.completion_tokens_details || {}
-            diag.push('输出 ' + u.completion_tokens + ' tokens'
-              + (det.reasoning_tokens != null ? '（其中思考 ' + det.reasoning_tokens + '）' : ''))
+            diag.push(T('输出 {n} tokens', { n: u.completion_tokens })
+              + (det.reasoning_tokens != null ? T('（其中思考 {n}）', { n: det.reasoning_tokens }) : ''))
           }
-          if (u.prompt_tokens != null) diag.push('输入 ' + u.prompt_tokens + ' tokens')
+          if (u.prompt_tokens != null) diag.push(T('输入 {n} tokens', { n: u.prompt_tokens }))
           const tail = diag.length ? '<br><span class="agent-diag">' + escapeHtml(diag.join('　·　')) + '</span>' : ''
 
           let why
           if (o.finishReason === 'length') {
-            why = '模型这次没有输出正文：输出被长度上限截断。'
-              + '可在「设置 → 输出上限 max_tokens」调大后重试。'
+            why = T('模型这次没有输出正文：输出被长度上限截断。可在「设置 → 输出上限 max_tokens」调大后重试。')
           } else if (o.finishReason === 'tool_calls') {
-            why = '模型这次只发起了动作调用，没写正文。动作可能已经排进演示队列了，看一下上面的动作气泡。'
+            why = T('模型这次只发起了动作调用，没写正文。动作可能已经排进演示队列了，看一下上面的动作气泡。')
           } else {
-            why = '模型这次没有返回正文'
-            why += hasThink ? '（只输出了思考内容）' : '（连思考内容也没有，可能是服务端返回异常）'
-            why += '。可以再问一次，或换一个模型试试。'
+            // ★ 有思考 / 连思考都没有：两条都是**完整句子**，不拼半截
+            //   （拼半截的话译文语序会错位，而且扫描替换也对不上）
+            why = hasThink
+              ? T('模型这次没有返回正文（只输出了思考内容）。可以再问一次，或换一个模型试试。')
+              : T('模型这次没有返回正文（连思考内容也没有，可能是服务端返回异常）。可以再问一次，或换一个模型试试。')
           }
           body.innerHTML = '<div class="agent-warn">' + escapeHtml(why) + tail + '</div>'
         }
@@ -532,7 +575,7 @@ export function createPanel(cfg = {}) {
     const lines = acts.map((a) => describeAction(a.action, a.params || a))
     d.appendChild(E('summary', {
       html: '<span class="agent-act-dot"></span>' + escapeHtml(lines[0]) +
-        (lines.length > 1 ? '<span class="agent-act-more">等 ' + lines.length + ' 个动作</span>' : ''),
+        (lines.length > 1 ? '<span class="agent-act-more">' + escapeHtml(T('等 {n} 个动作', { n: lines.length })) + '</span>' : ''),
     }))
     const body = E('div', { class: 'agent-act-body' })
     // 逐一行（带序号，便于与「演示 #N 的第 M 步」对照）
@@ -544,7 +587,7 @@ export function createPanel(cfg = {}) {
     if (result) {
       body.appendChild(E('div', {
         class: 'agent-act-ret',
-        text: '返回：' + JSON.stringify(result).slice(0, 400),
+        text: T('返回：{v}', { v: JSON.stringify(result).slice(0, 400) }),
       }))
     }
     d.appendChild(body)
@@ -576,7 +619,7 @@ export function createPanel(cfg = {}) {
         rows[i].classList.add('skipped')
         rows[i].appendChild(E('span', {
           class: 'agent-act-skip',
-          text: '未执行：' + (pa.error || '参数不合法'),
+          text: T('未执行：{reason}', { reason: pa.error || T('参数不合法') }),
         }))
         continue
       }
@@ -634,9 +677,11 @@ export function createPanel(cfg = {}) {
     const total = (opts && opts.total) || '?'
     const what = act ? describeAction(act.action, act.params || act) : ''
     const n = String(demoId).replace(/^d/, '')
-    inputEl.value = '【整改演示】演示 #' + n + ' 的第 ' + (stepIndex + 1) + ' 步（共 ' + total + ' 步）'
-      + (what ? '「' + what + '」' : '')
-      + '\n我想改成：'
+    // ★ 整句一次成型：拆成 `'已演示 #' + n + ' 的第 ' ...` 那种写法，译文语序没法处理
+    inputEl.value = T('【整改演示】演示 #{id} 的第 {index} 步（共 {total} 步）{what}', {
+      id: n, index: stepIndex + 1, total,
+      what: what ? T('「{what}」', { what }) : '',
+    }) + '\n' + T('我想改成：')
     inputEl.focus()
     if (inputEl.setSelectionRange) {
       const p = inputEl.value.length
@@ -772,7 +817,7 @@ export function createPanel(cfg = {}) {
     //   origin:'internal' 的消息进协议历史（模型据此知道"上面这个问题要重答"），
     //   但 renderPath 不渲染它（见 renderPath 对 internal 的跳过）——学生看到的是
     //   连续的"提问 → 新回答"，中间不会冒出一句奇怪的话。
-    cfg.send('（请重新回答我上面的那个问题，给出一份全新的回答。）', { origin: 'internal' })
+    cfg.send(T('（请重新回答我上面的那个问题，给出一份全新的回答。）'), { origin: 'internal' })
   }
 
   /** 某条分支有多长（从它往下走到底） */
@@ -799,17 +844,17 @@ export function createPanel(cfg = {}) {
     const kids = fork.children || []
     bar.appendChild(E('span', {
       class: 'agent-branch-label',
-      text: '⑂ 这处分出 ' + kids.length + ' 条：',
+      text: T('⑂ 这处分出 {n} 条：', { n: kids.length }),
     }))
     const onPath = new Set(store.path().map((x) => x.id))
     kids.forEach((cid, i) => {
       const n = store.nodeById(cid)
       if (!n) return
-      const tip = String(n.content || '').replace(/\s+/g, ' ').slice(0, 14) || '（无正文）'
+      const tip = String(n.content || '').replace(/\s+/g, ' ').slice(0, 14) || T('（无正文）')
       const isCur = onPath.has(cid)
       const chip = E('button', {
         class: 'agent-branch-chip' + (isCur ? ' active' : ''),
-        text: (i + 1) + '. ' + tip + ' · ' + countBranch(cid) + ' 条',
+        text: T('{i}. {tip} · {n} 条', { i: i + 1, tip, n: countBranch(cid) }),
         type: 'button',
         title: isCur ? '当前正在这条分支上' : '切到这条分支',
       })
@@ -1009,7 +1054,11 @@ export function createPanel(cfg = {}) {
         E('div', { class: 'agent-conv-t', text: s.title || '新对话' }),
         E('div', {
           class: 'agent-conv-meta',
-          text: (s.count || 0) + ' 个节点 · ' + fmtTime(s.at) + (s.active ? ' · 当前' : ''),
+          text: T('{n} 个节点 · {at}{cur}', {
+            n: s.count || 0,
+            at: fmtTime(s.at),
+            cur: s.active ? T('· 当前') : '',
+          }),
         }),
       ])
       left.onclick = () => {
@@ -1026,13 +1075,13 @@ export function createPanel(cfg = {}) {
       const rn = E('button', { class: 'agent-act-btn', text: '改名', type: 'button' })
       rn.onclick = (ev) => {
         if (ev && ev.stopPropagation) ev.stopPropagation()
-        const v = window.prompt('会话名称', s.title || '')
+        const v = window.prompt(T('会话名称'), s.title || '')
         if (v != null) { store.renameSession(s.id, v); renderConvList() }
       }
       const del = E('button', { class: 'agent-act-btn', text: '删除', type: 'button' })
       del.onclick = (ev) => {
         if (ev && ev.stopPropagation) ev.stopPropagation()
-        if (!window.confirm('删除这个会话？不可恢复。')) return
+        if (!window.confirm(T('删除这个会话？不可恢复。'))) return
         stopRunning()
         store.deleteSession(s.id)
         if (cfg.syncConversation) cfg.syncConversation()
@@ -1063,7 +1112,7 @@ export function createPanel(cfg = {}) {
       const row = E('div', { class: 'agent-conv-row' })
       const left = E('div', { class: 'agent-conv-left' }, [
         E('div', { class: 'agent-conv-t', text: '★ ' + f.label }),
-        E('div', { class: 'agent-conv-meta', text: f.steps.length + ' 步 · ' + fmtTime(f.at) }),
+        E('div', { class: 'agent-conv-meta', text: T('{n} 步 · {at}', { n: f.steps.length, at: fmtTime(f.at) }) }),
       ])
       left.onclick = () => {
         const SB = cfg.storyboard
@@ -1071,7 +1120,7 @@ export function createPanel(cfg = {}) {
         stopRunning()
         leaveConvPage()                 // 收起会话页，让学生看见画面
         const r = SB.loadDemo(f.steps, { origin: 'favorite', reason: 'favorite' })
-        if (!r || !r.ok) addChip('无法播放这条收藏：' + ((r && r.error) || ''), 'warn')
+        if (!r || !r.ok) addChip(T('无法播放这条收藏：{error}', { error: (r && r.error) || '' }), 'warn')
       }
       row.appendChild(left)
       const acts = E('div', { class: 'agent-conv-acts' })
@@ -1090,10 +1139,15 @@ export function createPanel(cfg = {}) {
   /** 动作的中文描述（可由 cfg.describeAction 完全接管，或靠 actionLabels 查表） */
   function describeAction(name, args) {
     if (typeof cfg.describeAction === 'function') return cfg.describeAction(name, args)
-    const label = ACTION_LABEL[name] || name
+    // ★ 标签要**单独过一遍 T**：`T()` 在查不到键时会回退到"中文原文 → 译文"表，
+    //   而动作标签正是"原文即键"的那类（登记在各模块的 text 表里）。
+    //   不过这一遍的话，英文模式下会得到 `显示/隐藏对称元素（key="C2#1"）` 这种半中半英。
+    const label = T(ACTION_LABEL[name] || name)
     if (args && Object.keys(args).length) {
       const kv = Object.keys(args).map((k) => k + '=' + JSON.stringify(args[k])).join(' ')
-      return label + '（' + kv + '）'
+      // ★ 括号也得走键：中文用全角「（）」、英文用半角「()」并且前面要有空格。
+      //   键写成 `（{kv}）` 是为了**没有注入 T 时逐字节不变**（回退实现是就地填占位符）。
+      return label + T('（{kv}）', { kv })
     }
     return label
   }
@@ -1171,7 +1225,7 @@ export function createPanel(cfg = {}) {
           const s = lastBubble.querySelector('summary')
           if (s && s.insertAdjacentHTML) {
             s.insertAdjacentHTML('beforeend',
-              '<span class="agent-act-err">· ' + failed.length + ' 个动作未执行</span>')
+              '<span class="agent-act-err">· ' + escapeHtml(T('{n} 个动作未执行', { n: failed.length })) + '</span>')
           }
         }
         // ★ 把回执里的 perAction / demoId 落到气泡上：逐行「引用」+ 底部「重播这个演示」。
@@ -1195,9 +1249,9 @@ export function createPanel(cfg = {}) {
           cur.setError('尚未配置 API Key，请点「设置」填写。')
           if (cfg.openSettings) cfg.openSettings()
         } else if (err.kind === 'auth') {
-          cur.setError(err.message + '（点「设置」检查密钥）')
+          cur.setError(T('{message}（点「设置」检查密钥）', { message: err.message }))
         } else {
-          cur.setError('出错了：' + err.message)
+          cur.setError(T('出错了：{message}', { message: err.message }))
         }
       },
     })
@@ -1243,7 +1297,8 @@ export function createPanel(cfg = {}) {
     if (!demoBar) return
     clearTimeout(demoHideTimer)
     demoBar.classList.remove('hidden', 'bad')
-    demoIdx.textContent = '第 ' + evt.index + '/' + evt.total + ' 步' + (evt.ok === false ? '（未执行）' : '')
+    demoIdx.textContent = T('第 {index}/{total} 步', { index: evt.index, total: evt.total })
+      + (evt.ok === false ? T('（未执行）') : '')
     demoText.textContent = evt.speech || evt.label
     demoText.classList.toggle('muted', !evt.speech)
     if (evt.ok === false) demoBar.classList.add('bad')
@@ -1258,48 +1313,49 @@ export function createPanel(cfg = {}) {
 
   function renderWaiting(evt) {
     if (!demoBar) return
-    demoIdx.textContent = '已完成 ' + evt.index + '/' + evt.total + ' 步'
+    demoIdx.textContent = T('已完成 {index}/{total} 步', { index: evt.index, total: evt.total })
     setBarMode('manual')
     demoPrev.disabled = !evt.canPrev
     const nx = evt.next || {}
     demoNextHint.classList.remove('hidden')
-    demoNextHint.textContent = '下一步：' + (nx.speech || nx.label || '')
+    demoNextHint.textContent = T('下一步：{text}', { text: nx.speech || nx.label || '' })
   }
 
   /** 退回上一步之后：显示"这一步还没执行"，预告即将重播的那一步 */
   function renderBack(evt) {
     if (!demoBar) return
     demoBar.classList.remove('hidden', 'done', 'bad')
-    demoIdx.textContent = '已退回 · 已完成 ' + evt.index + '/' + evt.total + ' 步'
+    demoIdx.textContent = T('已退回 · 已完成 {index}/{total} 步', { index: evt.index, total: evt.total })
     setBarMode('manual')
     demoPrev.disabled = !(evt.index > 0)
     // ★ 主文字显示"现在**停在**哪儿"（`at`），而不是"下一步要重播什么"（`step`）。
     //   若两者是同一句旁白，退回前后文字不变，学生会以为"上一步没生效"（实测反馈）。
     const at = evt.at || {}
-    demoText.textContent = at.speech || at.label || '（回到最开始）'
+    demoText.textContent = at.speech || at.label || T('（回到最开始）')
     demoText.classList.toggle('muted', false)
     demoNextHint.classList.remove('hidden')
     const st = evt.step || {}
-    demoNextHint.textContent = '下一步（重播）：' + (st.label || '')
+    demoNextHint.textContent = T('下一步（重播）：{label}', { label: st.label || '' })
   }
 
   function renderAuto(evt) {
     setBarMode('auto')
-    demoIdx.textContent = '连续播放中 ' + evt.index + '/' + evt.total
+    demoIdx.textContent = T('连续播放中 {index}/{total}', { index: evt.index, total: evt.total })
     demoNextHint.classList.add('hidden')
   }
 
   function renderQueued(evt) {
     if (!demoBar) return
     demoBar.classList.remove('hidden')
-    demoIdx.textContent = '已完成 ' + (evt.index || 0) + '/' + evt.total + ' 步 · 新增 ' + evt.added + ' 步'
+    demoIdx.textContent = T('已完成 {index}/{total} 步 · 新增 {added} 步',
+      { index: evt.index || 0, total: evt.total, added: evt.added })
     // 追加后"下一步"可能是刚入队的那一条，重新预告一次（否则预告会停留在旧的那条）
     const sb = cfg.storyboard
     const st = (sb && sb.state) ? sb.state() : null
     const nx = st && st.pending && st.pending[0]
     if (nx && demoBar.classList.contains('manual')) {
       demoNextHint.classList.remove('hidden')
-      demoNextHint.textContent = '下一步：' + (nx.speech || nx.action)
+      demoNextHint.textContent = T('下一步：{text}', { text: nx.speech || nx.action })
     }
   }
 
@@ -1312,7 +1368,7 @@ export function createPanel(cfg = {}) {
     setBarMode('done')
     demoPrev.disabled = !(evt.canPrev !== false && evt.total > 0)
     demoIdx.textContent = '演示完成'
-    demoText.textContent = '共 ' + ((evt && evt.total) || 0) + ' 步 · 可重新演示，或退回去重看某一步'
+    demoText.textContent = T('共 {total} 步 · 可重新演示，或退回去重看某一步', { total: (evt && evt.total) || 0 })
     demoText.classList.add('muted')
   }
 
@@ -1323,46 +1379,99 @@ export function createPanel(cfg = {}) {
     demoBar.classList.add('hidden')
   }
 
+  /**
+   * 把一次分镜进度事件落到控制条上。
+   *
+   * ★ 抽成独立函数（而不是写在订阅回调里）是为了**换语言时能重放**：
+   *   控制条上的步号与提示是 `t()` 现算的，DOM 里的那份不会被扫描替换回头。
+   *
+   * @param {Object} evt
+   * @param {boolean} [isReplay] 重放（换语言）时不抢焦点、不自动开抽屉
+   */
+  function applyProgress(evt, isReplay) {
+    if (!evt || disposed) return
+    lastProgress = evt
+    switch (evt.phase) {
+      case 'step':
+        // 手动演示的第一帧就要让用户看见控制条，否则他会不知道要动手
+        if (!isReplay && evt.manual !== false && !drawer.classList.contains('show')) open({ focus: false })
+        renderStep(evt)
+        break
+      case 'waiting': renderWaiting(evt); break
+      case 'back': renderBack(evt); break
+      case 'replay':
+        clearTimeout(demoHideTimer)
+        demoBar.classList.remove('hidden', 'done')
+        demoIdx.textContent = T('重新演示 · 共 {total} 步', { total: evt.total })
+        demoText.textContent = '从头开始'
+        demoText.classList.add('muted')
+        break
+      case 'auto': renderAuto(evt); break
+      case 'queued': renderQueued(evt); break
+      case 'done': renderDone(evt); break
+      case 'stopped':
+        // ★ 停止后**不直接隐藏**控制条：演示已经改动了画面（图层/外观/视角，
+        //   还可能跳去了别的页面），而"学生中途不想看了"恰恰是最想退回去的时刻。
+        //   保留一条只含「↩ 回到演示前」与「收起」的窄条；没有可恢复状态才真隐藏。
+        if (SB && typeof SB.state === 'function' && SB.state().canRestoreBefore) {
+          demoBar.classList.remove('hidden', 'bad')
+          demoIdx.textContent = '演示已停止'
+          demoText.textContent = ''
+          demoNextHint.classList.add('hidden')
+          setBarMode('stopped')
+        } else {
+          hideBar()
+        }
+        break
+      default: break
+    }
+  }
+
   function bindStoryboardProgress() {
     const sb = cfg.storyboard
     if (!sb || typeof sb.onProgress !== 'function') return
-    offProgress = sb.onProgress((evt) => {
-      if (!evt || disposed) return
-      switch (evt.phase) {
-        case 'step':
-          // 手动演示的第一帧就要让用户看见控制条，否则他会不知道要动手
-          if (evt.manual !== false && !drawer.classList.contains('show')) open({ focus: false })
-          renderStep(evt)
-          break
-        case 'waiting': renderWaiting(evt); break
-        case 'back': renderBack(evt); break
-        case 'replay':
-          clearTimeout(demoHideTimer)
-          demoBar.classList.remove('hidden', 'done')
-          demoIdx.textContent = '重新演示 · 共 ' + evt.total + ' 步'
-          demoText.textContent = '从头开始'
-          demoText.classList.add('muted')
-          break
-        case 'auto': renderAuto(evt); break
-        case 'queued': renderQueued(evt); break
-        case 'done': renderDone(evt); break
-        case 'stopped':
-          // ★ 停止后**不直接隐藏**控制条：演示已经改动了画面（图层/外观/视角，
-          //   还可能跳去了别的页面），而"学生中途不想看了"恰恰是最想退回去的时刻。
-          //   保留一条只含「↩ 回到演示前」与「收起」的窄条；没有可恢复状态才真隐藏。
-          if (SB && typeof SB.state === 'function' && SB.state().canRestoreBefore) {
-            demoBar.classList.remove('hidden', 'bad')
-            demoIdx.textContent = '演示已停止'
-            demoText.textContent = ''
-            demoNextHint.classList.add('hidden')
-            setBarMode('stopped')
-          } else {
-            hideBar()
-          }
-          break
-        default: break
-      }
-    })
+    offProgress = sb.onProgress((evt) => applyProgress(evt, false))
+  }
+
+  // ---------------------------------------------------------------------------
+  // 语言切换：面板自己重画（**不重建 DOM、绝不清空对话**）
+  // ---------------------------------------------------------------------------
+  /**
+   * 应用层换语言时会在 `window` 上派发 `'langchange'`（见 packages/i18n 的 setLang）。
+   *
+   * ★ 面板**为什么要自己听**：静态文案会被应用层的 `startAutoSweep(document.body)`
+   *   扫描替换掉，但**走 `T()` 现算的那些不会** —— 步号 `第 3/6 步`、会话元信息
+   *   `3 个节点 · 09-30 12:00`、分支片 `⑂ 这处分出 2 条：` 一写进 DOM 就定死了，
+   *   它们不在 text 表里，扫描永远认不出。不重画的表现是"切了语言这几处还是旧语言"，
+   *   而且**不报错**。
+   *
+   * ★ 这里**绝不重建对话**：不调 `renderPath()` —— 那会丢掉不在 store 里的卡片
+   *   （题目卡就属于这种），也会打断正在流式输出的那一轮。只重画面板自己拥有、
+   *   且不承载历史的那几块。
+   */
+  function onLangChange() {
+    if (disposed) return
+    // ① 面板兜底的标题与输入框提示。
+    //    ★ 宿主给了 cfg.title / cfg.fabTitle / cfg.placeholder 时，那是**宿主的**
+    //      字符串（由它自己或全局扫描负责），面板不越权改写它。
+    if (!cfg.title && headTitleEl) headTitleEl.textContent = T('教学智能体')
+    if (!cfg.fabTitle && fab) fab.title = T('教学智能体（可拖动）')
+    if (!cfg.placeholder && inputEl) {
+      inputEl.placeholder = T('问相关的问题，或让我演示…（Enter 发送，Shift+Enter 换行）')
+    }
+    // ② 空态：**只有当消息区里只剩问候语**时才重画 —— 有对话历史就一个字都不动
+    if (msgBox && isOnlyGreeting()) renderEmptyState()
+    // ③ 会话页 / 收藏列表（标题、节点数、时间都是 T() 现算的）
+    if (convPage && convPage.classList.contains('show')) { renderConvList(); renderFavList() }
+    // ④ 分镜控制条：把最后一次进度事件按新语言重放一遍
+    if (lastProgress) applyProgress(lastProgress, true)
+  }
+
+  /** 消息区里是否**只有**空态问候语（据此判断"换语言重画空态"是安全的） */
+  function isOnlyGreeting() {
+    if (!msgBox || !msgBox.children || msgBox.children.length !== 1) return false
+    const only = msgBox.children[0]
+    return !!(only && typeof only.querySelector === 'function' && only.querySelector('.agent-hello'))
   }
 
   function init() {
@@ -1372,12 +1481,21 @@ export function createPanel(cfg = {}) {
       const r = fab.getBoundingClientRect()
       if (r.left > window.innerWidth - 20) snapToEdge()
     })
+    // ★ 语言切换：静态文案由应用层的扫描替换管，`T()` 现算的那几块得自己重画
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('langchange', onLangChange)
+    }
   }
 
   /** 卸载：解绑订阅，避免反复进出页面时累积（分镜引擎的 onProgress 返回取消函数） */
   function destroy() {
     disposed = true
     if (typeof offProgress === 'function') { offProgress(); offProgress = null }
+    // ★ 有些宿主（含测试里的 DOM 桩）没有 removeEventListener，缺了要静默跳过，
+    //   不能因为解绑而抛错
+    if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+      window.removeEventListener('langchange', onLangChange)
+    }
   }
 
   return {

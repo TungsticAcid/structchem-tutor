@@ -23,12 +23,22 @@ export default defineConfig({
     port: 3001,
     open: false,
     fs: { allow: [repo] },
+    /**
+     * ★ 必须忽略"原子写临时目录"，否则 **dev server 会当场崩掉**（实测）：
+     *   编辑器/文件后端保存文件时会在目标旁边建 `.main.js.<pid>.<uuid>.tmpdir/main.js.tmp`
+     *   再改名覆盖，而 Windows 上 node 的 fs.watch 撞上这个刚被删除/占用的临时文件会抛
+     *   `EBUSY: resource busy or locked` —— 那是 FSWatcher 的 error 事件，**没人接就
+     *   整个进程退出**。表现是"改一下文件，热更新没了、页面 500"，而代码本身没问题。
+     */
+    watch: { ignored: ['**/.*.tmpdir/**', '**/*.tmp'] },
   },
   resolve: {
     alias: {
       // 共享层（学科无关）
       '@core': fileURLToPath(new URL('../../packages/agent-core', import.meta.url)),
       '@ui-kit': fileURLToPath(new URL('../../packages/ui-kit', import.meta.url)),
+      // ★ 独立的零依赖包：ui-kit 已依赖 agent-core，i18n 放进 ui-kit 会让面板再引用它时成环
+      '@i18n': fileURLToPath(new URL('../../packages/i18n', import.meta.url)),
       '@viewer': fileURLToPath(new URL('../../packages/viewer', import.meta.url)),
       '@knowledge': fileURLToPath(new URL('../../packages/knowledge', import.meta.url)),
       '@skills': fileURLToPath(new URL('../../packages/skills', import.meta.url)),

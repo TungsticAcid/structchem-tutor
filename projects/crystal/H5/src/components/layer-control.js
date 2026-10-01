@@ -3,6 +3,33 @@
  * 提供图层开关、模型类型选择、元素独立控制等功能
  */
 import { BaseComponent } from '../adapters/component.js'
+// ★ 相对路径而不是 `@i18n/index.js` 别名：本文件同时被统一壳（有别名）与
+//   `projects/crystal/H5` 独立页（**没有**别名）引用，只有相对路径两边都认。
+import { t } from '../../../../../packages/i18n/index.js'
+
+/**
+ * 面板里的固定标签（图层开关 / 外观滑块）。
+ *
+ * ★ 为什么把它们提到模板串**外面**：这些字原先直接写在
+ *   `${this._toggleRow('原子', 'atoms', …)}` 这类表达式的实参里，而扫描替换的
+ *   粒度是「**DOM 文本节点**」——模板里带 `${}` 的整片它够不着（真实的文本节点
+ *   是 `_toggleRow` 生成的那一小块）。提出来之后每条都是一个独立的中文原文，
+ *   由 `text` 表 + `sweep()` 负责换掉；**渲染出来的 HTML 一个字节没变**。
+ */
+const LAYER_LABELS = {
+  atomScale: '原子缩放',
+  opacity: '原子透明度',
+  opacityHint: '调高可看清被原子挡住的对称元素、空隙',
+  octahedral: '八面体空隙',
+  tetrahedral: '四面体空隙',
+  atoms: '原子',
+  atomLabels: '原子标签',
+  latticePoints: '点阵型式',
+  bonds: '化学键',
+  axes: '坐标轴',
+  auxiliaryBody: '体对角线',
+  auxiliaryFace: '面对角线'
+}
 
 /**
  * 控制面板外壳（`.layer-control`）的样式。
@@ -191,6 +218,11 @@ export class LayerControl extends BaseComponent {
   }
 
   render() {
+    // ★ 下面「晶体信息」那段把每个值单独包了一层 <span>：原先写成
+    //   `点阵型式：${meta.latticeType}`，标签与值落在**同一个文本节点**里，
+    //   而扫描替换按**整节点**比对 —— 两条都够不着（登记了也换不掉）。
+    //   拆开后标签与值各是一个文本节点，各自登记即可翻译；包的是行内 span、
+    //   不带任何样式，排版逐字不变。
     const p = this._props
     const d = this._data
     const meta = p.crystalMeta || {}
@@ -216,7 +248,7 @@ ${LAYER_CONTROL_BASE_CSS}
       <div class="toggle-row element-section-header" data-action="onToggleElements">
         <div class="element-section-left">
           <span class="toggle-label">分元素控制</span>
-          <span class="element-count-text">（${cd.atoms.length}种）</span>
+          <span class="element-count-text">${t('h5.layer.elementCount', { n: cd.atoms.length })}</span>
         </div>
         <span class="element-expand-arrow">${d.elementsExpanded ? '▼' : '▶'}</span>
       </div>`
@@ -252,16 +284,16 @@ ${LAYER_CONTROL_BASE_CSS}
     const appearanceHtml = `
     <div class="control-section">
       <span class="section-title">外观</span>
-      ${this._sliderRow('原子缩放', 'atomScale', p.atomScale, 0.3, 2.0, 0.05)}
-      ${this._sliderRow('原子透明度', 'opacity', p.opacity, 0, 0.9, 0.05, '调高可看清被原子挡住的对称元素、空隙')}
+      ${this._sliderRow(LAYER_LABELS.atomScale, 'atomScale', p.atomScale, 0.3, 2.0, 0.05)}
+      ${this._sliderRow(LAYER_LABELS.opacity, 'opacity', p.opacity, 0, 0.9, 0.05, LAYER_LABELS.opacityHint)}
     </div>`
 
     // 空隙控制
     let intersticeHtml = ''
     if (p.showIntersticeControl) {
       intersticeHtml = `
-      ${this._toggleRow('八面体空隙', 'octahedral', p.showOctahedral, '#FFB74D')}
-      ${this._toggleRow('四面体空隙', 'tetrahedral', p.showTetrahedral, '#4FC3F7')}`
+      ${this._toggleRow(LAYER_LABELS.octahedral, 'octahedral', p.showOctahedral, '#FFB74D')}
+      ${this._toggleRow(LAYER_LABELS.tetrahedral, 'tetrahedral', p.showTetrahedral, '#4FC3F7')}`
     }
 
     // 氢键
@@ -315,15 +347,15 @@ ${LAYER_CONTROL_BASE_CSS}
         <div class="control-section" style="${meta.name ? '' : 'display:none'}">
           <span class="section-title">晶体信息</span>
           <div class="crystal-info">
-            ${meta.formula ? `<span class="info-line">化学式：${meta.formula}</span>` : ''}
-            ${meta.crystalSystem ? `<span class="info-line">晶系：${meta.crystalSystem}</span>` : ''}
-            ${meta.spaceGroup ? `<span class="info-line">空间群：${meta.spaceGroup}</span>` : ''}
-            ${meta.latticeType ? `<span class="info-line">点阵型式：${meta.latticeType}</span>` : ''}
-            ${meta.structuralUnit ? `<span class="info-line">结构基元：${meta.structuralUnit}</span>` : ''}
-            ${meta.coordination ? `<span class="info-line">配位数：${meta.coordination}</span>` : ''}
-            ${meta.spaceUtilization ? `<span class="info-line">空间利用率：${meta.spaceUtilization}</span>` : ''}
-            ${meta.packingDescription ? `<span class="info-line">堆积方式：${meta.packingDescription}</span>` : ''}
-            ${meta.latticeConstText ? `<span class="info-line">晶胞参数：${meta.latticeConstText}</span>` : ''}
+            ${meta.formula ? `<span class="info-line">化学式：<span>${meta.formula}</span></span>` : ''}
+            ${meta.crystalSystem ? `<span class="info-line">晶系：<span>${meta.crystalSystem}</span></span>` : ''}
+            ${meta.spaceGroup ? `<span class="info-line">空间群：<span>${meta.spaceGroup}</span></span>` : ''}
+            ${meta.latticeType ? `<span class="info-line">点阵型式：<span>${meta.latticeType}</span></span>` : ''}
+            ${meta.structuralUnit ? `<span class="info-line">结构基元：<span>${meta.structuralUnit}</span></span>` : ''}
+            ${meta.coordination ? `<span class="info-line">配位数：<span>${meta.coordination}</span></span>` : ''}
+            ${meta.spaceUtilization ? `<span class="info-line">空间利用率：<span>${meta.spaceUtilization}</span></span>` : ''}
+            ${meta.packingDescription ? `<span class="info-line">堆积方式：<span>${meta.packingDescription}</span></span>` : ''}
+            ${meta.latticeConstText ? `<span class="info-line">晶胞参数：<span>${meta.latticeConstText}</span></span>` : ''}
           </div>
         </div>
 
@@ -331,16 +363,16 @@ ${LAYER_CONTROL_BASE_CSS}
 
         <div class="control-section">
           <span class="section-title">图层显示</span>
-          ${this._toggleRow('原子', 'atoms', p.showAtoms)}
+          ${this._toggleRow(LAYER_LABELS.atoms, 'atoms', p.showAtoms)}
           ${elemControls}
-          ${this._toggleRow('原子标签', 'atomLabels', p.showAtomLabels)}
-          ${this._toggleRow('点阵型式', 'latticePoints', p.showLatticePoints, '#FF6D00')}
+          ${this._toggleRow(LAYER_LABELS.atomLabels, 'atomLabels', p.showAtomLabels)}
+          ${this._toggleRow(LAYER_LABELS.latticePoints, 'latticePoints', p.showLatticePoints, '#FF6D00')}
           ${intersticeHtml}
-          ${!p.isMolecularCrystal ? this._toggleRow('化学键', 'bonds', p.showBonds) : ''}
+          ${!p.isMolecularCrystal ? this._toggleRow(LAYER_LABELS.bonds, 'bonds', p.showBonds) : ''}
           ${hbondHtml}
-          ${this._toggleRow('坐标轴', 'axes', p.showAxes)}
-          ${this._toggleRow('体对角线', 'auxiliaryBody', p.showAuxiliaryBody, '#FFD54F')}
-          ${this._toggleRow('面对角线', 'auxiliaryFace', p.showAuxiliaryFace, '#90CAF9')}
+          ${this._toggleRow(LAYER_LABELS.axes, 'axes', p.showAxes)}
+          ${this._toggleRow(LAYER_LABELS.auxiliaryBody, 'auxiliaryBody', p.showAuxiliaryBody, '#FFD54F')}
+          ${this._toggleRow(LAYER_LABELS.auxiliaryFace, 'auxiliaryFace', p.showAuxiliaryFace, '#90CAF9')}
           ${auxAboveHtml}
         </div>
 

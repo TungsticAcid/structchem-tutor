@@ -16,6 +16,16 @@
 import { ORBIT_HTML } from './orbit-markup.js'
 // KaTeX 是懒加载的（277 KB）；本页首帧可能还没到，故要用它的加载器做补画
 import { loadKatex } from '@core/ui/katex-loader.js'
+/**
+ * 宿主 i18n（`@i18n` 是 vite 别名；**字典文件**才走相对路径 —— 守卫要在 Node 里 import 它）。
+ *
+ * ★ 为什么是 `hostT` 而不是 `t`：本文件里 `t` 这个名字**已被多处局部变量占用**
+ *   （`const t = state.terms || []`、`const t = p.target`、`for (const t of x)`）。
+ *   `import { t }` 不会报错，但那些作用域里的 `t(...)` 会打到数组/字符串上 ——
+ *   静默失效或抛异常。别名之后一眼能看出"这是宿主的翻译函数"，
+ *   与轨道模块自己的文案表（modules/orbit/i18n.js）也不是一回事。
+ */
+import { t as hostT } from '@i18n/index.js'
 
 // 视口自适应：算出 --viewer-h / --panel-h（见 packages/ui-kit/viewport.js）
 import { createViewport } from '@ui-kit/viewport.js'
@@ -29,6 +39,9 @@ import { Charts } from '@modules/orbit/render/charts.js'
 import { ChartOverlay } from '@modules/orbit/render/chart-overlay.js'
 import { StateEditor } from '@modules/orbit/render/state-editor.js'
 import { ReferenceTable } from '@modules/orbit/render/reference-table.js'
+// ★ 同屏轨道条数的上限**只此一份**：动作层（模型下发）与界面（「＋」按钮）共用它。
+//   两处各写一个数的必然结局是漂开，而漂开的症状是"模型加不上去、用户却能一路加到冻死"。
+import { MAX_MULTI_ORBITALS } from '@modules/orbit/actions.js'
 
 /**
  * main.js — 主控制器：绑定 UI、管理状态、节流重绘
@@ -99,11 +112,37 @@ export function bootOrbitPage(deps = {}) {
     //   · 氢型 2s 在 r≈2a₀ 有径向节点 → sp³ 的等值面外层干涉反向、形状与教材不同
     //   · STO 的径向形式是 r^(n−1)e^(−ζr)，2s 与 2p **共用** → 剩下纯角度形状 = 教材那个瓣
     //   默认氢型是为了与知识条目里"2s 有一个径向节点"的表述一致。
-    // 多轨道同屏：要同屏的等价轨道集合（'off' 关闭）与**要显示的下标**。
-    // ★ orbitalVisible 由 state 持有、复选框行只是它的渲染视图 —— 那一行是按
+    // 多轨道同屏。档位：'off' 关闭 · 'sp3'/'sp2'/'sp' 预设集合 · 'custom' 自定义列表。
+    // ★ orbitalVisible 由 state 持有、轨道清单只是它的渲染视图 —— 那一行是按
     //   当前集合**生成**的（sp³ 四个、sp² 三个），生成之前没有 DOM 可读。
+    //   **只对预设档有意义**：自定义档的显隐逐个记在 orbitals[i].visible 上。
     orbitalSet: 'off',
     orbitalVisible: [],
+    /**
+     * 自定义同屏里的**额外**轨道（**不含**主轨道），任意数量。
+     *
+     * ★ 主轨道为什么不在这里：主轨道被定义为"页面当前正在编辑的那个"（n/l/m 或叠加态）。
+     *   把它也塞进数组，用户拖一下滑块就会出现两种选择，两种都错：
+     *     ① 数组里那份冻结的不变 → 画面与滑块对不上（**画面在说谎**，且不报错）；
+     *     ② 跟着滑块变 → 数组里用户选的颜色/标签被悄悄改掉。
+     *   分开之后语义是干净的：主轨道跟随编辑，额外轨道是用户"按 + 钉住"的副本。
+     *
+     * ★ 每项是**冻结副本**：{ key, label, color:[r,g,b], visible, terms, n, l, m, mode, mode_real }。
+     *   terms 非空表示这一项本身是个叠加态（"任意类型轨道"里就包含它）。
+     */
+    orbitals: [],
+    /** 自定义档里主轨道的颜色（null = 还没定过，用调色板第一色） */
+    orbitalMainColor: null,
+    orbitalMainVisible: true,
+    /**
+     * 预设档下**逐项改过的颜色**：{ 'sp3-2': [r,g,b], … }。
+     *
+     * ★ 为什么预设档不能像自定义档那样直接记在 items 上：预设的条目是 `multiRenderSpec()`
+     *   现从 `Hybrids` 展开的，**不进 state**（这样 `set: 'sp3'` 与 Hybrids 的定义
+     *   永远只有一份真源）。所以用户的改动需要一个覆盖层，而不是去改那份定义。
+     */
+    orbitalColorOverride: {},
+    orbitalSeq: 0,           // 生成稳定 key 用的自增序号（key 要跨重建稳定，不能用数组下标）
     orbitalModel: 'hydrogenic',
     orbitalZeta: null,       // STO 的 ζ；null = 用 Z/n（想用 Slater 规则的值就直接填）
   };
@@ -122,7 +161,8 @@ export function bootOrbitPage(deps = {}) {
     levelSlider: $('#levelSlider'), levelInput: $('#levelInput'), levelSet: $('#levelSet'), psiHint: $('#psiHint'),
     psiCritSet: $('#psiCritSet'), psiSeg: $('#psiSeg'),
     orbZetaSet: $('#orbZetaSet'), orbZetaInput: $('#orbZetaInput'), orbModelHint: $('#orbModelHint'),
-    multiChkSet: $('#multiChkSet'), multiChkSeg: $('#multiChkSeg'), multiHint: $('#multiHint'),
+    multiListSet: $('#multiListSet'), multiList: $('#multiList'), multiAddBtn: $('#multiAddBtn'),
+    multiHint: $('#multiHint'),
     pointCountSlider: $('#pointCountSlider'), pointCountInput: $('#pointCountInput'), pointSet: $('#pointSet'),
     thetaPhiChart: $('#thetaPhiChart'),
     targetSeg: $('#targetSeg'), yCritSet: $('#yCritSet'),
@@ -203,7 +243,11 @@ export function bootOrbitPage(deps = {}) {
         // ★ 用 HTML 版：l≥4 的标签是直角坐标多项式（含 x^{4} 这类记号），
         //   直接塞纯文本会原样显示成 "x^{4}"。
         return '<button class="seg-btn" data-m="' + mm + '"' +
-          (named ? '' : ' title="该支壳层没有公认的惯用名，这里用角度部分的直角坐标多项式标记"') +
+          // ★ 这里走 hostT 而不是进 text 表：这个 title 是**跨字面量拼接**的属性
+          //   （`'…"' + ' title="…"' + '>'`），守卫的标签扫描器看不到整条标签，
+          //   会把 `" title="中文"` 这样的带语法残片当成原文报出来。走键之后
+          //   守卫看得见真实原文，运行时也拿得到译文。
+          (named ? '' : ' title="' + hostT('pages.orbit.realOrbNoName') + '"') +
           '>' + Formula.realOrbitalLabelHtml(l, mm) + '</button>';
       }).join('');
       // 没有惯用名的支壳层给一句说明，否则学生会以为程序忘了起名
@@ -341,78 +385,126 @@ export function bootOrbitPage(deps = {}) {
   /**
    * 多轨道同屏控件的界面同步：复选框行（按集合生成）+ 提示文案。
    *
-   * ★ 复选框行是**生成**的（sp³ 四个、sp² 三个），故用 `multiChkBuiltFor` 记住
-   *   它是为哪个集合建的；集合没变就不重建 —— 重建会丢掉用户的勾选状态。
+   * ★ 清单行是**生成**的（预设四个/三个、自定义任意多个），故用 `multiListBuiltFor`
+   *   记住它是为哪份清单建的；清单没变就不重建 —— 重建会丢掉正在拖动的取色器。
    * ★ 点击**不直接改画面**，只改 state 再 recompute：与其余控件同一套数据流，
    *   于是"模型改了状态、界面没跟上"这一整类不同步在这里也不会发生。
    */
   const MULTI_HINT = {
     off: '开启后，一组等价轨道同时显示，每个一个颜色',
+    custom: '自定义同屏：点「＋ 加入当前轨道」把此刻这个轨道（<b>纯态或叠加态都行</b>）'
+      + '钉进画面，再改量子数继续加 —— <b>数量不限</b>，每行都能单独改色与显隐',
     sp3: '四个等价 <i>sp</i>³：指向<b>正四面体</b>，两两 109.47°',
     sp2: '三个等价 <i>sp</i>²：<b>共面</b>、互成 120°',
     sp: '两个等价 <i>sp</i>：成 <b>180°</b> 直线型',
   };
-  let multiChkBuiltFor = null;
+  let multiListBuiltFor = null;
+  let multiListTimer = 0;   // 「生成中…」的低频轮询（额外轨道是排队建的）
 
+  /**
+   * 渲染"同屏轨道"清单：每一行 = 一个轨道（色块 / 名字 / 显隐 / 移除）。
+   *
+   * ★ 预设档与自定义档**共用这一个清单**，不再各做一套控件。两套的失效方式不一样
+   *   （预设那套是下标、自定义是 key），而"两套各写一遍"必然有一边漏掉某个功能 ——
+   *   比如只给自定义档做配色，预设档就只能看不能改色。
+   */
   function syncMultiUI() {
     const setId = state.orbitalSet;
-    const def = (setId === 'off') ? null : Hybrids.set(setId);
-    if (els.multiChkSet) els.multiChkSet.style.display = def ? '' : 'none';
-    if (els.multiChkSeg && def && multiChkBuiltFor !== setId) {
-      els.multiChkSeg.innerHTML = '';
-      for (let i = 0; i < def.count; i++) {
-        const b = document.createElement('button');
-        b.className = 'seg-btn';
-        b.setAttribute('data-i', String(i));
-        b.textContent = def.labels[i];
-        b.title = '点一下切换这个轨道是否显示';
-        b.addEventListener('click', () => {
-          const at = state.orbitalVisible.indexOf(i);
-          // 至少留一个：全关掉等于"关闭多轨道"，但那是另一个意图 ——
-          // 在这里悄悄替他关掉整组，用户会以为点错了。
-          if (at >= 0 && state.orbitalVisible.length === 1) return;
-          const next = state.orbitalVisible.slice();
-          if (at >= 0) next.splice(at, 1); else next.push(i);
-          next.sort((a, b2) => a - b2);
-          ACTIONS.setOrbitals({ set: state.orbitalSet, visible: next });
-          recompute();
-        });
-        els.multiChkSeg.appendChild(b);
-      }
-      multiChkBuiltFor = setId;
-    }
-    if (els.multiChkSeg && def) {
-      els.multiChkSeg.querySelectorAll('.seg-btn').forEach((b) => {
-        b.classList.toggle('active',
-          state.orbitalVisible.indexOf(+b.getAttribute('data-i')) >= 0);
-      });
+    const custom = (setId === 'custom');
+    const def = (custom || setId === 'off') ? null : Hybrids.set(setId);
+    const show = !!(def || custom);
+    if (els.multiListSet) els.multiListSet.style.display = show ? '' : 'none';
+    if (els.multiAddBtn) {
+      // ★ 界面这条路也要有上限，而且要与动作层**同一个数**：直接 import 那个常量，
+      //   不在页面里另写一个 12。两处各写一个数的必然结局是它们会漂开，
+      //   而漂开的症状是"模型加不上去、用户却能一路加到页面冻死"。
+      const full = state.orbitals.length >= MAX_MULTI_ORBITALS;
+      els.multiAddBtn.disabled = full;
+      // ★ 带变量的提示（上限 / 现有条数）必须走 t()：扫描替换按"整段文本"匹配，
+      //   而这里每改一次数字就是一条新原文，列不完。
+      els.multiAddBtn.title = full
+        ? hostT('pages.orbit.multiAddFull', { max: MAX_MULTI_ORBITALS, n: state.orbitals.length })
+        : hostT('pages.orbit.multiAddHint');
     }
     if (els.multiHint) {
-      let html = MULTI_HINT[setId] || MULTI_HINT.off;
+      let html = MULTI_HINT[custom ? 'custom' : setId] || MULTI_HINT.off;
       // ★ 氢型下必须点破一件事：STO 与类氢的 sp³ 在**低阈值**下都是"胖"的
       //   （前瓣张角正好是 109.47°、后瓣 70.53°，两个连在一起近似球），
       //   四个叠在一起看着就是四个球 —— 用户会以为"杂化根本没画出来"。
       //   这不是 bug，是这两个模型的等值面在低阈值下本来就长这样；
       //   换成 Slater 型形状会干净得多（2s 与 2p 共用径向因子、无径向节点）。
-      //   ★ 提示里带**可点的动作**而不是只说一句"请自行切换"：后者等于把
-      //     两步操作（切模型、可能还要抬阈值）推给用户去试。
-      if (def && state.orbitalModel === 'hydrogenic') {
+      if ((def || custom) && state.orbitalModel === 'hydrogenic') {
         html += '　<span class="multi-tip">氢型下四个瓣会叠成球状 —— '
-          + '<a href="#" id="multiToSto">切到 Slater 型</a>看更清楚的形状</span>';
+          + '<a href="#" data-model="slater">切到 Slater 型</a>形状最干净。</span>';
       }
       els.multiHint.innerHTML = html;
-      const a = els.multiHint.querySelector('#multiToSto');
-      if (a) {
-        a.addEventListener('click', (e) => {
-          e.preventDefault();
-          ACTIONS.setOrbitalModel({ model: 'slater' });
+      const tipLink = els.multiHint.querySelector('a[data-model]');
+      if (tipLink) {
+        tipLink.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          ACTIONS.setOrbitalModel({ model: tipLink.getAttribute('data-model') });
           recompute();
         });
       }
     }
+    if (!els.multiList) return;
+    const sig = setId + '|' + (state.orbitals.map(function (o) {
+      return o.key + o.visible + rgbToHex(o.color) + o.label;
+    }).join(',')) + '|' + state.orbitalVisible.join(',')
+      + '|' + state.orbitalMainVisible + '|' + rgbToHex(state.orbitalMainColor || ORB_PALETTE[0])
+      + '|' + pendingCount();
+    if (multiListBuiltFor === sig) return;
+    multiListBuiltFor = sig;
+
+    const rows = [];
+    const spec = multiRenderSpec();
+    if (spec) {
+      spec.items.forEach(function (it, i) {
+        const info = (Orbit3D.multiInfo ? Orbit3D.multiInfo() : null) || {};
+        const state0 = info.items && info.items[i] ? info.items[i] : null;
+        // 还没建出来的行要如实标出来：额外轨道是**排队一张张建**的（每张 10–15 秒），
+        // 不标的话用户会以为"点了没反应"——而它其实正在建。
+        const pending = !!(info.building === it.key)
+          || (!state0 || !state0.verts);
+        const tag = pending
+          ? '<span class="orb-state is-building">生成中…</span>'
+          // ★ 「N 顶点」是**一个**文本节点：数字与"顶点"拼在一起，扫描替换匹配不到 →
+          //   必须走 t()（中文"顶点"在英文里是复数形式，也不能只换半边）。
+          : '<span class="orb-state">' + hostT('pages.orbit.vertexCount', { n: state0.verts || 0 }) + '</span>';
+        rows.push('<div class="orb-row' + (it.visible === false ? ' is-off' : '') + '" data-key="'
+          + it.key + '">'
+          + '<label class="orb-eye" title="点一下：显示 / 隐藏这个轨道">'
+          + '<input type="checkbox" data-act="vis"' + (it.visible === false ? '' : ' checked')
+          + '></label>'
+          + '<input type="color" class="orb-color" data-act="color" value="'
+          + rgbToHex(it.color) + '" title="' + hostT('pages.orbit.colorPickTitle') + '">'
+          + '<span class="orb-label" title="' + (it.terms ? '叠加态' : '单一本征态')
+          + '">' + it.label + '</span>'
+          + '<span class="orb-badge">' + (i === 0 ? '主' : (it.rotation ? '克隆' : '独立'))
+          + '</span>'
+          + tag
+          + (i === 0 ? '' : '<button class="orb-del" data-act="del" title="从同屏里移除">×</button>')
+          + '</div>');
+      });
+    }
+    els.multiList.innerHTML = rows.join('');
+
+    // ★ 额外轨道是**排队一张张建**的（这个环境下一张 10–15 秒）。不轮询的话
+    //   "生成中…"会一直挂着 —— 用户看到的就是"点了没反应"，而它其实正在建。
+    //   用低频定时器而不是 rAF：这里要的是"隔一阵对一次账"，不是逐帧动画，
+    //   而 rAF 循环正是本仓库记过的 CPU 炸弹（软件渲染下尤其）。
+    if (multiListTimer) { clearTimeout(multiListTimer); multiListTimer = 0; }
+    if (pendingCount() > 0) {
+      multiListTimer = setTimeout(function () {
+        multiListTimer = 0;
+        multiListBuiltFor = null;
+        syncMultiUI();
+      }, 600);
+    }
   }
 
   /**
+   * 恢复一整套视图状态（供演示「上一步」回退使用）。  /**
    * 数字框键入提交：解析 → 类型/范围校验 → 合法则写回滑块并即时重算；
    * 非法（空、非整数、越界）只标红提示，不改变当前状态。
    */
@@ -471,8 +563,18 @@ export function bootOrbitPage(deps = {}) {
       const setId = activeValue('#multiSeg', 'data-s') || 'off';
       if (setId !== state.orbitalSet) {
         state.orbitalSet = setId;
-        const def = (setId === 'off') ? null : Hybrids.set(setId);
+        const def = (setId === 'off' || setId === 'custom') ? null : Hybrids.set(setId);
         state.orbitalVisible = def ? def.labels.map((_, i) => i) : [];
+        // ★ 离开自定义档就把额外轨道清掉：留着它们等于"档位是 sp³、画面里还挂着
+        //   用户先前加的 2s"——快照说一套、画面是另一套，而且不报错。
+        //   （切换档位是用户的明确意图，清空比"悄悄继续画"诚实。）
+        if (setId !== 'custom' && state.orbitals.length) state.orbitals = [];
+        // ★ 覆盖色跟着一起清：它记的是"上一组里某一项的颜色"，
+        //   而新一组的 key 恰好可能是同一个（sp2-1 与 sp3-1 不同，但换回同一组时
+        //   用户多半期望看到**原始配色**，就像换了一套牌）——
+        //   留着会让"切走再切回来"意外保留改过的颜色，与"重新选一组"的意图相反。
+        state.orbitalColorOverride = {};
+        multiListBuiltFor = null;
       }
     }
     syncMultiUI();
@@ -519,11 +621,15 @@ export function bootOrbitPage(deps = {}) {
     // ★ 用 innerHTML：推荐值后面挂一个「采用」内联按钮（提示行会随每次重算重建，
     //   所以按钮的点击靠事件委托绑定，见 init 里的 psiHint 监听）。内容全是自产数字，
     //   无注入面。
+    // ★ 整条提示都走 t()：里面嵌着**换算出来的百分比**（同一句话每拖一下滑块就是一条
+    //   新原文），扫描替换按整段匹配，救不了。`{cur}` / `{alt}` 是当前判据与换算值，
+    //   中文与英文的句式差别（"占…峰值的比例"）也在译文里一次解决。
     els.psiHint.innerHTML = ((state.psiCrit === 'psi2')
-      ? '阈值＝占 |<i>ψ</i>|² 峰值的比例（' + pct(f) + ' |<i>ψ</i>|² ⟺ ' + pct(Math.sqrt(f)) + ' |<i>ψ</i>|）'
-      : '阈值＝占 |<i>ψ</i>| 峰值的比例（' + pct(f) + ' |<i>ψ</i>| ⟺ ' + pct(f * f) + ' |<i>ψ</i>|²）')
-      + '　· 本轨道推荐 <b>' + pct(rec) + '</b>' + (atFloor ? '（已到下限）' : '')
-      + '<button type="button" class="link-btn" id="levelRecBtn">采用</button>';
+      ? hostT('pages.orbit.psiHint.psi2', { cur: pct(f), alt: pct(Math.sqrt(f)) })
+      : hostT('pages.orbit.psiHint.psi1', { cur: pct(f), alt: pct(f * f) }))
+      + hostT('pages.orbit.psiHint.rec', { rec: pct(rec) })
+      + (atFloor ? hostT('pages.orbit.psiHint.floor') : '')
+      + '<button type="button" class="link-btn" id="levelRecBtn">' + hostT('pages.orbit.psiHint.adopt') + '</button>';
 
     // ★ 这里原先有一段"l = 0 时禁用相位色并把选择拉回支壳层色"。开关删除后这段
     //   没有存在余地了：着色由 deriveColorMode 推导，判据非平方 + 实数解就是双色，
@@ -807,19 +913,21 @@ export function bootOrbitPage(deps = {}) {
     //   用户拖一下 n/l/m 滑块会走 exitSuperposition 把 terms 清空，前提当场失效，
     //   画面就变成"一个普通轨道 + 三个 sp³ 克隆"—— 四个瓣都在，看起来很正常，
     //   **没有任何东西会报错**。所以在这里核对前提，失效就如实关掉（控件同步回"关闭"）。
-    if (state.orbitalSet !== 'off'
-        && !sameTerms(state.terms, Hybrids.terms(state.orbitalSet, 0))) {
-      ACTIONS.setOrbitals({ set: 'off' });
+    //   ★ 自定义档**没有**这个前提（下面那一句只在预设档跑，见 multiRenderSpec）。
+    if (state.orbitalSet !== 'off' && state.orbitalSet !== 'custom') {
+      const set0 = Hybrids.terms(state.orbitalSet, 0);
+      if (set0 && !sameTerms(state.terms, set0)) ACTIONS.setOrbitals({ set: 'off' });
     }
-    // ★ 只在"集合或可见集合变了"才下发：setMultiOrbitals 会**重建克隆几何**
-    //   （每个克隆复制一份顶点数据），逐帧调用等于每帧复制几万个顶点。
-    //   换面引起的变化不在这里管 —— 那条路走 commitSurface → syncMulti。
-    const mKey = state.orbitalSet + '|' + state.orbitalVisible.join(',');
-    if (mKey !== lastMultiKey) {
-      lastMultiKey = mKey;
-      Orbit3D.setMultiOrbitals(state.orbitalSet === 'off'
-        ? null
-        : { setId: state.orbitalSet, visible: state.orbitalVisible });
+    // ★ 只在**规格指纹**变了才下发：setMultiOrbitals 会重建几何（克隆复制顶点、
+    //   额外轨道重跑等值面），逐帧调用等于每帧重跑十几秒的流水线。
+    //   换面引起的变化不在这里管 —— 那条路走 done → multiAfterRebuild。
+    {
+      const spec = multiRenderSpec();
+      const mKey = multiKeyOf(spec);
+      if (mKey !== lastMultiKey) {
+        lastMultiKey = mKey;
+        Orbit3D.setMultiOrbitals(spec);
+      }
     }
     Orbit3D.setVisibility(sph ? 'spherical' : state.renderMode);
     Orbit3D.setAutoRotate($('#autoRotate').checked);
@@ -1147,9 +1255,10 @@ export function bootOrbitPage(deps = {}) {
     if (sup) {
       // ★ 这里必须自己写空格：.orbit-real 已不再带 margin-left（见 style.css 的说明），
       //   否则"叠加态"与"N 个分量"会挤成一团。
-      els.orbitTitle.innerHTML = '叠加态 ' +
-        '<span class="orbit-real">' + state.terms.length + ' 个分量</span>';
-      els.modeBadge.textContent = '叠加态';
+      // ★ 走 t()：分量数是变量，且 `<span class="orbit-real">` 那段**必须留着**
+      //   （见下面关于空格的说明），故整条 HTML 进译文表、数字用占位符。
+      els.orbitTitle.innerHTML = hostT('pages.orbit.superTitle', { n: state.terms.length });
+      els.modeBadge.textContent = hostT('pages.orbit.superBadge');
       return;
     }
     // 右上角：显示**当前正在看的那个数学对象的符号**，而不是轨道名。
@@ -1163,8 +1272,12 @@ export function bootOrbitPage(deps = {}) {
     // 徽标也跟着档位走：顶栏写着 Y 而徽标写"波函数实数解"是同一类图文不符。
     // 「空间波函数」与面板上那个按钮**逐字一致**（第 3 条改的名）—— 同一件事两处叫法不同，
     // 正是这一批要清掉的那类毛病。
-    els.modeBadge.textContent = (state.viewTarget === 'spherical' ? '球谐' : '空间波函数') +
-      (state.mode === 'real' ? '实数解' : '复数解');
+    // ★ 徽标是"视图对象 + 波函数形式"两段拼起来的：中文可以直接接，
+    //   英文词序与空格不同（"Spatial wavefunction · real solution"），
+    //   所以按**组合**取键，而不是把两段译文粘起来。
+    els.modeBadge.textContent = hostT('pages.orbit.badge.'
+      + (state.viewTarget === 'spherical' ? 'sph' : 'psi') + '.'
+      + (state.mode === 'real' ? 'real' : 'complex'));
   }
 
   // ---- 节流 ---------------------------------------------------------------
@@ -1230,11 +1343,14 @@ export function bootOrbitPage(deps = {}) {
     const sm = document.querySelector('#zZone summary');
     if (!sm) return;
     const z = (state.Z || 1);
-    const txt = '核电荷数 Z = ' + z;
+    // ★ 带变量（Z 的当前值）→ 走 t()。缓存键就用渲染出来的整串：
+    //   换语言后译文变了，比较自然不相等，会重画一次（这正是我们要的）。
+    const txt = hostT('pages.orbit.zSummary', { z: z });
     if (txt === lastZSummary) return;      // recompute 走得很频繁，值没变就别碰 DOM
     lastZSummary = txt;
-    // ★ 变量 Z 用斜体（与面板上「核电荷数 Z」那个 label 同一口径）；数字不斜。
-    sm.innerHTML = '核电荷数 <i>Z</i> = ' + z;
+    // ★ 变量 Z 用斜体（与面板上「核电荷数 Z」那个 label 同一口径）；数字不斜
+    //   —— 斜体已经写在译文里（`<i>Z</i>`），这里整段按 HTML 写进去。
+    sm.innerHTML = txt;
   }
 
   // ---- 事件绑定 -----------------------------------------------------------
@@ -1340,6 +1456,70 @@ export function bootOrbitPage(deps = {}) {
       ACTIONS.setOrbitals({ set: btn.getAttribute('data-s') });
       recompute();
     });
+
+    // ---- 同屏轨道清单：加 / 改色 / 显隐 / 移除 --------------------------------
+    // ★ 改色与显隐**不重建几何**（渲染层的 setMultiColor / setMultiVisible 只重涂顶点色），
+    //   所以这里**不调用 recompute** —— 一次 recompute 会重跑十几秒的等值面，
+    //   而"改个颜色要等十几秒"最容易被当成卡死。
+    //   代价是 updateViewer 里的"规格指纹"要手工刷新（见 applyOrbitalColor 的注释），
+    //   否则下一次重算会以为规格变了、把整组面重建一遍。
+    if (els.multiAddBtn) {
+      els.multiAddBtn.addEventListener('click', () => {
+        ACTIONS.setOrbitals({ add: true });
+        recompute();
+      });
+    }
+    if (els.multiList) {
+      const rowKey = (el) => {
+        const row = el.closest('.orb-row');
+        return row ? row.getAttribute('data-key') : null;
+      };
+      els.multiList.addEventListener('change', (e) => {
+        const chk = e.target.closest('input[data-act="vis"]');
+        if (!chk) return;
+        const key = rowKey(chk);
+        if (!key) return;
+        // 至少留一个可见：全关掉等于"关闭同屏"，而那是另一个意图 ——
+        // 在这里悄悄替他关掉整组，用户会以为点错了。
+        if (!chk.checked) {
+          const spec = multiRenderSpec();
+          const shown = spec ? spec.items.filter((it) => it.visible !== false).length : 0;
+          if (shown <= 1) { chk.checked = true; return; }
+        }
+        applyOrbitalVisible(key, chk.checked);
+        multiListBuiltFor = null;
+        syncMultiUI();
+      });
+      els.multiList.addEventListener('input', (e) => {
+        const inp = e.target.closest('input[data-act="color"]');
+        if (!inp) return;
+        const key = rowKey(inp);
+        const rgb = hexToRgb(inp.value);
+        if (!key || !rgb) return;
+        applyOrbitalColor(key, rgb);
+        multiListBuiltFor = null;
+        syncMultiUI();
+      });
+      els.multiList.addEventListener('click', (e) => {
+        const del = e.target.closest('.orb-del');
+        if (!del) return;
+        const key = rowKey(del);
+        if (!key || key === '__main__') return;
+        state.orbitals = state.orbitals.filter((o) => o.key !== key);
+        if (!state.orbitals.length) {
+          // 额外轨道清空就回到"只看当前这一个"：留着 custom 档却挂着空清单，
+          // 是个说不清的状态（档位说自定义、清单里什么也没有）。
+          state.orbitalSet = 'off';
+          setSeg('#multiSeg', 'data-s', 'off');
+        }
+        multiListBuiltFor = null;
+        // ★ 移除走**增量**（渲染层只拆组里那一份）：走 recompute 会整组重建，
+        //   删掉一个反而要等剩下几个各建一遍 —— 与本意相反。
+        const r = Orbit3D.removeMultiOrbital ? Orbit3D.removeMultiOrbital(key) : { ok: false };
+        if (r && r.ok) { lastMultiKey = multiKeyOf(multiRenderSpec()); syncMultiUI(); }
+        else recompute();
+      });
+    }
     // 轨道模型的 ζ：不是整数，用不了 commitNumber（它按整数校验），故单独绑。
     // ★ 非法值**直接 return、不重算**——否则 readFromControls 会把非法文本读成 null（自动），
     //   于是"输入框里还是乱码、状态已经悄悄回自动"，用户根本不知道发生了什么。
@@ -1438,6 +1618,229 @@ export function bootOrbitPage(deps = {}) {
     return true;
   }
 
+  // ---------------------------------------------------------------------------
+  // 多轨道同屏的条目工具
+  // ---------------------------------------------------------------------------
+
+  /** 与渲染层同一个调色板（见 core/hybrids.js 的 PALETTE）——界面上的默认色 */
+  const ORB_PALETTE = [
+    [0.878, 0.627, 0.251], [0.357, 0.608, 0.835], [0.498, 0.690, 0.412],
+    [0.639, 0.475, 0.839], [0.850, 0.450, 0.450], [0.450, 0.750, 0.750],
+  ];
+
+  /** [0..1]×3 → '#rrggbb'（快照里用十六进制：可读、可解析、也便于人眼核对） */
+  function rgbToHex(c) {
+    const h = (x) => Math.max(0, Math.min(255, Math.round(x * 255))).toString(16).padStart(2, '0');
+    return '#' + h(c[0]) + h(c[1]) + h(c[2]);
+  }
+  function hexToRgb(str) {
+    const m = /^#?([0-9a-fA-F]{6})$/.exec(String(str || '').trim());
+    if (!m) return null;
+    const v = parseInt(m[1], 16);
+    return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
+  }
+
+  /**
+   * 轨道的**纯文本**名字（界面清单与快照共用）。
+   * ★ 为什么不复用 Formula.symbolHtml：那是 HTML/LaTeX 记号（`d_{z^2}`、带 <sub>），
+   *   放进清单行与快照标量串里既不好读也不便解析。名字只用来**认人**。
+   */
+  function orbitalLabel(n, l, m, terms, mode) {
+    if (terms && terms.length) {
+      return terms.map(function (t) { return orbitalLabel(t.n, t.l, t.m, null, t.mode); })
+        .join('+');
+    }
+    if (mode && mode !== 'real') return n + '(l=' + l + ',m=' + m + ')';
+    // 下标次序与教材一致：p 按 z/x/y，d 与 f 按 m = −l … +l
+    const NAMES = {
+      0: ['s'],
+      1: ['p_z', 'p_x', 'p_y'],                                        // m = 0 / +1 / −1
+      2: ['d_xy', 'd_yz', 'd_z2', 'd_xz', 'd_x2-y2'],                  // m = −2 … +2
+      3: ['f_y(3x2-y2)', 'f_xyz', 'f_yz2', 'f_z3', 'f_xz2',
+        'f_z(x2-y2)', 'f_x(x2-3y2)'],
+    };
+    const row = NAMES[l];
+    if (!row) return n + '(l=' + l + ',m=' + m + ')';
+    const idx = (l === 1) ? (m === 0 ? 0 : (m > 0 ? 1 : 2)) : (m + l);
+    return n + (row[idx] || ('(l=' + l + ',m=' + m + ')'));
+  }
+
+  /** 当前正在编辑的那个轨道（主轨道）的一个**冻结副本**；terms 非空即为叠加态 */
+  function currentOrbitalCopy(key, color) {
+    const terms = (state.terms && state.terms.length)
+      ? state.terms.map(function (t) {
+        return { n: t.n, l: t.l, m: t.m, mode: t.mode || 'real',
+          c: { re: t.c.re, im: t.c.im } };
+      })
+      : null;
+    return {
+      key: key,
+      label: orbitalLabel(state.n, state.l, state.m, state.terms, state.mode),
+      color: color,
+      visible: true,
+      terms: terms,
+      n: state.n, l: state.l, m: state.m, mode: state.mode,
+    };
+  }
+
+  /** 还没被占用的调色板色（都用过就循环取） */
+  function nextOrbitalColor() {
+    const used = state.orbitals.map(function (o) { return rgbToHex(o.color); });
+    used.push(rgbToHex(state.orbitalMainColor || ORB_PALETTE[0]));
+    for (let i = 0; i < ORB_PALETTE.length; i++) {
+      if (used.indexOf(rgbToHex(ORB_PALETTE[i])) < 0) return ORB_PALETTE[i].slice();
+    }
+    return ORB_PALETTE[state.orbitals.length % ORB_PALETTE.length].slice();
+  }
+
+  /**
+   * 合成下发给渲染层的规格（`items[0]` = 主轨道，其余 = 额外轨道）。
+   *
+   * ★ 渲染层的约定是"第 0 项就是主面"，所以主轨道必须**由这里补在最前面** ——
+   *   两层的约定因此一致，不必在渲染层再写一条"自定义档特殊处理"。
+   *   额外轨道不带 rotation → 渲染层会**逐张真建**（任意轨道都画得出来，代价是慢）。
+   */
+  function multiRenderSpec() {
+    if (state.orbitalSet === 'off') return null;
+    const items = [];
+    if (state.orbitalSet === 'custom') {
+      items.push({
+        key: '__main__',
+        label: orbitalLabel(state.n, state.l, state.m, state.terms, state.mode),
+        color: (state.orbitalMainColor || ORB_PALETTE[0]).slice(),
+        visible: state.orbitalMainVisible !== false,
+      });
+      state.orbitals.forEach(function (o) {
+        items.push({
+          key: o.key, label: o.label, color: o.color.slice(),
+          visible: o.visible !== false, terms: o.terms,
+        });
+      });
+    } else {
+      const def = Hybrids.set(state.orbitalSet);
+      if (!def) return null;
+      for (let i = 0; i < def.count; i++) {
+        const k = def.id + '-' + i;
+        items.push({
+          key: k,
+          label: def.labels[i],
+          // 用户改过就用他改的（见 state.orbitalColorOverride 的说明）
+          color: state.orbitalColorOverride[k] || Hybrids.color(def.id, i),
+          visible: state.orbitalVisible.indexOf(i) >= 0,
+          // 第 0 个不建克隆 —— 它**就是**主面（渲染层同理）
+          rotation: (i === 0) ? null : Hybrids.rotation(def.id, i),
+        });
+      }
+    }
+    return { items: items };
+  }
+
+  /**
+   * 规格的指纹。
+   * ★ 为什么必须把颜色与 terms 也编进去：`setMultiOrbitals` 会**重建几何**（克隆复制顶点、
+   *   额外轨道重跑等值面）。指纹漏掉某一维，那一维的变化要么不下发（改了没反应），
+   *   要么每帧都下发（每帧复制几万个顶点）。
+   * ★ 而"只改颜色/显隐"走的是 setMultiColor / setMultiVisible（只重涂），
+   *   它们不重建几何 —— 所以那两条路要**手工把这个指纹刷新**（见 pushMultiSpec）。
+   */
+  function multiKeyOf(spec) {
+    if (!spec) return 'off';
+    return spec.items.map(function (it) {
+      return [it.key, it.visible === false ? '0' : '1',
+        it.color ? rgbToHex(it.color) : '-',
+        it.rotation ? 'r' : 'b',
+        it.terms ? it.terms.map(function (t) {
+          return t.n + '.' + t.l + '.' + t.m + '.' + (t.mode || 'real');
+        }).join('+') : 'main',
+      ].join(':');
+    }).join('|');
+  }
+
+  /** 还没建完的同屏轨道数（额外轨道是排队一张张建的，界面据此显示进度） */
+  function pendingCount() {
+    const info = (Orbit3D.multiInfo ? Orbit3D.multiInfo() : null) || {};
+    return info.pending || 0;
+  }
+
+  /**
+   * 把快照里的 `orbitalItems` 标量串解析回额外轨道数组（供「上一步」回退）。
+   *
+   * ★ 为什么能从这么少的字段还原：额外轨道用的**就是**页面自己那套 (n,l,m,mode,terms)
+   *   与颜色，没有别的私有状态。所以"key|名字|可见|颜色|状态|类型"里真正需要还原的是
+   *   key / 颜色 / 可见；名字与 terms 得从**当前 state** 反推不出来 —— 故这里只还原
+   *   能还原的，还原不了的（terms）留空并在标签上标明，**不编造**。
+   * ★ 只在自定义档调用；预设档的 items 由 Hybrids 展开，本来就与快照无关。
+   */
+  function parseOrbitalItems(str) {
+    if (typeof str !== 'string' || !str) return [];
+    return str.split(';').filter(Boolean).map(function (row) {
+      const f = row.split('|');
+      if (f.length < 5 || f[0] === '__main__') return null;
+      const rgb = hexToRgb(f[3]);
+      return {
+        key: f[0],
+        label: f[1] || '轨道',
+        visible: f[2] !== '隐藏',
+        color: rgb || ORB_PALETTE[0].slice(),
+        terms: null,                    // 快照标量里没有 terms，不猜
+        n: null, l: null, m: null, mode: 'real',
+      };
+    }).filter(Boolean);
+  }
+
+  /** 把当前规格推给渲染层（并记下指纹，避免 updateViewer 再推一次） */
+  function pushMultiSpec() {
+    const spec = multiRenderSpec();
+    lastMultiKey = multiKeyOf(spec);
+    Orbit3D.setMultiOrbitals(spec);
+  }
+
+  /**
+   * 按 key 改一项的颜色（**只重涂**，不重建几何）。
+   *
+   * ★ 三条路必须**分开写**，不能合成一句 `state.orbitals.find(...)`：
+   *   预设档的 `state.orbitals` 是空的（条目由 Hybrids 现展开），
+   *   合成一句就会在预设档恒返回 false —— 整块"改某个轨道的颜色"哑掉而不报错。
+   *   实测踩到：点掉 sp³ 的第 4 项，`orbitalVisible` 纹丝不动。
+   */
+  function applyOrbitalColor(key, rgb) {
+    const isPreset = (state.orbitalSet !== 'off' && state.orbitalSet !== 'custom');
+    if (key === '__main__') state.orbitalMainColor = rgb.slice();
+    else if (isPreset) state.orbitalColorOverride[key] = rgb.slice();
+    else {
+      const o = state.orbitals.filter(function (x) { return x.key === key; })[0];
+      if (!o) return false;
+      o.color = rgb.slice();
+    }
+    Orbit3D.setMultiColor(key, rgb);
+    lastMultiKey = multiKeyOf(multiRenderSpec());   // 指纹跟着走，免得下次重算又推一遍
+    return true;
+  }
+
+  /** 按 key 改一项的显隐（**只改 visible**，不重建几何）。三条路同 applyOrbitalColor */
+  function applyOrbitalVisible(key, visible) {
+    const v = !!visible;
+    const isPreset = (state.orbitalSet !== 'off' && state.orbitalSet !== 'custom');
+    if (key === '__main__') state.orbitalMainVisible = v;
+    else if (isPreset) {
+      // 预设档的显隐是**下标数组**（快照的 orbitalVisible 与「上一步」都靠它）
+      const def = Hybrids.set(state.orbitalSet);
+      const i = def ? def.labels.map(function (_, k) { return def.id + '-' + k; }).indexOf(key) : -1;
+      if (i < 0) return false;
+      const at = state.orbitalVisible.indexOf(i);
+      if (v && at < 0) state.orbitalVisible.push(i);
+      if (!v && at >= 0) state.orbitalVisible.splice(at, 1);
+      state.orbitalVisible.sort(function (a, b) { return a - b; });
+    } else {
+      const o = state.orbitals.filter(function (x) { return x.key === key; })[0];
+      if (!o) return false;
+      o.visible = v;
+    }
+    Orbit3D.setMultiVisible(key, v);
+    lastMultiKey = multiKeyOf(multiRenderSpec());
+    return true;
+  }
+
   /** 程序化选中某个分段按钮 */
   function setSeg(segId, attr, val) {
     const btn = document.querySelector(segId + ' .seg-btn[' + attr + '="' + val + '"]');
@@ -1461,6 +1864,84 @@ export function bootOrbitPage(deps = {}) {
     state.terms = []; state.relPhase = 0;
     state.chartTerm = 'super';                 // 分量选择器随之复位（第 G 批）
     if (StateEditor && StateEditor.clear) StateEditor.clear();
+    return true;
+  }
+
+  /**
+   * 把当前正在编辑的轨道钉进同屏（界面上「＋」按钮与 `setOrbitals({add:true})` 走这条）。
+   *
+   * ★ 为什么用「钉住此刻的副本」而不是"让额外轨道跟着滑块走"：跟着走就意味着所有轨道
+   *   永远画同一个态 —— 那正是"多轨道同屏"要避免的事。用户的操作序列就是
+   *   设好一个 → 加进去 → 再设下一个 → 再加，所以每一份必须是**当时那个态**的快照。
+   */
+  function actAddCurrentOrbital(opt) {
+    const o = (opt && typeof opt === 'object') ? opt : {};
+    const color = Array.isArray(o.color) ? o.color.slice() : nextOrbitalColor();
+    const wasCustom = (state.orbitalSet === 'custom');
+    const info = (Orbit3D.multiInfo ? Orbit3D.multiInfo() : null) || {};
+    // ★ 渲染层的清单里含**主轨道**，所以"加之前的那一份"长度应当是
+    //   state.orbitals.length + 1。对上才走增量 —— 对不上说明清单已经不同步，
+    //   那时宁可全量重建一次（慢但正确），也不要在一个错误的基线上追加。
+    const incremental = wasCustom && info.setId === 'custom'
+      && Array.isArray(info.items) && info.items.length === state.orbitals.length + 1;
+    if (!wasCustom) {
+      // 从预设档或关闭档进自定义：主轨道就是**此刻**正在编辑的那个，不另起炉灶
+      state.orbitalSet = 'custom';
+      state.orbitals = [];
+      state.orbitalMainColor = state.orbitalMainColor || ORB_PALETTE[0].slice();
+      state.orbitalMainVisible = true;
+      setSeg('#multiSeg', 'data-s', 'custom');
+    }
+    state.orbitalSeq += 1;
+    const item = currentOrbitalCopy('orb-' + state.orbitalSeq, color);
+    if (o.label) item.label = o.label;
+    if (o.visible === false) item.visible = false;
+    state.orbitals.push(item);
+    multiListBuiltFor = null;
+    // ★ 已经在自定义档、且渲染层的清单**正是加之前的那一份**时，走**增量**
+    //   （渲染层只建新增的这一张）。全量重建会让"再加一个"按已有数量线性变慢 ——
+    //   每个面十几秒的话，加到第四个就是几分钟，用户看到的是"点了没反应"。
+    if (incremental && Orbit3D.addMultiOrbital) {
+      const r = Orbit3D.addMultiOrbital(item);
+      if (r && r.ok) { lastMultiKey = multiKeyOf(multiRenderSpec()); return true; }
+    }
+    pushMultiSpec();
+    return true;
+  }
+
+  /**
+   * 一次性给出任意多条同屏轨道（模型用的"强力通路"）。
+   *
+   * ★ 语义：`items` 是**额外的**同屏轨道；主轨道仍是页面当前正在编辑的那个。
+   *   这与渲染层的约定（items[0] 就是主面）是一致的 —— 主轨道由页面补在最前面，
+   *   所以两层不必各写一条"自定义档特殊处理"。
+   * ★ 每条可以是纯态（给 n/l/m）也可以是叠加态（给 terms）。给 terms 时以 terms 为准。
+   */
+  function actSetOrbitalItems(items) {
+    const list = items.filter(function (it) { return it && typeof it === 'object'; });
+    if (!list.length) return false;
+    state.orbitalSet = 'custom';
+    setSeg('#multiSeg', 'data-s', 'custom');
+    if (!state.orbitalMainColor) state.orbitalMainColor = ORB_PALETTE[0].slice();
+    state.orbitals = list.map(function (it, i) {
+      state.orbitalSeq += 1;
+      const terms = Array.isArray(it.terms) && it.terms.length
+        ? it.terms.map(function (t) {
+          return { n: t.n, l: t.l, m: t.m, mode: t.mode || 'real',
+            c: t.c || { re: 1, im: 0 } };
+        })
+        : null;
+      const n = it.n, l = it.l, m = it.m;
+      return {
+        key: it.key || ('orb-' + state.orbitalSeq),
+        label: it.label || orbitalLabel(n, l, m, terms, it.mode),
+        color: Array.isArray(it.color) ? it.color.slice() : nextOrbitalColor(),
+        visible: it.visible !== false,
+        terms: terms,
+        n: n, l: l, m: m, mode: it.mode || 'real',
+      };
+    });
+    multiListBuiltFor = null;
     return true;
   }
 
@@ -1504,8 +1985,20 @@ export function bootOrbitPage(deps = {}) {
      *   而且**不会报错**（四个瓣都在，只是其中一个不对）。
      */
     setOrbitals(p) {
+      // ---- 路径 A：任意轨道列表（模型/demo 直接给 items；页面把主轨道补在最前面）----
+      if (p && Array.isArray(p.items)) return actSetOrbitalItems(p.items);
+      // ---- 路径 B：把当前正在编辑的轨道加进同屏（界面上的「＋」走这条）----
+      if (p && p.add) return actAddCurrentOrbital(p.add);
+      // ---- 路径 C：预设集合（原有语义，demo 脚本与既有测试都依赖它）----
       const setId = (p && p.set) || 'off';
-      if (!setSeg('#multiSeg', 'data-s', setId)) return false;
+      if (setId !== 'custom' && !setSeg('#multiSeg', 'data-s', setId)) return false;
+      if (setId === 'custom') {
+        setSeg('#multiSeg', 'data-s', 'custom');
+        state.orbitalSet = 'custom';
+        if (!state.orbitalMainColor) state.orbitalMainColor = ORB_PALETTE[0].slice();
+        multiListBuiltFor = null;
+        return true;
+      }
       // ★ 先把 state 认下来：readFromControls 靠"state 与 DOM 不一致"判断
       //   "用户刚换了集合"，认下来它才不会把 visible 重置成全开 ——
       //   那会丢掉本条动作明确指定的 visible（例如明确要求只显示 [0]）。
@@ -1515,7 +2008,39 @@ export function bootOrbitPage(deps = {}) {
       state.orbitalVisible = Array.isArray(p && p.visible)
         ? p.visible.slice()
         : def.labels.map((_, i) => i);
+      state.orbitals = [];          // 预设档与自定义档互斥（见 readFromControls 的说明）
+      state.orbitalColorOverride = {};
+      multiListBuiltFor = null;
       if (StateEditor && StateEditor.applyPreset) StateEditor.applyPreset(def.id + '-1');
+      return true;
+    },
+
+    /**
+     * 改某个同屏轨道的颜色或显隐（key 由快照里的 orbitalItems 给出）。
+     *
+     * ★ 单独做一个动作、而不是塞进 setOrbitals：这条**不重建几何**（只重涂顶点色），
+     *   而 setOrbitals 会重建。混在一个动作里，"改个颜色"就会顺带重跑十几秒的等值面。
+     */
+    setOrbitalStyle(p) {
+      const key = p && p.key;
+      if (!key) return false;
+      if (p.color !== undefined) {
+        const rgb = Array.isArray(p.color) ? p.color : hexToRgb(p.color);
+        if (!rgb || rgb.length !== 3) return false;
+        if (!applyOrbitalColor(key, rgb)) return false;
+      }
+      if (p.visible !== undefined) {
+        if (!applyOrbitalVisible(key, !!p.visible)) return false;
+      }
+      multiListBuiltFor = null;
+      return true;
+    },
+
+    /** 清空全部额外轨道（主轨道留下；等于回到"只看当前这一个"） */
+    clearOrbitals() {
+      state.orbitals = [];
+      if (state.orbitalSet === 'custom') { state.orbitalSet = 'off'; setSeg('#multiSeg', 'data-s', 'off'); }
+      multiListBuiltFor = null;
       return true;
     },
 
@@ -1566,6 +2091,15 @@ export function bootOrbitPage(deps = {}) {
       state.orbitalSet = s.orbitalSet || 'off';
       state.orbitalVisible = (typeof s.orbitalVisible === 'string' && s.orbitalVisible !== '')
         ? s.orbitalVisible.split(',').map(Number) : [];
+      // ★ 自定义档的额外轨道也要回退，否则「上一步」会留下上一步才有的轨道 ——
+      //   画面与快照当场矛盾，而且不报错（这类"回退了大部分"最难查）。
+      state.orbitals = parseOrbitalItems(s.orbitalItems);
+      state.orbitalMainVisible = true;
+      state.orbitalMainColor = null;
+      // 覆盖色不从快照恢复：orbitalItems 里已经带着**生效后的**颜色，
+      // 而预设档的基准色由 Hybrids 给出 —— 两处都记会变成两个真源。
+      state.orbitalColorOverride = {};
+      multiListBuiltFor = null;
       if (els.orbZetaInput) {
         els.orbZetaInput.value = (s.orbitalZeta == null) ? '' : String(s.orbitalZeta);
         els.orbZetaInput.classList.remove('invalid');
@@ -1821,22 +2355,49 @@ export function bootOrbitPage(deps = {}) {
         // 多轨道同屏：字段**必须是顶层标量**。perception.js 的 diffStates 只比顶层，
         // 把可见性塞成嵌套对象会让痕迹退化成"每轮都说可见集合变了"。
         orbitalSet: state.orbitalSet,
-        orbitalCount: (state.orbitalSet === 'off' || !Hybrids.set(state.orbitalSet))
-          ? 0 : Hybrids.set(state.orbitalSet).count,
+        orbitalCount: (multiRenderSpec() || { items: [] }).items.length,
         orbitalVisible: state.orbitalVisible.join(','),
-        orbitalShown: state.orbitalVisible.length,
+        orbitalShown: (multiRenderSpec() || { items: [] }).items
+          .filter(function (it) { return it.visible !== false; }).length,
+        /**
+         * 同屏的**每一张面**：key|名字|可见|颜色|状态，用 ';' 连成一条标量串。
+         *
+         * ★ 必须是顶层标量：`perception.diffStates` 只比顶层，塞成嵌套对象会让痕迹
+         *   退化成"每轮都说轨道清单变了"，而模型也读不到"我改了颜色之后画面变没变"。
+         * ★ 为什么要把**颜色**也报给模型：用户这一轮要的正是"同屏时能改每个轨道的颜色"，
+         *   而模型若读不到当前色，就没法回答"现在哪个是蓝的"，也就没法可靠地改它。
+         * ★ 这里**只放稳定信息**（key / 名字 / 显隐 / 颜色 / 类型），
+         *   不放"生成中/已生成"——那是瞬时的，排队建几张轨道时会翻好几次，
+         *   而 diffStates 每轮都会把它当成"变化"记一笔，痕迹会被刷屏。
+         *   进度单独走下面那个整数 orbitalBuilding。
+         */
+        orbitalItems: (function () {
+          const spec = multiRenderSpec();
+          if (!spec) return '';
+          return spec.items.map(function (it) {
+            return [it.key, it.label, it.visible === false ? '隐藏' : '显示',
+              rgbToHex(it.color),
+              it.terms ? ('叠加' + it.terms.length + '项') : '纯态'].join('|');
+          }).join(';');
+        })(),
+        orbitalBuilding: (function () {
+          const info = (Orbit3D.multiInfo ? Orbit3D.multiInfo() : null) || {};
+          return info.pending || 0;
+        })(),
       };
     },
 
     /** 应用一个受控动作。返回 { ok, error? } */
     applyAction(action) {
-      if (!action || !action.action) return { ok: false, error: '动作缺少 action 字段' };
+      // ★ 这几条错误信息**不进 DOM**（它们回给模型与调用方），扫描替换够不着，故走 t()。
+      //   译文随界面语言走：英文界面下模型读到的失败原因也是英文，与提示词一致。
+      if (!action || !action.action) return { ok: false, error: hostT('pages.orbit.err.missingAction') };
       const fn = ACTIONS[action.action];
-      if (!fn) return { ok: false, error: '未知动作：' + action.action };
+      if (!fn) return { ok: false, error: hostT('pages.orbit.err.unknownAction', { action: action.action }) };
       let ok = true;
       try { ok = fn(action.params || {}) !== false; }
-      catch (e) { return { ok: false, error: '动作执行异常：' + (e && e.message) }; }
-      if (!ok) return { ok: false, error: '动作参数无效或目标不存在' };
+      catch (e) { return { ok: false, error: hostT('pages.orbit.err.threw', { message: (e && e.message) }) }; }
+      if (!ok) return { ok: false, error: hostT('pages.orbit.err.invalidParams') };
       recompute();
       // 通知订阅者（量子态编辑器据此同步 UI；主动服务也可用）
       for (let i = 0; i < actionListeners.length; i++) {
@@ -1993,6 +2554,31 @@ export function bootOrbitPage(deps = {}) {
   start();
 
   /**
+   * 语言变更后**只重画文案**（由壳在换语言时调用，见下面的 OrbitPage.onLangChange）。
+   *
+   * ★ 为什么需要它：走 `t()`/`hostT()` 取值的文案在**渲染那一刻**就把值算死了，
+   *   DOM 扫描替换（restore + sweep）够不着 —— 它们不在 text 表里。
+   *   静态文案由运行时自己处理，这里一个都不管。
+   *
+   * ★ **绝不调 recompute()**：那会重跑等值面流水线，本环境下**一张 10–15 秒**
+   *   （无头软件渲染），换一次语言重建一次是不可接受的。下面每个函数都只改 DOM。
+   *
+   * ★ 缓存守卫要**先失效**再调：`sync*` 们各自记着"上次画的是什么"
+   *   （realOrbL / lastPsiCritMode / multiListBuiltFor / lastZSummary），
+   *   不清掉的话它们会以为"没变化"而直接 return —— 界面就停在旧语言上，且不报错。
+   */
+  function refreshI18n() {
+    try { updateFormula(); } catch (e) { /* 公式区还没渲染 */ }
+    try { updateOutputs(); } catch (e) { /* 控件未就绪 */ }
+    try { syncOrbModelUI(); } catch (e) { /* 同上 */ }
+    try { syncYCritHint(); } catch (e) { /* 同上 */ }
+    try { lastPsiCritMode = null; syncPsiCritLabels(); } catch (e) { /* 同上 */ }
+    try { realOrbL = -1; syncRealOrbitButtons(); } catch (e) { /* 同上 */ }
+    try { lastZSummary = ''; syncZZoneSummary(); } catch (e) { /* 同上 */ }
+    try { multiListBuiltFor = null; syncMultiUI(); } catch (e) { /* 同上 */ }
+  }
+
+  /**
    * 释放三维资源。
    * ★ `Orbit3D` 没有整体 dispose（它是按需建几何的），提供的是 `disposeGrid`；
    *   配上容器被清空，渲染器与几何都会随 canvas 一起被回收。
@@ -2007,7 +2593,7 @@ export function bootOrbitPage(deps = {}) {
     try { if (typeof deps.onDispose === 'function') deps.onDispose(); } catch (e) { /* 忽略 */ }
   }
 
-  return { facade, dispose };
+  return { facade, dispose, refreshI18n };
 }
 
 
@@ -2051,6 +2637,19 @@ export class OrbitPage {
         if (this._module && typeof this._module.attach === 'function') this._module.attach(runtime)
       },
     })
+  }
+
+  /**
+   * 语言变更时由路由调用（见 shell/router.js 的 `_notifyLang`）。
+   *
+   * ★ 只重画**走 t() 的那几处文案**（徽标 / 阈值提示 / 同屏清单 / 错误信息…）。
+   *   静态文案由运行时的 restore + sweep 处理；等值面几何与语言无关，
+   *   **绝不重建**（一张要十几秒）—— 这一条是硬要求，见 router 与 HOWTO 的说明。
+   */
+  onLangChange() {
+    if (this._api && typeof this._api.refreshI18n === 'function') {
+      try { this._api.refreshI18n() } catch (e) { console.warn('[orbit] 语言变更重渲染失败：', e) }
+    }
   }
 
   unmount() {

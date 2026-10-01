@@ -15,6 +15,9 @@
 import { OM } from './core/math.js'
 import { Observables } from './core/observables.js'
 import { Hybrids } from './core/hybrids.js'
+// ★ 字典的副作用 import：下面的 def() 里那些说明文字在**模块求值阶段**就要取译文。
+import './i18n.js'
+import { t } from '../../packages/i18n/index.js'
 
 /**
  * 创建 orbit 模块的工具层。
@@ -30,34 +33,54 @@ import { Hybrids } from './core/hybrids.js'
 export function createOrbitTools(opts = {}) {
   const facade = opts.facade
 
-  const def = (name, description, properties, required) => ({
-    type: 'function',
-    function: { name, description, parameters: { type: 'object', properties: properties || {}, required: required || [] } },
-  })
+  /**
+   * 给对象装一个字段：值是函数时装成**取值器**，否则直接赋值。
+   *
+   * ★ 为什么工具说明要惰性求值：工具定义在**模块装配时**构造一次，而语言可以在
+   *   会话中途切换 —— 写成普通字符串就会把装配时的语言固化进 schema，
+   *   切到英文后模型看到的仍是一份中文工具说明，而这不报错。
+   *   取值器在每次组装请求体（`JSON.stringify(tools)`）时才求值。
+   *   已核对链路：`tool-registry.definitions()` 返回的是**原对象**（不克隆、不冻结），
+   *   而 `llm-client.buildBody()` 每轮都对新请求体做一次 `JSON.stringify` ⇒ 每轮都会重新取。
+   */
+  const lazy = (obj, key, value) => {
+    if (typeof value === 'function') {
+      Object.defineProperty(obj, key, { enumerable: true, configurable: true, get: value })
+    } else {
+      obj[key] = value
+    }
+  }
+
+  const def = (name, description, properties, required) => {
+    const fn = { name, parameters: { type: 'object', properties: {}, required: required || [] } }
+    lazy(fn, 'description', description)
+    for (const [k, v] of Object.entries(properties || {})) {
+      const prop = {}
+      for (const [pk, pv] of Object.entries(v)) lazy(prop, pk, pv)
+      fn.parameters.properties[k] = prop
+    }
+    return { type: 'function', function: fn }
+  }
 
   const defs = {
     read: [],
     query: [
-      def('queryOrbital',
-        '查询轨道的确定性事实（数值一律由程序计算，不得自行口算）。'
-        + 'kind 取值：nodes=节点数；radialZeros=径向节点半径；radialPeaks=径向分布峰值半径；'
-        + 'angularNodes=角度节面几何；energy=能级(eV)；degeneracy=简并度；'
-        + 'normalization=归一化系数；shape=形状描述；compare=两个轨道对比；'
-        + 'observables=力学量总览；meanR=平均半径等；angleToZ=角动量与 z 轴夹角；'
-        + 'energySplit=能级分解；hybrids=杂化轨道集合（sp³/sp²/sp）的方向、杂化成分与两两夹角。', {
+      def('queryOrbital', () => t('orbit.tool.queryOrbital.desc'), {
         kind: {
           type: 'string',
           enum: ['nodes', 'radialZeros', 'radialPeaks', 'angularNodes', 'energy', 'degeneracy',
             'normalization', 'shape', 'compare', 'observables', 'meanR', 'angleToZ', 'energySplit',
             'hybrids'],
         },
-        n: { type: 'integer', description: '主量子数 1-6' },
-        l: { type: 'integer', description: '角量子数 0..n-1' },
-        m: { type: 'integer', description: '磁量子数 -l..l' },
-        mode: { type: 'string', enum: ['real', 'complex'], description: '波函数形式，默认 real' },
-        a: { type: 'object', description: 'kind=compare 时的第一个轨道 {n,l,m}' },
-        b: { type: 'object', description: 'kind=compare 时的第二个轨道 {n,l,m}' },
-        set: { type: 'string', enum: ['sp3', 'sp2', 'sp'], description: 'kind=hybrids 时限定集合，省略则全部返回' },
+        n: { type: 'integer', description: () => t('orbit.tool.queryOrbital.p.n') },
+        l: { type: 'integer', description: () => t('orbit.tool.queryOrbital.p.l') },
+        m: { type: 'integer', description: () => t('orbit.tool.queryOrbital.p.m') },
+        mode: { type: 'string', enum: ['real', 'complex'],
+          description: () => t('orbit.tool.queryOrbital.p.mode') },
+        a: { type: 'object', description: () => t('orbit.tool.queryOrbital.p.a') },
+        b: { type: 'object', description: () => t('orbit.tool.queryOrbital.p.b') },
+        set: { type: 'string', enum: ['sp3', 'sp2', 'sp'],
+          description: () => t('orbit.tool.queryOrbital.p.set') },
       }, ['kind']),
     ],
     hand: [],
@@ -80,72 +103,71 @@ export function createOrbitTools(opts = {}) {
 
       switch (p && p.kind) {
         case 'nodes':
-          if (needNL()) return { error: '需要 n 与 l' }
-          return Object.assign(OM.nodes(n, l), {
-            note: '径向节点 = n-l-1，角度节面 = l，总数 = n-1（全部由程序计算）',
-          })
+          if (needNL()) return { error: t('orbit.tool.err.needNL') }
+          return Object.assign(OM.nodes(n, l), { note: t('orbit.tool.note.nodes') })
         case 'radialZeros':
-          if (needNL()) return { error: '需要 n 与 l' }
+          if (needNL()) return { error: t('orbit.tool.err.needNL') }
           return { radii: OM.radialZeros(n, l), unit: 'a0', count: OM.radialZeros(n, l).length }
         case 'radialPeaks':
-          if (needNL()) return { error: '需要 n 与 l' }
-          return { radii: OM.radialPeaks(n, l), unit: 'a0', note: 'D(r)=r²R² 的局部极大（可能有多个）' }
+          if (needNL()) return { error: t('orbit.tool.err.needNL') }
+          return { radii: OM.radialPeaks(n, l), unit: 'a0', note: t('orbit.tool.note.radialPeaks') }
         case 'angularNodes': {
-          if (needNL()) return { error: '需要 n 与 l' }
+          if (needNL()) return { error: t('orbit.tool.err.needNL') }
           const a = OM.angularNodes(l, Math.abs(m == null ? 0 : m), mode)
           return {
-            conesDeg: a.cones.map((t) => +((t * 180) / Math.PI).toFixed(2)),
-            planesDeg: a.planes.map((t) => +((t * 180) / Math.PI).toFixed(2)),
-            note: 'cones 为以 z 轴为轴的锥面（给出半顶角）；planes 为过 z 轴的平面（给出方位角）',
+            conesDeg: a.cones.map((th) => +((th * 180) / Math.PI).toFixed(2)),
+            planesDeg: a.planes.map((th) => +((th * 180) / Math.PI).toFixed(2)),
+            note: t('orbit.tool.note.angularNodes'),
           }
         }
         case 'energy':
-          if (n == null) return { error: '需要 n' }
+          if (n == null) return { error: t('orbit.tool.err.needN') }
           return { eV: +OM.energy(n).toFixed(4), formula: 'E_n = -13.6/n² eV' }
         case 'degeneracy':
-          if (n == null) return { error: '需要 n' }
+          if (n == null) return { error: t('orbit.tool.err.needN') }
           return { withoutSpin: OM.degeneracy(n), withSpin: 2 * OM.degeneracy(n) }
         case 'normalization':
-          if (needNL()) return { error: '需要 n 与 l' }
-          return { note: '归一化系数由 formula.js 计算并已显示在公式区', Nrad: null }
+          if (needNL()) return { error: t('orbit.tool.err.needNL') }
+          return { note: t('orbit.tool.note.normalization'), Nrad: null }
         case 'shape':
-          if (needNL() || m == null) return { error: '需要 n、l、m' }
+          if (needNL() || m == null) return { error: t('orbit.tool.err.needNLM') }
           return OM.shapeDescribe(l, m, mode)
 
         // ---- 力学量（全部解析式，见 observables.js）----
         case 'observables': {
-          if (needNL() || m == null) return { error: '需要 n、l、m' }
-          return Object.assign({ note: '全部由解析式给出（长度单位 a₀，角动量单位 ħ）' }, Observables.report(n, l, m))
+          if (needNL() || m == null) return { error: t('orbit.tool.err.needNLM') }
+          return Object.assign({ note: t('orbit.tool.note.observables') },
+            Observables.report(n, l, m))
         }
         case 'meanR': {
-          if (needNL()) return { error: '需要 n 与 l' }
+          if (needNL()) return { error: t('orbit.tool.err.needNL') }
           return {
             meanR: +Observables.meanR(n, l).toFixed(4),
             meanInvR: +Observables.meanInvR(n).toFixed(4),
             meanR2: +Observables.meanR2(n, l).toFixed(4),
             deltaR: +Observables.deltaR(n, l).toFixed(4),
             unit: 'a₀',
-            formula: '⟨r⟩ = (a₀/2)[3n² − l(l+1)]；⟨1/r⟩ = 1/(n²a₀)（与 l 无关）',
-            note: '⟨r⟩ 是对全空间加权的平均距离，比"概率最大半径"(≈n²a₀) 小',
+            formula: t('orbit.tool.formula.meanR'),
+            note: t('orbit.tool.note.meanR'),
           }
         }
         case 'energySplit': {
-          if (n == null) return { error: '需要 n' }
+          if (n == null) return { error: t('orbit.tool.err.needN') }
           return Object.assign({ unit: 'eV' }, Observables.energyBreakdown(n))
         }
         case 'angleToZ': {
-          if (l == null || m == null) return { error: '需要 l 与 m' }
+          if (l == null || m == null) return { error: t('orbit.tool.err.needLM') }
           const a = Observables.angleToZ(l, m)
           if (!a.defined) return { defined: false, note: a.note }
           return {
             cosTheta: +a.cos.toFixed(6),
             thetaDeg: +a.deg.toFixed(3),
             formula: 'cosθ = m / √(l(l+1))',
-            note: '常见错误是用 cosθ = m/l（分母应为 √(l(l+1))）',
+            note: t('orbit.tool.note.angleToZ'),
           }
         }
         case 'compare': {
-          if (!p.a || !p.b) return { error: '需要 a 与 b 两个轨道对象' }
+          if (!p.a || !p.b) return { error: t('orbit.tool.err.needAB') }
           const A = p.a
           const B = p.b
           const na = OM.nodes(A.n, A.l)
@@ -170,7 +192,8 @@ export function createOrbitTools(opts = {}) {
           const only = (p && p.set) || null
           const list = only ? [Hybrids.set(only)] : Hybrids.SETS
           if (only && !list[0]) {
-            return { error: `未知的杂化集合 ${only}（可用：${Hybrids.setIds().join(' / ')}）` }
+            return { error: t('orbit.tool.err.unknownHybridSet',
+              { only, list: Hybrids.setIds().join(' / ') }) }
           }
           const out = list.map((set) => {
             const orbitals = []
@@ -208,7 +231,7 @@ export function createOrbitTools(opts = {}) {
           return { hybrids: out }
         }
         default:
-          return { error: '未知 kind：' + (p && p.kind) }
+          return { error: t('orbit.tool.err.unknownKind', { kind: p && p.kind }) }
       }
     },
   }
@@ -229,46 +252,52 @@ export function createOrbitTools(opts = {}) {
 
   if (quiz) {
     defs.teach.push(
-      def('generateQuestion', '针对某个知识点出一道题。返回的题目**不含答案**——'
-        + '判定与解析由本地完成，你无法看到答案，也不要猜测。', {
-        knowledgePoint: { type: 'string', description: '知识点编号（形如 orbit:K1）' },
-        difficulty: { type: 'string', description: '可选难度' },
-        exclude: { type: 'array', items: { type: 'string' }, description: '可选：要排除的题目 id' },
+      def('generateQuestion', () => t('orbit.tool.generateQuestion.desc'), {
+        knowledgePoint: { type: 'string',
+          description: () => t('orbit.tool.generateQuestion.p.knowledgePoint') },
+        difficulty: { type: 'string',
+          description: () => t('orbit.tool.generateQuestion.p.difficulty') },
+        exclude: { type: 'array', items: { type: 'string' },
+          description: () => t('orbit.tool.generateQuestion.p.exclude') },
       }, ['knowledgePoint']),
-      def('generateVariant', '基于刚做过的题生成**变式题**（同知识点，只变动一个维度）。', {
+      def('generateVariant', () => t('orbit.tool.generateVariant.desc'), {
         questionId: { type: 'string' },
       }, ['questionId']),
-      def('explainConcept', '取某个知识点的**结构化讲解**（定义、要点、例子）。', {
+      def('explainConcept', () => t('orbit.tool.explainConcept.desc'), {
         knowledgePoint: { type: 'string' },
       }, ['knowledgePoint']),
-      def('evaluateFeynman', '评估学生的一次费曼式复述：对照该知识点的评分要点，'
-        + '指出讲对了什么、缺了什么。**不直接给答案**。', {
+      def('evaluateFeynman', () => t('orbit.tool.evaluateFeynman.desc'), {
         knowledgePoint: { type: 'string' },
-        transcript: { type: 'string', description: '学生的复述原文' },
+        transcript: { type: 'string',
+          description: () => t('orbit.tool.evaluateFeynman.p.transcript') },
       }, ['knowledgePoint', 'transcript']),
     )
 
     handlers.generateQuestion = (p) => {
       const kp = p && p.knowledgePoint
-      if (!kp) return { error: 'knowledgePoint 必填' }
+      if (!kp) return { error: t('orbit.tool.err.kpRequired') }
       const fn = quiz.askQuestion || quiz.generate
-      if (typeof fn !== 'function') return { error: '出题引擎未提供 generate/askQuestion' }
+      if (typeof fn !== 'function') return { error: t('orbit.tool.err.noQuizGenerate') }
       return fn.call(quiz, kp, p && p.difficulty, p && p.exclude)
     }
     handlers.generateVariant = (p) => {
-      if (!p || !p.questionId) return { error: 'questionId 必填' }
-      if (typeof quiz.variant !== 'function') return { error: '出题引擎未提供 variant' }
+      if (!p || !p.questionId) return { error: t('orbit.tool.err.qidRequired') }
+      if (typeof quiz.variant !== 'function') return { error: t('orbit.tool.err.noQuizVariant') }
       return quiz.variant(p.questionId)
     }
     handlers.explainConcept = (p) => {
-      if (!p || !p.knowledgePoint) return { error: 'knowledgePoint 必填' }
-      if (typeof quiz.explain !== 'function') return { error: '出题引擎未提供 explain' }
+      if (!p || !p.knowledgePoint) return { error: t('orbit.tool.err.kpRequired') }
+      if (typeof quiz.explain !== 'function') return { error: t('orbit.tool.err.noQuizExplain') }
       return quiz.explain(p.knowledgePoint, p)
     }
     handlers.evaluateFeynman = (p) => {
-      if (!p || !p.knowledgePoint) return { error: 'knowledgePoint 必填' }
-      if (typeof p.transcript !== 'string' || !p.transcript.trim()) return { error: 'transcript 必填' }
-      if (typeof quiz.evaluateFeynman !== 'function') return { error: '出题引擎未提供 evaluateFeynman' }
+      if (!p || !p.knowledgePoint) return { error: t('orbit.tool.err.kpRequired') }
+      if (typeof p.transcript !== 'string' || !p.transcript.trim()) {
+        return { error: t('orbit.tool.err.transcriptRequired') }
+      }
+      if (typeof quiz.evaluateFeynman !== 'function') {
+        return { error: t('orbit.tool.err.noQuizFeynman') }
+      }
       return quiz.evaluateFeynman(p.knowledgePoint, p.transcript)
     }
   }
@@ -281,57 +310,57 @@ export function createOrbitTools(opts = {}) {
   const skills = opts.skills
   if (skills && typeof skills.load === 'function') {
     defs.teach.push(
-      def('startFeynmanCheck', '发起一次费曼式复述：给出邀请语与**评分要点**，'
-        + '让学生用自己的话讲一遍，之后用 evaluateFeynman 评估。', {
+      def('startFeynmanCheck', () => t('orbit.tool.startFeynmanCheck.desc'), {
         knowledgePoint: { type: 'string' },
       }, ['knowledgePoint']),
     )
     handlers.startFeynmanCheck = (p) => {
-      if (!p || !p.knowledgePoint) return { error: 'knowledgePoint 必填' }
+      if (!p || !p.knowledgePoint) return { error: t('orbit.tool.err.kpRequired') }
       const s = skills.load('feynman')
-      if (!s) return { error: '费曼技能未注册（技能目录里没有 feynman）' }
+      if (!s) return { error: t('orbit.tool.err.noFeynmanSkill') }
       return {
         skill: 'feynman',
         knowledgePoint: p.knowledgePoint,
-        invitation: '试着用**你自己的话**说一遍，就当我是完全没学过的同学——不要背公式，讲你理解的那个版本。',
+        invitation: t('orbit.tool.feynmanInvitation'),
         rubric: (s.steps && s.steps.length) ? s.steps : [],
-        note: '学生复述后调用 evaluateFeynman 评估',
+        note: t('orbit.tool.feynmanNote'),
       }
     }
   }
 
   if (diagnosis) {
     defs.teach.push(
-      def('diagnoseError', '取某个错因对应的**可视化诊断动作序列**（同一错因的处方）。'
-        + '通常在 checkAnswer 已经给过诊断动作时不必重复调用。', {
+      def('diagnoseError', () => t('orbit.tool.diagnoseError.desc'), {
         questionId: { type: 'string' },
         chosenIndex: { type: 'integer' },
         correctIndex: { type: 'integer' },
       }, ['questionId']),
     )
     handlers.diagnoseError = (p) => {
-      if (typeof diagnosis.diagnose !== 'function') return { error: '诊断模块未提供 diagnose' }
+      if (typeof diagnosis.diagnose !== 'function') return { error: t('orbit.tool.err.noDiagnosis') }
       return diagnosis.diagnose(p && p.questionId, p && p.chosenIndex, p && p.correctIndex)
     }
   }
 
   if (mastery) {
     defs.teach.push(
-      def('updateMastery', '按学生这次作答的结果，更新该知识点的掌握度。', {
+      def('updateMastery', () => t('orbit.tool.updateMastery.desc'), {
         knowledgePoint: { type: 'string' },
-        delta: { type: 'number', description: '掌握度增量（答对 +1 / 答错 −1 之类由本地规则定）' },
+        delta: { type: 'number', description: () => t('orbit.tool.updateMastery.p.delta') },
       }, ['knowledgePoint']),
-      def('recommendNext', '推荐下一个该练的知识点（依据本机学情）。', {
-        count: { type: 'integer', description: '可选：要推荐几个' },
+      def('recommendNext', () => t('orbit.tool.recommendNext.desc'), {
+        count: { type: 'integer', description: () => t('orbit.tool.recommendNext.p.count') },
       }),
     )
     handlers.updateMastery = (p) => {
-      if (!p || !p.knowledgePoint) return { error: 'knowledgePoint 必填' }
-      if (typeof mastery.update !== 'function') return { error: '学情模型未提供 update' }
+      if (!p || !p.knowledgePoint) return { error: t('orbit.tool.err.kpRequired') }
+      if (typeof mastery.update !== 'function') return { error: t('orbit.tool.err.noMasteryUpdate') }
       return mastery.update(p.knowledgePoint, p.delta)
     }
     handlers.recommendNext = (p) => {
-      if (typeof mastery.recommend !== 'function') return { error: '学情模型未提供 recommend' }
+      if (typeof mastery.recommend !== 'function') {
+        return { error: t('orbit.tool.err.noMasteryRecommend') }
+      }
       return mastery.recommend(p && p.count)
     }
   }

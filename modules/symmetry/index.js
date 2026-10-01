@@ -44,7 +44,7 @@ export function createModule(opts = {}) {
 
   return {
     id: 'symmetry',
-    title: '分子对称性',
+    title: '点群观鉴',
     facade,
     defs: tools.defs,
     handlers: tools.handlers,
@@ -75,7 +75,7 @@ export function createModule(opts = {}) {
       '· 「苯的 C₂′ 与 C₂″ 有什么区别」',
     ].join(''),
     roleHint: [
-      '你正在使用**分子对称性**模块。',
+      '你正在使用**点群观鉴**模块。',
       '★ 点群符号与对称元素清单**一律用 queryPointGroup 取得**，不要凭记忆判断——',
       '  "水是 C2v"你当然记得，但"联苯是 D2h 还是 D2d"这类正是本模块要解决的问题，',
       '  而它与你的记忆不一致时，正确的一方永远是从结构算出来的那个。',
@@ -95,7 +95,7 @@ export function createModule(opts = {}) {
 /** 模块自述（供 registry 与壳展示） */
 export const MODULE_INFO = {
   id: 'symmetry',
-  title: '分子对称性',
+  title: '点群观鉴',
 }
 
 export default createModule

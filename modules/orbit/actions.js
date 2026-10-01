@@ -19,6 +19,12 @@
 // ★ 等价轨道集合（sp³/sp²/sp）的**唯一**定义在 core/hybrids.js —— 这里只取 id 列表。
 //   把集合 id 再抄一遍，就会出现"词汇表认得的集合"与"渲染层画得出的集合"两份真源。
 import { Hybrids } from './core/hybrids.js'
+// ★ 字典的副作用 import 必须**排在使用 t() 的语句之前**：本文件的 `VOCAB` 是模块级常量，
+//   它的 group / desc / params 在**模块求值阶段**就调 t() —— 那时若字典还没注册，
+//   `t()` 会原样返回键名（不报错），模型收到的就是 `orbit.act.…desc` 这种字符串。
+//   与 index.js 的那行是同一个目的，两处都留着是刻意的：谁先被 import 都不会踩空。
+import './i18n.js'
+import { t } from '../../packages/i18n/index.js'
 
 /* 各 seg 控件的合法取值（逐条取自 index.html 的 data-* 属性） */
 export const ENUMS = {
@@ -38,6 +44,126 @@ export const ENUMS = {
   orbitalSet: ['off'].concat(Hybrids.setIds()),
 }
 
+/**
+ * 同屏轨道条数的上限。
+ *
+ * ★ 为什么要有上限：每多一条就要**真跑一遍等值面流水线**（本环境一张 10–15 秒），
+ *   所以"任意数量"在工程上必须有个封顶，否则模型一次下发 50 条等于把页面冻死几分钟。
+ *   12 条已经远超教学场景（sp³ 才 4 条），所以这个上限**不构成能力损失**，
+ *   而它挡住的是"一次把页面锁死"这一类真实的坏结果。
+ */
+export const MAX_MULTI_ORBITALS = 12
+
+/** 颜色：接受 "#rrggbb" 或 [r,g,b]（0..1），统一回 [r,g,b] */
+function checkColor(v) {
+  if (Array.isArray(v)) {
+    if (v.length !== 3 || v.some((x) => typeof x !== 'number' || !(x >= 0 && x <= 1))) {
+      return { err: t('orbit.act.err.colorTriple', { v: JSON.stringify(v) }) }
+    }
+    return { params: { color: v.slice() } }
+  }
+  if (typeof v === 'string') {
+    const m = /^#?([0-9a-fA-F]{6})$/.exec(v.trim())
+    if (!m) {
+      return { err: t('orbit.act.err.colorHex', { v: JSON.stringify(v) }) }
+    }
+    const n = parseInt(m[1], 16)
+    return { params: { color: [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255] } }
+  }
+  return { err: t('orbit.act.err.colorType') }
+}
+
+/** 单项量子数：l ≤ n−1、|m| ≤ l。与滑块那条路共用同一套约束口径。 */
+function checkNlm(it, where) {
+  const g = (k) => it[k]
+  const n = g('n'), l = g('l'), m = g('m')
+  for (const [k, v, rng] of [['n', n, RANGES.n], ['l', l, RANGES.l], ['m', m, RANGES.m]]) {
+    if (!Number.isInteger(v) || v < rng[0] || v > rng[1]) {
+      return { err: t('orbit.act.err.nlmInt',
+        { where, k, lo: rng[0], hi: rng[1], v: JSON.stringify(v) }) }
+    }
+  }
+  if (l > n - 1) return { err: t('orbit.act.err.nlmL', { where, n, l }) }
+  if (Math.abs(m) > l) return { err: t('orbit.act.err.nlmM', { where, l, m }) }
+  return null
+}
+
+/**
+ * 校验 `setOrbitals({items})` 的数组。
+ *
+ * ★ 每一项允许**两种给法**：纯态给 (n,l,m)，叠加态给 terms 数组。
+ *   两者都给时以 terms 为准（叠加态是更强的描述）—— 这一点必须写进错误信息之外的
+ *   说明里，否则模型会以为"给了 n/l/m 又被忽略"是 bug。
+ */
+function checkOrbitalItems(items) {
+  if (!Array.isArray(items) || !items.length) {
+    return { err: t('orbit.act.err.itemsEmpty') }
+  }
+  if (items.length > MAX_MULTI_ORBITALS) {
+    return { err: t('orbit.act.err.itemsTooMany', { max: MAX_MULTI_ORBITALS, n: items.length }) }
+  }
+  const out = []
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]
+    const where = 'items[' + i + ']'
+    if (!it || typeof it !== 'object') return { err: t('orbit.act.err.itemObject', { where }) }
+    const row = {}
+    if (Array.isArray(it.terms) && it.terms.length) {
+      if (it.terms.length > 8) {
+        return { err: t('orbit.act.err.itemTermsMany', { where, n: it.terms.length }) }
+      }
+      const terms = []
+      for (let k = 0; k < it.terms.length; k++) {
+        // ★ 变量名不叫 `t`：本文件的 `t` 是 i18n 的取值函数，同名会把下面的报错取值
+        //   悄悄改成"读一个 term 对象当函数调"（不报错、只是抛 TypeError 被吞）。
+        const term = it.terms[k] || {}
+        const bad = checkNlm(term, where + '.terms[' + k + ']')
+        if (bad) return bad
+        if (term.mode !== undefined && ENUMS.wavefunction.indexOf(term.mode) < 0) {
+          return { err: t('orbit.act.err.itemMode',
+            { where, i: k, allowed: ENUMS.wavefunction.join('|') }) }
+        }
+        const c = term.c || { re: 1, im: 0 }
+        if (typeof c.re !== 'number' || typeof c.im !== 'number'
+            || !Number.isFinite(c.re) || !Number.isFinite(c.im)) {
+          return { err: t('orbit.act.err.itemComplex', { where, i: k }) }
+        }
+        terms.push({ n: term.n, l: term.l, m: term.m, mode: term.mode || 'real',
+          c: { re: c.re, im: c.im } })
+      }
+      row.terms = terms
+    } else {
+      const bad = checkNlm(it, where)
+      if (bad) return bad
+      row.n = it.n; row.l = it.l; row.m = it.m
+      if (it.mode !== undefined) {
+        if (ENUMS.wavefunction.indexOf(it.mode) < 0) {
+          return { err: t('orbit.act.err.itemModeTop',
+            { where, allowed: ENUMS.wavefunction.join('|') }) }
+        }
+        row.mode = it.mode
+      }
+    }
+    if (it.color !== undefined) {
+      const c = checkColor(it.color)
+      if (c.err) return c
+      row.color = c.params.color
+    }
+    if (it.label !== undefined) {
+      if (typeof it.label !== 'string' || !it.label.trim()) {
+        return { err: t('orbit.act.err.itemLabel', { where }) }
+      }
+      row.label = it.label.slice(0, 40)
+    }
+    if (it.visible !== undefined) {
+      if (typeof it.visible !== 'boolean') return { err: t('orbit.act.err.itemVisible', { where }) }
+      row.visible = it.visible
+    }
+    out.push(row)
+  }
+  return { params: { items: out } }
+}
+
 /** 数值范围（逐条取自 index.html 的滑块 min/max） */
 export const RANGES = {
   Z: [1, 36],
@@ -49,6 +175,20 @@ export const RANGES = {
   pointCount: [8000, 80000],
   levelFraction: [0, 1],
 }
+
+/**
+ * 惰性文案的**标记**。
+ *
+ * ★ 为什么 VOCAB 里写的不是 `t(...)` 而是 `lazyT(...)`：
+ *   VOCAB 是模块级常量，`t(...)` 在 **import 时**就求值 —— 那会把当时的语言
+ *   固化进去：用户切到英文之后，模型拿到的动作说明（group / desc / params）
+ *   仍然是中文，而**守卫照样是绿的**（键登记过、字面量也确实没了）。
+ *   这类"接了线但值被冻住"的失效不报错，只能靠实测发现（本轮就是先写了
+ *   tmp/i18n/smoke-orbit-i18n.mjs，才发现 desc 没跟着语言变）。
+ *   `lazyT` 只记下键，稍后由 `installLazyText()` 在 VOCAB 上装**取值器**，
+ *   读取的那一刻（`listSceneActions` 序列化时）才取译文。
+ */
+const lazyT = (key, vars) => ({ __i18nKey: key, __i18nVars: vars })
 
 /** 英文名 → 中文短标签（面板的动作气泡用） */
 export const LABELS = {
@@ -90,177 +230,199 @@ export const LABELS = {
  */
 export const VOCAB = {
   setQuantumNumbers: {
-    label: '设置量子数', group: '电子态', animated: true,
-    desc: '设置主量子数 n / 角量子数 l / 磁量子数 m。指定的量子数会被自动夹紧到合法范围'
-      + '（l ≤ n−1、|m| ≤ l）。**给了任一量子数即意味着"要看这个单一本征态"**，会自动退出叠加态。',
+    label: '设置量子数', group: lazyT('orbit.group.state'), animated: true,
+    desc: lazyT('orbit.act.setQuantumNumbers.desc'),
     params: { n: '1..6', l: '0..n−1', m: '−l..l' },
   },
   setNuclearCharge: {
-    label: '设置核电荷', group: '电子态', animated: true,
-    desc: '设置核电荷数 Z（1..36，类氢离子）。★ 与量子数不同，换 Z **不退出**叠加态。',
+    label: '设置核电荷', group: lazyT('orbit.group.state'), animated: true,
+    desc: lazyT('orbit.act.setNuclearCharge.desc'),
     params: { Z: '1..36' },
   },
   setWavefunctionMode: {
-    label: '实/复轨道', group: '电子态', animated: true,
-    desc: '实轨道（real，方向性明确，教学常用）或复轨道（complex，m 是好量子数）。',
+    label: '实/复轨道', group: lazyT('orbit.group.state'), animated: true,
+    desc: lazyT('orbit.act.setWavefunctionMode.desc'),
     params: { mode: ENUMS.wavefunction.join('|') },
   },
   setRenderMode: {
-    label: '渲染模式', group: '三维', animated: true,
-    desc: '粒子云（points，按 |ψ|² 重要性采样）或等值面（surface，同密度的曲面）。',
+    label: '渲染模式', group: lazyT('orbit.group.threeD'), animated: true,
+    desc: lazyT('orbit.act.setRenderMode.desc'),
     params: { mode: ENUMS.render.join('|') },
   },
   setPsiCriterion: {
-    label: '阈值判据', group: '三维', animated: true,
-    desc: '等值面/粒子云按哪个量取阈值：|ψ|²（psi2，密度）或 |ψ|（psi，幅度）。',
+    label: '阈值判据', group: lazyT('orbit.group.threeD'), animated: true,
+    desc: lazyT('orbit.act.setPsiCriterion.desc'),
     params: { criterion: ENUMS.psiCriterion.join('|') },
   },
 
   setOrbitalModel: {
-    label: '轨道模型（氢型/Slater）', group: '电子态', animated: true,
-    desc: '切换**径向函数**：hydrogenic = 真实类氢（默认；2s 在 r≈2a₀ 有径向节点，'
-      + '所以 sp³ 的等值面外层干涉反向、形状与教材插图不同）；'
-      + 'slater = Slater 型（STO；径向形式 r^(n−1)e^(−ζr)，2s 与 2p 共用、无径向节点，'
-      + '于是 sp³ 退化成纯角度形状 = 教材那个干净的定向瓣）。'
-      + '两者都是真实的物理模型，切换本身就是一课。'
-      + '★ zeta 可选：省略则 ζ = Z/n；想用 Slater 规则给出的值就直接填（碳的 2s/2p 是 1.625）。',
-    params: { model: ENUMS.orbitalModel.join('|'), zeta: '（可选）正数' },
+    label: '轨道模型（氢型/Slater）', group: lazyT('orbit.group.state'), animated: true,
+    desc: lazyT('orbit.act.setOrbitalModel.desc'),
+    params: { model: ENUMS.orbitalModel.join('|'), zeta: lazyT('orbit.act.setOrbitalModel.param.zeta') },
   },
 
   setOrbitals: {
-    label: '多轨道同屏', group: '电子态', animated: true,
-    desc: '把一组**等价**杂化轨道同时画出来（sp³ 四个 / sp² 三个 / sp 两个），'
-      + '每个一个颜色。set 取 off 关闭。'
-      + 'visible 可选：给出要显示的下标（0 起），省略＝全显示 —— '
-      + '想"只留一个看形状"就写 [0]，想"关掉第三个"就写 [0,1,3]。'
-      + '★ 与叠加态是两回事：叠加态是**一个**态由多项组成（干涉项是物理的一部分，'
-      + '只能画成一个面）；这里是场景里挂**多个各自独立**的态。'
-      + '★ 四个 sp³ 指向正四面体，两两夹角 109.47°；sp² 三个共面、120°；sp 两个成 180°。',
+    label: '多轨道同屏', group: lazyT('orbit.group.state'), animated: true,
+    desc: lazyT('orbit.act.setOrbitals.desc'),
     params: {
       set: ENUMS.orbitalSet.join('|'),
-      visible: '（可选）下标数组，如 [0,2]；省略＝全部',
+      visible: lazyT('orbit.act.setOrbitals.param.visible'),
+      add: lazyT('orbit.act.setOrbitals.param.add'),
+      items: lazyT('orbit.act.setOrbitals.param.items'),
     },
   },
+  setOrbitalStyle: {
+    label: '改同屏轨道的颜色/显隐', group: lazyT('orbit.group.state'), animated: false,
+    desc: lazyT('orbit.act.setOrbitalStyle.desc'),
+    params: {
+      key: lazyT('orbit.act.setOrbitalStyle.param.key'),
+      color: lazyT('orbit.act.setOrbitalStyle.param.color'),
+      visible: lazyT('orbit.act.setOrbitalStyle.param.visible'),
+    },
+  },
+  clearOrbitals: {
+    label: '收起全部同屏轨道', group: lazyT('orbit.group.state'), animated: false,
+    desc: lazyT('orbit.act.clearOrbitals.desc'),
+    params: {},
+  },
   setIsosurfaceLevel: {
-    label: '等值面阈值', group: '三维', animated: true,
-    desc: '等值面取在峰值的哪个比例上（0..1 的比值，内部走对数刻度）。'
-      + '**不指定时程序会按轨道给推荐值**；一旦显式指定，此后换轨道不再套推荐值。',
+    label: '等值面阈值', group: lazyT('orbit.group.threeD'), animated: true,
+    desc: lazyT('orbit.act.setIsosurfaceLevel.desc'),
     params: { fraction: '0..1' },
   },
   setParticleCount: {
-    label: '粒子数', group: '三维', animated: false,
-    desc: '粒子云的采样点数（8000..80000）。点数越多越细腻，也越吃性能。',
-    params: { count: '8000..80000（1000 的倍数）' },
+    label: '粒子数', group: lazyT('orbit.group.threeD'), animated: false,
+    desc: lazyT('orbit.act.setParticleCount.desc'),
+    params: { count: lazyT('orbit.act.setParticleCount.param.count') },
   },
   setAngularView: {
-    label: '角度分布', group: '二维', animated: false,
-    desc: '角度分布图画的是 Y（球谐本身）或 Y²（概率密度）。',
+    label: '角度分布', group: lazyT('orbit.group.twoD'), animated: false,
+    desc: lazyT('orbit.act.setAngularView.desc'),
     params: { which: ENUMS.angularWhich.join('|') },
   },
   setViewTarget: {
-    label: '视图目标', group: '三维', animated: true,
-    desc: '主三维视图画什么：spherical = 球谐曲面（角度部分），wave = 完整波函数（电子云/等值面）。'
-      + '★ 切到球谐档会收起量子态入口（叠加态只对完整波函数有意义）。',
+    label: '视图目标', group: lazyT('orbit.group.threeD'), animated: true,
+    desc: lazyT('orbit.act.setViewTarget.desc'),
     params: { target: ENUMS.viewTarget.join('|') },
   },
   setSectionPlane: {
-    label: '截面', group: '二维', animated: false,
-    desc: '截面图取哪个坐标面：xy / xz / yz（化学约定 z 为量化轴，xz 面最常用来讲"角度节面"）。',
+    label: '截面', group: lazyT('orbit.group.twoD'), animated: false,
+    desc: lazyT('orbit.act.setSectionPlane.desc'),
     params: { plane: ENUMS.plane.join('|') },
   },
   setSectionMode: {
-    label: '截面显示', group: '二维', animated: false,
-    desc: '截面图画什么：intensity（|ψ|² 强度）/ phase（相位，正负用颜色区分）/ contour（等值线）。',
+    label: '截面显示', group: lazyT('orbit.group.twoD'), animated: false,
+    desc: lazyT('orbit.act.setSectionMode.desc'),
     params: { mode: ENUMS.sectionMode.join('|') },
   },
   showRadial: {
-    label: '径向曲线', group: '二维', animated: false,
-    desc: '径向图显示哪几条曲线（**多选**）：R（径向波函数，有正负）、R²（径向概率密度）、'
-      + 'D = r²R²（径向分布函数，讲"电子最常出现在哪"用它）。至少保留一条，否则图表空白。',
-    params: { which: '数组，元素 ∈ ' + ENUMS.radial.join('|') },
+    label: '径向曲线', group: lazyT('orbit.group.twoD'), animated: false,
+    desc: lazyT('orbit.act.showRadial.desc'),
+    params: { which: lazyT('orbit.act.showRadial.param.which', { list: ENUMS.radial.join('|') }) },
   },
   setRadialMarks: {
-    label: '径向标注', group: '二维', animated: false,
-    desc: '在径向图上标出 peak（峰值）或 zeros（节点）。**feature 可为数组**（两者同屏）；'
-      + '传 null 表示清除标注。标的线**只画在当前可见的曲线**上。',
-    params: { feature: 'peak|zeros 或其数组|null', target: 'R|R2|D|ALL（缺省 ALL）' },
+    label: '径向标注', group: lazyT('orbit.group.twoD'), animated: false,
+    desc: lazyT('orbit.act.setRadialMarks.desc'),
+    params: {
+      feature: lazyT('orbit.act.setRadialMarks.param.feature'),
+      target: lazyT('orbit.act.setRadialMarks.param.target'),
+    },
   },
   setAutoRotate: {
-    label: '自动旋转', group: '三维', animated: false,
-    desc: '三维视图是否自动旋转。讲"这个轨道长什么样"时开着，方便学生看清整体形状。',
+    label: '自动旋转', group: lazyT('orbit.group.threeD'), animated: false,
+    desc: lazyT('orbit.act.setAutoRotate.desc'),
     params: { on: 'true|false' },
   },
   resetCamera: {
-    label: '复位视角', group: '三维', animated: true,
-    desc: '相机回到初始朝向与距离。',
+    label: '复位视角', group: lazyT('orbit.group.threeD'), animated: true,
+    desc: lazyT('orbit.act.resetCamera.desc'),
     params: {},
   },
   resetSectionView: {
-    label: '复位截面', group: '二维', animated: false,
-    desc: '截面图的缩放与平移回到初始（等同图表角上那个「复位缩放」小控件）。',
+    label: '复位截面', group: lazyT('orbit.group.twoD'), animated: false,
+    desc: lazyT('orbit.act.resetSectionView.desc'),
     params: {},
   },
   setFormulaHighlight: {
-    label: '公式高亮', group: '公式', animated: false,
-    desc: '按项高亮公式（R 径向 / Y 角度 / L 拉盖尔 / P 关联勒让德 / N 归一化）。'
-      + '这是三维—公式—图表三向联动的中枢：讲哪一项就点亮哪一项。传 null 取消高亮。',
+    label: '公式高亮', group: lazyT('orbit.group.formula'), animated: false,
+    desc: lazyT('orbit.act.setFormulaHighlight.desc'),
     params: { part: 'R|Y|L|P|N|null' },
   },
   setSuperposition: {
-    label: '设置叠加态', group: '叠加态', animated: true,
-    desc: '把电子态设为若干本征态的线性组合。terms 是数组，每项 {n,l,m,c:{re,im}}（c 缺省为 1）。'
-      + '★ 教学要点：叠加态 |ψ|² 里**有干涉项**，这正是它与"概率简单相加"的本质区别。',
+    label: '设置叠加态', group: lazyT('orbit.group.super'), animated: true,
+    desc: lazyT('orbit.act.setSuperposition.desc'),
     params: { terms: '[{n,l,m,mode?,\"c\":{re,im}}]' },
   },
   clearSuperposition: {
-    label: '清除叠加态', group: '叠加态', animated: true,
-    desc: '回到单一本征态。',
+    label: '清除叠加态', group: lazyT('orbit.group.super'), animated: true,
+    desc: lazyT('orbit.act.clearSuperposition.desc'),
     params: {},
   },
   setChartTerm: {
-    label: '图表对象', group: '叠加态', animated: false,
-    desc: '二维图表画叠加态的哪一份：\'super\' = 整体（**只有截面图支持**），数字 = 第 i 个分量（从 0 起）。',
-    params: { term: 'super|整数下标' },
+    label: '图表对象', group: lazyT('orbit.group.super'), animated: false,
+    desc: lazyT('orbit.act.setChartTerm.desc'),
+    params: { term: lazyT('orbit.act.setChartTerm.param.term') },
   },
   linkRadialTo3D: {
-    label: '径向环联动', group: '三维', animated: false,
-    desc: '在三维视图里画一个半径 = `radius`（a₀）的参考环，用来把"径向分布图上的某个半径"'
-      + '**落到画面上的位置**。讲"这个峰在离核多远"时用它把二维读数与三维尺度对上。'
-      + '传 0 表示清除。',
-    params: { radius: '0..200（a₀），0 表示清除' },
+    label: '径向环联动', group: lazyT('orbit.group.threeD'), animated: false,
+    desc: lazyT('orbit.act.linkRadialTo3D.desc'),
+    params: { radius: lazyT('orbit.act.linkRadialTo3D.param.radius') },
   },
   focusChart: {
-    label: '放大图表讲解', group: '二维', animated: false,
-    desc: '把页面底部那张图放大到**浮窗**里讲（径向分布 / 截面密度 / 角度分布），'
-      + '`none` 表示关掉浮窗。★ 讲底部图表时**先用它**——否则图在页面下方、'
-      + '而讲解在别处，学生看不到你在说哪张。'
-      + '还要注意顺序：**先换轨道、再 focusChart**；浮窗放大的是"当前"那张图。',
+    label: '放大图表讲解', group: lazyT('orbit.group.twoD'), animated: false,
+    desc: lazyT('orbit.act.focusChart.desc'),
     params: { target: 'radial|section|thetaPhi|none' },
   },
   animateIsosurfaceLevel: {
-    label: '扫描等值面阈值', group: '三维', animated: true,
-    desc: '把等值面阈值从 from 平滑推过到 to（各取 0.003..0.8 的比值）。'
-      + '★ 这是讲"同心壳层"的核心手法：阈值一路降下去，内层壳依次冒出来。'
-      + '**但要在截面图里讲**——三维是实体渲染，外层壳会把内层整个包住，'
-      + '降阈值只会让颜色变、形状看上去还是同一个球。',
-    params: { from: '0.003..0.8', to: '0.003..0.8', durationMs: '300..6000，缺省 1200' },
+    label: '扫描等值面阈值', group: lazyT('orbit.group.threeD'), animated: true,
+    desc: lazyT('orbit.act.animateIsosurfaceLevel.desc'),
+    params: {
+      from: '0.003..0.8',
+      to: '0.003..0.8',
+      durationMs: lazyT('orbit.act.animateIsosurfaceLevel.param.durationMs'),
+    },
   },
   setRelPhase: {
-    label: '相对相位', group: '叠加态', animated: true,
-    desc: '叠加态分量的相对相位（弧度）。改变它会让干涉图样旋转/变形——是"相位是物理的"最直观的演示。',
-    params: { phase: '弧度数值' },
+    label: '相对相位', group: lazyT('orbit.group.super'), animated: true,
+    desc: lazyT('orbit.act.setRelPhase.desc'),
+    params: { phase: lazyT('orbit.act.setRelPhase.param.phase') },
   },
   restoreState: {
-    label: '恢复状态', group: '内部', animated: false,
-    desc: '写回一整套快照（供分镜的「上一步」回退）。**不经用户通路**，是严格可逆的还原。',
-    params: { state: '快照对象' },
+    label: '恢复状态', group: lazyT('orbit.group.internal'), animated: false,
+    desc: lazyT('orbit.act.restoreState.desc'),
+    params: { state: lazyT('orbit.act.restoreState.param.state') },
   },
   recomputeOnly: {
-    label: '重算', group: '内部', animated: false,
-    desc: '只重算重绘，不改任何参数（叠加态系数/相位变化后触发一次）。',
+    label: '重算', group: lazyT('orbit.group.internal'), animated: false,
+    desc: lazyT('orbit.act.recomputeOnly.desc'),
     params: {},
   },
 }
+
+// ---------------------------------------------------------------------------
+// 把 lazyT() 标记换成取值器（见 lazyT 的说明）
+// ---------------------------------------------------------------------------
+
+/**
+ * 就地遍历：把 `{__i18nKey}` 标记的属性换成取值器；普通对象继续往下钻
+ * （`params` 就是嵌套一层）。
+ * @param {Object} obj
+ */
+function installLazyText(obj) {
+  for (const [k, v] of Object.entries(obj)) {
+    if (!v || typeof v !== 'object') continue
+    if (typeof v.__i18nKey === 'string') {
+      const key = v.__i18nKey
+      const vars = v.__i18nVars
+      Object.defineProperty(obj, k, {
+        enumerable: true, configurable: true, get: () => t(key, vars),
+      })
+    } else {
+      installLazyText(v)
+    }
+  }
+}
+for (const v of Object.values(VOCAB)) installLazyText(v)
 
 // ---------------------------------------------------------------------------
 // 校验
@@ -272,7 +434,8 @@ const isInt = (v) => typeof v === 'number' && Number.isFinite(v) && Math.floor(v
 function enumErr(name, key, v, allowed) {
   if (v == null) return null
   if (allowed.indexOf(v) >= 0) return null
-  return { err: `${name} 的 ${key} 只能是 ${allowed.join(' / ')}，收到 ${JSON.stringify(v)}` }
+  return { err: t('orbit.act.err.enum',
+    { name, key, allowed: allowed.join(' / '), v: JSON.stringify(v) }) }
 }
 
 /**
@@ -295,28 +458,30 @@ export function validate(name, params) {
       const out = {}
       for (const k of ['n', 'l', 'm']) {
         if (p[k] == null) continue
-        if (!isInt(p[k])) return { err: `setQuantumNumbers 的 ${k} 必须是整数，收到 ${JSON.stringify(p[k])}` }
-        if (p[k] < 0) return { err: `setQuantumNumbers 的 ${k} 不能为负` }
+        if (!isInt(p[k])) {
+          return { err: t('orbit.act.err.int', { k, v: JSON.stringify(p[k]) }) }
+        }
+        if (p[k] < 0) return { err: t('orbit.act.err.negative', { k }) }
         out[k] = p[k]
       }
-      if (!Object.keys(out).length) return { err: 'setQuantumNumbers 至少要给 n / l / m 其中之一' }
+      if (!Object.keys(out).length) return { err: t('orbit.act.err.qnNeedsOne') }
       if (out.n != null && (out.n < 1 || out.n > RANGES.n[1])) {
-        return { err: `n 只能是 ${RANGES.n[0]}..${RANGES.n[1]}，收到 ${out.n}` }
+        return { err: t('orbit.act.err.nRange', { lo: RANGES.n[0], hi: RANGES.n[1], v: out.n }) }
       }
       if (out.l != null && out.n != null && out.l > out.n - 1) {
-        return { err: `l 必须 ≤ n−1（n=${out.n} 时 l ≤ ${out.n - 1}），收到 l=${out.l}` }
+        return { err: t('orbit.act.err.lRange', { n: out.n, max: out.n - 1, l: out.l }) }
       }
       if (out.m != null && out.l != null && Math.abs(out.m) > out.l) {
-        return { err: `|m| 必须 ≤ l（l=${out.l} 时 |m| ≤ ${out.l}），收到 m=${out.m}` }
+        return { err: t('orbit.act.err.mRange', { l: out.l, m: out.m }) }
       }
       return { params: out }
     }
 
     case 'setNuclearCharge': {
-      if (p.Z == null) return { err: 'setNuclearCharge 需要 Z' }
-      if (!isInt(p.Z)) return { err: `Z 必须是整数，收到 ${JSON.stringify(p.Z)}` }
+      if (p.Z == null) return { err: t('orbit.act.err.zNeeded') }
+      if (!isInt(p.Z)) return { err: t('orbit.act.err.zInt', { v: JSON.stringify(p.Z) }) }
       const [lo, hi] = RANGES.Z
-      if (p.Z < lo || p.Z > hi) return { err: `Z 只能是 ${lo}..${hi}，收到 ${p.Z}` }
+      if (p.Z < lo || p.Z > hi) return { err: t('orbit.act.err.zRange', { lo, hi, v: p.Z }) }
       return { params: { Z: p.Z } }
     }
 
@@ -327,37 +492,55 @@ export function validate(name, params) {
       if (p.zeta === undefined || p.zeta === null) return base
       const z = Number(p.zeta)
       if (!Number.isFinite(z) || z <= 0 || z > 20) {
-        return { err: 'setOrbitalModel 的 zeta 需要 (0, 20] 的正数'
-          + '（省略则用 Z/n；碳的 2s/2p 标准值是 1.625）' }
+        return { err: t('orbit.act.err.zeta') }
       }
       return { params: { model: base.params.model, zeta: z } }
     }
     case 'setOrbitals': {
+      // ---- 分支 A：任意轨道数组（纯态或叠加态，数量任意）----
+      if (p.items !== undefined) return checkOrbitalItems(p.items)
+      // ---- 分支 B：把当前正在编辑的轨道加进同屏 ----
+      if (p.add === true || p.add === false) {
+        if (!p.add) return { err: t('orbit.act.err.addOnlyTrue') }
+        const out = { add: true }
+        if (p.color !== undefined) {
+          const c = checkColor(p.color)
+          if (c.err) return c
+          out.color = c.params.color
+        }
+        if (p.label !== undefined) {
+          if (typeof p.label !== 'string' || !p.label.trim()) {
+            return { err: t('orbit.act.err.labelEmpty') }
+          }
+          out.label = p.label.slice(0, 40)
+        }
+        if (p.visible !== undefined) out.visible = !!p.visible
+        return { params: out }
+      }
       const base = pick(name, p, 'set', ENUMS.orbitalSet)
       if (base.err) return base
       const setId = base.params.set
       if (setId === 'off') {
         // 关闭时不再理会 visible —— 但也不静默吞掉一个显然写错的下标
         if (p.visible !== undefined && !Array.isArray(p.visible)) {
-          return { err: 'setOrbitals 的 visible 要么省略，要么是下标数组，如 [0,2]' }
+          return { err: t('orbit.act.err.visibleArray') }
         }
         return { params: { set: 'off' } }
       }
       const def = Hybrids.set(setId)
-      if (!def) return { err: `内部不一致：${setId} 在枚举里但取不到定义` }
+      if (!def) return { err: t('orbit.act.err.setMissingDef', { setId }) }
       if (p.visible === undefined || p.visible === null) return { params: { set: setId } }
       if (!Array.isArray(p.visible)) {
-        return { err: `setOrbitals 的 visible 要是下标数组（${def.label} 有 ${def.count} 个，`
-          + '如 [0,2]）；只想留一个就写 [0]' }
+        return { err: t('orbit.act.err.visibleShape', { label: def.label, count: def.count }) }
       }
       const bad = p.visible.filter((x) => !Number.isInteger(x) || x < 0 || x >= def.count)
       if (bad.length) {
-        return { err: `${def.label} 只有 ${def.count} 个等价轨道，下标要在 0..${def.count - 1}；`
-          + `收到越界的 ${JSON.stringify(bad)}` }
+        return { err: t('orbit.act.err.visibleOutOfRange',
+          { label: def.label, count: def.count, max: def.count - 1, bad: JSON.stringify(bad) }) }
       }
       // 去重并排序：既让快照稳定（同样的意图给出同样的标量串），也避免重复项
       const uniq = Array.from(new Set(p.visible)).sort((a, b) => a - b)
-      if (!uniq.length) return { err: `${def.label} 至少要留一个轨道可见；要全关请用 set:'off'` }
+      if (!uniq.length) return { err: t('orbit.act.err.visibleEmpty', { label: def.label }) }
       return { params: { set: setId, visible: uniq } }
     }
     case 'setRenderMode': return pick(name, p, 'mode', ENUMS.render)
@@ -368,18 +551,20 @@ export function validate(name, params) {
     case 'setSectionMode': return pick(name, p, 'mode', ENUMS.sectionMode)
 
     case 'setIsosurfaceLevel': {
-      if (p.fraction == null) return { err: 'setIsosurfaceLevel 需要 fraction（0..1 的比值）' }
+      if (p.fraction == null) return { err: t('orbit.act.err.fractionNeeded') }
       const f = Number(p.fraction)
       if (!Number.isFinite(f) || f <= 0 || f > 1) {
-        return { err: `fraction 只能是 (0, 1] 内的数，收到 ${JSON.stringify(p.fraction)}` }
+        return { err: t('orbit.act.err.fractionRange', { v: JSON.stringify(p.fraction) }) }
       }
       return { params: { fraction: f } }
     }
 
     case 'setParticleCount': {
-      if (!isInt(p.count)) return { err: 'setParticleCount 需要整数 count' }
+      if (!isInt(p.count)) return { err: t('orbit.act.err.countInt') }
       const [lo, hi] = RANGES.pointCount
-      if (p.count < lo || p.count > hi) return { err: `count 只能是 ${lo}..${hi}，收到 ${p.count}` }
+      if (p.count < lo || p.count > hi) {
+        return { err: t('orbit.act.err.countRange', { lo, hi, v: p.count }) }
+      }
       return { params: { count: p.count } }
     }
 
@@ -387,7 +572,10 @@ export function validate(name, params) {
       const raw = p.which
       const list = Array.isArray(raw) ? raw : (raw == null ? [] : [raw])
       const bad = list.filter((x) => ENUMS.radial.indexOf(x) < 0)
-      if (bad.length) return { err: `径向曲线只能是 ${ENUMS.radial.join(' / ')}，收到 ${JSON.stringify(bad)}` }
+      if (bad.length) {
+        return { err: t('orbit.act.err.radialEnum',
+          { allowed: ENUMS.radial.join(' / '), bad: JSON.stringify(bad) }) }
+      }
       return { params: { which: list } }
     }
 
@@ -396,7 +584,10 @@ export function validate(name, params) {
       if (raw == null) return { params: { feature: [], target: p.target || 'ALL' } }
       const list = Array.isArray(raw) ? raw : [raw]
       const bad = list.filter((x) => ENUMS.radialMark.indexOf(x) < 0)
-      if (bad.length) return { err: `标注只能是 ${ENUMS.radialMark.join(' / ')}，收到 ${JSON.stringify(bad)}` }
+      if (bad.length) {
+        return { err: t('orbit.act.err.markEnum',
+          { allowed: ENUMS.radialMark.join(' / '), bad: JSON.stringify(bad) }) }
+      }
       return { params: { feature: list, target: p.target || 'ALL' } }
     }
 
@@ -406,21 +597,30 @@ export function validate(name, params) {
     case 'setFormulaHighlight': {
       const v = p.part == null ? null : p.part
       if (v != null && ENUMS.formulaPart.indexOf(v) < 0) {
-        return { err: `公式高亮只能是 ${ENUMS.formulaPart.filter(Boolean).join(' / ')} 或 null，收到 ${JSON.stringify(v)}` }
+        return { err: t('orbit.act.err.formulaEnum',
+          { allowed: ENUMS.formulaPart.filter(Boolean).join(' / '), v: JSON.stringify(v) }) }
       }
       return { params: { part: v } }
     }
 
     case 'setSuperposition': {
       const list = p.terms
-      if (!Array.isArray(list) || !list.length) return { err: 'setSuperposition 需要非空的 terms 数组' }
-      for (const t of list) {
-        if (!t || !isInt(t.n) || !isInt(t.l) || !isInt(t.m)) {
-          return { err: 'terms 的每一项都要有整数 n / l / m，收到 ' + JSON.stringify(t) }
+      if (!Array.isArray(list) || !list.length) return { err: t('orbit.act.err.termsEmpty') }
+      // ★ 循环变量不叫 `t`：本文件的 `t` 是 i18n 的取值函数（同名会把报错取值改成
+      //   "把一个 term 当函数调"，抛出的 TypeError 还会盖掉本来要说清的那句话）。
+      for (const term of list) {
+        if (!term || !isInt(term.n) || !isInt(term.l) || !isInt(term.m)) {
+          return { err: t('orbit.act.err.termsInt', { v: JSON.stringify(term) }) }
         }
-        if (t.n < 1 || t.n > RANGES.n[1]) return { err: `terms 里的 n 只能是 1..${RANGES.n[1]}，收到 ${t.n}` }
-        if (t.l < 0 || t.l > t.n - 1) return { err: `terms 里必须 l ≤ n−1（n=${t.n}），收到 l=${t.l}` }
-        if (Math.abs(t.m) > t.l) return { err: `terms 里必须 |m| ≤ l（l=${t.l}），收到 m=${t.m}` }
+        if (term.n < 1 || term.n > RANGES.n[1]) {
+          return { err: t('orbit.act.err.termsN', { max: RANGES.n[1], v: term.n }) }
+        }
+        if (term.l < 0 || term.l > term.n - 1) {
+          return { err: t('orbit.act.err.termsL', { n: term.n, l: term.l }) }
+        }
+        if (Math.abs(term.m) > term.l) {
+          return { err: t('orbit.act.err.termsM', { l: term.l, m: term.m }) }
+        }
       }
       return { params: { terms: list } }
     }
@@ -428,55 +628,95 @@ export function validate(name, params) {
     case 'setChartTerm': {
       const v = p.term
       if (v === 'super' || v == null) return { params: { term: 'super' } }
-      if (!isInt(v) || v < 0) return { err: `setChartTerm 的 term 只能是 'super' 或非负整数，收到 ${JSON.stringify(v)}` }
+      if (!isInt(v) || v < 0) {
+        return { err: t('orbit.act.err.chartTerm', { v: JSON.stringify(v) }) }
+      }
       return { params: { term: v } }
     }
 
     case 'linkRadialTo3D': {
       const v = Number(p.radius)
       if (!Number.isFinite(v) || v < 0 || v > 200) {
-        return { err: `linkRadialTo3D 的 radius 只能是 0..200（a₀），收到 ${JSON.stringify(p.radius)}` }
+        return { err: t('orbit.act.err.radius', { v: JSON.stringify(p.radius) }) }
       }
       return { params: { radius: v } }
     }
 
     case 'focusChart': {
-      const t = (p.target == null) ? 'none' : p.target
-      if (['radial', 'section', 'thetaPhi', 'none'].indexOf(t) < 0) {
-        return { err: `focusChart 的 target 只能是 radial / section / thetaPhi / none，收到 ${JSON.stringify(p.target)}` }
+      // ★ 同样避开 `t` 这个变量名（见 setSuperposition 处的说明）
+      const target = (p.target == null) ? 'none' : p.target
+      if (['radial', 'section', 'thetaPhi', 'none'].indexOf(target) < 0) {
+        return { err: t('orbit.act.err.focusTarget', { v: JSON.stringify(p.target) }) }
       }
-      return { params: { target: t } }
+      return { params: { target } }
     }
 
     case 'animateIsosurfaceLevel': {
       const f = Number(p.from)
       const t2 = Number(p.to)
       if (!Number.isFinite(f) || !Number.isFinite(t2)) {
-        return { err: 'animateIsosurfaceLevel 需要数值 from 与 to（0.003..0.8 的比值）' }
+        return { err: t('orbit.act.err.animNumbers') }
       }
       if (f < 0.003 || f > 0.8 || t2 < 0.003 || t2 > 0.8) {
-        return { err: `from/to 只能在 0.003..0.8，收到 ${f} → ${t2}` }
+        return { err: t('orbit.act.err.animRange', { from: f, to: t2 }) }
       }
       const d = (p.durationMs == null) ? 1200 : Number(p.durationMs)
       if (!Number.isFinite(d) || d < 300 || d > 6000) {
-        return { err: `durationMs 只能是 300..6000，收到 ${JSON.stringify(p.durationMs)}` }
+        return { err: t('orbit.act.err.animDuration', { v: JSON.stringify(p.durationMs) }) }
       }
       return { params: { from: f, to: t2, durationMs: d } }
     }
 
     case 'setRelPhase': {
       const v = Number(p.phase)
-      if (!Number.isFinite(v)) return { err: `setRelPhase 需要数值 phase，收到 ${JSON.stringify(p.phase)}` }
+      if (!Number.isFinite(v)) {
+        return { err: t('orbit.act.err.phase', { v: JSON.stringify(p.phase) }) }
+      }
       return { params: { phase: v } }
     }
 
+    case 'setOrbitalStyle': {
+      if (typeof p.key !== 'string' || !p.key) {
+        return { err: t('orbit.act.err.styleKey') }
+      }
+      const out = { key: p.key }
+      let any = false
+      if (p.color !== undefined) {
+        const c = checkColor(p.color)
+        if (c.err) return c
+        out.color = c.params.color
+        any = true
+      }
+      if (p.visible !== undefined) {
+        if (typeof p.visible !== 'boolean') {
+          return { err: t('orbit.act.err.styleVisible') }
+        }
+        out.visible = p.visible
+        any = true
+      }
+      if (!any) {
+        return { err: t('orbit.act.err.styleNeedsOne') }
+      }
+      return { params: out }
+    }
+
+    case 'clearOrbitals': {
+      const extra = Object.keys(p).filter((k) => p[k] !== undefined && p[k] !== null)
+      if (extra.length) {
+        return { err: t('orbit.act.err.clearOrbitalsArgs', { extra: extra.join(',') }) }
+      }
+      return { params: {} }
+    }
+
     case 'restoreState': {
-      if (!p.state || typeof p.state !== 'object') return { err: 'restoreState 需要 state 对象' }
+      if (!p.state || typeof p.state !== 'object') {
+        return { err: t('orbit.act.err.restoreNeedsState') }
+      }
       return { params: { state: p.state } }
     }
 
     default:
-      return { err: `orbit 模块不支持动作：${name}` }
+      return { err: t('orbit.act.err.unknownAction', { name }) }
   }
 }
 
@@ -484,7 +724,9 @@ export function validate(name, params) {
 function pick(name, p, key, allowed) {
   const e = enumErr(name, key, p[key], allowed)
   if (e) return e
-  if (p[key] == null) return { err: `${name} 需要 ${key}（${allowed.join(' / ')}）` }
+  if (p[key] == null) {
+    return { err: t('orbit.act.err.pickNeeded', { name, key, allowed: allowed.join(' / ') }) }
+  }
   return { params: { [key]: p[key] } }
 }
 

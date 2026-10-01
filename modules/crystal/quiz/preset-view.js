@@ -27,6 +27,7 @@
  *      必须**排在 setView 之后**，不能寄望于"顺序无关"。
  */
 
+import { t } from '../i18n-live.js'
 import { STACKING_BY_CRYSTAL } from './data/crystal-facts.js'
 
 /** 合法的视角取值（`ViewerCanvas.setView` 只认这四个） */
@@ -218,7 +219,7 @@ function toActions({ crystalId, modelType, layers, view, highlight, notes }) {
   // 高亮：P4 前 `highlightAtoms` 尚未实现，用"隐藏其他元素"近似达到突出目标的效果。
   // ★ 不静默丢弃：面板会看到这条 note，从而知道"为什么没有真正的高亮"。
   if (highlight && highlight.length) {
-    notes.push(`预置了高亮 ${highlight.join('/')}；当前版本用图层与视角近似，highlightAtoms 待 P4`)
+    notes.push(t('crystal.t.quiz-preset-view.1', { p1: (highlight.join('/')) }))
   }
 
   if (view && VIEW_DIRECTIONS.includes(view)) {
@@ -238,9 +239,9 @@ function describeLayers(layers) {
   const on = Object.entries(layers).filter(([, v]) => v).map(([k]) => k)
   const off = Object.entries(layers).filter(([, v]) => !v).map(([k]) => k)
   const parts = []
-  if (on.length) parts.push(`打开 ${on.join('、')}`)
-  if (off.length) parts.push(`关闭 ${off.join('、')}`)
-  return `把视图调到这道题需要的样子：${parts.join('；')}。`
+  if (on.length) parts.push(t('crystal.t.quiz-preset-view.2', { p1: (on.join('、')) }))
+  if (off.length) parts.push(t('crystal.t.quiz-preset-view.3', { p1: (off.join('、')) }))
+  return t('crystal.t.quiz-preset-view.4', { p1: (parts.join('；')) })
 }
 
 /**
@@ -275,7 +276,7 @@ export function assertPresetInvariants(preset) {
   }
   // ④ 每步都要有旁白（演示的硬要求）
   for (const [i, a] of acts.entries()) {
-    if (!a.speech) problems.push(`第 ${i + 1} 步缺旁白（画面会莫名跳一下）`)
+    if (!a.speech) problems.push(t('crystal.t.quiz-preset-view.5', { p1: (i + 1) }))
   }
   return problems
 }

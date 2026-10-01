@@ -20,6 +20,11 @@
  *   未接入的模块**如实弱化标注**（而不是藏起来、也不是假可点）：
  *   让人看得到完整蓝图，同时不误以为它已经能用。
  */
+// ★ 只有"带变量的提示语"走 t()（扫描替换对不了变量）；
+//   纯静态文案仍留在模板里交给扫描替换 —— 见文件内 onLangChange 的说明。
+//   ★ 这里用 `@i18n` 别名（与 main.js 一致）：本文件只被 vite 加载。
+//     守卫在 Node 里 import 的是**字典文件**，那些才必须走相对路径。
+import { t, tsrc } from '@i18n/index.js'
 
 /**
  * 模块 id → 一句话能力概述（展现层的内容）。
@@ -28,11 +33,27 @@
  *   那是一份**路由用的关键词表**（"NaCl"、"CsCl"、"面心立方"…），
  *   直接铺到界面上会变成一串名词。界面要的是一句人能读懂的话，
  *   那是**表现层的职责**——所以放在这里，而不是塞进 descriptor。
+ *
+ * ★ 这一段文案**取自参赛配图**（`比赛配图-1.pptx` 第 1 页的模块卡副标题）：
+ *   轨道视界「类氢原子轨道三维可视化」· 点群观鉴「分子对称性与分子点群」·
+ *   晶典在线「晶体结构与点阵型式」。门户与配图口径一致，评审对照时不会两套说法。
  */
 const MODULE_BLURB = {
-  orbit: '径向分布 · 角度分布 · 节面',
-  symmetry: '对称元素 · 点群 · 特征标表',
-  crystal: '晶体库 · 配位环境 · 空隙分布',
+  orbit: '类氢原子轨道三维可视化',
+  symmetry: '分子对称性与分子点群',
+  crystal: '晶体结构与点阵型式',
+}
+
+/**
+ * 模块 id → 配图底部那句"学生得到什么"。
+ *
+ * ★ 与上面的副标题分工不同：副标题说的是"这里面有什么"，这一句说的是
+ *   **学完之后能做什么**（可观察 / 易剖析 / 得贯通）。行内两段并列显示。
+ */
+const MODULE_TAGLINE = {
+  orbit: '微观世界可观察',
+  symmetry: '结构规律易剖析',
+  crystal: '构效关系得贯通',
 }
 
 export class HomePage {
@@ -116,6 +137,20 @@ export class HomePage {
   }
 
   /**
+   * 语言变更时重挂自己。
+   *
+   * ★ 静态文案（"界面风格""即将接入"…）不需要这一手 —— 运行时的 `restore` + `sweep`
+   *   已经把它们换好了。需要重挂的是**走 `t()` 取值**的那几处：
+   *   行的 `title` 提示（"进入晶体结构"/"…：尚未接入本应用"）与列表与提示语 ——
+   *   它们的值在渲染那一刻算出来，DOM 扫描够不着（见 packages/i18n 的两张表说明）。
+   * ★ 首页重挂的代价只是拼一次 innerHTML，没有 WebGL、没有异步流水线，所以直接重挂。
+   *   （轨道页那种"重建要十几秒"的页面**不能**这么做，见 router._notifyLang。）
+   */
+  onLangChange() {
+    if (this._container) this.mount(this._container)
+  }
+
+  /**
    * 首页底部的设置区（界面风格 · 界面语言 · 打开完整设置）。
    *
    * ★ 只渲染**真的接上了**的行：回调没给就不出这一行，而不是给出一个
@@ -132,10 +167,14 @@ export class HomePage {
           [['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']]) + '</span></div>')
     }
     if (this._ui.getLang && this._ui.onLang) {
+      // ★ 这里原来还有一句「全站生效：切完页面与图表一起变，不会重算几何」——
+      //   已删。理由：它是**给实现者看的**（当初 i18n 刚落地时的必要说明），
+      //   对用户既不是选择依据、也不是操作指引；而"不会重算几何"这种话
+      //   用户本来就不该操心（重不重建是我们的实现细节）。
+      //   真正需要可发现性的是"**哪里**还能换语言" → 设置弹层里也放了一项。
       rows.push('<div class="pl-set-row"><span class="pl-set-label">界面语言</span>'
         + '<span class="pl-seg">' + segOf('lang', this._ui.getLang() || 'zh',
-          [['zh', '中文'], ['en', 'English']]) + '</span>'
-        + '<span class="pl-set-hint">目前作用于「点群观鉴」</span></div>')
+          [['zh', '中文'], ['en', 'English']]) + '</span></div>')
     }
     if (this._ui.onOpenSettings) {
       rows.push('<div class="pl-set-row"><span class="pl-set-label">模型与教学偏好</span>'
@@ -150,13 +189,24 @@ export class HomePage {
       const no = String(m.teachingOrder || (i + 1)).padStart(2, '0')
       const ok = this._available.has(m.id)
       const blurb = MODULE_BLURB[m.id] || ''
+      const tagline = MODULE_TAGLINE[m.id] || ''
       const badge = ok ? '' : '<span class="pl-badge">即将接入</span>'
+      // ★ 提示语里带模块名 ⇒ **必须走键**（扫描替换对不了变量）；
+      //   而 `即将接入` 之类的纯静态文案仍留在模板里，交给扫描替换 —— 少一处键。
+      // ★ 模块名（descriptor 的 `title`）本身是**中文原文**，虽然登记在 agent 区的
+      //   `text` 表里，但**嵌进句子之后就不再是独立的文本节点**，扫描替换够不着它 ——
+      //   不翻一道会得到 "Open「晶体结构」" 这种半英半中。
+      const title = tsrc(m.title || m.id) || m.title || m.id
+      const tip = ok
+        ? t('shell.home.enter', { title })
+        : t('shell.home.locked', { title })
       return `
         <button class="pl-row${ok ? '' : ' is-locked'}" type="button" data-module="${m.id}"
-                title="${ok ? '进入' + (m.title || m.id) : (m.title || m.id) + '：尚未接入本应用'}">
+                title="${tip}">
           <span class="pl-no">${no}</span>
           <span class="pl-name">${m.title || m.id}</span>
           <span class="pl-blurb">${blurb}</span>
+          <span class="pl-tag">${tagline}</span>
           ${badge}
           <span class="pl-arrow">→</span>
         </button>`
@@ -166,7 +216,7 @@ export class HomePage {
       <div class="portal">
         <header class="pl-head">
           <h1>结构化学<br><span>教学智能体</span></h1>
-          <p class="pl-sub">一个中枢 · 可插拔教学模块 —— 问它问题，它会一边讲一边把画面演出来</p>
+          <p class="pl-sub">场景感知式 AI 教学智能体 —— 揭秘微观结构 · 启发深度思考 · 引导自主学习</p>
         </header>
         <nav class="pl-list">${rows}</nav>
         ${this._renderSettings()}
@@ -197,7 +247,7 @@ export class HomePage {
         /* 每一行：序号 / 名称 / 概述 / 箭头；用细线分隔，不用边框盒 */
         .pl-row {
           display: grid;
-          grid-template-columns: 3.2em minmax(6.5em, auto) 1fr auto auto;
+          grid-template-columns: 3.2em minmax(6.5em, auto) 1fr auto auto auto;
           align-items: baseline; gap: 20px;
           padding: 22px 4px;
           background: none; border: 0; font: inherit; text-align: left;
@@ -221,6 +271,14 @@ export class HomePage {
           color: var(--text-dim, #9aa7c6);
           transition: color .22s ease;
         }
+        /* 「学生得到什么」那一句：比概述更弱一档（它是结论，不是内容清单）。
+           与配图底部三块一一对应：微观世界可观察 / 结构规律易剖析 / 构效关系得贯通。 */
+        .pl-tag {
+          font-size: 11.5px; letter-spacing: .08em;
+          color: var(--text-dim, #9aa7c6); opacity: .7;
+          white-space: nowrap;
+        }
+        .pl-row:hover .pl-tag { color: var(--accent, #7c9cf5); opacity: 1; }
         .pl-arrow {
           font-size: 15px; color: var(--accent, #7c9cf5); opacity: .5;
           transition: transform .22s ease, opacity .22s ease;
@@ -283,6 +341,7 @@ export class HomePage {
           .pl-head { margin-bottom: 48px; }
           .pl-row { grid-template-columns: 2.6em 1fr auto; row-gap: 6px; }
           .pl-blurb { grid-column: 2 / -1; }
+          .pl-tag { display: none; }
           .pl-badge { display: none; }
         }
       </style>`

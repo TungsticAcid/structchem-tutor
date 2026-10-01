@@ -1,3 +1,4 @@
+import { t, tr } from './i18n-live.js'
 /**
  * compare-tools.js — 双晶体对比（数据层）
  *
@@ -54,10 +55,7 @@ export function createCompareTools(opts = {}) {
   const defs = {
     query: [
       def('compareCrystals',
-        '对比两个晶体的**结构化差异**，含逐字段对照（晶系/空间群/点阵型式/结构基元/配位数/'
-        + '堆积方式）与由程序计算的数值对照（晶胞体积/密度/最近邻/晶胞原子数）。'
-        + '返回里 `differences` 列出**不相同的字段**，那是"有什么区别"的直接答案。'
-        + '两个 id 必须来自 listCrystals 的返回值，禁止编造。', {
+        '对比两个晶体的**结构化差异**，含逐字段对照（晶系/空间群/点阵型式/结构基元/配位数/堆积方式）与由程序计算的数值对照（晶胞体积/密度/最近邻/晶胞原子数）。返回里 `differences` 列出**不相同的字段**，那是"有什么区别"的直接答案。两个 id 必须来自 listCrystals 的返回值，禁止编造。', {
         a: { type: 'string', description: '第一个晶体的 id' },
         b: { type: 'string', description: '第二个晶体的 id' },
       }, ['a', 'b']),
@@ -73,15 +71,17 @@ export function createCompareTools(opts = {}) {
 
       const A = loadData(idA)
       const B = loadData(idB)
-      if (!A) return { error: `未找到晶体：${idA}（id 必须来自 listCrystals 的返回值）` }
-      if (!B) return { error: `未找到晶体：${idB}（id 必须来自 listCrystals 的返回值）` }
+      if (!A) return { error: t('crystal.t.compare-tools.1', { p1: (idA) }) }
+      if (!B) return { error: t('crystal.t.compare-tools.2', { p1: (idB) }) }
 
       // ---- 字段对照（逐项标明异同）----
       const fields = ['formula', 'crystalSystem', 'spaceGroup', 'latticeType',
         'structuralUnit', 'coordination', 'packingDescription', 'spaceUtilization']
       const rows = fields.map((f) => ({
         field: f,
-        label: FIELD_LABELS[f] || f,
+        // ★ 字段名要过 tr()：它最终会出现在"逐字段对照"的文本里（给模型读），
+        //   而那是**拼出来**的整段，扫描替换与 handler 边界的整串查表都够不着它。
+        label: tr(FIELD_LABELS[f] || f),
         a: A[f] == null ? '' : String(A[f]),
         b: B[f] == null ? '' : String(B[f]),
         same: String(A[f] == null ? '' : A[f]) === String(B[f] == null ? '' : B[f]),
@@ -104,10 +104,10 @@ export function createCompareTools(opts = {}) {
       const nb = num(B)
 
       const numeric = [
-        { label: '晶胞内原子数', a: na.atomCount, b: nb.atomCount, unit: '' },
-        { label: '晶胞体积', a: na.cellVolumeA3, b: nb.cellVolumeA3, unit: 'Å³' },
-        { label: '理论密度', a: na.density, b: nb.density, unit: 'g/cm³' },
-        { label: '最近邻同种原子间距', a: na.nearestNeighborA, b: nb.nearestNeighborA, unit: 'Å' },
+        { label: tr('晶胞内原子数'), a: na.atomCount, b: nb.atomCount, unit: '' },
+        { label: tr('晶胞体积'), a: na.cellVolumeA3, b: nb.cellVolumeA3, unit: 'Å³' },
+        { label: tr('理论密度'), a: na.density, b: nb.density, unit: 'g/cm³' },
+        { label: tr('最近邻同种原子间距'), a: na.nearestNeighborA, b: nb.nearestNeighborA, unit: 'Å' },
       ].map((r) => Object.assign(r, { same: r.a === r.b }))
 
       const differences = rows.filter((r) => !r.same).map((r) => r.label)

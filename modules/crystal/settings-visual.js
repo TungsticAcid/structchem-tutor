@@ -18,6 +18,7 @@
  *   重建由宿主在保存后调用适配器的 `refreshScene()` 完成——
  *   见 `adapters/viewer-page-adapter.js` 里那段说明。
  */
+import { t, tr } from './i18n-live.js'
 import {
   getVisualColor, setVisualColor, resetVisualColors,
   getElementColor, setElementColor, resetElementColors, getElementColorOverrides,
@@ -53,10 +54,15 @@ export function elementColorItems() {
   return Object.keys(elementsData)
     .map((sym) => {
       const e = elementsData[sym] || {}
+      // ★ 这一串是**拼出来的**（符号 + 元素名 + 原子序数 + 自定义标记），
+      //   所以整串过不了字典，必须逐段走 t()/tr()：
+      //   「（1号）」在英文里要写成「(No. 1)」，靠翻译一个"号）"是拼不出来的。
+      const mark = overrides[sym] ? tr(' · 已自定义') : ''
       return {
         key: sym,
-        label: sym + ' ' + (e.name || '') + (e.atomicNumber ? '（' + e.atomicNumber + '号）' : '')
-          + (overrides[sym] ? ' · 已自定义' : ''),
+        label: e.atomicNumber
+          ? t('crystal.elem.item', { sym, name: tr(e.name || ''), n: e.atomicNumber }) + mark
+          : (sym + ' ' + tr(e.name || '')).trim() + mark,
         color: getElementColor(sym),
         order: e.atomicNumber || 999,
       }

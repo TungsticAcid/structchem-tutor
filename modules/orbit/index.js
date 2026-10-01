@@ -19,6 +19,12 @@
 import { createOrbitFacade } from './facade.js'
 import { createOrbitTools } from './tools.js'
 import { VOCAB, listActions, labels as actionLabels } from './actions.js'
+// ★ 字典必须被**真的 import**（副作用注册），否则守卫会绿而界面照旧中文——
+//   扫描替换 `sweep()` 只认"已经注册过译文"的原文，没注册就一个字都不换。
+//   放在这一行（其它 import 之前）是刻意的：本文件与 façade 都在模块求值阶段
+//   用 t()，字典晚一步注册就会把键名当成文案。
+import './i18n.js'
+import { t } from '../../packages/i18n/index.js'
 // 装配期校验「宿主有没有给够」——本模块全是可选项（降级是设计好的），理由见该文件
 import { enforceHostRequirements } from '../../packages/module-contract/index.js'
 import { HOST_REQUIREMENTS } from './host-requirements.js'
@@ -60,7 +66,8 @@ export function createModule(opts = {}) {
 
   return {
     id: 'orbit',
-    title: '原子轨道',
+    /** 模块标题：取值器，理由见 facade.js 里同名的那一段 */
+    get title() { return t('orbit.title') },
     facade,
     defs: tools.defs,
     handlers: tools.handlers,
@@ -95,27 +102,28 @@ export function createModule(opts = {}) {
     /** 动作名 → 短标签（面板的动作气泡用） */
     actionLabels: actionLabels(),
     /** 模块的提示词片段（人格 + 领域约定） */
-    /** 面板空态的开场白（模块自己提供，理由见 crystal 模块里那段说明）。 */
-    greeting: [
-      '<b>我是结构化学教学智能体 · 原子轨道</b><br>',
-      '我能读出当前的量子数与画法，也能把轨道摆到你面前。<br><br>',
-      '试试：<br>',
-      '· 「4p 有几个径向节面，各在多少 a₀」<br>',
-      '· 「把 m 改成 1，切到复函数」<br>',
-      '· 「sp³ 的四个轨道为什么指向正四面体」',
-    ].join(''),
-    roleHint: [
-      '你正在使用**原子轨道**模块。',
-      '★ 一切数值（节点数、径向峰位、能级、简并度、力学量）**必须用 queryOrbital 取得**，',
-      '  不要凭记忆或口算——"3d 有几个节面"你当然答得出，但"5g 的径向节点半径是多少"',
-      '  正是本模块要解决的问题，而它与你的记忆不一致时，正确的一方永远是从结构算出来的那个。',
-      '演示优先：能用 setQuantumNumbers / setIsosurfaceLevel / setSectionPlane 讲清楚的，',
-      '  就不要只用文字描述。化学约定 **z 轴是量化轴**——讲角度节面时先说清这一点。',
-      '讲实轨道与复轨道的区别时，切到球谐档（setViewTarget: spherical）；',
-      '  讲"角度分布的 Y 与 Y² 差在哪"时用 setAngularView。',
-      '★ 叠加态（setSuperposition）的教学要点是 |ψ|² 里的**干涉项**——它与"概率简单相加"的本质区别。',
-      'id 必须来自工具返回值，不可编造。',
-    ].join('\n'),
+    /**
+     * 面板空态的开场白（模块自己提供，理由见 crystal 模块里那段说明）。
+     * ★ 取值器：这段 HTML 会被面板插进空态，里面的中文由 `text` 表扫描替换 ——
+     *   而如果它被冻在装配时的语言上，切过语言之后再建面板就会退回旧语言。
+     *   改成取值器之后每次读取都是当前语言。
+     */
+    get greeting() {
+      return [
+        '<b>我是结构化学教学智能体 · 原子轨道</b><br>',
+        '我能读出当前的量子数与画法，也能把轨道摆到你面前。<br><br>',
+        '试试：<br>',
+        '· 「4p 有几个径向节面，各在多少 a₀」<br>',
+        '· 「把 m 改成 1，切到复函数」<br>',
+        '· 「sp³ 的四个轨道为什么指向正四面体」',
+      ].join('')
+    },
+    /**
+     * 系统提示词片段。
+     * ★ 取值器：`buildSystem()` 每一轮都会读它，冻成常量的话切了语言之后
+     *   模型收到的仍是旧语言的模块约定（而这不报错）。
+     */
+    get roleHint() { return t('orbit.roleHint') },
     /**
      * 页面挂载时把运行时交进来；卸载时交还。
      * ★ 暴露在模块包上（而不只是门面上）是为了让壳的装配代码一眼看到
@@ -129,7 +137,8 @@ export function createModule(opts = {}) {
 /** 模块自述（供 registry 与壳展示） */
 export const MODULE_INFO = {
   id: 'orbit',
-  title: '原子轨道',
+  /** 取值器：门户卡片与「进入{title}」都在渲染时现取 */
+  get title() { return t('orbit.title') },
   /** 动作词汇表按需提供（不进常驻上下文） */
   vocabularySize: listActions().length,
 }

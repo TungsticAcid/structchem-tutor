@@ -13,6 +13,7 @@
  * ★ 本文件不 import three.js/DOM，可在 Node 里测试（几何计算来自 packages/viewer/geometry.js，
  *   那是纯数学）。
  */
+import { t } from './i18n-live.js'
 import { fractionalToCartesian } from '../../packages/viewer/geometry.js'
 import { parseFormula, molarMass, AVOGADRO } from '../../packages/knowledge/shared/formula.js'
 import { LAYER_PROPS, listActions } from './actions.js'
@@ -63,21 +64,21 @@ export function computeDensity(crystalData) {
   const counts = parseFormula(formula)
   const { mass, unknown } = molarMass(counts)
   if (unknown.length) {
-    return { unknownElements: unknown, err: `化学式 ${formula} 含元素表中的未知元素：${unknown.join(', ')}` }
+    return { unknownElements: unknown, err: t('crystal.t.tools.1', { p1: (formula), p2: (unknown.join(', ')) }) }
   }
-  if (!(mass > 0)) return { err: `化学式 ${formula} 解析不出元素` }
+  if (!(mass > 0)) return { err: t('crystal.t.tools.2', { p1: (formula) }) }
 
   // 每个化学式单位含几个原子（NaCl → 2，Cu → 1）
   const atomsPerFormula = Object.values(counts).reduce((a, b) => a + b, 0)
-  if (!(atomsPerFormula > 0)) return { err: `化学式 ${formula} 解析不出原子数` }
+  if (!(atomsPerFormula > 0)) return { err: t('crystal.t.tools.3', { p1: (formula) }) }
 
   const cellAtoms = atomCount(crystalData)
   if (!(cellAtoms > 0)) return { err: '晶胞内没有原子' }
   const Z = cellAtoms / atomsPerFormula
   if (!Number.isInteger(Z)) {
     // 不为整数说明"晶胞内容"与"化学式"对不上——这本身是数据问题，必须报出来而不是四舍五入
-    return { err: `晶胞内 ${cellAtoms} 个原子 ÷ 每单位 ${atomsPerFormula} 个原子 = ${Z}，不是整数：`
-      + `说明数据里的化学式与晶胞内容对不上（见 数据核查报告.md 的结构基元自洽性检查）` }
+    return { err: t('crystal.t.tools.4', { p1: (cellAtoms), p2: (atomsPerFormula), p3: (Z) })
+      + t('crystal.t.tools.5') }
   }
 
   const density = (Z * mass) / (AVOGADRO * V * ANG3_TO_CM3)
@@ -85,7 +86,7 @@ export function computeDensity(crystalData) {
     density: +density.toFixed(4),
     formula: 'ρ = Z·M/(N_A·V)',
     Z,
-    Znote: `Z = ${Z}（化学式单位数 = 晶胞内 ${cellAtoms} 个原子 ÷ 每单位 ${atomsPerFormula} 个原子）`,
+    Znote: t('crystal.t.tools.6', { p1: (Z), p2: (cellAtoms), p3: (atomsPerFormula) }),
     molarMass: +mass.toFixed(3),
     volumeA3: +V.toFixed(4),
     crystalFormula: formula,
@@ -108,7 +109,7 @@ export function nearestSameAtomDistance(crystalData, element) {
   const lat = crystalData.lattice
   if (!lat) return { err: '缺少晶胞参数' }
   const groups = (crystalData.atoms || []).filter((g) => !element || g.element === element)
-  if (!groups.length) return { err: `数据里没有元素 ${element}` }
+  if (!groups.length) return { err: t('crystal.t.tools.7', { p1: (element) }) }
 
   const origin = fractionalToCartesian([0, 0, 0], lat)
   const toCart = (f) => {
@@ -168,19 +169,13 @@ export function createCrystalTools(opts = {}) {
   const defs = {
     read: [],
     query: [
-      def('listCrystals', '列出全部可用的晶体（id / 名称 / 化学式 / 晶系 / 类别）。'
-        + '用于回答"有哪些晶体"以及**取得合法 id**——id 必须来自本工具返回的原值，禁止编造。', {
+      def('listCrystals', '列出全部可用的晶体（id / 名称 / 化学式 / 晶系 / 类别）。用于回答"有哪些晶体"以及**取得合法 id**——id 必须来自本工具返回的原值，禁止编造。', {
         category: { type: 'string', description: '可选：按类别筛选（metal/ionic/covalent/molecular）' },
       }),
-      def('getCrystalDetail', '取某个晶体的结构化字段：点阵型式、空间群、配位、结构基元、空间利用率等。'
-        + '这些是**数据里既有的字段**，原样返回，不做推导。', {
+      def('getCrystalDetail', '取某个晶体的结构化字段：点阵型式、空间群、配位、结构基元、空间利用率等。这些是**数据里既有的字段**，原样返回，不做推导。', {
         crystalId: { type: 'string', description: '晶体 id，必须来自 listCrystals 的返回值' },
       }, ['crystalId']),
-      def('queryCrystal', '查询晶体的**确定性数值**（一律由程序计算，不得口算）。'
-        + 'kind 取值：'
-        + 'summary=字段汇总；cellVolume=晶胞体积(Å³)；density=密度(g/cm³，ρ=Z·M/(N_A·V))；'
-        + 'nearestNeighbor=最近邻同种原子间距(Å，已计入周期性镜像)；'
-        + 'atoms=晶胞内原子数与元素清单；interstices=空隙位置与数量。', {
+      def('queryCrystal', '查询晶体的**确定性数值**（一律由程序计算，不得口算）。kind 取值：summary=字段汇总；cellVolume=晶胞体积(Å³)；density=密度(g/cm³，ρ=Z·M/(N_A·V))；nearestNeighbor=最近邻同种原子间距(Å，已计入周期性镜像)；atoms=晶胞内原子数与元素清单；interstices=空隙位置与数量。', {
         crystalId: { type: 'string', description: '晶体 id，必须来自 listCrystals 的返回值' },
         kind: { type: 'string', enum: ['summary', 'cellVolume', 'density', 'nearestNeighbor', 'atoms', 'interstices'] },
         element: { type: 'string', description: 'nearestNeighbor 用：指定元素符号，缺省取数据里第一种' },
@@ -201,7 +196,7 @@ export function createCrystalTools(opts = {}) {
 
     getCrystalDetail(p) {
       const d = loadData(p.crystalId)
-      if (!d) return { error: `未找到晶体：${p.crystalId}（id 必须来自 listCrystals 的返回值）` }
+      if (!d) return { error: t('crystal.t.tools.8', { p1: (p.crystalId) }) }
       return {
         id: d.id, name: d.name, formula: d.formula,
         crystalSystem: d.crystalSystem, spaceGroup: d.spaceGroup,
@@ -214,7 +209,7 @@ export function createCrystalTools(opts = {}) {
 
     queryCrystal(p) {
       const d = loadData(p.crystalId)
-      if (!d) return { error: `未找到晶体：${p.crystalId}（id 必须来自 listCrystals 的返回值）` }
+      if (!d) return { error: t('crystal.t.tools.9', { p1: (p.crystalId) }) }
       switch (p.kind) {
         case 'summary': {
           const vol = cellVolume(d.lattice)
@@ -258,7 +253,7 @@ export function createCrystalTools(opts = {}) {
           }
         }
         default:
-          return { error: `未知 kind：${p.kind}` }
+          return { error: t('crystal.t.tools.10', { p1: (p.kind) }) }
       }
     },
   }

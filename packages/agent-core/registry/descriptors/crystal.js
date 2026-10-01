@@ -12,9 +12,22 @@
  *      故 `tools` 为空——这是如实声明，不是遗漏。下方 12 个工具全部在 plannedTools。
  *      清单来自重构计划阶段 B6/C；`loadKnowledge`/`loadSkill` 由核心提供，无需声明。
  */
+// ★ 路由关键词是**数据**，不是界面文案：`routeByText()` 拿它做子串匹配。
+//   翻译它没有意义（英文用户不会打出中文关键词），正确做法是**中英并列**——
+//   两语清单都存在 `packages/agent-core/i18n.js` 的 `keywords` 表里，这里取出来用。
+import { keywords } from '../../i18n.js'
+import { t } from '../../../i18n/index.js'
+
+/** 取一条双语关键词（`|` 分隔；见 i18n.js 的 keywords 表） */
+const kw = (key) => String(keywords[key] || '').split('|').filter(Boolean)
+
 export default {
   id: 'crystal',
-  title: '晶体结构',
+  // ★ 模块名走 `text` 表（它会作为**文本节点**渲染在门户首页的模块卡上）。
+  //   刻意**不**在 descriptor 里调 t()：`registerModule()` 会对 descriptor 做
+  //   展开赋值，访问器在那里就被求值冻住了，之后换语言不会更新。
+  // ★ 名字取自参赛配图（见 orbit.js 的同一段说明）。
+  title: '晶典在线',
   scale: 'full',
   /** 授课次序（见 orbit.js 里对该字段的完整说明）。晶体结构排在分子对称性之后。 */
   teachingOrder: 3,
@@ -22,12 +35,11 @@ export default {
   entry: '#/crystal',   // 统一壳里的路由（旧值 projects/crystal/H5/index.html 是独立页）
 
   // ★ 路由依据：中枢凭这张表把用户问题分派过来
+  //   （中英关键词并集；不含中文的专名直接写在这里——任何语言下都该匹配）
   capabilities: {
-    structures: ['晶体', '晶胞', '点阵', '堆积', '配位', '空隙', '空间群', '晶格',
-                 'NaCl', 'CsCl', '金刚石', '石墨', '干冰', '石英', '钙钛矿',
-                 '面心立方', '体心立方', '六方最密', '密堆积', '球棍模型', 'CPK'],
-    symmetryInCrystal: ['对称元素', '旋转轴', '镜面', '等效点系', '布拉维'],
-    structureProperty: ['同素异形体', '结构决定性质'],
+    structures: kw('agent.kw.crystal.structures').concat(['NaCl', 'CsCl', 'CPK']),
+    symmetryInCrystal: kw('agent.kw.crystal.symmetryInCrystal'),
+    structureProperty: kw('agent.kw.crystal.structureProperty'),
   },
 
   knowledge: 'crystal',          // packages/knowledge/crystal/（44 条已写好：c1–c8）
@@ -79,7 +91,7 @@ export default {
 
   // 模块专属决策节点
   extraNodes: {
-    compare: { note: '使用通用 compare 节点，此处仅登记本模块的对象类型为 crystalId' },
+    get compare() { return { note: t('agent.descriptor.crystal.compareNote') } },
   },
 
   // 模块贡献的主动介入规则
@@ -101,12 +113,13 @@ export default {
   proactiveRules: [
     {
       id: 'crystal-idle-structure',
-      desc: '在同一种晶体上停留较久且几乎没操作 → 建议打开空隙图层看看',
+      get desc() { return t('agent.descriptor.crystal.ruleIdle') },
       check: (trace, state) => !!(state && state.crystal && state.crystal.id)
         && (trace.idleMs || 0) > 45000 && ((trace.recentActions || []).length < 3),
       suggest: [
         {
-          text: '要我把空隙图层打开，看看最密堆积里的空隙分布吗？',
+          // ★ 这条会作为**主动提示卡**显示给学生（也进模型上下文），故走 t()
+          get text() { return t('agent.descriptor.crystal.suggestInterstices') },
           actions: [
             { action: 'setLayer', params: { layer: 'interstices', visible: true } },
             { action: 'setLayer', params: { layer: 'octahedral', visible: true } },
@@ -116,7 +129,7 @@ export default {
     },
     {
       id: 'crystal-layer-fiddling',
-      desc: '反复开关同一图层 → 讲解该图层的晶体学含义',
+      get desc() { return t('agent.descriptor.crystal.ruleLayer') },
       check: (trace) => Object.values((trace && trace.toggleCounts) || {}).some((n) => n >= 3),
       suggest: [],
     },

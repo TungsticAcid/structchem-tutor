@@ -20,6 +20,7 @@
  *      "知识点 × 晶体"的权威判断，再抄一份必然漂移。
  */
 
+import { t, tr } from '../i18n-live.js'
 import { crystalsForKnowledgePoint, KNOWLEDGE_POINTS } from '../quiz/data/kp-crystal-matrix.js'
 
 /** 一个知识点的初始记录 */
@@ -37,8 +38,7 @@ export function createMasteryModel(opts = {}) {
   // ★ 同 panel.js：存储键**必须由宿主注入**，没有缺省值。
   //   「中性缺省名」不算修好——只是把「悄悄共享」换成「悄悄各存各的」，两者都查不出来。
   if (!opts.storageKey) {
-    throw new Error('createMasteryModel 需要 opts.storageKey：'
-      + '存储命名空间必须由宿主注入（契约 HOST_REQUIREMENTS_SHAPE.storage）')
+    throw new Error('createMasteryModel 需要 opts.storageKey：存储命名空间必须由宿主注入（契约 HOST_REQUIREMENTS_SHAPE.storage）')
   }
   const storageKey = opts.storageKey
   const meta = opts.meta || KNOWLEDGE_POINTS
@@ -70,7 +70,7 @@ export function createMasteryModel(opts = {}) {
   function update(kp, delta) {
     const key = normalize(kp)
     load()
-    if (!state[key]) return { error: `未知知识点：${kp}` }
+    if (!state[key]) return { error: t('crystal.t.store-mastery.1', { p1: (kp) }) }
     const s = state[key]
     const d = Number(delta) || 0
     s.score += d
@@ -103,8 +103,10 @@ export function createMasteryModel(opts = {}) {
     load()
     return Object.keys(meta).map((kp) => {
       const s = state[kp]
-      const tag = s.mastered ? '已掌握' : (s.score > 0 ? '学习中' : (s.wrong ? '待巩固' : '未接触'))
-      return `${kp}(${(meta[kp] && meta[kp].label) || kp}):${tag}/${s.score}`
+      // ★ 给模型看的紧凑文本是**拼出来**的：掌握度标签、知识点名都夹在同一串里，
+      //   所以逐个过 tr()（整串查表在这种位置永远命中不了）。
+      const tag = s.mastered ? tr('已掌握') : (s.score > 0 ? tr('学习中') : (s.wrong ? tr('待巩固') : tr('未接触')))
+      return `${kp}(${tr((meta[kp] && meta[kp].label) || kp)}):${tag}/${s.score}`
     }).join('；')
   }
 
@@ -132,7 +134,7 @@ export function createMasteryModel(opts = {}) {
       const s = state[kp]
       return {
         kp,
-        name: (meta[kp] && meta[kp].label) || kp,
+        name: tr((meta[kp] && meta[kp].label) || kp),
         score: s.score,
         mastered: s.mastered,
         relevance: relevanceOf(kp, currentCrystalId),
@@ -144,8 +146,8 @@ export function createMasteryModel(opts = {}) {
     const n = Math.max(1, Math.min(count || 1, 3))
     return {
       recommended: list.slice(0, n),
-      note: '优先推荐掌握度最低、且与当前晶体关联度高的知识点',
-      empty: list.length === 0 ? '全部知识点都已掌握' : '',
+      note: tr('优先推荐掌握度最低、且与当前晶体关联度高的知识点'),
+      empty: list.length === 0 ? tr('全部知识点都已掌握') : '',
     }
   }
 

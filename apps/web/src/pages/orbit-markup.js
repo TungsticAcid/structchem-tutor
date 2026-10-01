@@ -113,10 +113,24 @@ export const ORBIT_HTML = `<div class="orbit-page">
                   title="三个等价 sp² 同屏：共面、互成 120°">sp²</button>
           <button class="seg-btn" data-s="sp"
                   title="两个等价 sp 同屏：成 180° 直线">sp</button>
+          <!--   ★ 自定义档的按钮**故意隐藏**：它不是"点一下进入某个集合"，而是由
+               「＋ 加入当前轨道」进入的状态。但按钮本身必须存在 —— 页面的
+               setSeg / silentSeg 是按 data-s 属性找按钮来打高亮的，
+               （注意本文件整体是一个模板字符串，注释里**不能出现反引号**：）
+               （写一个就会把字符串截断，整页当场 SyntaxError 白屏。）
+               没有它，"进入自定义档"这一步就没有可高亮的按钮，
+               档位状态与界面当场对不上（而且不报错）。 -->
+          <button class="seg-btn" data-s="custom" style="display:none"
+                  title="自定义同屏（由「＋ 加入当前轨道」进入）">自定义</button>
         </div>
-        <div class="set" id="multiChkSet" style="display:none">
-          <div class="row"><label>显示哪几个</label>
-            <div class="seg small" id="multiChkSeg"></div></div>
+        <div class="set" id="multiListSet" style="display:none">
+          <div class="row"><label>同屏轨道</label>
+            <!-- ★ 「＋」是**加一个**，不是"进入另一个模式"：用户的操作序列就是
+                 设好一个轨道 → 加进去 → 再设下一个 → 再加。这样"任意类型轨道
+                 （纯态或叠加态）、任意数量"就是同一句话，不需要另做一套界面。 -->
+            <button type="button" class="mini-btn" id="multiAddBtn">＋ 加入当前轨道</button>
+          </div>
+          <div class="orb-list" id="multiList"></div>
         </div>
         <div class="hint" id="multiHint">开启后，一组等价轨道同时显示，每个一个颜色</div>
 <div id="renderGroup">

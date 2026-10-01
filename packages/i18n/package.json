@@ -1,0 +1,11 @@
+{
+  "name": "@chem-agent/i18n",
+  "version": "0.1.0",
+  "description": "国际化运行时：字典注册、按键取文案、按中文原文扫描替换 DOM、语言单例",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./index.js"
+  },
+  "comment": "刻意保持零依赖：ui-kit 已 import agent-core，若把 i18n 放进 ui-kit，面板再引用它就成环。这个包谁都能 import。"
+}

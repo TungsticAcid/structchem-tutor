@@ -7,7 +7,18 @@
  *   内部逻辑逐字未动——P1 的纪律是"只加 export/import，不动逻辑"，
  *   这样将来与上游对拍时 diff 是可读的。
  * ★ 本文件**不引用 DOM**，可在 Node 里直接测试。
+ *
+ * ---------------------------------------------------------------------------
+ * i18n：本文件里唯一需要翻译的是 `shapeDescribe` / `orbitLabel` 的**返回文案**
+ * ---------------------------------------------------------------------------
+ * 它们经 `queryOrbital` 直接**进模型上下文**、被念给学生听，所以必须跟着语言走。
+ * 取值一律在**调用那一刻**（`shapeDescribe` 每次调用都重新查表），不要在模块
+ * 求值阶段算好存进常量 —— 那会把译文冻住且不报错。
+ *    · 没有变量的整句 → 原文进 `modules/orbit/i18n.js` 的 `text` 表，走 `t(原文)`；
+ *    · 带变量的（`n 个同轴环…`、`在 xy 平面内定向（cos1φ 型）`）→ 走 `zh/en` 的键。
  */
+import '../i18n.js'
+import { t } from '../../../packages/i18n/index.js'
 /**
  * math.js — 原子轨道物理/数学引擎（纯 JS，无外部依赖）
  *
@@ -683,7 +694,11 @@ const OM = (function () {
   // ---------------------------------------------------------------------------
   function orbitLabel(n, l, m, mode) {
     const sub = SUBSHELL[Math.min(l, SUBSHELL.length - 1)];
-    return n + sub + (mode === 'complex' ? ' (复)' : ' (实)');
+    // ★ 走显式键而不是「原文即键」：' (复)' 的首尾空白会被守卫与 tsrc 一起 trim 掉，
+    //   用它当键会把输出里的那个空格也吃掉。而 '复' / '实' 这两个单字**已被
+    //   state-editor 的 text 表占用**（那里是实/复解切换按钮，值是 C / R），
+    //   复用同名键会互相覆盖。
+    return n + sub + (mode === 'complex' ? t('orbit.math.label.complex') : t('orbit.math.label.real'));
   }
   /** 轨道尾部半径（类氢）—— 随 Z 缩为 1/Z，由 samplingRadius 的标度自动带出 */
   function rExtent(n, l, Z) {
@@ -1025,25 +1040,31 @@ const OM = (function () {
   function shapeDescribe(l, m, mode) {
     const am = Math.abs(m);
     if (l === 0) {
-      return { shape: '球形', lobes: 1, axis: '各向同性（密度与 θ、φ 都无关）' };
+      return { shape: t('球形'), lobes: 1, axis: t('各向同性（密度与 θ、φ 都无关）') };
     }
     const axis = mode === 'complex'
-      ? '绕 z 轴旋转对称（密度与 φ 无关）'
-      : (am === 0 ? '沿 z 轴' : '在 xy 平面内定向（' + (m > 0 ? 'cos' : 'sin') + am + 'φ 型）');
+      ? t('绕 z 轴旋转对称（密度与 φ 无关）')
+      : (am === 0 ? t('沿 z 轴')
+        : t('orbit.shape.axisXY', { fn: (m > 0 ? 'cos' : 'sin'), am: am }));
     if (mode === 'complex') {
       const rings = l - am + 1;
       return {
-        shape: rings === 1 ? '环形（赤道环）' : (rings + ' 个同轴环（由锥形节面隔开）'),
+        shape: rings === 1 ? t('环形（赤道环）') : t('orbit.shape.rings', { n: rings }),
         lobes: rings, axis,
       };
     }
     // 实解：m = 0 按惯例只数主瓣（d_z² 是"两瓣 + 赤道环"，不把环算成一瓣）
     const lobes = (am === 0) ? 2 : (2 * am) * (l - am + 1);
-    const names = { 2: '哑铃形（双瓣）', 3: '三瓣形', 4: '四叶草形', 6: '六瓣形', 8: '八瓣形' };
-    let shape = names[lobes] || (lobes + ' 瓣形');
+    // ★ 这张表在**函数体内**（每次调用重建），所以在这里取译文是惰性的；
+    //   挪到模块顶层就会把译文冻住。
+    const names = {
+      2: t('哑铃形（双瓣）'), 3: t('三瓣形'), 4: t('四叶草形'),
+      6: t('六瓣形'), 8: t('八瓣形'),
+    };
+    let shape = names[lobes] || t('orbit.shape.lobes', { n: lobes });
     // m = 0 且 l ≥ 2 的轨道，按 l 一律叫"四叶草形"会与画面不符（它另有同轴的环）
-    if (am === 0 && l === 2) shape = '哑铃形（双瓣）+ 赤道环';
-    else if (am === 0 && l === 3) shape = '哑铃形（双瓣）+ 两个同轴环';
+    if (am === 0 && l === 2) shape = t('哑铃形（双瓣）+ 赤道环');
+    else if (am === 0 && l === 3) shape = t('哑铃形（双瓣）+ 两个同轴环');
     return { shape, lobes, axis };
   }
 

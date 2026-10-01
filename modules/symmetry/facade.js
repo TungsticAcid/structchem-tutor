@@ -21,6 +21,10 @@ import { identifyPointGroup } from './engine/pointGroup.js'
 import { elementKeyList, defaultVisibleKeys, refineSymmetryElements } from './engine/elementNaming.js'
 import { computeCentroid } from './core/structure.js'
 import { EXAMPLES } from './data/examples-index.js'
+// ★ 取译文的三个入口，都是**惰性**的（在被调用的那一刻查表）：
+//   `t(key, vars)` 给带变量/键式文案；`tr(中文原文)` 给"原文本身就是键"的内容数据；
+//   `trDeep` 深度映射对象/数组。见本模块 i18n/index.js 里 text 表的说明。
+import { t, tr, trDeep } from './i18n/index.js'
 
 /**
  * 创建分子对称性模块门面。
@@ -357,20 +361,27 @@ export function createSymmetryFacade(opts = {}) {
     },
   }
 
-  /** 参数校验：取值域由程序把关（CLAUDE.md §一.2） */
+  /**
+   * 参数校验：取值域由程序把关（CLAUDE.md §一.2）
+   *
+   * ★ 错误串**走 `t()` 而不是留在源码里**：它们会原样出现在中枢回报给模型的
+   *   `{ok:false, failed:[{error}]}` 里 —— 那是**模型上下文**，不进 DOM，
+   *   所以 `sweep()` 一个字也换不到。带变量的模板串更是连登记进 text 表都做不到
+   *   （"未知示例 id：benzene" 与 "…：water" 是两条不同原文）。
+   */
   function validate(name, params) {
     const p = params || {}
     /** 布尔类开关的公共校验 */
     const boolOf = (field) => {
-      if (typeof p[field] !== 'boolean') return { err: `${name} 需要 ${field}（true 或 false）` }
+      if (typeof p[field] !== 'boolean') return { err: t('sym.err.bool', { name, field }) }
       return null
     }
     switch (name) {
       case 'loadExample': {
         const id = p.id
-        if (!id || typeof id !== 'string') return { err: 'loadExample 需要 id（字符串）' }
+        if (!id || typeof id !== 'string') return { err: tr('loadExample 需要 id（字符串）') }
         if (!byId.has(id)) {
-          return { err: `未知示例 id：${id}（可用：${[...byId.keys()].slice(0, 8).join(' / ')} …）` }
+          return { err: t('sym.err.unknownExample', { id, list: [...byId.keys()].slice(0, 8).join(' / ') }) }
         }
         return { params: { id } }
       }
@@ -385,11 +396,11 @@ export function createSymmetryFacade(opts = {}) {
       case 'setElementVisible': {
         const keys = elementKeys()
         if (!p.key || typeof p.key !== 'string') {
-          return { err: `setElementVisible 需要 key（字符串），可用：${[...keys].join(' / ') || '（当前无对称元素）'}` }
+          return { err: t('sym.err.needKey', { name, list: [...keys].join(' / ') || tr('（当前无对称元素）') }) }
         }
         if (!keys.has(p.key)) {
-          return { err: `未知对称元素 key：${p.key}（可用：${[...keys].join(' / ')}）`
-            + '——key 必须来自 queryPointGroup 的 elements[].key，不可编造' }
+          return { err: t('sym.err.unknownElementKey', { key: p.key, list: [...keys].join(' / ') })
+            + tr('——key 必须来自 queryPointGroup 的 elements[].key，不可编造') }
         }
         const bad = boolOf('visible')
         return bad || { params: { key: p.key, visible: p.visible } }
@@ -397,10 +408,10 @@ export function createSymmetryFacade(opts = {}) {
       case 'playOperation': {
         const keys = elementKeys()
         if (!p.key || typeof p.key !== 'string') {
-          return { err: `playOperation 需要 key（字符串），可用：${[...keys].join(' / ') || '（当前无对称元素）'}` }
+          return { err: t('sym.err.needKey', { name, list: [...keys].join(' / ') || tr('（当前无对称元素）') }) }
         }
         if (!keys.has(p.key)) {
-          return { err: `未知对称元素 key：${p.key}（可用：${[...keys].join(' / ')}）` }
+          return { err: t('sym.err.unknownElementKey', { key: p.key, list: [...keys].join(' / ') }) }
         }
         return { params: { key: p.key } }
       }
@@ -408,28 +419,34 @@ export function createSymmetryFacade(opts = {}) {
         return { params: {} }
       case 'selectAtom': {
         if (p.key === null || p.key === undefined) return { params: { key: null } }
-        if (typeof p.key !== 'string') return { err: 'selectAtom 的 key 需要字符串或 null' }
+        if (typeof p.key !== 'string') return { err: tr('selectAtom 的 key 需要字符串或 null') }
         const atomKeys = listAtoms().map((a) => a.key)
         if (!atomKeys.includes(p.key)) {
-          return { err: `未知原子 key：${p.key}（可用：${atomKeys.slice(0, 12).join(' / ')}`
-            + `${atomKeys.length > 12 ? ' …' : ''}）——key 来自 queryPointGroup 的 atoms，不可编造` }
+          return { err: t('sym.err.unknownAtomKey', {
+            key: p.key, list: atomKeys.slice(0, 12).join(' / ') + (atomKeys.length > 12 ? ' …' : ''),
+          }) }
         }
         return { params: { key: p.key } }
       }
       case 'setLanguage': {
-        if (p.lang !== 'zh' && p.lang !== 'en') return { err: "setLanguage 需要 lang（'zh' 或 'en'）" }
+        if (p.lang !== 'zh' && p.lang !== 'en') return { err: tr("setLanguage 需要 lang（'zh' 或 'en'）") }
         return { params: { lang: p.lang } }
       }
       default:
-        return { err: `当前模块不支持动作：${name}` }
+        return { err: t('sym.err.unsupportedAction', { name }) }
     }
   }
 
-  /** 动作列表（按需拉取，供工具 listSceneActions） */
+  /**
+   * 动作列表（按需拉取，供工具 listSceneActions）
+   * ★ 过一层 `trDeep`：`label` 进 DOM（动作气泡），`desc`/`params`/`group` 进**模型上下文**
+   *   —— 后者扫描替换够不着，必须在**交给宿主的那一刻**按当前语言取。
+   *   写成 getter/函数（而不是模块加载时算好）才能跟着语言变；算好存常量 = 切语言不生效且不报错。
+   */
   function listActions() {
-    return Object.entries(VOCAB).map(([action, v]) => ({
+    return trDeep(Object.entries(VOCAB).map(([action, v]) => ({
       action, label: v.label, group: v.group, desc: v.desc, params: v.params, animated: !!v.animated,
-    }))
+    })))
   }
 
   // 构造时按默认显隐策略初始化一次隐藏集——否则第一帧的"可见性"
@@ -439,7 +456,7 @@ export function createSymmetryFacade(opts = {}) {
   return {
     // ---- 标识 ----
     id: 'symmetry',
-    title: '分子对称性',
+    title: '点群观鉴',
 
     // ---- 契约必需 ----
     getSnapshot,
@@ -479,13 +496,14 @@ export function createSymmetryFacade(opts = {}) {
     routes: [
       {
         target: 'symmetry',
-        label: '打开分子对称性页面',
+        label: '打开点群观鉴页面',
         params: {},
         hash: () => '#/symmetry',
       },
     ],
     sceneVocabulary: {
-      vocabulary: VOCAB,
+      /** ★ getter：每次取值都按**当前语言**过一遍（写死一次就永远不跟着语言变，且不报错） */
+      get vocabulary() { return trDeep(VOCAB) },
       list: () => listActions(),
       layerNotes: {},
     },
@@ -511,16 +529,16 @@ export function createSymmetryFacade(opts = {}) {
         const s = (snap && snap.state) || {}
         const it = (snap && snap.interaction) || {}
         return [
-          '【当前状态】模块 symmetry'
+          tr('【当前状态】模块 symmetry')
             + (s.example ? ' · ' + s.example.title : '')
-            + '；点群 ' + (s.pointGroup || '（未识别）')
-            + '；对称元素 ' + (s.symmetryElementCount || 0) + ' 个'
-            + (s.showSymmetry === false ? '（**当前已整体隐藏**）' : '')
-            + (s.hiddenElements ? '；其中隐藏了：' + s.hiddenElements : '')
-            + (s.selectedAtomKey ? '；选中原子 ' + s.selectedAtomKey : ''),
-          '【交互】空闲 ' + Math.round((it.idleMs || 0) / 1000) + 's'
-            + '；切换次数 ' + JSON.stringify(it.toggleCounts || {})
-            + '；最近动作 ' + ((it.recentActions || []).join('→') || '（无）'),
+            + tr('；点群') + ' ' + (s.pointGroup || tr('（未识别）'))
+            + tr('；对称元素') + ' ' + (s.symmetryElementCount || 0) + ' ' + tr('个')
+            + (s.showSymmetry === false ? tr('（**当前已整体隐藏**）') : '')
+            + (s.hiddenElements ? tr('；其中隐藏了：') + s.hiddenElements : '')
+            + (s.selectedAtomKey ? tr('；选中原子') + ' ' + s.selectedAtomKey : ''),
+          tr('【交互】空闲') + ' ' + Math.round((it.idleMs || 0) / 1000) + 's'
+            + tr('；切换次数') + ' ' + JSON.stringify(it.toggleCounts || {})
+            + tr('；最近动作') + ' ' + ((it.recentActions || []).join('→') || tr('（无）')),
         ].join('\n')
       },
     },
@@ -538,10 +556,10 @@ export function createSymmetryFacade(opts = {}) {
       const v = validate(name, params)
       return v.err ? v : { params: v.params }
     },
-    /** 动作词汇表原对象 */
-    vocabulary: () => VOCAB,
+    /** 动作词汇表原对象（按当前语言映射；见 sceneVocabulary.vocabulary 的说明） */
+    vocabulary: () => trDeep(VOCAB),
     /** 动作名 → 短标签（面板的动作气泡用） */
-    actionLabels: () => Object.fromEntries(Object.entries(VOCAB).map(([k, v]) => [k, v.label])),
+    actionLabels: () => Object.fromEntries(Object.entries(VOCAB).map(([k, v]) => [k, tr(v.label)])),
     /**
      * 全部示例（给 listExamples 工具）。
      * ★ `kind` 取的是示例自己的 `category` —— 此前写的是 `e.kind || 'molecule'`，
@@ -651,25 +669,25 @@ export function createSymmetryFacade(opts = {}) {
     async identifyCrystal(id) {
       if (id && id !== currentId) {
         if (!byId.has(id)) {
-          return { error: `未知示例 id：${id}（id 必须来自 listExamples 的返回值）` }
+          return { error: t('sym.err.unknownExampleStrict', { id }) }
         }
         currentId = id
         cachedFor = null
       }
       const ex = currentId ? byId.get(currentId) : null
-      if (!ex) return { error: '当前没有选中的结构（先用 listExamples 挑一个）' }
+      if (!ex) return { error: tr('当前没有选中的结构（先用 listExamples 挑一个）') }
       if (ex.category !== 'crystal') {
-        return { error: `${ex.title} 是分子，不是晶体——请用点群识别（不带 kind 的那条路）` }
+        return { error: t('sym.err.notCrystal', { title: ex.title }) }
       }
       if (typeof analyzeCrystal !== 'function') {
         return {
-          error: '本宿主未接入空间群分析器（spaceGroup），无法识别晶体的空间群。'
-            + '★ 这**不是**"该结构没有对称性"，而是能力未接入——'
-            + '请如实告诉学生"晶体空间群识别在当前环境不可用"，不要凭记忆给一个空间群符号。',
+          error: tr('本宿主未接入空间群分析器（spaceGroup），无法识别晶体的空间群。')
+            + tr('★ 这**不是**"该结构没有对称性"，而是能力未接入——')
+            + tr('请如实告诉学生"晶体空间群识别在当前环境不可用"，不要凭记忆给一个空间群符号。'),
         }
       }
       const r = await analyzeCrystal(ex.structure)
-      if (!r) return { error: `空间群分析失败：${ex.title}` }
+      if (!r) return { error: t('sym.err.spaceGroupFailed', { title: ex.title }) }
       const els = typeof operationsToElements === 'function' ? operationsToElements(r.operations) : []
       return {
         id: currentId,

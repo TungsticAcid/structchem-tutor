@@ -142,10 +142,13 @@ npm run verify:live -- --key-file "<仓库外的密钥文件>"             # 真
 
 | 文档 | 位置 | 内容 |
 |---|---|---|
-| 智能体知识资产设计 | `projects/crystal/activity/智能体知识资产设计.md` | 三层知识资产架构、节点约束设计、知识库蒸馏流程 |
-| AI 智能体建设方案 | `projects/crystal/activity/AI智能体建设方案.md` | 晶体模块的完整建设方案 |
-| 出题引擎技术设计 | `projects/crystal/activity/出题引擎技术设计.md` | 题型模板、干扰项生成、错因体系 |
-| 数据核查报告 | `projects/crystal/activity/数据核查报告.md` | 23 种晶体数据的审计与格式化记录 |
+| 智能体知识资产设计 | `D:\xjl\program\crystal\activity\智能体知识资产设计.md` | 三层知识资产架构、节点约束设计、知识库蒸馏流程 |
+| AI 智能体建设方案 | `D:\xjl\program\crystal\activity\AI智能体建设方案.md` | 晶体模块的完整建设方案 |
+| 出题引擎技术设计 | `D:\xjl\program\crystal\activity\出题引擎技术设计.md` | 题型模板、干扰项生成、错因体系 |
+| 数据核查报告 | `D:\xjl\program\crystal\activity\数据核查报告.md` | 23 种晶体数据的审计与格式化记录 |
+
+> ⚠️ 这四份**在仓库之外**（`D:\xjl\program\crystal\activity\`），不进版本控制 ——
+> 它们是参赛材料而非运行代码，而本仓库是公开的。原因详见 `CLAUDE.md` §六。
 
 ---
 

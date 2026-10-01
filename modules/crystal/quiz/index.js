@@ -29,6 +29,7 @@
  *   两者共用同一套自校验、冻结答案、入库与防泄题边界（见 `finalizeConcept`）。
  */
 
+import { t } from '../i18n-live.js'
 import { TEMPLATES, fillExplanation } from './templates.js'
 import { selfCheck } from './selfcheck.js'
 import { crystalsForKnowledgePoint, KP_CRYSTAL_MATRIX } from './data/kp-crystal-matrix.js'
@@ -97,7 +98,7 @@ export function createQuizEngine(deps = {}) {
       })
       if (c && !c.error) return finalizeConcept(c)
       // 本来就没有数据模板 → 概念题也出不来，如实报能力边界
-      if (!hasDataTemplates) return { error: c.error || `知识点 ${kp} 暂无可用题型` }
+      if (!hasDataTemplates) return { error: c.error || t('crystal.t.quiz-index.1', { p1: (kp) }) }
       // 有数据模板、只是显式要 B 而 B 不可用 → 落回通道 A（下面继续）
     }
 
@@ -109,13 +110,13 @@ export function createQuizEngine(deps = {}) {
     if (opts.topic) {
       const byTopic = templates.filter((t) => t.topic === opts.topic)
       if (!byTopic.length) {
-        const avail = templates.map((t) => t.topic).join('、')
-        return { error: `知识点 ${kp} 没有题型「${opts.topic}」${avail ? `（可用：${avail}）` : ''}` }
+        const avail = templates.map((t) => t.topic).join(t('crystal.quiz.listSep'))
+        return { error: t('crystal.t.quiz-index.2', { p1: (kp), p2: (opts.topic), p3: (avail ? t('crystal.quiz.availTopics', { list: avail }) : '') }) }
       }
       templates = byTopic
     }
     if (!templates.length) {
-      return { error: `知识点 ${kp} 暂无可用题型模板（通道 A 已实现：点阵型式/结构基元/堆积方式/配位环境/空隙分布/空间群/晶胞参数）` }
+      return { error: t('crystal.t.quiz-index.3', { p1: (kp) }) }
     }
     if (opts.difficulty) {
       const f = templates.filter((t) => t.difficulty === opts.difficulty)
@@ -130,7 +131,7 @@ export function createQuizEngine(deps = {}) {
       candidates = crystalsForKnowledgePoint(kp)          // 矩阵里的强关联晶体
     }
     if (!candidates.length) {
-      return { error: `知识点 ${kp} 在能力矩阵里没有强关联的晶体` }
+      return { error: t('crystal.t.quiz-index.4', { p1: (kp) }) }
     }
 
     const seedBase = (++seq) * 7919
@@ -141,8 +142,8 @@ export function createQuizEngine(deps = {}) {
       const crystalId = candidates[attempt % candidates.length]
       const tpl = templates[attempt % templates.length]
       const data = loadData(crystalId)
-      if (!data) { lastErr = `未找到晶体 ${crystalId}`; continue }
-      if (!tpl.applies(data)) { lastErr = `${data.name} 不适用题型「${tpl.topic}」`; continue }
+      if (!data) { lastErr = t('crystal.t.quiz-index.5', { p1: (crystalId) }); continue }
+      if (!tpl.applies(data)) { lastErr = t('crystal.t.quiz-index.6', { p1: (data.name), p2: (tpl.topic) }); continue }
 
       const key = `${crystalId}:${tpl.id}`
       if (attempted.includes(key) && attempted.length < candidates.length * templates.length) {
@@ -175,7 +176,7 @@ export function createQuizEngine(deps = {}) {
       return toModelView(q)
     }
 
-    return { error: lastErr || `无法为 ${kp} 生成题目（已尝试 ${attempted.length} 个组合）` }
+    return { error: lastErr || t('crystal.t.quiz-index.7', { p1: (kp), p2: (attempted.length) }) }
   }
 
   /**
@@ -228,11 +229,7 @@ export function createQuizEngine(deps = {}) {
       questionView: q.questionView
         ? { crystalId: q.questionView.crystalId, actions: q.questionView.actions, revealsAnswer: false }
         : null,
-      note: '答案已由程序算定并冻结在本地。请把题干与 4 个选项原样呈现给学生，**不要猜测或提示答案**；'
-        + '学生作答后调用 checkAnswer({questionId, chosenIndex})，判定与解析由本地完成。'
-        + '★ questionView 可以下发作"题境演示"（它只切晶体、开原子与线框）；'
-        + '但**作答前不得打开对称元素 / 空隙 / 点阵点 / 辅助几何等图层**——'
-        + '那会让学生从画面上直接读出答案，等于泄题。',
+      note: '答案已由程序算定并冻结在本地。请把题干与 4 个选项原样呈现给学生，**不要猜测或提示答案**；学生作答后调用 checkAnswer({questionId, chosenIndex})，判定与解析由本地完成。★ questionView 可以下发作"题境演示"（它只切晶体、开原子与线框）；但**作答前不得打开对称元素 / 空隙 / 点阵点 / 辅助几何等图层**——那会让学生从画面上直接读出答案，等于泄题。',
     }
   }
 
@@ -244,10 +241,10 @@ export function createQuizEngine(deps = {}) {
    */
   function check({ questionId, chosenIndex } = {}) {
     const q = bank.get(questionId)
-    if (!q) return { error: `未找到题目 ${questionId}（可能已过期，请重新出题）` }
+    if (!q) return { error: t('crystal.t.quiz-index.8', { p1: (questionId) }) }
     const idx = Number(chosenIndex)
     if (!Number.isInteger(idx) || idx < 0 || idx >= q.options.length) {
-      return { error: `选项下标非法：${chosenIndex}` }
+      return { error: t('crystal.t.quiz-index.9', { p1: (chosenIndex) }) }
     }
 
     const correct = idx === q.answerIndex
@@ -311,7 +308,7 @@ export function createQuizEngine(deps = {}) {
    */
   function variant({ questionId, causeId } = {}) {
     const q = bank.get(questionId)
-    if (!q) return { error: `未找到题目 ${questionId}` }
+    if (!q) return { error: t('crystal.t.quiz-index.10', { p1: (questionId) }) }
 
     const type = causeId ? (causeById(causeId) || {}).type : null
     let strategy = '换晶体'
@@ -322,7 +319,7 @@ export function createQuizEngine(deps = {}) {
     // 候选：同知识点的其它强关联晶体，排除刚用过的那一个
     const others = crystalsForKnowledgePoint(q.kp).filter((c) => c !== q.crystalId)
     if (!others.length) {
-      return { error: `知识点 ${q.kp} 没有其它可换的晶体，无法出变式题` }
+      return { error: t('crystal.t.quiz-index.11', { p1: (q.kp) }) }
     }
 
     // ★ 换问法：若该知识点有多个题型模板，优先换模板（同一晶体、另一种问法）
@@ -359,14 +356,14 @@ export function createQuizEngine(deps = {}) {
     if (r.error) return r
     r.variantOf = q.id
     r.variantStrategy = strategy
-    r.note += `（这是变式题：${strategy}——用于检验是否真正纠正了认知，而不是记住了上一题的答案）`
+    r.note += t('crystal.t.quiz-index.12', { p1: (strategy) })
     return r
   }
 
   /** 取解析（判分后调用；未判分时不给，避免"边答边被提示"） */
   function explain({ questionId } = {}) {
     const q = bank.get(questionId)
-    if (!q) return { error: `未找到题目 ${questionId}` }
+    if (!q) return { error: t('crystal.t.quiz-index.13', { p1: (questionId) }) }
     const answered = attemptLog.some((a) => a.questionId === questionId)
     if (!answered) {
       return { error: '该题尚未作答。请先让学生作答并调用 checkAnswer——解析是为作答后的复盘准备的。' }
@@ -400,7 +397,7 @@ export function createQuizEngine(deps = {}) {
    */
   function peek(questionId) {
     const q = bank.get(questionId)
-    if (!q) return { error: `未找到题目 ${questionId}（可能已过期，请重新出题）` }
+    if (!q) return { error: t('crystal.t.quiz-index.14', { p1: (questionId) }) }
     return {
       stem: q.stem,
       options: q.options.map((o) => o.text),

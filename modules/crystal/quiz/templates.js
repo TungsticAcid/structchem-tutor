@@ -16,6 +16,7 @@
  *   若让解析与答案一起"即兴生成"，答案错时解析会替它编出自洽理由。
  */
 
+import { t, tr } from '../i18n-live.js'
 import {
   SPACE_UTILIZATION_PCT, STACKING, INTERSTICE_PER_SPHERE,
   POLYHEDRON_BY_CN, POLYHEDRON_CN12, LATTICE_POINTS,
@@ -89,7 +90,9 @@ function distractorsFromCauses(kp, { excludeValue, limit = 3 } = {}) {
   const out = []
   for (const c of causes) {
     if (c.distractor == null) continue
-    const text = typeof c.distractor === 'number' ? num(c.distractor) : String(c.distractor)
+    // ★ 干扰项的文本可能来自错因库（如 E-A5 的「体心立方(cI)」），那是文案、要过 tr()；
+    //   数值型干扰项（distractor 是数字）不受影响。
+    const text = typeof c.distractor === 'number' ? num(c.distractor) : tr(String(c.distractor))
     if (excludeValue != null && text === num(excludeValue)) continue
     out.push({ text, errorCause: c.id })
     if (out.length >= limit) break
@@ -139,7 +142,7 @@ export const TEMPLATES = [
         seed,
         kp: 'crystal:C1', topic: 'latticeType', difficulty: 'L1',
         crystalId: data.id,
-        stem: `${data.name}（${data.formula}）的点阵型式是什么？`,
+        stem: t('crystal.t.quiz-templates.1', { p1: (tr(data.name)), p2: (tr(data.formula)) }),
         answerValue: ans, answerKind: null,
         source: 'data',
       })
@@ -148,7 +151,7 @@ export const TEMPLATES = [
       q.explanationParts = {
         answer: ans,
         spaceGroup: data.spaceGroup,
-        note: `空间群 ${data.spaceGroup} 的首字母 ${String(data.spaceGroup)[0]} 决定了点阵记号的类型`,
+        note: t('crystal.t.quiz-templates.2', { p1: (data.spaceGroup), p2: (String(data.spaceGroup)[0]) }),
       }
       q.presetView = buildPresetView('crystal:C1', { crystalId: data.id })
       return { question: q }
@@ -160,14 +163,15 @@ export const TEMPLATES = [
     applies: (d) => !!d.crystalSystem,
     build({ data, seed }) {
       const map = { cubic: '立方', hexagonal: '六方', tetragonal: '四方', orthorhombic: '正交', monoclinic: '单斜', triclinic: '三斜', trigonal: '三方' }
-      const ans = map[data.crystalSystem] || data.crystalSystem
+      // ★ 选项文本取自常量表，逐项过 tr()（表是模块级常量，切语言不会自己变）
+      const ans = tr(map[data.crystalSystem] || data.crystalSystem)
       const q = assemble({
         correctText: ans,
-        distractors: Object.values(map).filter((x) => x !== ans).map((t) => ({ text: t, errorCause: null })),
+        distractors: Object.values(map).map(tr).filter((x) => x !== ans).map((text) => ({ text, errorCause: null })),
         seed,
         kp: 'crystal:C1', topic: 'crystalSystem', difficulty: 'L1',
         crystalId: data.id,
-        stem: `${data.name}（${data.formula}）属于哪个晶系？`,
+        stem: t('crystal.t.quiz-templates.3', { p1: (tr(data.name)), p2: (tr(data.formula)) }),
         answerKind: null, source: 'data',
       })
       q.answerValue = ans
@@ -187,14 +191,14 @@ export const TEMPLATES = [
       // 结构基元含几个原子 = 化学式里的原子数
       const counts = compute.parseFormula(data.structuralUnit || data.formula)
       const n = Object.values(counts).reduce((a, b) => a + b, 0)
-      if (!(n > 0)) return { error: `无法从结构基元 ${data.structuralUnit} 解析出原子数` }
+      if (!(n > 0)) return { error: t('crystal.t.quiz-templates.4', { p1: (data.structuralUnit) }) }
       const q = assemble({
         correctText: num(n),
         distractors: nearValues(n).concat([{ text: num(n + 1), errorCause: null }]),
         seed,
         kp: 'crystal:C2', topic: 'structuralUnitAtoms', difficulty: 'L2',
         crystalId: data.id,
-        stem: `${data.name}的结构基元（${data.structuralUnit}）中含有几个原子？`,
+        stem: t('crystal.t.quiz-templates.5', { p1: (tr(data.name)), p2: (data.structuralUnit) }),
         answerValue: n, answerKind: 'count', source: 'data',
       })
       q.explanationParts = { answer: n, unit: data.structuralUnit }
@@ -216,7 +220,7 @@ export const TEMPLATES = [
         seed,
         kp: 'crystal:C2', topic: 'atomsInCell', difficulty: 'L2',
         crystalId: data.id,
-        stem: `${data.name}的一个晶胞中共含有几个原子？（数据中的坐标即为晶胞内容）`,
+        stem: t('crystal.t.quiz-templates.6', { p1: (tr(data.name)) }),
         answerValue: n, answerKind: 'count', source: 'data',
       })
       q.explanationParts = { answer: n, groups: (data.atoms || []).map((g) => `${g.element}×${(g.positions || []).length}`).join(' + ') }
@@ -235,18 +239,22 @@ export const TEMPLATES = [
     build({ data, seed }) {
       const st = STACKING_BY_CRYSTAL[data.id]
       const info = STACKING[st]
+      // ★ 选项文本是"代号 + 名字"拼出来的，而名字（立方最密堆积…）来自常量表。
+      //   名字必须**单独**过 tr()：整串换个键做不到（每次内容不同），把常量表
+      //   预先翻好也做不到（表是模块级常量，切语言不会变）。
+      const stackName = (code, name) => t('crystal.q.stackingOption', { code, name: tr(name) })
       const q = assemble({
-        correctText: `${st}（${info.name}）`,
+        correctText: stackName(st, info.name),
         distractors: Object.entries(STACKING)
           .filter(([k]) => k !== st)
-          .map(([k, v]) => ({ text: `${k}（${v.name}）`, errorCause: k === 'A1' && st === 'A3' ? 'E-A2' : null })),
+          .map(([k, v]) => ({ text: stackName(k, v.name), errorCause: k === 'A1' && st === 'A3' ? 'E-A2' : null })),
         seed,
         kp: 'crystal:C3', topic: 'stacking', difficulty: 'L2',
         crystalId: data.id,
-        stem: `${data.name}（${data.formula}）属于下列哪种堆积方式？`,
+        stem: t('crystal.t.quiz-templates.7', { p1: (tr(data.name)), p2: (tr(data.formula)) }),
         answerValue: st, answerKind: null, stacking: st, source: 'data',
       })
-      q.explanationParts = { answer: `${st}（${info.name}）`, layerSequence: info.layerSequence, example: info.example }
+      q.explanationParts = { answer: stackName(st, info.name), layerSequence: info.layerSequence, example: tr(info.example) }
       q.presetView = buildPresetView('crystal:C3', { crystalId: data.id })
       return { question: q }
     },
@@ -266,7 +274,7 @@ export const TEMPLATES = [
         seed,
         kp: 'crystal:C3', topic: 'spaceUtilization', difficulty: 'L2',
         crystalId: data.id,
-        stem: `${data.name}所属的 ${st} 堆积方式，其空间利用率是多少？`,
+        stem: t('crystal.t.quiz-templates.8', { p1: (tr(data.name)), p2: (st) }),
         answerValue: pct, answerKind: 'percentage', stacking: st, source: 'data',
       })
       q.explanationParts = { answer: `${num(pct, 2)}%`, stacking: st, formula: '对于 A1：4r = a√2 ⇒ η = π/(3√2)' }
@@ -294,7 +302,7 @@ export const TEMPLATES = [
         seed,
         kp: 'crystal:C4', topic: 'coordinationNumber', difficulty: 'L2',
         crystalId: data.id,
-        stem: `${data.name}中 ${first.element} 的配位数是多少？`,
+        stem: t('crystal.t.quiz-templates.9', { p1: (tr(data.name)), p2: (first.element) }),
         answerValue: first.cn, answerKind: 'count', source: 'data',
       })
       q.explanationParts = { answer: first.cn, element: first.element, neighbors: first.neighbors }
@@ -311,19 +319,20 @@ export const TEMPLATES = [
       const first = parsed.entries[0]
       const info = coordinationOf(data, first.element)
       if (!info || !info.polyhedron || info.polyhedron.startsWith('（')) {
-        return { error: `无法确定 ${first.element} 的配位构型` }
+        return { error: t('crystal.t.quiz-templates.10', { p1: (first.element) }) }
       }
       const all = Object.values(POLYHEDRON_BY_CN).concat(Object.values(POLYHEDRON_CN12))
+      const answer = tr(info.polyhedron)
       const q = assemble({
-        correctText: info.polyhedron,
-        distractors: all.filter((x) => x !== info.polyhedron).map((t) => ({ text: t, errorCause: info.cn === 4 ? 'E-D1' : null })),
+        correctText: answer,
+        distractors: all.map(tr).filter((x) => x !== answer).map((text) => ({ text, errorCause: info.cn === 4 ? 'E-D1' : null })),
         seed,
         kp: 'crystal:C4', topic: 'polyhedron', difficulty: 'L2',
         crystalId: data.id,
-        stem: `${data.name}中 ${first.element}（配位数 ${info.cn}）的配位构型是什么？`,
-        answerValue: info.polyhedron, answerKind: null, source: 'data',
+        stem: t('crystal.t.quiz-templates.11', { p1: (tr(data.name)), p2: (first.element), p3: (info.cn) }),
+        answerValue: answer, answerKind: null, source: 'data',
       })
-      q.explanationParts = { answer: info.polyhedron, cn: info.cn, neighbors: info.neighbors }
+      q.explanationParts = { answer, cn: info.cn, neighbors: info.neighbors }
       q.presetView = buildPresetView('crystal:C4', { crystalId: data.id })
       return { question: q }
     },
@@ -346,7 +355,7 @@ export const TEMPLATES = [
       const tet = ((it.tetrahedral && it.tetrahedral.positions) || []).length
       const kind = oct > 0 ? 'octahedral' : 'tetrahedral'
       const n = kind === 'octahedral' ? oct : tet
-      const kindName = kind === 'octahedral' ? '正八面体' : '正四面体'
+      const kindName = kind === 'octahedral' ? tr('正八面体') : tr('正四面体')
       const q = assemble({
         correctText: num(n),
         // ★ 错因 E-B1：用"每个球周围"的数目作答（6 或 8）——这是最高危的混淆
@@ -354,13 +363,13 @@ export const TEMPLATES = [
         seed,
         kp: 'crystal:C5', topic: 'intersticesInCell', intersticeKind: kind, difficulty: 'L3',
         crystalId: data.id,
-        stem: `${data.name}的一个晶胞中含有几个${kindName}空隙？`,
+        stem: t('crystal.t.quiz-templates.12', { p1: (tr(data.name)), p2: (kindName) }),
         answerValue: n, answerKind: 'count', source: 'data',
       })
       q.explanationParts = {
         answer: n, kindName,
-        other: kind === 'octahedral' ? `另有 ${tet} 个正四面体空隙` : `另有 ${oct} 个正八面体空隙`,
-        warn: `注意：这是**晶胞内**的位置数，不是"每个球周围"的数目`,
+        other: kind === 'octahedral' ? t('crystal.t.quiz-templates.13', { p1: (tet) }) : t('crystal.t.quiz-templates.14', { p1: (oct) }),
+        warn: t('crystal.t.quiz-templates.15'),
       }
       q.presetView = buildPresetView('crystal:C5', { crystalId: data.id, intersticeKind: kind })
       return { question: q }
@@ -379,21 +388,23 @@ export const TEMPLATES = [
       // 交替问四面体/八面体，避免同一晶体反复考同一个数
       const kind = (data.id === 'fcc') ? 'octahedral' : 'tetrahedral'
       const n = INTERSTICE_PER_SPHERE[st][kind]
-      const kindName = kind === 'octahedral' ? '正八面体' : '正四面体'
+      const kindName = kind === 'octahedral' ? tr('正八面体') : tr('正四面体')
       const q = assemble({
         correctText: num(n),
         distractors: distractorsFromCauses('crystal:C5', { excludeValue: n }).concat(nearValues(n)),
         seed,
         kp: 'crystal:C5', topic: 'intersticePerSphere', intersticeKind: kind, stacking: st, difficulty: 'L3',
         crystalId: data.id,
-        stem: `${data.name}中，每个球周围有几个${kindName}空隙？`,
+        stem: t('crystal.t.quiz-templates.16', { p1: (tr(data.name)), p2: (kindName) }),
         answerValue: n, answerKind: 'count', source: 'data',
       })
       q.explanationParts = {
         answer: n, kindName, stacking: st,
+        // ★ 这两条是常量表里的原文，最终会被拼进解析 —— 在这里过 tr()，
+        //   否则英文解析里会夹一句中文（不报错，只是读起来突然跳语言）。
         contrast: kind === 'octahedral'
-          ? '（对比：晶胞内只有 4 个八面体空隙位置）'
-          : '（对比：晶胞内有 8 个四面体空隙位置）',
+          ? tr('（对比：晶胞内只有 4 个八面体空隙位置）')
+          : tr('（对比：晶胞内有 8 个四面体空隙位置）'),
       }
       q.presetView = buildPresetView('crystal:C5', { crystalId: data.id, intersticeKind: kind })
       return { question: q }
@@ -416,7 +427,7 @@ export const TEMPLATES = [
         seed,
         kp: 'crystal:C6', topic: 'spaceGroup', difficulty: 'L1',
         crystalId: data.id,
-        stem: `${data.name}（${data.formula}）所属的空间群符号是什么？`,
+        stem: t('crystal.t.quiz-templates.17', { p1: (tr(data.name)), p2: (tr(data.formula)) }),
         answerValue: ans, answerKind: null, source: 'data',
       })
       q.explanationParts = { answer: ans, latticeType: data.latticeType }
@@ -438,12 +449,12 @@ export const TEMPLATES = [
         seed,
         kp: 'crystal:C6', topic: 'symmetryAxisTypes', difficulty: 'L2',
         crystalId: data.id,
-        stem: `${data.name}的晶胞中有几**类**对称轴？（同类轴只算一次）`,
+        stem: t('crystal.t.quiz-templates.18', { p1: (tr(data.name)) }),
         answerValue: n, answerKind: 'count', source: 'data',
       })
       q.explanationParts = {
-        answer: n, types: types.join('、'),
-        total: `数据里共记录了 ${axes.length} 条对称轴记录，去重后为 ${n} 类`,
+        answer: n, types: types.map(tr).join(t('crystal.quiz.listSep')),
+        total: t('crystal.t.quiz-templates.19', { p1: (axes.length), p2: (n) }),
       }
       q.presetView = buildPresetView('crystal:C6', { crystalId: data.id })
       return { question: q }
@@ -466,7 +477,7 @@ export const TEMPLATES = [
         seed,
         kp: 'crystal:C7', topic: 'cellVolume', difficulty: 'L2',
         crystalId: data.id,
-        stem: `${data.name}（${data.formula}）的晶胞体积是多少？`,
+        stem: t('crystal.t.quiz-templates.20', { p1: (tr(data.name)), p2: (tr(data.formula)) }),
         answerValue: v, answerKind: 'volume', source: 'data',
       })
       q.explanationParts = { answer: `${num(v)} Å³`, lattice: data.lattice, formula: 'V = abc√(1−cos²α−cos²β−cos²γ+2cosαcosβcosγ)' }
@@ -490,7 +501,7 @@ export const TEMPLATES = [
         seed,
         kp: 'crystal:C7', topic: 'density', difficulty: 'L3',
         crystalId: data.id,
-        stem: `${data.name}（${data.formula}）的理论密度是多少？（ρ = Z·M/(N_A·V)）`,
+        stem: t('crystal.t.quiz-templates.21', { p1: (tr(data.name)), p2: (tr(data.formula)) }),
         answerValue: v, answerKind: 'density', source: 'data',
       })
       q.explanationParts = {
@@ -517,7 +528,7 @@ export const TEMPLATES = [
         seed,
         kp: 'crystal:C7', topic: 'nearestNeighbor', difficulty: 'L3',
         crystalId: data.id,
-        stem: `${data.name}中最近的同种原子（${r.element}）间距是多少？`,
+        stem: t('crystal.t.quiz-templates.22', { p1: (tr(data.name)), p2: (r.element) }),
         answerValue: v, answerKind: 'distance', source: 'data',
       })
       q.explanationParts = { answer: `${num(v)} Å`, element: r.element, note: r.note }
@@ -544,31 +555,31 @@ export function fillExplanation(q, frozen) {
   const lines = []
 
   // ① 正误说明
-  lines.push(`正确答案是 **${frozen.answerText}**。`)
+  lines.push(t('crystal.t.quiz-templates.23', { p1: (frozen.answerText) }))
   if (q.topic === 'density' && p.Z != null) {
-    lines.push(`按 ρ = Z·M/(N_A·V) 计算：${p.Znote || `Z = ${p.Z}`}，M = ${p.molarMass} g/mol，V = ${p.volume} Å³。`)
+    lines.push(t('crystal.t.quiz-templates.24', { p1: (p.Znote || `Z = ${p.Z}`), p2: (p.molarMass), p3: (p.volume) }))
   } else if (q.topic === 'cellVolume' && p.formula) {
-    lines.push(`按通用式 ${p.formula} 计算；立方晶系可退化为 a³。`)
+    lines.push(t('crystal.t.quiz-templates.25', { p1: (tr(p.formula)) }))
   } else if (q.topic === 'spaceUtilization' && p.formula) {
-    lines.push(`推导：${p.formula}。`)
+    lines.push(t('crystal.t.quiz-templates.26', { p1: (tr(p.formula)) }))
   } else if (q.topic === 'stacking' && p.layerSequence) {
-    lines.push(`${p.answer} 的层序是 ${p.layerSequence}；典型例子有 ${p.example}。`)
+    lines.push(t('crystal.t.quiz-templates.27', { p1: (p.answer), p2: (p.layerSequence), p3: (p.example) }))
   } else if (q.topic === 'intersticePerSphere' && p.contrast) {
-    lines.push(`这是堆积方式的固有性质。${p.contrast}`)
+    lines.push(t('crystal.t.quiz-templates.28', { p1: (p.contrast) }))
   } else if (q.topic === 'intersticesInCell' && p.warn) {
     lines.push(p.warn)
   } else if (q.topic === 'symmetryAxisTypes' && p.total) {
     lines.push(p.total)
   } else if (q.topic === 'coordinationNumber' && p.neighbors) {
-    lines.push(`${p.element} 的近邻是 ${p.neighbors}。`)
+    lines.push(t('crystal.t.quiz-templates.29', { p1: (p.element), p2: (p.neighbors) }))
   } else if (q.topic === 'polyhedron' && p.neighbors) {
-    lines.push(`配位数 ${p.cn}，近邻 ${p.neighbors}。`)
+    lines.push(t('crystal.t.quiz-templates.30', { p1: (p.cn), p2: (p.neighbors) }))
   } else if (q.topic === 'latticeType' && p.spaceGroup) {
     lines.push(p.note)
   } else if (q.topic === 'structuralUnitAtoms' && p.unit) {
-    lines.push(`结构基元 ${p.unit} 中的原子数即为答案。`)
+    lines.push(t('crystal.t.quiz-templates.31', { p1: (p.unit) }))
   } else if (q.topic === 'atomsInCell' && p.groups) {
-    lines.push(`晶胞内容：${p.groups}。`)
+    lines.push(t('crystal.t.quiz-templates.32', { p1: (p.groups) }))
   }
 
   // ② 错项逐个分析（**带错因标签的干扰项**才有分析价值）
@@ -576,7 +587,7 @@ export function fillExplanation(q, frozen) {
   for (const [i, o] of (q.options || []).entries()) {
     if (i === q.answerIndex || !o.errorCause) continue
     const c = causesForKnowledgePoint(q.kp).find((x) => x.id === o.errorCause)
-    if (c) wrongAnalysis.push(`· 选 **${o.text}** 的话：${c.oneLine}`)
+    if (c) wrongAnalysis.push(t('crystal.t.quiz-templates.33', { p1: (o.text), p2: (tr(c.oneLine)) }))
   }
   if (wrongAnalysis.length) {
     lines.push('')
@@ -586,7 +597,7 @@ export function fillExplanation(q, frozen) {
   // ③ 结构指引
   if (q.presetView) {
     lines.push('')
-    lines.push('👉 点下方「去看结构」，我把视图调到能看清这个答案的状态。')
+    lines.push(tr('👉 点下方「去看结构」，我把视图调到能看清这个答案的状态。'))
   }
 
   return lines.join('\n')

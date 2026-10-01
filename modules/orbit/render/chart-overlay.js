@@ -8,6 +8,10 @@
  *   算法与几何处理逐字未动。
  */
 
+// ★ 字典的副作用 import：标题与按钮的提示都走 t() 现取。
+import '../i18n.js'
+import { t } from '../../../packages/i18n/index.js'
+
 /**
  * chart-overlay.js — 图表浮动窗
  *
@@ -35,21 +39,28 @@ const ChartOverlay = (function () {
 
   'use strict';
 
+
   // 浮窗支持的目标。
   // ★ 球谐函数不在其中，而且**理由已经变了**：它原先是一个独立的 three.js 小场景
   //   （单例，没法"再画一份"），现已并入主三维视图 —— 也就是说它本身就占着主舞台，
   //   不需要再被"搬到三维旁边"（那正是浮窗存在的意义，见本文件开头）。
   //   下面那张 Θ/Φ 卡片也是普通 2D canvas，已按"讲 Y = Θ·Φ 两个因子时把它弹出来"接入。
+  //
+  // ★ 这里存的是**翻译键**而不是标题本身：TARGETS 是模块级常量，在这里取译文会把
+  //   加载时的语言固化下来（切了语言标题还是旧语言）。真正取值在 open() / refreshChrome()。
   const TARGETS = {
-    radial: { title: '径向分布' },
-    section: { title: '截面密度' },
+    radial: { titleKey: 'orbit.overlay.title.radial' },
+    section: { titleKey: 'orbit.overlay.title.section' },
     // ★ 标题照抄卡片上的原文（index.html 的 .card-title）—— 学生听到什么名字，
     //   就得在界面上找得到那个名字。
-    thetaPhi: { title: '角度部分的两个因子' },
+    thetaPhi: { titleKey: 'orbit.overlay.title.thetaPhi' },
   };
 
   let overlay = null, box = null, titleEl = null, canvas = null;
   let cur = null, rafId = null, interactionsBound = false;
+  // ★ 记下两个按钮：它们的 title 是 t() 现取的（不是 DOM 里的中文原文），
+  //   语言切换时扫描替换够不着，得由 refreshChrome() 重写。
+  let miniBtnEl = null, closeBtnEl = null;
 
   function el(tag, cls) {
     const d = document.createElement(tag);
@@ -68,7 +79,8 @@ const ChartOverlay = (function () {
     const miniBtn = el('button', 'chart-overlay-x');
     miniBtn.type = 'button';
     miniBtn.textContent = '—';
-    miniBtn.title = '最小化 / 展开（只留标题栏）';
+    miniBtn.title = t('orbit.overlay.minimize');
+    miniBtnEl = miniBtn;
     miniBtn.addEventListener('click', () => {
       box.classList.toggle('mini');
       miniBtn.textContent = box.classList.contains('mini') ? '▢' : '—';
@@ -77,7 +89,8 @@ const ChartOverlay = (function () {
     const closeBtn = el('button', 'chart-overlay-x');
     closeBtn.type = 'button';
     closeBtn.textContent = '✕';
-    closeBtn.title = '关闭（Esc）';
+    closeBtn.title = t('orbit.overlay.close');
+    closeBtnEl = closeBtn;
     closeBtn.addEventListener('click', close);
     const btns = el('span', 'chart-overlay-btns');
     btns.appendChild(miniBtn);
@@ -160,13 +173,36 @@ const ChartOverlay = (function () {
   }
 
   /**
+   * 按当前语言重写浮窗上那几处 `t()` 现取的文字（标题 + 两个按钮的 title）。
+   *
+   * ★ 为什么不靠 `sweep()`：标题与 title 都是 `t()` 算出来再写进 DOM 的
+   *   （`TARGETS` 存的是键），它们不是"DOM 里的中文原文"，扫描替换认不出来。
+   * ★ 代价：只改三个属性/一个文本节点，**不重画 canvas**。
+   */
+  function refreshChrome() {
+    if (titleEl && cur && TARGETS[cur]) titleEl.textContent = t(TARGETS[cur].titleKey);
+    if (miniBtnEl) miniBtnEl.title = t('orbit.overlay.minimize');
+    if (closeBtnEl) closeBtnEl.title = t('orbit.overlay.close');
+  }
+
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('langchange', function () {
+      try { refreshChrome(); } catch (e) { /* 换语言时重写标题失败不该影响切换本身 */ }
+    });
+  }
+
+  /**
    * 打开浮窗并切到指定图表。
    * @param {'radial'|'section'} target
    */
   function open(target) {
     if (!TARGETS[target] || !getApp()) return false;
     build();
-    if (cur !== target) { cur = target; titleEl.textContent = TARGETS[target].title; }
+    // ★ 标题**每次都重设**（原先只在换目标时设）：切过语言之后再打开同一张图，
+    //   若不重设就会一直显示上一个语言的标题 —— 而这不报错。
+    cur = target;
+    titleEl.textContent = t(TARGETS[target].titleKey);
+    refreshChrome();
     // 打开即展开：这是"要看这张图"的显式请求，不该只给学生一条标题栏。
     // （用户自己手动最小化的状态仍然保留 —— 那是他关掉再自己打开时的偏好。）
     box.classList.remove('mini');

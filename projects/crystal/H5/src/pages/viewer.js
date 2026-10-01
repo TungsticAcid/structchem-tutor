@@ -74,6 +74,9 @@ const CRYSTAL_SYSTEM_MAP = {
 
 const TEACHING_STACKING_IDS = ['fcc', 'hcp']
 
+/** 没有晶体名时的兜底标题（提到模板串外面，扫描替换才够得着，见 HOWTO §4） */
+const DEFAULT_CRYSTAL_TITLE = '晶体结构'
+
 export class ViewerPage {
   constructor(params = {}) {
     this._crystalId = params.crystal || 'fcc'
@@ -240,7 +243,7 @@ export class ViewerPage {
       <!-- 顶部标题栏 -->
       <div class="top-bar">
         <div class="back-btn" id="backBtn"><span class="back-icon">←</span></div>
-        <span class="crystal-title" id="crystalTitle">${meta.name || '晶体结构'}</span>
+        <span class="crystal-title" id="crystalTitle">${meta.name || DEFAULT_CRYSTAL_TITLE}</span>
       </div>
 
       <!-- 对比按钮 -->

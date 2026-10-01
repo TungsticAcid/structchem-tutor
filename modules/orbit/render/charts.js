@@ -8,6 +8,10 @@
  *   算法与几何处理逐字未动。
  */
 import { OM } from '../core/math.js'
+// ★ 字典的副作用 import：本文件在**画的时候**取译文（canvas 上的字不是 DOM 文本节点，
+//   扫描替换够不着），所以导入顺序不影响结果，但与其它渲染文件保持一致。
+import '../i18n.js'
+import { t } from '../../../packages/i18n/index.js'
 
 /**
  * charts.js — 2D 图表（纯 Canvas 手绘，无外部图表库）
@@ -278,7 +282,7 @@ const Charts = (function () {
     fillMath(ctx, '*r* (*a*₀)', w - pad.r - 46, h - 4);
     // y 轴：原先写作 (pad.l − 68) = 负坐标 → 一半画到画布外被裁，看着像"数幅度"。
     // 改放在绘图区左上方的留白里（那里正好空着，图例在右上）
-    ctx.fillText('归一化值', pad.l + 2, pad.t - 5);
+    ctx.fillText(t('orbit.chart.normalized'), pad.l + 2, pad.t - 5);
 
     // 绘制各曲线（按其峰值归一化，便于比较节点结构）
     curves.forEach((c) => {
@@ -581,7 +585,9 @@ const Charts = (function () {
   }
 
   // --- 截面图 -------------------------------------------------------------
-  const PLANES = { xy: '*xy* 平面', xz: '*xz* 平面', yz: '*yz* 平面' };
+  // ★ 存的是**键**而不是译文：PLANES 是模块级常量，在这里取译文会把加载时的语言固化。
+  //   真正取值在 drawSectionFrame 里（每次重画现取）。
+  const PLANES = { xy: 'orbit.chart.plane.xy', xz: 'orbit.chart.plane.xz', yz: 'orbit.chart.plane.yz' };
 
   /**
    * 截面视图窗口（缩放 / 平移）。由 main.js 的事件绑定驱动（滚轮缩放、拖拽平移、
@@ -675,7 +681,7 @@ const Charts = (function () {
     if (y0 >= 0 && y0 <= h) { ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(w, y0); ctx.stroke(); }
     ctx.fillStyle = 'rgba(220,228,245,0.92)';
     ctx.font = '12px system-ui, sans-serif';
-    fillMath(ctx, PLANES[plane], 8, 18);
+    fillMath(ctx, t(PLANES[plane]), 8, 18);
     // 轴名固定贴在**绘图区边缘**：它说明的是"横/纵轴各是什么"，与视窗位置无关
     const lab = plane === 'xy' ? ['x', 'y'] : plane === 'xz' ? ['x', 'z'] : ['y', 'z'];
     fillMath(ctx, '*' + lab[0] + '*', w - 14, h / 2 - 6);
@@ -728,7 +734,7 @@ const Charts = (function () {
       ctx.fillStyle = 'rgba(255,170,90,0.95)';
       ctx.font = '13px system-ui, sans-serif';
       ctx.textAlign = 'center';
-      fillMath(ctx, '本平面为节面 · |*ψ*|² ≈ 0', w / 2, h / 2 - 6);
+      fillMath(ctx, t('orbit.chart.nodalPlane'), w / 2, h / 2 - 6);
       ctx.textAlign = 'left';
       return;
     }
@@ -809,7 +815,7 @@ const Charts = (function () {
     // 说明
     ctx.fillStyle = 'rgba(200,215,240,0.8)';
     ctx.font = '10px system-ui, sans-serif';
-    fillMath(ctx, '等高线 |*ψ*|² · 白线 = 节面 (*ψ* = 0)', 8, h - 6);
+    fillMath(ctx, t('orbit.chart.contourTitle'), 8, h - 6);
   }
 
   // 在等高线上标数值：深色底板 + 同层色文字，居中于 (x,y)
@@ -950,7 +956,7 @@ const Charts = (function () {
           ctx.fillStyle = 'rgba(255,255,255,0.9)';
           ctx.font = '11px system-ui, sans-serif';
           ctx.textAlign = 'left';
-          fillMath(ctx, '虚线 = 当前等值面（' + (pf >= 10 ? pf.toFixed(1) : pf.toFixed(2)) + '% 峰值）', 8, h - 8);
+          fillMath(ctx, t('orbit.chart.isoLine', { pct: (pf >= 10 ? pf.toFixed(1) : pf.toFixed(2)) }), 8, h - 8);
         }
       }
     }
@@ -960,7 +966,7 @@ const Charts = (function () {
       ctx.fillStyle = 'rgba(255,170,90,0.95)';
       ctx.font = '13px system-ui, sans-serif';
       ctx.textAlign = 'center';
-      fillMath(ctx, '本平面为节面', w / 2, h / 2 - 4);
+      fillMath(ctx, t('orbit.chart.nodalPlaneShort'), w / 2, h / 2 - 4);
       fillMath(ctx, '|*ψ*|² ≈ 0', w / 2, h / 2 + 16);
       ctx.textAlign = 'left';
     }
@@ -1002,18 +1008,60 @@ const Charts = (function () {
       ctx.fillText('π', x + bw + 4, y + bh / 2 + 3);
       ctx.fillText('2π', x + bw + 4, y + bh + 3);
       ctx.fillStyle = 'rgba(180,196,225,0.75)';
-      fillMath(ctx, '相位 arg *ψ*', x - 6, y - 5);
+      fillMath(ctx, t('orbit.chart.phaseArg'), x - 6, y - 5);
     } else {
-      ctx.fillText('最大', x + bw + 4, y + 9);
+      ctx.fillText(t('orbit.chart.max'), x + bw + 4, y + 9);
       ctx.fillText('0', x + bw + 4, y + bh + 3);
       ctx.fillStyle = 'rgba(180,196,225,0.75)';
-      fillMath(ctx, '|*ψ*|² 最大 ' + fmtNum(maxV), x - 6, y - 5);
+      fillMath(ctx, t('orbit.chart.maxDensity', { v: fmtNum(maxV) }), x - 6, y - 5);
     }
     ctx.textAlign = 'left';   // 恢复默认，别把对齐状态漏给后面画的图元
   }
 
+  /**
+   * 语言切换后**按原参数重画**。
+   *
+   * ★ 为什么必须自己订阅：画布上的字（坐标轴名、图例、节面提示、等值面虚线标注）
+   *   是 `ctx.fillText` 画上去的，**不是 DOM 文本节点** —— 运行时那套
+   *   `sweep()` 扫描替换一个字都够不着。而这些字现在都走 `t()` 现取，
+   *   所以只要重画一遍就换过来了。
+   * ★ 为什么能重画：记住每个 canvas **上一次的绘制调用**（闭包），语言一变原样再跑一次。
+   *   `drawRadial / drawThetaPhi / drawSection` 都是页面本来就会在每次缩放、换轨道时
+   *   重跑的（`redrawSection` 甚至绑在滚轮上），所以代价与"日常一次重绘"同级，
+   *   **不涉及等值面那套十几秒的流水线**。
+   */
+  const lastDraws = new Map();
+  /**
+   * 登记一次绘制，供语言切换时重放。
+   * @param {HTMLCanvasElement} canvas
+   * @param {Function} redo 以**同样的参数**再画一次
+   */
+  function remember(canvas, redo) {
+    if (canvas && typeof redo === 'function') lastDraws.set(canvas, redo);
+  }
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('langchange', function () {
+      for (const redo of lastDraws.values()) {
+        try { redo(); } catch (e) { /* 单个画布重画失败不该挡住其余 */ }
+      }
+    });
+  }
+
+  /** 包一层：先画、再把"怎么再画一遍"记下来 */
+  function rememberable(fn) {
+    return function (canvas) {
+      const args = arguments;
+      const out = fn.apply(null, args);
+      remember(canvas, function () { fn.apply(null, args); });
+      return out;
+    };
+  }
+
   return {
-    drawRadial, drawThetaPhi, drawSection, setRadialHighlight,
+    drawRadial: rememberable(drawRadial),
+    drawThetaPhi: rememberable(drawThetaPhi),
+    drawSection: rememberable(drawSection),
+    setRadialHighlight,
     /** 截面视图控制（缩放 / 平移 / 复位），由 main.js 的事件绑定驱动 */
     zoomSection, panSection, resetSectionView, sectionState, sectionHalfWidth,
     /** 调试/测试：给定曲线显隐时实际会画的标线（只读，不改变状态） */

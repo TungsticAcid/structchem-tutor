@@ -85,7 +85,7 @@ export class IndexPage {
           ${filtered.length === 0
             ? `<div class="list-empty">暂无该分类的晶体数据</div>`
             /* ★ 骨架阶段的占位：卡片组件是懒加载的，先给一句话比给一个空白网格好
-               （`_renderCards()` 会把它清掉）。见 mount 里关于首屏时序的说明。 */
+               （_renderCards() 会把它清掉）。见 mount 里关于首屏时序的说明。 */
             : `<div class="list-empty">正在加载晶体预览…</div>`}
         </div>
       </div>

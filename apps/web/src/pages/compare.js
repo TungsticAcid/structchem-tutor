@@ -8,6 +8,21 @@ import { router } from '../shell/router.js'
 import { globalData } from '../shell/app-state.js'
 import { registerViewerPage, unregisterViewerPage } from '../shell/agent-bridge.js'
 import { createComparePageAdapter } from '@modules/crystal/adapters/compare-page-adapter.js'
+// ★ 别名 `@i18n`（vite）——页面代码走别名，**字典文件**才走相对路径（守卫要能 import 它）。
+import { t } from '@i18n/index.js'
+
+/**
+ * 模型名的两种叫法（长 / 短）。
+ *
+ * ★ 为什么要走 `t()` 而不是进 `text` 表：这里的位置是**带变量的模板串**
+ *   （`${晶体名} · ${模型名}`），守卫按"整段原文"要求登记，而运行时那一段的
+ *   文字是拼出来的 —— 扫描替换匹配不到。这类必须显式取键。
+ * ★ 两种叫法都要翻译：面板按钮写「球棍模型」，两侧标签在双晶体模式下写「球棍」。
+ */
+function modelName(m, short) {
+  if (m === 'cpk') return t(short ? 'pages.compare.cpkShort' : 'pages.compare.cpkFill')
+  return t(short ? 'pages.compare.ballStickShort' : 'pages.compare.ballStick')
+}
 
 function defaultSideSettings(overrides = {}) {
   return {
@@ -204,6 +219,61 @@ export class ComparePage {
     }
   }
 
+  /**
+   * 语言变更时由路由调用（见 shell/router.js 的 `_notifyLang`）。
+   *
+   * ★ 只重画**走 `t()` 取值**的那几处（标题 / 两侧标签 / 控制条 / 设置面板的列标题）：
+   *   它们的值在渲染那一刻就算死了，DOM 扫描替换够不着。
+   *   静态文案（"图层""元素筛选"…）由运行时的 restore + sweep 处理，这里不重复。
+   * ★ **绝不重建画布**：两个 ViewerCanvas 的几何与语言无关，重建它们纯属浪费，
+   *   而且会丢掉当前视角与联动状态。
+   */
+  onLangChange() {
+    const s = this._state
+    const tEl = this._container?.querySelector('.cp-title')
+    if (tEl) {
+      tEl.textContent = s.crystalNameB
+        ? `${s.crystalName} vs ${s.crystalNameB}`
+        : t('pages.compare.titleOne', { name: s.crystalName })
+    }
+    const lL = this._container?.querySelector('#leftPane .cp-label')
+    const lR = this._container?.querySelector('#rightPane .cp-label')
+    if (lL) {
+      lL.textContent = s.crystalNameB
+        ? `${s.crystalName} · ${modelName(s.leftModelType, true)}`
+        : modelName(s.leftModelType, false)
+    }
+    if (lR) {
+      lR.textContent = s.crystalNameB
+        ? `${s.crystalNameB} · ${modelName(s.rightModelType, true)}`
+        : modelName(s.rightModelType, false)
+    }
+    const btnLayout = this._container?.querySelector('#cpToggleLayout')
+    if (btnLayout) {
+      btnLayout.textContent = s.layoutMode === 'horizontal'
+        ? t('pages.compare.toVertical') : t('pages.compare.toHorizontal')
+    }
+    const btnSync = this._container?.querySelector('#cpToggleSync')
+    if (btnSync) btnSync.textContent = s.syncMode ? t('pages.compare.syncOn') : t('pages.compare.syncOff')
+    const btnSet = this._container?.querySelector('#cpToggleSettings')
+    if (btnSet) {
+      btnSet.textContent = this._settingsExpanded
+        ? t('pages.compare.settingsCollapse') : t('pages.compare.settings')
+    }
+    // 设置面板开着时重建它：四列标题（左/右 · 上/下）是 t() 取的，不重建就停在旧语言。
+    // 面板里其余静态文案会被 startAutoSweep 补扫（它盯着 document.body）。
+    if (this._settingsExpanded) {
+      const panel = this._container?.querySelector('#csPanel')
+      if (panel) {
+        panel.remove()
+        const div = document.createElement('div')
+        div.innerHTML = this._renderSettings()
+        this._container.appendChild(div.firstElementChild)
+        this._bindSettingsEvents()
+      }
+    }
+  }
+
   _render() {
     const c = this._container
     const s = this._state
@@ -214,26 +284,28 @@ export class ComparePage {
         <span class="cp-back" id="cpBack">← 返回</span>
         <span class="cp-title">${s.crystalNameB
           ? `${s.crystalName} vs ${s.crystalNameB}`
-          : `${s.crystalName} - 结构对比`}</span>
+          : t('pages.compare.titleOne', { name: s.crystalName })}</span>
       </div>
 
       <div class="cp-dual layout-${s.layoutMode}">
         <div class="cp-pane" id="leftPane">
           <span class="cp-label">${s.crystalNameB
-            ? `${s.crystalName} · ${s.leftModelType === 'cpk' ? 'CPK' : '球棍'}`
-            : (s.leftModelType === 'cpk' ? 'CPK空间填充' : '球棍模型')}</span>
+            ? `${s.crystalName} · ${modelName(s.leftModelType, true)}`
+            : modelName(s.leftModelType, false)}</span>
         </div>
         <div class="cp-divider divider-${s.layoutMode}"></div>
         <div class="cp-pane" id="rightPane">
           <span class="cp-label">${s.crystalNameB
-            ? `${s.crystalNameB} · ${s.rightModelType === 'cpk' ? 'CPK' : '球棍'}`
-            : (s.rightModelType === 'cpk' ? 'CPK空间填充' : '球棍模型')}</span>
+            ? `${s.crystalNameB} · ${modelName(s.rightModelType, true)}`
+            : modelName(s.rightModelType, false)}</span>
         </div>
       </div>
 
       <div class="cp-controls">
-        <span class="cp-btn" id="cpToggleLayout">${s.layoutMode === 'horizontal' ? '☰竖屏' : '▮横屏'}</span>
-        <span class="cp-btn${s.syncMode ? ' active' : ''}" id="cpToggleSync">${s.syncMode ? '🔗联动' : '🔓独立'}</span>
+        <span class="cp-btn" id="cpToggleLayout">${s.layoutMode === 'horizontal'
+          ? t('pages.compare.toVertical') : t('pages.compare.toHorizontal')}</span>
+        <span class="cp-btn${s.syncMode ? ' active' : ''}" id="cpToggleSync">${s.syncMode
+          ? t('pages.compare.syncOn') : t('pages.compare.syncOff')}</span>
         <span class="cp-btn" id="cpAlignView">↺对齐视角</span>
         <span class="cp-btn" id="cpAlignStyle">≡对齐样式</span>
         <span class="cp-btn${this._settingsExpanded ? ' active' : ''}" id="cpToggleSettings">⚙设置</span>
@@ -276,7 +348,15 @@ export class ComparePage {
     const s = this._state
     const cd = s.crystalData || {}
 
-    const genSide = (prefix, sideLabel, layoutTitle) => {
+    /**
+     * 生成一侧的设置列。
+     *
+     * ★ 第 2 个参数原先是 `'左'/'右'` 两个字面量，只用来挑圆点颜色
+     *   （`sideLabel==='左'?'#4285F4':'#EA4335'`）—— 那是**用中文当枚举值**：
+     *   它既不该被翻译，又会污染覆盖率清单（守卫把它算成待译文案）。
+     *   现在直接传颜色，中文枚举随之消失。
+     */
+    const genSide = (prefix, sideColor, layoutTitle) => {
       const show = (k) => s[prefix + k]
       // 图层开关列表（分子晶体隐藏"键"开关，有氢键时显示氢键开关）
       const toggles = [
@@ -308,7 +388,7 @@ export class ComparePage {
       }
       return `
       <div class="cs-col">
-        <div class="cs-col-header"><span class="cs-col-dot" style="background:${sideLabel==='左'?'#4285F4':'#EA4335'}"></span><span class="cs-col-title">${layoutTitle}</span></div>
+        <div class="cs-col-header"><span class="cs-col-dot" style="background:${sideColor}"></span><span class="cs-col-title">${layoutTitle}</span></div>
         <div class="cs-section"><span class="cs-st">显示模型</span>
           <div class="cs-sel">
             <span class="cs-opt${show('ModelType')==='ballStick'?' active':''}" data-cp-side="${prefix}" data-cp-act="model" data-cp-val="ballStick">球棍</span>
@@ -337,9 +417,9 @@ export class ComparePage {
     <div class="cs-panel" id="csPanel">
       ${sharedHtml}
       <div class="cs-cols">
-        ${genSide('left', '左', isHoriz ? '左侧设置' : '上侧设置')}
+        ${genSide('left', '#4285F4', isHoriz ? t('pages.compare.leftPanel') : t('pages.compare.topPanel'))}
         <div class="cs-divider-col"></div>
-        ${genSide('right', '右', isHoriz ? '右侧设置' : '下侧设置')}
+        ${genSide('right', '#EA4335', isHoriz ? t('pages.compare.rightPanel') : t('pages.compare.bottomPanel'))}
       </div>
     </div>
     <style>
@@ -513,15 +593,15 @@ export class ComparePage {
     const targetFrustum = vs?.frustumSize ? vs.frustumSize * scale : null
 
     // 更新布局标签文字
-    const newLabelText = newMode === 'horizontal' ? '☰竖屏' : '▮横屏'
+    const newLabelText = newMode === 'horizontal' ? t('pages.compare.toVertical') : t('pages.compare.toHorizontal')
     const toggleBtn = this._container?.querySelector('#cpToggleLayout')
     if (toggleBtn) toggleBtn.textContent = newLabelText
 
     // 更新画布标签
     const leftLabel = this._container?.querySelector('#leftPane .cp-label')
     const rightLabel = this._container?.querySelector('#rightPane .cp-label')
-    if (leftLabel) leftLabel.textContent = s.leftModelType === 'cpk' ? 'CPK空间填充' : '球棍模型'
-    if (rightLabel) rightLabel.textContent = s.rightModelType === 'cpk' ? 'CPK空间填充' : '球棍模型'
+    if (leftLabel) leftLabel.textContent = modelName(s.leftModelType, false)
+    if (rightLabel) rightLabel.textContent = modelName(s.rightModelType, false)
 
     // 延迟等CSS布局生效后调整frustum并resize
     setTimeout(() => {
@@ -551,7 +631,7 @@ export class ComparePage {
     const btn = this._container.querySelector('#cpToggleSync')
     if (btn) {
       btn.className = 'cp-btn' + (this._state.syncMode ? ' active' : '')
-      btn.textContent = this._state.syncMode ? '🔗联动' : '🔓独立'
+      btn.textContent = this._state.syncMode ? t('pages.compare.syncOn') : t('pages.compare.syncOff')
     }
     if (this._state.syncMode) this._onAlignViews()
   }
@@ -598,16 +678,15 @@ export class ComparePage {
     //   学生（以及验证脚本）都会以为没生效（实测就是被这里绊住的）。
     const lL = this._container?.querySelector('#leftPane .cp-label')
     const lR = this._container?.querySelector('#rightPane .cp-label')
-    const nm = (m) => (m === 'cpk' ? 'CPK' : '球棍')
     if (lL) {
       lL.textContent = this._crystalIdB
-        ? `${s.crystalName} · ${nm(s.leftModelType)}`
-        : (s.leftModelType === 'cpk' ? 'CPK空间填充' : '球棍模型')
+        ? `${s.crystalName} · ${modelName(s.leftModelType, true)}`
+        : modelName(s.leftModelType, false)
     }
     if (lR) {
       lR.textContent = this._crystalIdB
-        ? `${s.crystalNameB} · ${nm(s.rightModelType)}`
-        : (s.rightModelType === 'cpk' ? 'CPK空间填充' : '球棍模型')
+        ? `${s.crystalNameB} · ${modelName(s.rightModelType, true)}`
+        : modelName(s.rightModelType, false)
     }
 
     if (!silent) window.wx.showToast({ title: '样式已对齐', icon: 'success', duration: 1000 })
@@ -628,7 +707,7 @@ export class ComparePage {
     const btn = this._container.querySelector('#cpToggleSettings')
     if (btn) {
       btn.className = 'cp-btn' + (this._settingsExpanded ? ' active' : '')
-      btn.textContent = this._settingsExpanded ? '⚙收起' : '⚙设置'
+      btn.textContent = this._settingsExpanded ? t('pages.compare.settingsCollapse') : t('pages.compare.settings')
     }
   }
 

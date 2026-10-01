@@ -14,6 +14,7 @@
  * ★ 本文件刻意**不 import 任何 three.js / DOM 相关模块**：它只有数据与纯函数，
  *   因此可在 Node 里直接测试（facade.js 同理，它通过参数接收 view，不 import 视图实现）。
  */
+import { t } from './i18n-live.js'
 import { clamp } from '../../packages/agent-core/core/params.js'
 
 /** 图层友好名 → ViewerCanvas 的属性名。取名的原则是"模型说起来自然" */
@@ -172,8 +173,7 @@ export const VOCAB = {
   highlightAtoms: {
     label: '高亮元素',
     group: '图层',
-    desc: '高亮指定元素的原子（发光突出，**不改变元素本身的颜色**）。'
-      + '传空数组可取消全部高亮。用于讲解配位环境、等效点系等概念',
+    desc: '高亮指定元素的原子（发光突出，**不改变元素本身的颜色**）。传空数组可取消全部高亮。用于讲解配位环境、等效点系等概念',
     params: { elements: 'string[]（元素符号数组，如 ["Na","Cl"]）' },
   },
   /**
@@ -202,8 +202,7 @@ export const VOCAB = {
   setEquivalentOrigin: {
     label: '切换晶胞原点',
     group: '结构',
-    desc: '切换等价的晶胞原点表示（如 CsCl 的「顶点为 Cs⁺」/「顶点为 Cl⁻」）。'
-      + '★ 要数某个离子的配位时，先把它**切到体心**再数——中心那个原子才是"被数的那个"',
+    desc: '切换等价的晶胞原点表示（如 CsCl 的「顶点为 Cs⁺」/「顶点为 Cl⁻」）。★ 要数某个离子的配位时，先把它**切到体心**再数——中心那个原子才是"被数的那个"',
     params: { index: 'int ≥ 0（equivalentSettings 的下标，0 起）' },
   },
 }
@@ -227,14 +226,14 @@ export function validate(name, p, ctx = {}) {
       const id = p.crystalId
       if (typeof id !== 'string' || !id) return { err: '需要 crystalId（字符串）' }
       if (ctx.crystalIds && !ctx.crystalIds.has(id)) {
-        return { err: `未知晶体 id：${id}（id 必须来自检索工具返回的原值，不可编造）` }
+        return { err: t('crystal.t.actions.1', { p1: (id) }) }
       }
       return { params: { crystalId: id } }
     }
     case 'setLayer': {
       const layer = p.layer
       if (!Object.prototype.hasOwnProperty.call(LAYER_PROPS, layer)) {
-        return { err: `未知图层：${layer}（可用：${Object.keys(LAYER_PROPS).join('/')}）` }
+        return { err: t('crystal.t.actions.2', { p1: (layer), p2: (Object.keys(LAYER_PROPS).join('/')) }) }
       }
       return { params: { layer, visible: p.visible !== false } }
     }
@@ -246,7 +245,7 @@ export function validate(name, p, ctx = {}) {
       const out = {}
       for (const [k, v] of Object.entries(layers)) {
         if (!Object.prototype.hasOwnProperty.call(LAYER_PROPS, k)) {
-          return { err: `未知图层：${k}` }
+          return { err: t('crystal.t.actions.3', { p1: (k) }) }
         }
         out[k] = v !== false
       }
@@ -255,14 +254,14 @@ export function validate(name, p, ctx = {}) {
     }
     case 'setView': {
       if (VIEW_DIRECTIONS.indexOf(p.direction) < 0) {
-        return { err: `direction 应为 ${VIEW_DIRECTIONS.join('/')}` }
+        return { err: t('crystal.t.actions.4', { p1: (VIEW_DIRECTIONS.join('/')) }) }
       }
       return { params: { direction: p.direction } }
     }
     case 'resetView':
       return { params: {} }
     case 'setCellDisplayMode': {
-      if (CELL_MODES.indexOf(p.mode) < 0) return { err: `mode 应为 ${CELL_MODES.join('/')}` }
+      if (CELL_MODES.indexOf(p.mode) < 0) return { err: t('crystal.t.actions.5', { p1: (CELL_MODES.join('/')) }) }
       return { params: { mode: p.mode } }
     }
     case 'setEquivalentOrigin': {
@@ -284,11 +283,11 @@ export function validate(name, p, ctx = {}) {
       for (const [k, range] of Object.entries(APPEARANCE_RANGES)) {
         if (p[k] == null) continue
         const v = clamp(p[k], range[0], range[1])
-        if (v == null) return { err: `${k} 非法（应为 ${range[0]}~${range[1]} 的数值）` }
+        if (v == null) return { err: t('crystal.t.actions.6', { p1: (k), p2: (range[0]), p3: (range[1]) }) }
         out[k] = v
       }
       if (!Object.keys(out).length) {
-        return { err: `至少要给一项：${Object.keys(APPEARANCE_RANGES).join(' / ')}` }
+        return { err: t('crystal.t.actions.7', { p1: (Object.keys(APPEARANCE_RANGES).join(' / ')) }) }
       }
       return { params: out }
     }
@@ -308,7 +307,7 @@ export function validate(name, p, ctx = {}) {
       const b = p.b
       if (typeof b !== 'string' || !b) return { err: '需要 b（第二个晶体的 id）' }
       if (ctx.crystalIds && !ctx.crystalIds.has(b)) {
-        return { err: `未知晶体 id：${b}（id 必须来自检索工具返回的原值，不可编造）` }
+        return { err: t('crystal.t.actions.8', { p1: (b) }) }
       }
       // 与当前晶体相同则没有可对比的内容——这一点在动作层就拦下，
       // 免得跳过去看到一个"左右一样"的页面
@@ -318,7 +317,7 @@ export function validate(name, p, ctx = {}) {
       return { params: { b } }
     }
     default:
-      return { err: `未知动作：${name}（可用动作见 listSceneActions）` }
+      return { err: t('crystal.t.actions.9', { p1: (name) }) }
   }
 }
 

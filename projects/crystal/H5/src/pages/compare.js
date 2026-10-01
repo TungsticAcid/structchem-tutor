@@ -6,6 +6,33 @@ import { ViewerCanvas } from '../components/viewer-canvas.js'
 import { getCrystalData } from '../lib/crystal-loader.js'
 import { router } from '../adapters/router.js'
 import { globalData } from '../main.js'
+// ★ 相对路径而不是 `@i18n/index.js` 别名：本文件同时被统一壳（有别名）与
+//   `projects/crystal/H5` 独立页（**没有**别名）引用，只有相对路径两边都认。
+import { t, tsrc } from '../../../../../packages/i18n/index.js'
+
+/**
+ * 顶栏与设置面板里的固定标签。
+ *
+ * ★ 为什么把它们提到模板串**外面**：这些字原先直接写在
+ *   `${s.layoutMode === 'horizontal' ? '☰竖屏' : '▮横屏'}` 这类表达式里，
+ *   而扫描替换的粒度是「**DOM 文本节点**」——模板里带 `${}` 的整片它够不着
+ *   （DOM 上只有被选中的那一支）。提出来之后每条都是一个独立的中文原文，
+ *   由 `text` 表 + `sweep()` 负责换掉；**渲染出来的 HTML 一个字节没变**。
+ *
+ * ★ 标题里的晶体名（`s.crystalName`）是**数据字段**，本身也在 `text` 表里 ——
+ *   它嵌进 `t()` 的变量位后不再经过 DOM 扫描，所以这里用 `tsrc()` 先把它翻一道
+ *   （中文模式下 `tsrc` 回 null，原样用中文）。否则英文界面上会出现
+ *   「NaCl(岩盐)型 — structure comparison」这种半中半英的标题。
+ */
+const CPK_LABEL = 'CPK空间填充'
+const BALL_STICK_LABEL = '球棍模型'
+const LAYOUT_LABELS = { horizontal: '☰竖屏', vertical: '▮横屏' }
+const SYNC_LABELS = { on: '🔗联动', off: '🔓独立' }
+/** 设置面板两栏的标题：横屏时是左右、竖屏时是上下 */
+const SIDE_TITLES = {
+  horizontal: { left: '左侧设置', right: '右侧设置' },
+  vertical: { left: '上侧设置', right: '下侧设置' }
+}
 
 function defaultSideSettings(overrides = {}) {
   return {
@@ -140,22 +167,22 @@ export class ComparePage {
     <div class="compare-page">
       <div class="cp-top-bar">
         <span class="cp-back" id="cpBack">← 返回</span>
-        <span class="cp-title">${s.crystalName} - 结构对比</span>
+        <span class="cp-title">${t('h5.compare.title', { name: tsrc(s.crystalName) || s.crystalName })}</span>
       </div>
 
       <div class="cp-dual layout-${s.layoutMode}">
         <div class="cp-pane" id="leftPane">
-          <span class="cp-label">${s.leftModelType === 'cpk' ? 'CPK空间填充' : '球棍模型'}</span>
+          <span class="cp-label">${s.leftModelType === 'cpk' ? CPK_LABEL : BALL_STICK_LABEL}</span>
         </div>
         <div class="cp-divider divider-${s.layoutMode}"></div>
         <div class="cp-pane" id="rightPane">
-          <span class="cp-label">${s.rightModelType === 'cpk' ? 'CPK空间填充' : '球棍模型'}</span>
+          <span class="cp-label">${s.rightModelType === 'cpk' ? CPK_LABEL : BALL_STICK_LABEL}</span>
         </div>
       </div>
 
       <div class="cp-controls">
-        <span class="cp-btn" id="cpToggleLayout">${s.layoutMode === 'horizontal' ? '☰竖屏' : '▮横屏'}</span>
-        <span class="cp-btn${s.syncMode ? ' active' : ''}" id="cpToggleSync">${s.syncMode ? '🔗联动' : '🔓独立'}</span>
+        <span class="cp-btn" id="cpToggleLayout">${s.layoutMode === 'horizontal' ? LAYOUT_LABELS.horizontal : LAYOUT_LABELS.vertical}</span>
+        <span class="cp-btn${s.syncMode ? ' active' : ''}" id="cpToggleSync">${s.syncMode ? SYNC_LABELS.on : SYNC_LABELS.off}</span>
         <span class="cp-btn" id="cpAlignView">↺对齐视角</span>
         <span class="cp-btn" id="cpAlignStyle">≡对齐样式</span>
         <span class="cp-btn${this._settingsExpanded ? ' active' : ''}" id="cpToggleSettings">⚙设置</span>
@@ -198,7 +225,10 @@ export class ComparePage {
     const s = this._state
     const cd = s.crystalData || {}
 
-    const genSide = (prefix, sideLabel, layoutTitle) => {
+    // ★ `sideLabel` 原先传的是「左 / 右」两个字，而它**只**用来选圆点颜色
+    //   （不出现在界面上）—— 那是内部标记、不是文案。改用 `prefix` 判断，
+    //   顺带让这条没有中文需要翻译。
+    const genSide = (prefix, layoutTitle) => {
       const show = (k) => s[prefix + k]
       // 图层开关列表（分子晶体隐藏"键"开关，有氢键时显示氢键开关）
       const toggles = [
@@ -230,7 +260,7 @@ export class ComparePage {
       }
       return `
       <div class="cs-col">
-        <div class="cs-col-header"><span class="cs-col-dot" style="background:${sideLabel==='左'?'#4285F4':'#EA4335'}"></span><span class="cs-col-title">${layoutTitle}</span></div>
+        <div class="cs-col-header"><span class="cs-col-dot" style="background:${prefix==='left'?'#4285F4':'#EA4335'}"></span><span class="cs-col-title">${layoutTitle}</span></div>
         <div class="cs-section"><span class="cs-st">显示模型</span>
           <div class="cs-sel">
             <span class="cs-opt${show('ModelType')==='ballStick'?' active':''}" data-cp-side="${prefix}" data-cp-act="model" data-cp-val="ballStick">球棍</span>
@@ -248,6 +278,9 @@ export class ComparePage {
     }
 
     const isHoriz = s.layoutMode === 'horizontal'
+    // 两栏标题（横屏左右 / 竖屏上下）：取到变量里再插进模板，
+    // 模板里带 `${}` 的整片扫描替换够不着（见文件头 SIDE_TITLES 的说明）。
+    const sideTitles = SIDE_TITLES[isHoriz ? 'horizontal' : 'vertical']
     // 共享设置（两侧同步）
     const sharedHtml = s.isOrthogonalCell ? `
       <div class="cs-shared-row">
@@ -259,9 +292,9 @@ export class ComparePage {
     <div class="cs-panel" id="csPanel">
       ${sharedHtml}
       <div class="cs-cols">
-        ${genSide('left', '左', isHoriz ? '左侧设置' : '上侧设置')}
+        ${genSide('left', sideTitles.left)}
         <div class="cs-divider-col"></div>
-        ${genSide('right', '右', isHoriz ? '右侧设置' : '下侧设置')}
+        ${genSide('right', sideTitles.right)}
       </div>
     </div>
     <style>

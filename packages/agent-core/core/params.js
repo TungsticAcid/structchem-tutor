@@ -13,6 +13,12 @@
  * 来源：orbit/H5/js/agent/scene-bridge.js 的 clampInt / clampNum（第 354–361 行），
  * 2026-09-24 抽到共享层并补齐枚举校验。
  */
+// ★ 拒绝理由会作为工具结果回灌给模型（"模型不得口算"的配套：告诉它哪里错了），
+//   故走 t()。注意 `label` 是**调用方给的字段名**（多半是英文 key，如 'mode'），
+//   翻译的是句式而不是字段名。
+// ★ 自己 import 字典：`modules/crystal/actions.js` 直接引用本文件（不经 app.js）
+import '../i18n.js'
+import { t } from '../../i18n/index.js'
 
 /**
  * 夹紧到区间。非有限值返回 null（调用方据此判"非法"并回 err，而不是悄悄取默认）。
@@ -53,13 +59,15 @@ export function pickEnum(v, allowed) {
  */
 export function requireEnum(v, allowed, label) {
   const m = pickEnum(v, allowed)
-  if (m == null) return { err: `${label} 应为 ${allowed.join('/')}，收到 ${JSON.stringify(v)}` }
+  if (m == null) {
+    return { err: t('agent.params.enum', { label, allowed: allowed.join('/'), got: JSON.stringify(v) }) }
+  }
   return { value: m }
 }
 
 /** 生成"必填字符串"的结果对象（会 trim，空串视为缺失） */
 export function requireString(v, label) {
-  if (typeof v !== 'string' || !v.trim()) return { err: `需要 ${label}（非空字符串）` }
+  if (typeof v !== 'string' || !v.trim()) return { err: t('agent.params.string', { label }) }
   return { value: v.trim() }
 }
 

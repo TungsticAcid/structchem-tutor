@@ -13,11 +13,18 @@
  *   1. 复制为 descriptors/<你的模块id>.js
  *   2. 在 descriptors/index.js 中 import 并加入列表
  *   3. 在 packages/knowledge/<模块id>/ 放知识条目
+ *   4. 在 packages/agent-core/i18n.js 的 `keywords` 表里加一条中英关键词
+ *      （★ 双语并列：路由匹配是纯子串匹配，英文用户不该因为关键词只有中文而路由不到）
  */
+import { keywords } from '../../i18n.js'
+
+/** 取一条双语关键词（`|` 分隔；见 i18n.js 的 keywords 表） */
+const kw = (key) => String(keywords[key] || '').split('|').filter(Boolean)
 
 export default {
   // ★ 1. 模块标识（小写字母、数字、连字符；会作为知识条目 id 的命名空间前缀）
   id: 'crystal-field',
+  // ★ 模块名登记在 packages/agent-core/i18n.js 的 `text` 表里（它会上门户首页）
   title: '晶体场理论',
 
   // 小模块标记：仅用于面板展示分组，不影响任何逻辑
@@ -26,9 +33,7 @@ export default {
   // ★ 2. 能力声明 —— 中枢据此把问题路由过来。
   //      这是小模块唯一【必填】的内容字段，写清"用户说什么时会用到我"。
   capabilities: {
-    crystalField: ['晶体场', '配位场', '分裂能', 'd轨道分裂', '八面体场',
-                   '四面体场', '强场', '弱场', '高自旋', '低自旋',
-                   '光谱化学序列', 'CFSE', '晶体场稳定化能'],
+    crystalField: kw('agent.kw.template.crystalField').concat(['CFSE']),
   },
 
   // ★ 3. 贡献的工具。小模块通常只需要"查"（无副作用的计算/查询）。

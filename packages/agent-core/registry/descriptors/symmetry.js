@@ -18,20 +18,29 @@
  *   没有任何代码。用户已确认红外与拉曼纳入范围（重构计划阶段 C 的 P4），故保留
  *   声明并在此登记为待实现。
  */
+// ★ 路由关键词是**数据**不是文案：中英并列表见 packages/agent-core/i18n.js 的 `keywords`。
+import { keywords } from '../../i18n.js'
+
+/** 取一条双语关键词（`|` 分隔；见 i18n.js 的 keywords 表） */
+const kw = (key) => String(keywords[key] || '').split('|').filter(Boolean)
+
 export default {
   id: 'symmetry',
-  title: '分子对称性',
+  // ★ 模块名走 `text` 表（门户首页的模块卡把它当**文本节点**渲染）。
+  // ★ 与页面自己的品牌名统一为「点群观鉴」（取自参赛配图）。此前这里写「分子对称性」，
+  //   而页面顶栏写「点群观鉴」——同一个模块两种叫法，正是用户这次点名要清掉的那类不一致。
+  title: '点群观鉴',
   scale: 'full',
   /** 授课次序（见 orbit.js 里对该字段的完整说明）。分子对称性排在原子结构之后。 */
   teachingOrder: 2,
   // 现状指向模块独立页；统一壳建成后改为壳内模块入口（B6）
   entry: '#/symmetry',  // 统一壳里的路由（旧值 projects/symmetry/H5/index.html 是独立页）
 
+  // 中英关键词并集；不含中文的专名（C2v/D3h/Td/Oh）直接写在这里
   capabilities: {
-    pointGroup: ['点群', '对称操作', '对称元素', '对称轴', '镜面', '反演中心',
-                 '旋转轴', '映轴', 'C2v', 'D3h', 'Td', 'Oh', '特征标表'],
-    symmetryOps: ['恒等', '旋转', '反映', '反演', '旋转反映'],
-    applications: ['红外活性', '拉曼活性', '手性', '偶极矩', '分子振动'],
+    pointGroup: kw('agent.kw.symmetry.pointGroup').concat(['C2v', 'D3h', 'Td', 'Oh']),
+    symmetryOps: kw('agent.kw.symmetry.symmetryOps'),
+    applications: kw('agent.kw.symmetry.applications'),
   },
 
   /** 已声明但尚未实现的能力（用于路由，但回答会失败）。补齐见重构计划阶段 C。 */

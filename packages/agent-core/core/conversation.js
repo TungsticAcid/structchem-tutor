@@ -30,6 +30,14 @@
  * buildSystem），以及它对 window.Settings / ToolRegistry / Perception / LLMClient /
  * SceneBridge 的直接引用（改为注入）。
  */
+// ★ 本文件产出的每一段文字都会进**模型上下文**（系统提示、清单、截断续写提示、
+//   中止占位回执），不会作为 DOM 文本节点出现 ⇒ 全部走 t()，`text` 表在这里无用。
+// ★ 自己 import 字典（副作用即 registerDict），不依赖入口替你注册：
+//   本文件被 `packages/knowledge/tools/check-shared-data.mjs` 这类**不经 app.js** 的
+//   调用方直接 import 过——少了这一行，t() 查不到键会**原样返回键名**当文案，
+//   而守卫照样绿（它只读字典文件里登记了哪些原文）。
+import '../i18n.js'
+import { t } from '../../i18n/index.js'
 
 /** 默认最大轮数 */
 export const DEFAULT_MAX_ROUNDS = 6
@@ -55,15 +63,17 @@ export function buildManifestText(catalogs = {}) {
   if (k && typeof k.index === 'function') {
     const idx = k.index()
     if (idx.length) {
-      lines.push('【知识库清单】（正文需用 loadKnowledge(id) 按需加载，不要臆测内容）')
-      lines.push(idx.map((e) => `${e.id}｜${e.kp}｜${e.title}｜关键词:${(e.keywords || []).join('/')}`).join('\n'))
+      lines.push(t('agent.manifest.knowledgeTitle'))
+      lines.push(idx.map((e) => t('agent.manifest.knowledgeLine', {
+        id: e.id, kp: e.kp, title: e.title, keywords: (e.keywords || []).join('/'),
+      })).join('\n'))
     }
   }
   const s = catalogs.skills
   if (s && typeof s.index === 'function') {
     const sk = s.index()
     if (sk.length) {
-      lines.push('【教学技能清单】（完整步骤需用 loadSkill(name) 加载）')
+      lines.push(t('agent.manifest.skillsTitle'))
       lines.push(sk.map((x) => `${x.name}｜${x.desc}`).join('\n'))
     }
   }
@@ -149,7 +159,9 @@ export function createConversation(opts = {}) {
     const settings = getSettings() || {}
     if (!settings.apiKey) {
       running = false
-      const err = new Error('尚未配置 API Key，请在设置中填写你自己的模型密钥。')
+      // ★ 这条虽然写在 `new Error(...)` 里（守卫按规则把它算作开发者文案），
+      //   但它会经 onError 显示在面板上，属于**用户看得见**的提示，故照样翻译。
+      const err = new Error(t('agent.noApiKey'))
       err.kind = 'no_key'
       H.onError(err)
       return { ok: false, error: err.message, kind: 'no_key' }
@@ -170,8 +182,9 @@ export function createConversation(opts = {}) {
         // ① 每轮重采快照（关键：工具可能已改变视图）
         let snapshotText = ''
         if (typeof getSnapshotText === 'function') {
-          const t = getSnapshotText()
-          if (t) snapshotText = '【当前视图快照（实时）】\n' + t
+          // ★ 局部变量刻意不叫 `t`：它会遮住上面 import 的 i18n 取值函数 `t()`
+          const snapText = getSnapshotText()
+          if (snapText) snapshotText = t('agent.snapshot.header') + '\n' + snapText
         }
 
         // ② 组装 messages
@@ -236,7 +249,7 @@ export function createConversation(opts = {}) {
             for (let k = i; k < out.toolCalls.length; k++) {
               history.push({
                 role: 'tool', tool_call_id: out.toolCalls[k].id,
-                content: JSON.stringify({ aborted: true, note: '用户已中止本次循环，该动作未执行' }),
+                content: JSON.stringify({ aborted: true, note: t('agent.tool.abortedNote') }),
               })
             }
             break
@@ -262,8 +275,7 @@ export function createConversation(opts = {}) {
             history.push({
               role: 'user',
               origin: 'continuation',
-              content: '（上一条回复因长度上限被截断，请从中断处继续写完，不要重复已经写过的内容。'
-                + '公式务必写成：行内 $…$ 不跨行，独立成行的 $$…$$ 独占一行。）',
+              content: t('agent.continue.truncated'),
             })
             continue
           }

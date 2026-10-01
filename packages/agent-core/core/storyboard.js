@@ -21,6 +21,13 @@
  *   8. 分几次下发的步骤**并入同一条记录**（而非每次新开）→ 否则回放只播后半段
  *   9. 每一步有**稳定编号**（不是数组下标）→ "整改第 3 步"才指得准
  */
+// ★ 本文件的文案有两类去向，且**都不进 DOM**：
+//   ① 工具回执里的 `note`（告诉模型"已入队、别重复下发"）→ 进模型上下文
+//   ② 拒绝理由（`{ ok:false, error }`）→ 由面板渲染成气泡文字、也可能被模型读到
+//   故全部走 t()；`text` 表在这里无用。
+// ★ 自己 import 字典（副作用即 registerDict），不依赖入口替你注册
+import '../i18n.js'
+import { t } from '../../i18n/index.js'
 
 /** 默认配置（数值来自 orbit 原实现，均为实测调过的值） */
 export const STORYBOARD_DEFAULTS = {
@@ -242,12 +249,12 @@ export function createStoryboard(opts = {}) {
    *   此刻演示已经停了，学生想回退是明确意图，自动切回手动逐步即可。
    */
   function prev() {
-    if (!queue.length) return { ok: false, error: '当前没有可回退的演示' }
+    if (!queue.length) return { ok: false, error: t('agent.sb.noPrev') }
     if (playing && !manual && !atGate) {
-      return { ok: false, error: '自动连播中无法回退，请先切到手动逐步' }
+      return { ok: false, error: t('agent.sb.prevAuto') }
     }
-    if (playing && !atGate) return { ok: false, error: '当前步骤正在播放，请稍候再回退' }
-    if (qIndex <= 0) return { ok: false, error: '已经是第一步了' }
+    if (playing && !atGate) return { ok: false, error: t('agent.sb.prevPlaying') }
+    if (qIndex <= 0) return { ok: false, error: t('agent.sb.prevFirst') }
     if (!manual) manual = true          // 播完回退 → 回到手动逐步，canPrev/canNext 同步一致
     qIndex--
     if (typeof restore === 'function') restore(snapshots[qIndex])
@@ -404,7 +411,7 @@ export function createStoryboard(opts = {}) {
         if (!pa.ok) continue
         if (pa.okIndex >= accepted) {
           pa.ok = false
-          pa.error = '超出单条演示的步数上限（' + cfg.maxQueue + '），未入队'
+          pa.error = t('agent.sb.overflow', { max: cfg.maxQueue })
         } else {
           pa.stepIndex = start + pa.okIndex
         }
@@ -500,10 +507,8 @@ export function createStoryboard(opts = {}) {
       demoId,
       // ★ 这段是给模型看的：告诉它不要重复下发同样的动作，并交代节奏控制手段。
       //   少了它，模型会在用户还没点「下一步」时把同一组动作再发一遍。
-      note: '已入队 ' + taken.length + ' 步（共 ' + qTotal + ' 步）。'
-        + (manual
-          ? '正在等用户点「下一步」逐步确认——请不要重复下发同样的动作，并在回复里告诉学生可以用「下一步 / 连续播放 / 停止」控制节奏。'
-          : '正在连续播放。'),
+      note: t('agent.sb.queued', { queued: taken.length, total: qTotal })
+        + (manual ? t('agent.sb.queuedManual') : t('agent.sb.queuedAuto')),
     }
   }
 
@@ -621,7 +626,7 @@ export function createStoryboard(opts = {}) {
 
       const r = await applyStep(st.name, st.params, { isDead: dead })
       if (dead()) return { executed, failed, aborted: true }
-      const one = r && r.ok ? { action: st.name } : { action: st.name, error: (r && r.error) || '执行失败' }
+      const one = r && r.ok ? { action: st.name } : { action: st.name, error: (r && r.error) || t('agent.sb.execFailed') }
       ;(r && r.ok ? executed : failed).push(one)
 
       qIndex++
@@ -689,7 +694,7 @@ export function createStoryboard(opts = {}) {
       valid.push(it)
     }
     if (!valid.length) {
-      return { ok: false, error: '这段演示没有可执行的步骤', invalid: invalid.length ? invalid : undefined }
+      return { ok: false, error: t('agent.sb.noSteps'), invalid: invalid.length ? invalid : undefined }
     }
 
     stop()                               // 清空队列并推进 generation（旧的播放循环作废）
@@ -731,7 +736,7 @@ export function createStoryboard(opts = {}) {
   function replay(demoId) {
     const rec = (demoId != null) ? demos.get(String(demoId)) : latestDemo()
     if (!rec || !rec.steps || !rec.steps.length) {
-      return { ok: false, error: '没有可回放的演示（还没有放过任何演示）' }
+      return { ok: false, error: t('agent.sb.noReplay') }
     }
     const r = loadDemo(rec.steps, { demoId: rec.id, origin: rec.origin, reason: 'replay' })
     return r.ok ? Object.assign(r, { title: rec.label || '' }) : r
@@ -747,10 +752,10 @@ export function createStoryboard(opts = {}) {
   /** 跳回队列中的第 i 步（手动、且当前没在跑时才允许） */
   function jumpTo(i) {
     const n = Number(i)
-    if (!queue.length) return { ok: false, error: '当前没有可跳转的演示' }
-    if (!manual) return { ok: false, error: '自动连播中无法跳转，请先切到逐步' }
-    if (playing && !atGate) return { ok: false, error: '当前步骤正在播放，请稍候' }
-    if (!Number.isInteger(n) || n < 0 || n >= queue.length) return { ok: false, error: '步号超出范围' }
+    if (!queue.length) return { ok: false, error: t('agent.sb.noJump') }
+    if (!manual) return { ok: false, error: t('agent.sb.jumpAuto') }
+    if (playing && !atGate) return { ok: false, error: t('agent.sb.jumpPlaying') }
+    if (!Number.isInteger(n) || n < 0 || n >= queue.length) return { ok: false, error: t('agent.sb.stepRange') }
     qIndex = n
     if (typeof restore === 'function' && snapshots[n]) restore(snapshots[n])
     if (!playing) {
@@ -789,18 +794,18 @@ export function createStoryboard(opts = {}) {
       ? demos.get(String(id))
       : (curDemoId ? demos.get(curDemoId) : latestDemo())
     if (!rec) {
-      return { ok: false, error: '没有找到这条演示（现有：' + ([...demos.keys()].join(', ') || '无') + '）' }
+      return { ok: false, error: t('agent.sb.noDemo', { ids: [...demos.keys()].join(', ') || t('agent.sb.none') }) }
     }
     const i = Number(index)
-    if (!Number.isInteger(i) || i < 0) return { ok: false, error: 'index 应为 ≥ 0 的步号' }
+    if (!Number.isInteger(i) || i < 0) return { ok: false, error: t('agent.sb.indexInvalid') }
     if (op !== 'insert' && i >= rec.steps.length) {
-      return { ok: false, error: '步号超出范围（这条演示共 ' + rec.steps.length + ' 步）' }
+      return { ok: false, error: t('agent.sb.stepRangeDemo', { n: rec.steps.length }) }
     }
     if ((op === 'replace' || op === 'insert') && (!step || !step.action)) {
-      return { ok: false, error: 'op=' + op + ' 需要给出 step.action' }
+      return { ok: false, error: t('agent.sb.needAction', { op }) }
     }
     if (op === 'jump') {
-      if (!playing || rec.id !== curDemoId) return { ok: false, error: '只能跳回正在播的演示' }
+      if (!playing || rec.id !== curDemoId) return { ok: false, error: t('agent.sb.jumpOnlyLive') }
       const r = jumpTo(i)
       return Object.assign(r, { demoId: rec.id, mode: 'inplace' })
     }
@@ -808,7 +813,7 @@ export function createStoryboard(opts = {}) {
     // ---- 就地改：正在播同一条，且改的是尚未播到的步骤 ----
     if (playing && rec.id === curDemoId && i >= qIndex) {
       if (op === 'replace') {
-        if (i >= queue.length) return { ok: false, error: '步号超出范围' }
+        if (i >= queue.length) return { ok: false, error: t('agent.sb.stepRange') }
         const it = toStep(step)
         if (it.err) return { ok: false, error: it.err }
         queue[i] = it
@@ -817,7 +822,7 @@ export function createStoryboard(opts = {}) {
         if (it.err) return { ok: false, error: it.err }
         queue.splice(i + 1, 0, it)
       } else if (op === 'remove') {
-        if (queue.length <= 1) return { ok: false, error: '不能把演示删空' }
+        if (queue.length <= 1) return { ok: false, error: t('agent.sb.cannotEmpty') }
         queue.splice(i, 1)
       }
       qTotal = queue.length
@@ -835,11 +840,11 @@ export function createStoryboard(opts = {}) {
       steps.splice(i + 1, 0, Object.assign({}, step))
       target = i + 1
     } else if (op === 'remove') {
-      if (steps.length <= 1) return { ok: false, error: '不能把演示删空' }
+      if (steps.length <= 1) return { ok: false, error: t('agent.sb.cannotEmpty') }
       steps.splice(i, 1)
       target = Math.min(i, steps.length - 1)
     } else {
-      return { ok: false, error: '未知的 op：' + op }
+      return { ok: false, error: t('agent.sb.unknownOp', { op }) }
     }
     const r = loadDemo(steps, { demoId: rec.id, origin: rec.origin, reason: 'revise', fastForwardTo: target })
     if (!r.ok) return r
@@ -933,15 +938,15 @@ export function createStoryboard(opts = {}) {
    * @returns {{ok:boolean, error?:string}}
    */
   function restoreBefore() {
-    if (beforeSnap == null) return { ok: false, error: '还没有可恢复的演示' }
-    if (typeof restore !== 'function') return { ok: false, error: '当前视图不支持恢复' }
+    if (beforeSnap == null) return { ok: false, error: t('agent.sb.noBefore') }
+    if (typeof restore !== 'function') return { ok: false, error: t('agent.sb.restoreUnsupported') }
     let done = false
     try {
       done = restore(beforeSnap)
     } catch (e) {
-      return { ok: false, error: '恢复失败：' + ((e && e.message) || e) }
+      return { ok: false, error: t('agent.sb.restoreFailed', { msg: (e && e.message) || e }) }
     }
-    return done ? { ok: true } : { ok: false, error: '恢复未生效（视图可能已切换到别的页面）' }
+    return done ? { ok: true } : { ok: false, error: t('agent.sb.restoreNoEffect') }
   }
 
   /**

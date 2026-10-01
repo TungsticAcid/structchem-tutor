@@ -33,6 +33,11 @@ export const SYMMETRY_CSS = `    .sym-page {
       position: absolute;
       top: 12px; left: 12px; right: 12px;
       display: flex; align-items: center; gap: 10px;
+      /* ★ 允许换行：中文的「对称元素 / 标签 / 辅助几何 / 原子标签 / 设置」在窄屏能排一行，
+       *   英文（Symmetry elements / Labels / Aux geometry / Atom labels / Settings）
+       *   会一路挤出右边界 —— 而 #toolbar 是绝对定位浮层，溢出的按钮**没有任何滚动条能救**
+       *   （实测 420px 下 5 个开关全部 right-out）。换行是这里唯一不损失可发现性的做法。 */
+      flex-wrap: wrap;
       padding: 8px 12px;
       background: var(--panel-bg);
       color: var(--panel-fg);

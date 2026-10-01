@@ -7,8 +7,21 @@
  *   内部逻辑逐字未动——P1 的纪律是"只加 export/import，不动逻辑"，
  *   这样将来与上游对拍时 diff 是可读的。
  * ★ 本文件**不引用 DOM**，可在 Node 里直接测试。
+ *
+ * ---------------------------------------------------------------------------
+ * i18n：`buildPsi` / `buildSuperposition` / `buildNote` 的标题与说明
+ * ---------------------------------------------------------------------------
+ * 它们**进 DOM**（`#formulaTitle` 走 textContent、`#formulaNote` 走 innerHTML），
+ * 而且都是**拼接或带变量**的（`3p 轨道（m=+1） · 空间波函数复数解`、
+ * `径向节点 1 个、角度节面 1 个；…`），说明里还带 `<i>` 标签 ——
+ * 扫描替换只认"整段就是这一句"，够不着，所以一律走 `t('orbit.formula.…', {…})`。
+ * 取值发生在**每次渲染**（这三个函数每次重算都会再调一次），因此是惰性的。
+ * ⚠ 本文件里 `t` 这个名字**在若干回调里被当作循环变量**（`terms.map(function (t) …)`），
+ *   那些作用域内部**不能**再调 `t()` —— 会变成"把对象当函数调"。
  */
 
+import '../i18n.js'
+import { t } from '../../../packages/i18n/index.js'
 import { OM } from './math.js'
 
 /**
@@ -356,6 +369,11 @@ const Formula = (function () {
    */
   function buildSuperposition(terms) {
     if (!terms || !terms.length) return null;
+    // ★ 这两个小工具放在 map **外面**：回调里的循环变量就叫 `t`（上游原样），
+    //   在回调内部调 i18n 的 `t()` 会把"项对象"当函数调。
+    //   括号中英不同，所以整段（含 `m=`）交给译文表，代码里不拼 `（`。
+    const mSuffix = (mm) => (mm !== 0 ? t('orbit.formula.mSuffix', { m: 'm=' + (mm > 0 ? '+' : '') + mm }) : '');
+    const mSuffixHtml = (mm) => (mm !== 0 ? t('orbit.formula.mSuffix', { m: '<i>m</i>=' + (mm > 0 ? '+' : '') + mm }) : '');
     const comp = terms.map(function (t) {
       const re = t.c.re, im = t.c.im || 0;
       const mag = Math.sqrt(re * re + im * im);
@@ -374,10 +392,10 @@ const Formula = (function () {
         nm: useName ? ('\\psi_{' + t.n + realOrbitalNameTex(t.l, t.m) + '}')
                     : ('\\psi_{' + String(t.n) + String(t.l) + String(t.m) + '}'),
         label: useName ? (t.n + plainName(name))
-                       : (t.n + sub + (t.m !== 0 ? '（m=' + (t.m > 0 ? '+' : '') + t.m + '）' : '')),
+                       : (t.n + sub + mSuffix(t.m)),
         // HTML 版（说明文字走 innerHTML，里面的轨道名要真下标、方向坐标要斜体）
         labelHtml: useName ? (t.n + realOrbitalLabelHtml(t.l, t.m))
-                           : (t.n + sub + (t.m !== 0 ? '（<i>m</i>=' + (t.m > 0 ? '+' : '') + t.m + '）' : '')),
+                           : (t.n + sub + mSuffixHtml(t.m)),
       };
     });
     // 展开式：系数为 1 时省略；第一项为负要带负号，其余用 ± 连接。
@@ -413,16 +431,18 @@ const Formula = (function () {
     //      （成立）；但测**能量**时两个分量简并，概率恒为 1，|cᵢ|² 与能量概率无关。
     //   注：#formulaNote 走 innerHTML（说明里的变量要斜体，用户第 5 条），故这里可以带
     //      <i> 标签，但**仍然不能用 $...$** —— KaTeX 只在公式体里解析。
-    const note = '系数按 Σ|<i>c</i>ᵢ|² = 1 等比归一化（本程序基组正交归一，故只需这一条），'
-      + '因此只有比值有物理意义；|<i>c</i>ᵢ|² 是投影到该分量的概率，'
-      + '只有该分量是所测力学量的本征态时才等于"测到该本征值"的概率 —— '
-      + comp.map(function (x) { return x.labelHtml + ' ' + exactTex(x.w); }).join('、');
+    //   ★ 文案一律走键：说明里带 <i> 标签、还接了一段动态算出来的分量列表，
+    //     整段登记进 text 表在运行时**永远命不中**（DOM 里它是好几个文本节点）。
+    const note = t('orbit.formula.super.note', {
+      comps: comp.map(function (x) { return x.labelHtml + ' ' + exactTex(x.w); })
+        .join(t('orbit.formula.super.sep')),
+    });
     return {
-      title: '叠加态 · ' + terms.length + ' 个分量',
+      title: t('orbit.formula.super.title', { n: terms.length }),
       note: note,
       latex: latex,
       mLabel: '',
-      modeName: '叠加态',
+      modeName: t('orbit.group.super'),
     };
   }
 
@@ -647,7 +667,7 @@ const Formula = (function () {
 
     // ★ 用「空间波函数」而不是「波函数」：与面板上「视图对象」那个按钮**逐字一致**
     //   （用户第 3 条把按钮改成了这个名字）。同一件事两处叫法不同正是这一批要清掉的毛病。
-    const modeName = mode === 'real' ? '空间波函数实数解' : '空间波函数复数解';
+    const modeName = mode === 'real' ? t('空间波函数实数解') : t('空间波函数复数解');
     // ★ 只有复解才写 m —— m 是复球谐的本征值指标，实解换成实轨道名之后这个标记没有意义。
     //   界面上原先无条件拼 "m=+1"，于是实档的标题读起来是"3p 轨道（m=+1 · p_x）"，
     //   把一个只属于复解的指标贴到了实解上。
@@ -677,12 +697,21 @@ const Formula = (function () {
 
       // 标题走 textContent，所以实轨道名要先转成纯文本（d_{z^2} → d_z²）；
       // 直接塞 LaTeX 名会原样显示成 "d_{z^2}"。
-      title: (useName ? (n + plainName(realName)) : (n + sub)) + ' 轨道' +
-        (mLabel ? '（' + mLabel + '）' : '') + ' · ' + modeName,
+      // ★ 中英的括号与语序都不同（`3p 轨道（m=+1） · …` / `3p orbital (m=+1) · …`），
+      //   所以整句走键，m 那一段单独成键（title 与 titleHtml 各一份，只差那个 <i>）。
+      title: t('orbit.formula.title', {
+        orb: (useName ? (n + plainName(realName)) : (n + sub)),
+        // ★ mLabel 里**已经含** `m=`，别再拼一次（拼了会得到 `（m=m=+1）`）
+        m: (mLabel ? t('orbit.formula.mSuffix', { m: mLabel }) : ''),
+        mode: modeName,
+      }),
       // ★ 卡片标题要用真下标：纯文本版把下划线原样印出来（"3p_x"），
       //   看着像代码而不像化学式。调用方用 innerHTML 塞这一个字段即可。
-      titleHtml: (useName ? (n + realOrbitalLabelHtml(l, m)) : (n + sub)) + ' 轨道' +
-        (mLabelHtml ? '（' + mLabelHtml + '）' : '') + ' · ' + modeName,
+      titleHtml: t('orbit.formula.title', {
+        orb: (useName ? (n + realOrbitalLabelHtml(l, m)) : (n + sub)),
+        m: (mLabelHtml ? t('orbit.formula.mSuffix', { m: mLabelHtml }) : ''),
+        mode: modeName,
+      }),
       mLabel: mLabel,
       modeName: modeName,
       note: note,
@@ -1072,24 +1101,24 @@ const Formula = (function () {
    */
   function buildNote(n, l, m, mode) {
     const sub = SUBSHELL[Math.min(l, SUBSHELL.length - 1)];
-    const V = (s) => '<i>' + s + '</i>';
     const varsIn = (s) => String(s).replace(/([a-z])/g, '<i>$1</i>');
-    if (n === 1 && l === 0) return '1s：球对称，概率密度随半径单调衰减；没有径向节点。';
-    if (l === 0) return n + 's：球对称分布，没有角度节面；径向节点 ' + (n - 1) + ' 个。';
+    if (n === 1 && l === 0) return t('1s：球对称，概率密度随半径单调衰减；没有径向节点。');
+    if (l === 0) return t('orbit.formula.note.ls', { n: n, nodes: n - 1 });
     const radialNodes = n - l - 1;
     const am = Math.abs(m);
+    // ★ 变量用 <i> 包（数学排版惯例），标签在句中的位置中英不同 —— 整句走键，
+    //   `<i>` 一并写进译文里，别在代码里拼。
     const orient = mode === 'complex'
-      ? '复数解绕 ' + V('z') + ' 轴对称（环面 / 锥面），相位沿方位角缠绕。'
-      : (m > 0 ? 'cos(' + am + V('φ') + ') 型：瓣在 ' + V('xy') + ' 面内沿一个方向张开。'
-              : (m < 0 ? 'sin(' + am + V('φ') + ') 型：瓣与同 |' + V('m') + '| 的 cos('
-                  + am + V('φ') + ') 型绕 ' + V('z') + ' 轴相差 ' + (90 / am) + '°。'
-                       : V('m') + '=0 型：沿 ' + V('z') + ' 轴的"橄榄"形。'));
+      ? t('orbit.formula.orient.complex')
+      : (m > 0 ? t('orbit.formula.orient.cos', { am: am })
+              : (m < 0 ? t('orbit.formula.orient.sin', { am: am, deg: (90 / am) })
+                       : t('orbit.formula.orient.m0')));
     // ★ 命名这件事要主动交代，学生问过（"4f 的七个有各自的名字吗？g、h 呢？"）：
     //   p、d 有公认名，f 的七个是惯例用法，g、h 没有通名。界面上给不出名字时，
     //   与其默默写个 m，不如把"为什么没有"和"改用什么标记"一起说清楚。
     let naming = '';
     if (mode === 'real') {
-      if (l === 3) naming = '（f 这七个名是惯例用法，各书用字略有出入。）';
+      if (l === 3) naming = t('（f 这七个名是惯例用法，各书用字略有出入。）');
       else if (l >= 4) {
         // ★ 两件事一起改（用户第 7、10 条）：
         //   ① 多项式必须走 cartesianPlain：这里走的是 textContent（KaTeX 不解析），
@@ -1100,13 +1129,16 @@ const Formula = (function () {
         //     最后一项才除以 r⁴ —— 而 Y 是整个多项式除以 rˡ。单一项（z(x⁴-…)、xyz(…)）
         //     本身就是乘积，不能再套括号。
         const poly = cartesianPlain(l, m);
-        naming = '（' + sub + ' 支壳层没有公认的通名 —— 高角动量轨道在文献里只按对称性分类。'
-          + '这里用角度部分的直角坐标多项式标记：' + V('Y') + ' = '
-          + (topLevelSum(poly) ? '(' + varsIn(poly) + ')' : varsIn(poly))
-          + ' / ' + V('r') + supUnicode('^' + l) + '。）';
+        naming = t('orbit.formula.naming.highL', {
+          sub: sub,
+          poly: (topLevelSum(poly) ? '(' + varsIn(poly) + ')' : varsIn(poly)),
+          pow: supUnicode('^' + l),
+        });
       }
     }
-    return '径向节点 ' + radialNodes + ' 个、角度节面 ' + l + ' 个；' + orient + naming;
+    return t('orbit.formula.note.nodes', {
+      radial: radialNodes, angular: l, orient: orient, naming: naming,
+    });
   }
 
   return {

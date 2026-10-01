@@ -12,6 +12,9 @@ import { OM } from '../core/math.js'
 import { Sched } from '../core/sched.js'
 // 等价轨道集合的定义（系数 / 颜色 / 互为旋转）—— 与 state-editor 共用同一份
 import { Hybrids } from '../core/hybrids.js'
+// ★ 字典的副作用 import：错误信息与 chip 文字都走 t() 现取。
+import '../i18n.js'
+import { t } from '../../../packages/i18n/index.js'
 
 /**
  * render3d.js — Three.js 三维渲染：粒子云 + 等值面（marching tetrahedra）
@@ -64,7 +67,19 @@ const Orbit3D = (function () {
     const rotateSpeed = opts.rotateSpeed != null ? opts.rotateSpeed : 1.0;
     const zoomSpeed = opts.zoomSpeed != null ? opts.zoomSpeed : 1.0;
     const damping = opts.damping != null ? opts.damping : 0.18;
-    const autoRotateStep = opts.autoRotateSpeed != null ? opts.autoRotateSpeed : 0.0035;
+    /**
+     * 自动旋转速度：**弧度/秒**（不是弧度/帧）。
+     *
+     * ★ 为什么改成按时间：原实现是 `quatTarget *= 0.0035` **每帧**一次 ——
+     *   于是速度取决于帧率：60Hz 下约 12°/s，144Hz 下变成约 29°/s。
+     *   "同一份代码在不同机器上转得不一样快"是最难复现的那类问题，而用户
+     *   这一轮报的正是"自动旋转太快"。
+     * ★ 数值从 12°/s 降到约 **5°/s**（0.09 rad/s ≈ 78 秒一圈）：这是教学演示的
+     *   空闲自转，看得清结构、又不至于让人来不及读旁边的读数。
+     */
+    const autoRotateSpeed = opts.autoRotateSpeed != null ? opts.autoRotateSpeed : 0.09;
+    /** 上一帧的时间戳（毫秒）；第一帧没有差值，按 60fps 走 */
+    let lastFrameMs = 0;
 
     const quat = new THREE.Quaternion();         // 当前相机朝向
     const quatTarget = new THREE.Quaternion();   // 阻尼目标朝向
@@ -196,10 +211,18 @@ const Orbit3D = (function () {
 
     /** 每帧调用：自动旋转 + 阻尼插值 + 应用到相机 */
     function update() {
+      // ★ 自动旋转按**时间**推进，不按帧数（见 autoRotateSpeed 的说明）。
+      //   上限 0.25s 是防"切走标签页再回来"时一帧补上半圈 ——
+      //   rAF 在后台会被暂停，恢复时两帧之间的差值可能是几十秒。
+      const nowMs = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      let dt = lastFrameMs ? (nowMs - lastFrameMs) / 1000 : (1 / 60);
+      lastFrameMs = nowMs;
+      if (!(dt > 0)) dt = 1 / 60;
+      if (dt > 0.25) dt = 0.25;
       if (autoRotate && !dragging) {
         // 自动旋转同样绕相机局部 Y（屏幕竖直）→ 视觉上始终是水平自转，
         // 与拖拽行为一致（用世界 Z 的话，俯视极点时会变成原地打转）
-        _qYaw.setFromAxisAngle(AXIS_Y, autoRotateStep);
+        _qYaw.setFromAxisAngle(AXIS_Y, autoRotateSpeed * dt);
         quatTarget.multiply(_qYaw).normalize();
       }
       if (quat.angleTo(quatTarget) > 1e-5) {
@@ -893,21 +916,92 @@ const Orbit3D = (function () {
   }
 
   // ---------------------------------------------------------------------------
-  // 多轨道同屏：把一组等价轨道（sp³ 的 4 个 / sp² 的 3 个 / sp 的 2 个）一起画出来
+  // 多轨道同屏：把**任意多个**轨道一起画出来
   //
   // ★ 它**不是**叠加态。叠加态是"一个态由多项组成"，|Σcᵢψᵢ|² 是**一个**函数，
   //   干涉项是物理的一部分 —— 把它拆成 N 个面是错的（所以叠加态那条路径一个字节没动）。
   //   这里是"场景里挂 N 个**各自独立**的态"，每个有自己的等值面。
   //
-  // ★ 为什么只算一份标量场：四个 sp³ 互为旋转（见 core/hybrids.js 与
-  //   test-orbit-core ⑫ 的逐点对拍），故第 i 个的等值面 = 第 0 个绕 Rᵢ 转一下。
-  //   在本环境里（软件渲染、纯 CPU）一次 68³ 抽取要 10–15 秒，4 次就是不可接受的；
-  //   而几何体复制 + 旋转是毫秒级。
+  // ★ 两条渲染路径，按"这张面能不能从别的面转出来"分：
+  //   · **克隆**：一组等价轨道互为旋转（sp³ 的四个、sp² 的三个…），
+  //     所以只建一份标量场、其余把几何复制过去转一下。毫秒级。
+  //     （互为旋转这一条由 core/hybrids.js 与 test-orbit-core ⑫ 的逐点对拍钉住。）
+  //   · **逐张真建**：任意轨道（纯态、叠加态、与别人没有旋转关系的）各自跑一次
+  //     等值面流水线。在本环境（软件渲染、纯 CPU）一张要 10–15 秒，所以是
+  //     **排队一张一张建**、建完就收进组里 —— 画面上一张张长出来，而不是卡死。
+  //     复用同一条流水线（rebuildSurface 的 fieldSpec 本来就接受显式 terms）。
   // ---------------------------------------------------------------------------
-  let multiGroup = null;          // THREE.Group，装"第 1..n-1 个"轨道（第 0 个就是主面）
-  let multiSpec = null;           // { setId, visible: boolean[] }；null = 关闭
 
+  /**
+   * 统一的条目模型。每一项：
+   *   { key, label, color:[r,g,b], visible:boolean, kind:'main'|'clone'|'built' }
+   * `main` 就是主面（恒为第 0 项，参数由页面当前状态决定）；
+   * `clone` 带 rotation，由主面转出来；`built` 带 terms，要自己跑一遍流水线。
+   *
+   * ★ 为什么统一成一个模型、而不是"预设一套 + 任意轨道另一套"：显隐、上色、现场信息
+   *   这三件事都要按"每一项"来判。两套模型就得写两份，而两份里漏掉的那一份的表现是
+   *   "关掉某个轨道不管用"这种**不报错**的形态 —— 正是本仓库反复记过的缺陷类型。
+   */
+  let multiGroup = null;          // THREE.Group，装除"主面"之外的所有轨道
+  let multiSpec = null;           // { items: [...] }；null = 关闭
+  let multiQueue = [];            // 待建的 built 项（末尾固定放主面）
+  let multiBuilding = null;       // 正在建的那一项（null = 不是在为多轨道建）
+  let multiMainParams = null;     // 主面参数（暂存期间 surfaceParams 会被换成轨道自己的）
+  let multiMainSaved = null;      // 暂存起来的主面 { holder, mesh, fine }；null = 没在暂存
+  let multiPumpTimer = 0;         // 推进队列用的定时器句柄
+  let multiPumpTries = 0;         // "等主面就绪"的重试次数（见 schedulePump）
+
+  function ensureMultiGroup() {
+    if (!multiGroup) {
+      multiGroup = new THREE.Group();
+      multiGroup.name = 'multiOrbitals';
+      scene.add(multiGroup);
+    }
+    return multiGroup;
+  }
+
+  /** 拆掉组里**克隆**那一类（主面被换掉时它们必须跟着走），保留逐张建成的那些 */
+  function disposeClones() {
+    if (!multiGroup) return;
+    const keep = [];
+    multiGroup.children.forEach((holder) => {
+      if (holder.userData.orbKind !== 'clone') { keep.push(holder); return; }
+      multiGroup.remove(holder);
+      holder.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) o.material.dispose();
+      });
+    });
+    if (keep.length !== multiGroup.children.length) {
+      // children 在遍历中被改动过，重排一次（three 的数组语义容易在这类地方出错）
+      multiGroup.children.length = 0;
+      keep.forEach((h) => multiGroup.children.push(h));
+    }
+  }
+
+  /**
+   * 全部拆掉（关闭多轨道、或换成另一份规格时走这条）。
+   *
+   * ★ 顺序不能错：**先把暂存的主面放回去**，再拆组。
+   *   暂存的主面就挂在 multiGroup 里（见 saveMainSurface），直接 traverse 拆组会把
+   *   它一起 dispose —— 症状是"队列跑到一半点关闭，主轨道凭空消失"，而且不报错。
+   *   真实现场：用户在两张额外轨道还在建的时候点了「关闭」。
+   */
   function disposeMulti() {
+    if (multiPumpTimer) { clearTimeout(multiPumpTimer); multiPumpTimer = 0; }
+    multiPumpTries = 0;
+    multiQueue = [];
+    // ★ 在飞的那次构建也要撤掉：它建的是**额外轨道**，跑完会 commitSurface →
+    //   swapSurfaceMesh 把刚放回来的主面换掉 —— 档位显示"关闭"，画面上却是一个
+    //   额外轨道。取消之后那一张根本不会上屏。
+    if (multiBuilding) {
+      multiBuilding = null;
+      if (rebuildHandle) { rebuildHandle.cancel(); rebuildHandle = null; }
+    }
+    restoreMainSurface();       // 先把主面搬出来（它会清掉 multiMainSaved）
+    multiBuilding = null;
+    multiMainParams = null;
+    multiMainSaved = null;
     if (!multiGroup) return;
     scene.remove(multiGroup);
     multiGroup.traverse((o) => {
@@ -917,12 +1011,11 @@ const Orbit3D = (function () {
     multiGroup = null;
   }
 
-  /** 按轨道色给某一块几何上色（主面与克隆共用这一段） */
-  function paintOrbitalColors(geo, setId, index) {
+  /** 按给定底色给一块几何上色（主面 / 克隆 / 逐张建成的都用这一段） */
+  function paintOrbitalColors(geo, base) {
     const pos = geo.getAttribute('position');
-    if (!pos) return;
+    if (!pos || !base) return;
     const cnt = pos.count;
-    const base = Hybrids.color(setId, index) || [0.8, 0.8, 0.8];
     const dark = Hybrids.darken(base);
     const signs = geo.userData.orbSigns;
     const srgb = new Float32Array(cnt * 3);
@@ -936,23 +1029,23 @@ const Orbit3D = (function () {
     geo.setAttribute('color', new THREE.BufferAttribute(OM.srgbToLinearArray(srgb), 3));
   }
 
-  /** 把主面与全部克隆按各自的轨道色重涂一遍 */
+  /** 把主面与组里每一张面按各自的条目色重涂一遍 */
   function paintMulti() {
-    if (!multiSpec || !surfaceObj || !surfaceObj.geometry) return false;
-    paintOrbitalColors(surfaceObj.geometry, multiSpec.setId, 0);
-    if (fineObj && fineObj.geometry) paintOrbitalColors(fineObj.geometry, multiSpec.setId, 0);
+    if (!multiSpec) return false;
+    const it0 = multiSpec.items[0];
+    if (surfaceObj && surfaceObj.geometry && it0) paintOrbitalColors(surfaceObj.geometry, it0.color);
+    if (fineObj && fineObj.geometry && it0) paintOrbitalColors(fineObj.geometry, it0.color);
     if (multiGroup) {
       multiGroup.children.forEach((holder) => {
-        holder.traverse((o) => {
-          if (o.isMesh && o.geometry) paintOrbitalColors(o.geometry, multiSpec.setId, holder.userData.orbIndex);
-        });
+        const c = holder.userData.orbColor;
+        holder.traverse((o) => { if (o.isMesh && o.geometry) paintOrbitalColors(o.geometry, c); });
       });
     }
     return true;
   }
 
   /**
-   * 按当前的主面几何重建那 n−1 个克隆。
+   * 把主面几何复制并旋转，生成全部 `clone` 项。
    *
    * ★ 克隆用 `geometry.clone()` 而**不是共享 BufferAttribute**：共享看起来省一份显存，
    *   但 three 的 `geometry.dispose()` 是按几何上登记的属性去释放 GPU 缓冲的 ——
@@ -960,21 +1053,22 @@ const Orbit3D = (function () {
    *   这里每次换面都要整体重建，共享属性会变成一条"偶发、只在换面那一帧出现"的暗坑。
    *   代价是每个克隆多一份 position/normal（约 1.8 MB），对这个规模完全划算。
    */
-  function syncMulti() {
-    disposeMulti();
-    if (!multiSpec || !surfaceObj || !surfaceObj.geometry) return;
-    const set = Hybrids.set(multiSpec.setId);
-    if (!set) return;
+  function syncClones() {
+    disposeClones();
+    if (!multiSpec) return;
+    if (!surfaceObj || !surfaceObj.geometry) return;
     if (!surfaceObj.geometry.getAttribute('position')) return;
-    multiGroup = new THREE.Group();
-    multiGroup.name = 'multiOrbitals';
-    // ★ 第 0 个不建克隆 —— 它**就是**主面。两处都管会打架（显隐、几何的释放）。
-    for (let i = 1; i < set.count; i++) {
+    for (const it of multiSpec.items) {
+      if (it.kind !== 'clone') continue;
       const holder = new THREE.Group();
-      holder.userData.orbIndex = i;
-      const rot = Hybrids.rotation(set.id, i);
-      holder.quaternion.setFromAxisAngle(
-        new THREE.Vector3(rot.axis[0], rot.axis[1], rot.axis[2]).normalize(), rot.angle);
+      holder.userData.orbKind = 'clone';
+      holder.userData.orbKey = it.key;
+      holder.userData.orbColor = it.color;
+      const rot = it.rotation;
+      if (rot) {
+        holder.quaternion.setFromAxisAngle(
+          new THREE.Vector3(rot.axis[0], rot.axis[1], rot.axis[2]).normalize(), rot.angle);
+      }
       const parts = [surfaceObj];
       if (fineObj) parts.push(fineObj);   // 细颈补片属于同一张面，漏了克隆会缺一块
       for (const src of parts) {
@@ -986,75 +1080,364 @@ const Orbit3D = (function () {
         mesh.renderOrder = src.renderOrder;
         holder.add(mesh);
       }
-      multiGroup.add(holder);
+      ensureMultiGroup().add(holder);
     }
-    scene.add(multiGroup);
     paintMulti();
+    applyMultiVisibility();
+  }
+
+  /**
+   * 把**当前主面**整块挪进组里暂存。
+   *
+   * ★ 为什么要暂存：建额外轨道要跑等值面流水线，而流水线是"换面"的——
+   *   它会 dispose 掉当时的 surfaceObj。不先把它挪走，主面就被拆了，
+   *   只能等队列跑完再重建一次（那是十几秒）。挪进组里就没人碰它了。
+   * ★ 只挪、不复制：几何与材质原样带走，搬回来时连顶点缓冲都不用重新上传。
+   */
+  function saveMainSurface() {
+    if (!surfaceObj || multiMainSaved) return false;
+    const holder = new THREE.Group();
+    holder.userData.orbRole = 'main-hold';
+    scene.remove(surfaceObj);
+    holder.add(surfaceObj);
+    const fine = fineObj;
+    if (fine) { scene.remove(fine); holder.add(fine); fineObj = null; }
+    ensureMultiGroup().add(holder);
+    multiMainSaved = { holder, mesh: surfaceObj, fine };
+    surfaceObj = null;
+    surfaceGeoRef = null;
+    return true;
+  }
+
+  /** 把暂存的主面原样搬回"主面"位（并恢复它的参数） */
+  function restoreMainSurface() {
+    if (!multiMainSaved) return false;
+    const { holder, mesh, fine } = multiMainSaved;
+    holder.remove(mesh);
+    if (fine) { holder.remove(fine); scene.add(fine); fineObj = fine; }
+    multiGroup.remove(holder);
+    scene.add(mesh);
+    surfaceObj = mesh;
+    surfaceGeoRef = mesh.geometry;
+    multiMainSaved = null;
+    if (multiMainParams) surfaceParams = multiMainParams;
+    return true;
+  }
+
+  /** 条目规范化（setMultiOrbitals 与 addMultiOrbital 共用一份，免得两处规则漂移） */
+  function normalizeMultiItem(r, i) {
+    return {
+      key: r.key || ('orb-' + (i + 1)),
+      label: r.label || t('orbit.r3d.multiLabel', { n: i + 1 }),
+      color: Array.isArray(r.color) && r.color.length === 3
+        ? r.color.slice() : MULTI_DEFAULT_COLORS[i % MULTI_DEFAULT_COLORS.length],
+      visible: r.visible !== false,
+      terms: (Array.isArray(r.terms) && r.terms.length) ? r.terms : null,
+      kind: r.rotation ? 'clone' : 'built',
+      rotation: r.rotation || null,
+    };
+  }
+
+  /**
+   * **增量**新增一个同屏轨道：只建新增的这一张，已建成的几张原样留着。
+   *
+   * ★ 为什么必须增量：全量重建（setMultiOrbitals）会把已建成的面也拆掉重跑，
+   *   于是"再加一个轨道"的代价按**已有数量**线性增长。每个面十几秒的话，
+   *   加到第四个就是几分钟 —— 用户看到的是"点了没反应"，其实它在慢慢重建。
+   */
+  function addMultiOrbital(spec) {
+    if (!multiSpec) return { ok: false, error: t('orbit.r3d.err.noMulti') };
+    if (!spec || typeof spec !== 'object') return { ok: false, error: t('orbit.r3d.err.noSpec') };
+    const it = normalizeMultiItem(spec, multiSpec.items.length);
+    if (multiSpec.items.some((x) => x.key === it.key)) {
+      return { ok: false, error: t('orbit.r3d.err.duplicate', { key: it.key }) };
+    }
+    multiSpec.items.push(it);
+    if (it.kind === 'built') {
+      multiQueue.push(it);
+      multiPumpTries = 0;
+      schedulePump();
+    } else {
+      syncClones();
+    }
+    return { ok: true, key: it.key, count: multiSpec.items.length };
+  }
+
+  /**
+   * **增量**移除一个同屏轨道：只拆组里那一份，其余的面原样不动。
+   *
+   * ★ 主轨道（第 0 项）不能移除：渲染层的整个模型是"第 0 项就是主面"，
+   *   把它抽掉就没有"主面"这个概念了。要收起全部请用 setMultiOrbitals(null)。
+   */
+  function removeMultiOrbital(key) {
+    if (!multiSpec) return { ok: false, error: t('orbit.r3d.err.noMulti') };
+    const i = multiSpec.items.findIndex((x) => x.key === key);
+    if (i < 0) {
+      return { ok: false, error: t('orbit.r3d.err.noSuchOrbital',
+        { key, list: multiSpec.items.map((x) => x.key).join(',') }) };
+    }
+    if (i === 0) return { ok: false, error: t('orbit.r3d.err.mainNotRemovable') };
+    // ★ 正在建的那一张不能拆：流水线跑完会把结果交回来，那时它已经不在清单里，
+    //   收又收不进、丢又丢不掉 —— 那面会一直挂在画面上，而且不报错。
+    if (multiBuilding && multiBuilding.key === key) {
+      return { ok: false, error: t('orbit.r3d.err.building') };
+    }
+    multiSpec.items.splice(i, 1);
+    multiQueue = multiQueue.filter((x) => x.key !== key);
+    const holder = multiGroup
+      ? multiGroup.children.find((c) => c.userData.orbKey === key) : null;
+    if (holder) {
+      multiGroup.remove(holder);
+      holder.traverse((o) => {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) o.material.dispose();
+      });
+    }
+    applyMultiVisibility();
+    return { ok: true, key, count: multiSpec.items.length };
+  }
+
+  /**
+   * 把刚建成的那张面从"主面"位挪进多轨道组，并按该轨道的颜色重涂。
+   *
+   * ★ 只是**挪**，不是复制：`surfaceObj` 换一次面就会 dispose 掉旧的（见 swapSurfaceMesh），
+   *   所以建成的面必须整块搬进组里，让它不再归 surfaceObj 管。
+   */
+  function captureCurrent(it) {
+    if (!surfaceObj || !surfaceObj.geometry) return false;
+    const holder = new THREE.Group();
+    holder.userData.orbKind = 'built';
+    holder.userData.orbKey = it.key;
+    holder.userData.orbColor = it.color;
+    paintOrbitalColors(surfaceObj.geometry, it.color);
+    if (fineObj && fineObj.geometry) paintOrbitalColors(fineObj.geometry, it.color);
+    scene.remove(surfaceObj);
+    holder.add(surfaceObj);
+    if (fineObj) { scene.remove(fineObj); holder.add(fineObj); fineObj = null; }
+    surfaceObj = null;
+    surfaceGeoRef = null;
+    ensureMultiGroup().add(holder);
+    return true;
+  }
+
+  /** 用同一条流水线为指定条目建一张面（临时把 surfaceParams 换成该轨道的） */
+  function startBuildFor(it, isLast) {
+    if (!surfaceParams) return false;
+    // ★ 基线取 multiMainParams（**暂存起来的那份主面参数**），不是 surfaceParams ——
+    //   后者在前一张额外轨道建完后已经被换成那张的参数了。取错了会一张比一张偏：
+    //   第二张的盒子按第一张的 n/l/m 定尺寸，画面看着"就是有点不对"，也不报错。
+    const terms = (it.terms && it.terms.length) ? it.terms : null;
+    const src = multiMainParams || surfaceParams;
+    const P = Object.assign({}, src, { terms });
+    if (terms) { P.n = terms[0].n; P.l = terms[0].l; P.m = terms[0].m; }
+    surfaceParams = P;
+    // ★ 拖动中攒下的那次请求在这里作废：多轨道队列已经接管了调度，再放它进来
+    //   会在队列中间插一张"主面"（因为它带的是主面的参数），把顺序搅乱。
+    pendingRebuild = null;
+    const levelAbs = levelAbsFor(P, surfaceLevelFraction, P.psiCrit);
+    // ★ 只有最后一张（主面）让流水线收尾时取景：中间那些是**临时**面，按它们的
+    //   外延去动相机会让画面在 N 张面之间反复跳；而主面那张本来就已经取好景了。
+    const spec = [P.n, P.l, P.m, P.mode, lastRes, levelAbs, P.terms, P.relPhase, 0, 0, P.Z];
+    rebuildSurface(false, spec, isLast ? 'decor' : null);
+    return true;
+  }
+
+  /**
+   * 推迟到下一个宏任务再推队列（不能同步——见 rebuildSurface 的 done 回调注释）。
+   *
+   * @param {number} [delay] 延迟毫秒；重试"等主面"时给个非零值，避免忙等
+   */
+  function schedulePump(delay) {
+    if (multiPumpTimer) return;
+    multiPumpTimer = setTimeout(() => {
+      multiPumpTimer = 0;
+      if (!multiSpec || !multiQueue.length) return;
+      // ★★ 还没有主面可暂存时**不能开工**（实机抓到的缺陷）。
+      //   开工后第一张额外轨道建完就会把主面顶掉（swapSurfaceMesh 会 dispose 当时的
+      //   surfaceObj），而那时没有任何东西可以还原 —— 症状是**主轨道凭空消失**，
+      //   画面里只剩额外轨道，而且不报错。
+      //   真实现场：页面刚打开、首张面还在建（本环境 10–15 秒）时用户就点了「＋」。
+      if (!multiMainSaved && !surfaceObj) {
+        // 在飞的那次重建建完会走 done → multiAfterRebuild → 再推一次，不必自己等
+        if (rebuildHandle) return;
+        if (multiPumpTries < 80) { multiPumpTries += 1; schedulePump(250); return; }
+        // 等不到（例如主面本来就抽不出来）→ 如实放弃暂存，接着把额外轨道建完
+      }
+      multiPumpTries = 0;
+      // ★ 建第一张之前先把主面挪走（见 saveMainSurface）。只挪一次 ——
+      //   restoreMainSurface 会把它放回去，那时这个标志也就清了。
+      if (!multiMainSaved) saveMainSurface();
+      multiBuilding = multiQueue.shift();
+      if (!startBuildFor(multiBuilding, multiQueue.length === 0)) {
+        multiBuilding = null;
+        multiQueue = [];
+        restoreMainSurface();
+      }
+    }, delay || 0);
+  }
+
+  /**
+   * 每次重建**收尾之后**推进多轨道（挂在 rebuildSurface 的 done 回调上）。
+   *
+   * ★ 挂 done 而不是挂 commitSurface：commitSurface 是在 rebuildStep() 内部被调用的，
+   *   那一刻 rebuildHandle 还是本次这个句柄；在那里开下一次 rebuildSurface 会走到
+   *   `rebuildHandle.cancel()` —— **把自己拆掉**，收尾变成 abort，取景与队列推进
+   *   一件都不会发生，而且不报错。done 里 rebuildHandle 已经置空，是干净的。
+   */
+  function multiAfterRebuild() {
+    if (!multiSpec) return;
+    if (multiBuilding) { captureCurrent(multiBuilding); multiBuilding = null; }
+    if (multiQueue.length) { schedulePump(); return; }
+    // 队列空 → 把暂存的主面搬回来（它一次都没重建过），再据它重建克隆。
+    restoreMainSurface();
+    syncClones();
     applyMultiVisibility();
   }
 
   /**
    * 多轨道档下"谁可见"的统一裁决。
    *
-   * ★ 主面（第 0 个）与克隆的显隐必须**同一处判定**：主面归 swapSurfaceMesh 管、
-   *   克隆归 multiGroup 管，两处各写一遍就会出现"关掉第 0 个，克隆还在"。
+   * ★ 主面（第 0 项）与组里各面的显隐必须**同一处判定**：主面归 swapSurfaceMesh 管、
+   *   其余归 multiGroup 管，两处各写一遍就会出现"关掉第 0 个，别的还在"。
    */
   function applyMultiVisibility() {
     const isSurface = (lastVisMode === 'surface');
-    if (surfaceObj) {
-      surfaceObj.visible = isSurface && (!multiSpec || multiSpec.visible[0] !== false);
-    }
+    const items = (multiSpec && multiSpec.items) || null;
+    const vis = (i) => !items || !items[i] || items[i].visible !== false;
+    if (surfaceObj) surfaceObj.visible = isSurface && vis(0);
+    if (fineObj) fineObj.visible = isSurface && vis(0);   // 补片属于第 0 个
     if (multiGroup) {
       multiGroup.visible = isSurface;
       multiGroup.children.forEach((holder) => {
-        holder.visible = (multiSpec && multiSpec.visible[holder.userData.orbIndex] !== false);
+        const it = items ? items.find((x) => x.key === holder.userData.orbKey) : null;
+        holder.visible = !it || it.visible !== false;
       });
     }
   }
 
+  /** 把一组预设集合（sp³/sp²/sp）展开成条目 */
+  function presetItems(setId, visible) {
+    const set = Hybrids.set(setId);
+    if (!set) return null;
+    const items = [];
+    for (let i = 0; i < set.count; i++) {
+      items.push({
+        key: set.id + '-' + i,
+        label: set.labels[i],
+        color: Hybrids.color(set.id, i) || [0.8, 0.8, 0.8],
+        visible: !Array.isArray(visible) || visible.indexOf(i) >= 0,
+        kind: (i === 0) ? 'main' : 'clone',
+        rotation: Hybrids.rotation(set.id, i),
+      });
+    }
+    return items;
+  }
+
+  /** 任意轨道列表的默认配色（调用方没给 color 时按序号取） */
+  const MULTI_DEFAULT_COLORS = [
+    [0.878, 0.627, 0.251], [0.357, 0.608, 0.835], [0.498, 0.690, 0.412],
+    [0.639, 0.475, 0.839], [0.850, 0.450, 0.450], [0.450, 0.750, 0.750],
+  ];
+
   /**
    * 设置/关闭多轨道同屏。
-   * @param {Object|null} spec `null` 或 `{setId:'off'}` 关闭；
-   *                          否则 `{ setId:'sp3'|'sp2'|'sp', visible?: number[] }`
-   * @returns {{ok:boolean, setId?:string, count?:number, error?:string}}
+   *
+   * @param {Object|null} spec
+   *   · `null` / `{setId:'off'}` 关闭
+   *   · `{ setId:'sp3'|'sp2'|'sp', visible?:number[] }` 预设集合（**克隆路径**，快）
+   *   · `{ items:[…] }` 任意轨道列表（**逐张真建**，慢但什么都能画）。
+   *     第 0 项是"主面"（应当与页面当前状态一致）；其余每项可给：
+   *       · `terms: [{n,l,m,mode,c}]` 该项的波函数（纯态给一项、叠加态给多项）
+   *       · `color: [r,g,b]` 0..1 的 sRGB；省略则按序号取默认色
+   *       · `visible: false` 只建不显示
+   *       · `key` / `label` 供界面与现场信息使用；省略则自动生成
+   * @returns {{ok:boolean, count?:number, setId?:string, error?:string}}
    */
   function setMultiOrbitals(spec) {
-    const wantOff = !spec || !spec.setId || spec.setId === 'off';
+    const wantOff = !spec || (!spec.setId && !spec.items) || spec.setId === 'off';
     if (wantOff) {
       const was = !!multiSpec;
       multiSpec = null;
       disposeMulti();
       // ★ 关掉之后主面必须**恢复成原来的着色**。少了这一笔，主面会一直顶着
-      //   轨道 0 的琥珀色，而画面看起来只是"颜色没变回来"——不会报错。
+      //   轨道 0 的颜色，而画面看起来只是"颜色没变回来"——不会报错。
       if (was && surfaceObj && surfaceObj.geometry) paintSurfaceColors(surfaceObj.geometry);
       if (was && fineObj && fineObj.geometry) paintSurfaceColors(fineObj.geometry);
       applyMultiVisibility();
       return { ok: true, setId: 'off', count: 0 };
     }
-    const set = Hybrids.set(spec.setId);
-    if (!set) return { ok: false, error: `未知的轨道集合 ${spec.setId}（可用：${Hybrids.setIds().join(' / ')}）` };
-    const visible = [];
-    for (let i = 0; i < set.count; i++) {
-      visible.push(!Array.isArray(spec.visible) || spec.visible.indexOf(i) >= 0);
+
+    let items;
+    let setId = spec.setId || null;
+    if (spec.items) {
+      if (!Array.isArray(spec.items) || !spec.items.length) {
+        return { ok: false, error: t('orbit.r3d.err.itemsEmpty') };
+      }
+      items = spec.items.map(function (r, i) {
+        const it = normalizeMultiItem(r, i);
+        // 第 0 项**恒为** main：渲染层的整个模型就是"items[0] 是主面"，
+        // 它的几何由 surfaceObj 持有，不参与克隆也不参与队列。
+        if (i === 0) { it.kind = 'main'; it.rotation = null; it.terms = null; }
+        return it;
+      });
+    } else {
+      items = presetItems(spec.setId, spec.visible);
+      if (!items) {
+        return { ok: false, error: t('orbit.r3d.err.unknownSet',
+          { setId: spec.setId, list: Hybrids.setIds().join(' / ') }) };
+      }
+      setId = items[0].key.replace(/-\d+$/, '');
     }
-    multiSpec = { setId: set.id, visible };
-    syncMulti();
-    return { ok: true, setId: set.id, count: set.count };
+
+    // ★ 主面参数必须在 disposeMulti **之后**读：disposeMulti 会把暂存的主面放回
+    //   surfaceObj 位上，并把 surfaceParams 一并还原 —— 在它之前读，读到的是
+    //   **上一张额外轨道**的参数（队列跑到一半时就是这种情况），
+    //   于是新一轮的基线全错，而且不报错。
+    disposeMulti();
+    const mainParams = surfaceParams;
+    multiSpec = { items, setId };
+    multiMainParams = mainParams;
+    // 克隆项现在就能建（毫秒级）；要真建的项排成队。★ 队列里**只有额外轨道**：
+    //   主面不进队列，它由 saveMainSurface / restoreMainSurface 原样搬运，一次都不重建。
+    syncClones();
+    multiQueue = items.filter((it) => it.kind === 'built');
+    multiPumpTries = 0;
+    if (multiQueue.length) schedulePump();
+    else applyMultiVisibility();
+    return { ok: true, count: items.length, setId };
   }
 
   /** 只改显隐，不重建几何（界面上逐个开关走这条，成本极低） */
-  function setMultiVisible(index, visible) {
-    if (!multiSpec) return { ok: false, error: '当前没有开启多轨道同屏' };
-    const set = Hybrids.set(multiSpec.setId);
-    if (!set) return { ok: false, error: '内部状态不一致' };
-    if (!(index >= 0 && index < set.count)) {
-      return { ok: false, error: `轨道下标要在 0..${set.count - 1}（${set.label} 共 ${set.count} 个）` };
+  function setMultiVisible(key, visible) {
+    if (!multiSpec) return { ok: false, error: t('orbit.r3d.err.noMulti') };
+    // 兼容旧的"按下标"调用：本模块内部与部分调用点早先传的是数组下标。
+    let it = null;
+    if (typeof key === 'number') it = multiSpec.items[key];
+    else it = multiSpec.items.find((x) => x.key === key);
+    if (!it) {
+      return { ok: false, error: t('orbit.r3d.err.noSuchOrbital',
+        { key, list: multiSpec.items.map((x) => x.key).join(',') }) };
     }
-    multiSpec.visible[index] = !!visible;
+    it.visible = !!visible;
     applyMultiVisibility();
-    return { ok: true, setId: set.id, index, visible: !!visible };
+    return { ok: true, key: it.key, visible: !!visible };
   }
 
+  /** 改某个轨道的颜色（只重涂，不重建几何 —— 所以界面上的取色器是实时的） */
+  function setMultiColor(key, color) {
+    if (!multiSpec) return { ok: false, error: t('orbit.r3d.err.noMulti') };
+    if (!Array.isArray(color) || color.length !== 3 || color.some((c) => !(c >= 0 && c <= 1))) {
+      return { ok: false, error: t('orbit.r3d.err.colorTriple') };
+    }
+    const it = multiSpec.items.find((x) => x.key === key);
+    if (!it) {
+      return { ok: false, error: t('orbit.r3d.err.noSuchOrbital',
+        { key, list: multiSpec.items.map((x) => x.key).join(',') }) };
+    }
+    it.color = color.slice();
+    paintMulti();
+    return { ok: true, key, color: it.color };
+  }
 
   // 单次 step() 里最多处理多少个元素。
   //
@@ -1281,8 +1664,16 @@ const Orbit3D = (function () {
    */
   function scheduleFineRetry() {
     if (fineRetryTimer) return;
+    // ★ 记下"这条重试是为**哪一份场**安排的"。
+    //   重试走的是 `rebuildSurface(false, null, …)`——fieldSpec 为 null 即**复用缓存的场**。
+    //   而多轨道队列会把 surfaceObj 与 surfaceParams 一张张换掉：等这条重试终于轮到跑时，
+    //   缓存里那份场可能已经是**别的轨道**的了。那样抽出来的面会被当成"主面的精细化结果"
+    //   换到屏上 —— 几何对不上、位置也不对，而且不报错。所以场变了就作废这条重试。
+    const wantKey = fieldKey;
     fineRetryTimer = setTimeout(function () {
       fineRetryTimer = null;
+      if (multiSpec && (multiBuilding || multiQueue.length)) { scheduleFineRetry(); return; }
+      if (fieldKey !== wantKey) return;
       rebuildSurface(false, null, null, true);      // true = 补精细化重试，跳过"还在调整"判据
     }, FINE_SETTLE_MS + 70);
   }
@@ -1304,6 +1695,13 @@ const Orbit3D = (function () {
    */
   function planFinePatch(iso, force) {
     if (window.__ORBIT_PREVIEW__) return null;                 // 拖动中不付这份开销
+    // ★ 多轨道"逐张真建"时**不做精细化**（实机实测：一张额外轨道的细颈要 27 秒，
+    //   而整张面粗算只要 9 秒 —— 精细化占了四分之三，乘以条数就是几分钟）。
+    //   理由是**用途**不同：额外轨道是拿来**对照**的（谁跟谁成 109.47°、哪个是哪个），
+    //   细颈补的是"节面附近粘连"这种单张细看才在意的质量。
+    //   主面那张不受影响（它不是在 multiBuilding 里建的），所以 sp³ 那类
+    //   "建一张克隆四张"的图仍是精细的。
+    if (multiBuilding) return null;
     // 连续调整期间跳过（见 scheduleFineRetry）：先保证拖动跟手，停下来再补精细化。
     // ★ force 是"这次就是那次补精细化"—— 重试若也受这条判据管，就会自己把自己挡住。
     if (!force && performance.now() - lastRebuildAt < FINE_SETTLE_MS) { scheduleFineRetry(); return null; }
@@ -1472,6 +1870,12 @@ const Orbit3D = (function () {
       done: function () {
         rebuildHandle = null;
         finishRebuild(st);
+        // ★ 多轨道"逐张建"的队列在这里推进。**必须挂 done、不能挂 commitSurface**：
+        //   commitSurface 跑在 rebuildStep() 内部，那一刻 rebuildHandle 还是本次句柄，
+        //   在那里开下一次 rebuildSurface 会走到 `rebuildHandle.cancel()` ——
+        //   把自己拆掉，收尾变成 abort，取景与队列推进一件都不会发生，且不报错。
+        //   done 里 rebuildHandle 已置空，从这儿开下一张是干净的。
+        multiAfterRebuild();
         // 拖动中攒下的那次请求：上一次刚跑完，立刻接着跑（排队覆盖，绝不会堆叠）
         if (pendingRebuild) {
           const p = pendingRebuild; pendingRebuild = null;
@@ -1618,10 +2022,13 @@ const Orbit3D = (function () {
    * 否则画面上会一直留着一张上一轮阈值的面，读数与画面完全对不上。
    */
   function swapSurfaceMesh(mesh) {
-    // ★ 克隆们共享主面的几何尺寸与材质参数，必须在主面被拆**之前**先撤掉 ——
+    // ★ 克隆们是从主面复制出来的，必须在主面被拆**之前**先撤掉 ——
     //   反过来（先拆主面）那一瞬间克隆还挂着指向旧几何的引用，虽然下一帧就会重建，
     //   但 geometry.dispose 是即时的，中间态会出现"克隆还在、主面已空"的一帧。
-    disposeMulti();
+    //   ★ 这里**只能拆克隆**：`built` 那些是"逐张真建"排队建出来的，各自持有自己的
+    //   几何，与主面无关。调用 disposeMulti() 会把它们一起抹掉 ——
+    //   症状是四个轨道永远只剩刚建完的那一个，而且不报错。
+    disposeClones();
     if (mesh) scene.add(mesh);
     if (surfaceObj) {
       scene.remove(surfaceObj);
@@ -1653,9 +2060,9 @@ const Orbit3D = (function () {
     //   默认 visible = true —— 没人再关它们，于是球谐曲面与空间波函数**同时显示**。
     //   用户实测路径：复解 l=2 把 m 走一个来回（留下一个在飞的重建）再切球谐。
     setVisibility(lastVisMode);
-    // ★ 多轨道档下，新的主面几何一到就要重建克隆 —— 漏了这一步，换阈值/换轨道之后
-    //   克隆还停在**上一份几何**上，看起来"多轨道没跟着更新"，且不报错。
-    syncMulti();
+    // ★ 多轨道的同步**不在这里做** —— 见 done 回调里的 multiAfterRebuild()：
+    //   本函数是在 rebuildStep() 内部跑的，那时 rebuildHandle 还是本次句柄，
+    //   而推进队列需要开下一次 rebuildSurface，会把自己 cancel 掉。
   }
 
   /** 流水走完后的收尾（取景 + 探针 + lastRebuildAt） */
@@ -1897,7 +2304,10 @@ const Orbit3D = (function () {
     //   · decorGroup（坐标轴 + 赤道环）是按**轨道尺度**缩放的，球谐只有单位球大小，
     //     一起显示会缩成一小撮；球谐档有自己的参考轴，故此时整体隐藏。
     // 细颈补片属于**第 0 个**轨道（它就是主面缺的那一块），故跟随第 0 个的显隐
-    if (fineObj) fineObj.visible = (mode === 'surface') && (!multiSpec || multiSpec.visible[0] !== false);
+    if (fineObj) {
+      fineObj.visible = (mode === 'surface')
+        && (!multiSpec || !multiSpec.items[0] || multiSpec.items[0].visible !== false);
+    }
     if (decorGroup) decorGroup.visible = !sph;
     // ★ 辅助几何也要跟着档位走（第 18 条补漏）：径向节面球只对 ψ 有意义，
     //   切到球谐档必须收起，否则 ψ 档画下的"套娃"会一直留在画面上。
@@ -2199,7 +2609,7 @@ const Orbit3D = (function () {
     if (typeof onClear === 'function') el.onclick = onClear;
     if (text) {
       el.textContent = text;
-      el.title = title || '点击移除该标注';
+      el.title = title || t('orbit.r3d.chip.removeHint');
       el.classList.remove('hidden');
     } else {
       el.classList.add('hidden');
@@ -2249,7 +2659,7 @@ const Orbit3D = (function () {
     // 一起显示会变成一颗包住整个画面的巨球，故按"只在 ψ 档可见"处理。
     mesh.userData.rOnly = true;
     g.add(mesh);
-    setChip('ring', '参考球 r = ' + radius.toFixed(2) + ' a₀  ✕', function () { ringHighlight(0); });
+    setChip('ring', t('orbit.r3d.chip.ring', { r: radius.toFixed(2) }), function () { ringHighlight(0); });
     notifyAuxChange();
   }
 
@@ -2270,15 +2680,42 @@ const Orbit3D = (function () {
     const parts = [];
     if (types.indexOf('radial') >= 0 && n != null && l != null) {
       const k = OM.radialZeros(n, l, Zn).length;
-      if (k > 0) parts.push('径向节面 ×' + k);
+      if (k > 0) parts.push(t('orbit.r3d.chip.radialNodes', { n: k }));
     }
     if (types.indexOf('angular') >= 0 && l != null) {
       const nd = OM.angularNodes(l, m, mode) || {};
       const k = ((nd.cones || []).length) + ((nd.planes || []).length);
-      if (k > 0) parts.push('角度节面 ×' + k);
+      if (k > 0) parts.push(t('orbit.r3d.chip.angularNodes', { n: k }));
     }
-    if (!parts.length) return '本轨道没有节面';
-    return parts.join(' + ') + '高亮';
+    if (!parts.length) return t('orbit.r3d.chip.noNodes');
+    return t('orbit.r3d.chip.highlighted', { parts: parts.join(' + ') });
+  }
+
+  /**
+   * 语言切换后**重写两个标注 chip 的文字**。
+   *
+   * ★ 为什么必须自己订阅：chip 上的字是 `t()` 现取后写进 DOM 的（参考球半径、
+   *   节面计数都带变量），运行时的 `sweep()` 只认"整段就是中文原文"的文本节点，
+   *   够不着这些拼接出来的句子。
+   * ★ 为什么敢重写：两个 chip 的内容都能从**还留着的状态**原地重算
+   *   （curRingRadius / curSpotlight），**不重建任何几何**——等值面那套十几秒的
+   *   流水线一次都不跑。
+   */
+  function refreshChips() {
+    if (curRingRadius > 0) {
+      setChip('ring', t('orbit.r3d.chip.ring', { r: curRingRadius.toFixed(2) }),
+        function () { ringHighlight(0); });
+    }
+    if (curSpotlight && curSpotlight.types.length) {
+      const types = curSpotlight.types.slice();
+      setChip('nodes', nodeChipText(types) + '  ✕',
+        function () { spotlightNodes(types, false); });
+    }
+  }
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('langchange', function () {
+      try { refreshChips(); } catch (e) { /* 换语言时重写标注失败不该影响切换本身 */ }
+    });
   }
 
   /**
@@ -2502,7 +2939,8 @@ const Orbit3D = (function () {
     configure,
     init, render, resize, setAutoRotate, resetView,
     updateCloud, updateSurface, setSurfaceLevel, setVisibility,
-    setMultiOrbitals, setMultiVisible,
+    setMultiOrbitals, setMultiVisible, setMultiColor,
+    addMultiOrbital, removeMultiOrbital,
     /**
      * 多轨道同屏的**现场**：集合、每个轨道是否显示、以及它们各自的旋转与顶点数。
      *
@@ -2511,30 +2949,48 @@ const Orbit3D = (function () {
      *   要判断"画的是不是 sp³"必须能读到**实际用的旋转**。
      */
     multiInfo: () => {
-      if (!multiSpec) return { setId: null, count: 0, items: [] };
-      const set = Hybrids.set(multiSpec.setId);
-      const items = [];
-      if (set) {
-        for (let i = 0; i < set.count; i++) {
+      if (!multiSpec) return { setId: null, count: 0, items: [], pending: 0 };
+      const items = multiSpec.items.map((it, i) => {
+        let verts = 0;
+        if (i === 0) {
+          // 主面：几何归 surfaceObj 管；★ 但它可能在 multiMainSaved 里**暂存**着
+          //   （队列正在建额外轨道的那段时间）。只看 surfaceObj 的话，主面会一直
+          //   报"待生成"——实测就是这个现象，看着像主轨道没建出来。
+          const m = surfaceObj || (multiMainSaved && multiMainSaved.mesh);
+          if (m && m.geometry && m.geometry.getAttribute('position')) {
+            verts = m.geometry.getAttribute('position').count;
+          }
+        } else {
           const holder = multiGroup
-            ? multiGroup.children.find((c) => c.userData.orbIndex === i) : null;
-          const rot = Hybrids.rotation(set.id, i);
-          let verts = 0;
-          if (holder) holder.traverse((o) => { if (o.isMesh && o.geometry) verts += o.geometry.getAttribute('position').count; });
-          items.push({
-            index: i,
-            label: set.labels[i],
-            visible: multiSpec.visible[i] !== false,
-            // 主面是第 0 个：它的几何归 surfaceObj 管，不在这里的克隆组里
-            kind: (i === 0) ? 'main' : 'clone',
-            verts: (i === 0)
-              ? ((surfaceObj && surfaceObj.geometry) ? surfaceObj.geometry.getAttribute('position').count : 0)
-              : verts,
-            axis: rot.axis, angle: +rot.angle.toFixed(6),
-          });
+            ? multiGroup.children.find((c) => c.userData.orbKey === it.key) : null;
+          if (holder) {
+            holder.traverse((o) => {
+              if (o.isMesh && o.geometry) verts += o.geometry.getAttribute('position').count;
+            });
+          }
         }
-      }
-      return { setId: multiSpec.setId, count: set ? set.count : 0, items };
+        return {
+          index: i,
+          key: it.key,
+          label: it.label,
+          color: it.color,
+          kind: it.kind,
+          visible: it.visible !== false,
+          terms: it.terms ? it.terms.length : 0,
+          verts,
+          built: (i === 0) ? verts > 0 : verts > 0,
+          axis: it.rotation ? it.rotation.axis : null,
+          angle: it.rotation ? +it.rotation.angle.toFixed(6) : null,
+        };
+      });
+      return {
+        setId: multiSpec.setId || null,
+        count: items.length,
+        items,
+        // 还没建完的项数（逐张真建是耗时的，界面据此显示"正在建第几张"）
+        pending: multiQueue.length + (multiBuilding ? 1 : 0),
+        building: multiBuilding ? multiBuilding.key : null,
+      };
     },
     disposeGrid, setNucleusVisible,
     updateAngular, angularFrameExtent,

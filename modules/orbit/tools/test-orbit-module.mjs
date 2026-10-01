@@ -230,6 +230,109 @@ console.log('【⑤ queryOrbital(hybrids)：方向与夹角必须由系数反解
 }
 
 // ---------------------------------------------------------------- 汇总
+console.log('【⑥ 多轨道同屏：任意轨道 / 任意数量 / 逐轨道配色】')
+{
+  /**
+   * 这一节守的是 2026-10-01 用户第 4 条反馈："多轨道同屏功能不完善……
+   * 应支持自定义任意类型轨道（包括纯态和叠加态）、任意数量轨道的同屏显示。
+   * 同屏功能时可改变每个轨道颜色。"
+   *
+   * ★ 原先只有 `set: 'sp3'|'sp2'|'sp'` 三个预设，而"任意轨道"要的是
+   *   ① 纯态与叠加态都能给、② 条数不限、③ 每条一个颜色且能改。
+   *   这三件事各自都需要**取值域**：量子数要满足 l ≤ n−1、颜色要能解析、
+   *   条数要有上限（每一条都要真跑一遍等值面流水线）。
+   *   少了取值域，模型编一个 l=5 的轨道就会一路传到数学层，症状是画面空白 —— 不报错。
+   */
+  const a = (name, p) => !validate(name, p).err
+  const r = (name, p) => validate(name, p).err || ''
+
+  // ---- 纯态：任意 (n,l,m) ----
+  ok(a('setOrbitals', { items: [{ n: 2, l: 1, m: 0 }] }), 'items：单个纯态通过')
+  ok(a('setOrbitals', { items: [{ n: 5, l: 3, m: -2 }] }), 'items：高角量子数（l=3）通过')
+  ok(a('setOrbitals', { items: [{ n: 2, l: 1, m: 0, color: '#e0a040' }] }), 'items：带十六进制颜色通过')
+  ok(a('setOrbitals', { items: [{ n: 2, l: 1, m: 0, color: [0.1, 0.2, 0.3] }] }),
+    'items：带 [r,g,b] 颜色通过')
+  ok(a('setOrbitals', { items: [{ n: 2, l: 1, m: 0, label: '我的轨道' }] }), 'items：带自定义名字通过')
+
+  // ---- 叠加态：terms 非空即以 terms 为准 ----
+  ok(a('setOrbitals', { items: [{ terms: [{ n: 3, l: 2, m: 0, c: { re: 1, im: 0 } }] }] }),
+    'items：叠加态（复数系数）通过')
+  ok(a('setOrbitals', {
+    items: [{ terms: [
+      { n: 2, l: 0, m: 0, c: { re: 1, im: 0 } },
+      { n: 2, l: 1, m: 1, c: { re: 1, im: 0 } },
+    ] }],
+  }), 'items：两项叠加通过')
+
+  // ---- 任意数量 ----
+  ok(a('setOrbitals', { items: [{ n: 1, l: 0, m: 0 }, { n: 2, l: 1, m: 0 }, { n: 3, l: 2, m: -2 }] }),
+    'items：三条同时给通过（任意数量）')
+  ok(!a('setOrbitals', { items: [] }), 'items：空数组被拒（给了 items 就是要挂东西）')
+  ok(/最多 12 条/.test(r('setOrbitals', { items: new Array(13).fill({ n: 1, l: 0, m: 0 }) })),
+    'items：超过上限被拒**且说明为什么**（每条都要跑一遍等值面）',
+    r('setOrbitals', { items: new Array(13).fill({ n: 1, l: 0, m: 0 }) }))
+
+  // ---- 量子数取值域（负向）----
+  ok(/l 必须 ≤ n−1/.test(r('setOrbitals', { items: [{ n: 2, l: 2, m: 0 }] })),
+    'items：l > n−1 被拒并说明', r('setOrbitals', { items: [{ n: 2, l: 2, m: 0 }] }))
+  ok(/\|m\| 必须 ≤ l/.test(r('setOrbitals', { items: [{ n: 2, l: 1, m: 3 }] })),
+    'items：|m| > l 被拒并说明', r('setOrbitals', { items: [{ n: 2, l: 1, m: 3 }] }))
+  ok(!!r('setOrbitals', { items: [{ n: 0, l: 0, m: 0 }] }), 'items：n=0 被拒')
+  ok(!!r('setOrbitals', { items: [{ n: 2.5, l: 0, m: 0 }] }), 'items：非整数 n 被拒')
+  ok(!!r('setOrbitals', { items: [{ n: 2, l: 1, m: 0, color: 'red' }] }),
+    'items：颜色写成 "red" 被拒（提示可改用 "#rrggbb" 或 [r,g,b]）')
+  ok(!!r('setOrbitals', { items: [{ terms: [{ n: 2, l: 1, m: 0, c: { re: 'x', im: 0 } }] }] }),
+    'items：叠加态系数不是数被拒')
+
+  // ---- 「＋ 把当前轨道加进去」 ----
+  ok(a('setOrbitals', { add: true }), 'add:true 通过（把当前正在编辑的轨道加进同屏）')
+  ok(a('setOrbitals', { add: true, color: '#5b9bd5' }), 'add:true 可同时指定颜色')
+  ok(!a('setOrbitals', { add: false }), 'add:false 被拒（要关就用 set:"off"）')
+
+  // ---- 逐轨道改色/显隐（**不重建几何**那条路）----
+  ok(a('setOrbitalStyle', { key: 'orb-2', color: '#ff0000' }), 'setOrbitalStyle 改色通过')
+  ok(a('setOrbitalStyle', { key: '__main__', visible: false }), 'setOrbitalStyle 改主轨道显隐通过')
+  ok(/至少要给一项/.test(r('setOrbitalStyle', { key: 'orb-2' })),
+    'setOrbitalStyle 什么都没给时被拒并说明', r('setOrbitalStyle', { key: 'orb-2' }))
+  ok(/需要一个 key/.test(r('setOrbitalStyle', { color: '#ff0000' })),
+    'setOrbitalStyle 缺 key 被拒并说明', r('setOrbitalStyle', { color: '#ff0000' }))
+  ok(!!r('setOrbitalStyle', { key: 'orb-2', color: 'not-a-color' }), 'setOrbitalStyle 颜色非法被拒')
+
+  ok(a('clearOrbitals', {}), 'clearOrbitals 无参数通过')
+  ok(!!r('clearOrbitals', { n: 1 }), 'clearOrbitals 带参数被拒（没有可传的参数）')
+
+  // ---- 新快照字段必须同时进"空快照"与 perception.fieldLabels ----
+  // ★ 少了前者：进出页面会在痕迹里凭空多出一次变化（facade 里那段注释警告过的形态，
+  //   实测就是这么发生的 —— 我加了 orbitalItems 却忘了补 EMPTY_SNAPSHOT）。
+  // ★ 少了后者：痕迹里那一行是个读不懂的原始字段名。
+  {
+    const f6 = createOrbitFacade()
+    const empty = f6.getSnapshot()
+    ok('orbitalItems' in empty, '空快照里有 orbitalItems（与实机快照同形）',
+      Object.keys(empty).join(','))
+    ok('orbitalBuilding' in empty, '空快照里有 orbitalBuilding')
+    ok(!!f6.perception.fieldLabels.orbitalItems,
+      'perception 给 orbitalItems 配了可读标签')
+    ok(!!f6.perception.fieldLabels.orbitalBuilding,
+      'perception 给 orbitalBuilding 配了可读标签')
+  }
+
+  // ---- 词汇表自洽：每个动作都给得出**具体**的取值域说明 ----
+  // ★ 判据是"给空参数时不能回落到'这个模块不支持该动作'"——那说明它在 validate 里
+  //   没有 case，模型下发它只会得到一句废话，而这是**静默**的（词汇表里有、校验里没有）。
+  // ★ 原先判据写成 `/^未知动作/`，而实际文案是 `orbit 模块不支持动作：…` ——
+  //   **这条断言恒真**（改前改后都恒真，等于没测）。现在同时认两种措辞。
+  {
+    const noCase = []
+    for (const name of Object.keys(VOCAB)) {
+      const e = r(name, {})
+      if (/未知动作|不支持动作/.test(e)) noCase.push(name)
+    }
+    ok(noCase.length === 0, 'VOCAB 里每个动作在 validate 里都有 case（空参数不会回落到"不支持该动作"）',
+      noCase.join(','))
+  }
+}
+
 console.log('')
 console.log('═══════════════════════════════════════════════════════════════')
 if (fail === 0) {

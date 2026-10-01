@@ -10,6 +10,10 @@
  *   3. 支持任意 OpenAI 兼容端点（BYOK），端点/模型/密钥全部由设置面板提供。
  *   4. ★ 安全：任何日志输出必须经过 redact()，Authorization 头永不明文出现。
  */
+// ★ 错误分类的 message 会经 onError 显示在面板上（用户看得见），故一律走 t()。
+// ★ 自己 import 字典（副作用即 registerDict），不依赖入口替你注册
+import '../i18n.js'
+import { t } from '../../i18n/index.js'
 const DEFAULT_ENDPOINT = 'https://api.deepseek.com/chat/completions';
 const DEFAULT_MODEL = 'deepseek-flash';
 // ★ 这个上限是**思考 + 正文共用**的：推理模型在写正文之前会先烧掉一大段思考，
@@ -57,18 +61,18 @@ function classifyError(status, body) {
   let msg = '';
   try { msg = (typeof body === 'string' ? JSON.parse(body) : body)?.error?.message || ''; } catch (e) { msg = ''; }
   if (status === 401 || status === 403) {
-    return { kind: 'auth', status, message: 'API Key 无效或无权限，请在设置中检查。' };
+    return { kind: 'auth', status, message: t('agent.llm.auth') };
   }
   if (status === 429) {
-    return { kind: 'rate_limit', status, message: '请求过于频繁（限流），请稍后重试。' };
+    return { kind: 'rate_limit', status, message: t('agent.llm.rateLimit') };
   }
   if (status === 402) {
-    return { kind: 'quota', status, message: '账户余额不足，请检查模型服务账户。' };
+    return { kind: 'quota', status, message: t('agent.llm.quota') };
   }
   if (status >= 500) {
-    return { kind: 'server', status, message: '模型服务端错误（' + status + '），可重试。' };
+    return { kind: 'server', status, message: t('agent.llm.serverError', { status }) };
   }
-  return { kind: 'http', status, message: msg || ('请求失败（HTTP ' + status + '）') };
+  return { kind: 'http', status, message: msg || t('agent.llm.httpError', { status }) };
 }
 
 function normalizeEndpoint(raw) {
@@ -158,8 +162,8 @@ async function chat(opts) {
           opts.onNotice({
             kind: 'param_downgrade',
             text: omit.maxTokens
-              ? '服务端不接受当前的输出上限（max_tokens），本次改为由服务端决定；可在设置里调小。'
-              : '服务端不支持 stream_options，已去掉该参数重试（代价：看不到 token 用量）。',
+              ? t('agent.llm.downgradeMaxTokens')
+              : t('agent.llm.downgradeStreamOptions'),
           });
         }
         res = await doFetch(omit);
@@ -167,8 +171,9 @@ async function chat(opts) {
     }
   } catch (err) {
     if (err && err.name === 'AbortError') throw err;
-    const e = new Error('网络请求失败：' + (err && err.message ? err.message : '未知错误')
-      + '（若为跨域问题，请确认所用服务允许浏览器直连）');
+    const e = new Error(t('agent.llm.network', {
+      msg: err && err.message ? err.message : t('agent.llm.unknownError'),
+    }));
     e.kind = 'network';
     throw e;
   }

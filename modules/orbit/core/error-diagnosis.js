@@ -7,7 +7,18 @@
  *   四个跨文件全局引用改成 import、**反向依赖宿主状态的那几处改成注入**。
  *   算法本身逐字未动（P1 的纪律）。
  * ★ 本文件**不引用 DOM**，可在 Node 里直接测试。
+ *
+ * ---------------------------------------------------------------------------
+ * i18n（错因诊断话术：**进模型上下文**，学生也可能在面板上看到）
+ * ---------------------------------------------------------------------------
+ * 处方里的 `cause / label / speech / avoid / followUp` 都是**没有变量的整句**，
+ * 所以原文进 `modules/orbit/i18n.js` 的 `text` 表，这里只把取值包一层 `t(原文)`。
+ * ★ 必须**惰性**取：`PRESCRIPTIONS` 在模块求值阶段就构造好了，若写成
+ *   `cause: t('…')` 就会把译文冻在 import 那一刻（切语言不生效，且守卫照样绿）。
+ *   故用 `lazyFields()` 把每个字段做成**取值器**（见那里的注释）。
  */
+import '../i18n.js'
+import { t } from '../../../packages/i18n/index.js'
 import { OM } from './math.js'
 /**
  * error-diagnosis.js — 错因分类 → 可视化诊断动作
@@ -32,11 +43,34 @@ const ErrorDiagnosis = (function () {
   'use strict';
 
   /**
+   * 把一组「中文原文」字段变成**惰性取值器**。
+   *
+   * ★ 为什么不能直接写 `cause: t('E1 概念混淆')`：本对象在**模块求值阶段**就构造完了，
+   *   那一刻取到的是当时的语言 —— 切语言不生效，而且**不报错、守卫也照样绿**
+   *   （本仓在 VOCAB 与 PRESETS 上各踩过一次）。取值器每次读都重新查表。
+   * ★ 为什么不用 `Object.assign`：它复制的是取值器的**值**，取值器会被压平 ——
+   *   那就又变回"冻住"了。所以用 `Object.defineProperty` 逐个装。
+   */
+  function lazyFields(fields) {
+    const out = {};
+    Object.keys(fields).forEach(function (k) {
+      const raw = fields[k];
+      Object.defineProperty(out, k, {
+        get: function () { return t(raw); },
+        enumerable: true,
+        configurable: true,
+      });
+    });
+    return out;
+  }
+
+  /**
    * 诊断处方库：key 与 question-engine 的 diagnosticHint 对应。
    * 每条含：错因归类、诊断动作序列、引导话术、以及"不要做什么"。
+   * ★ 文案一律走 `lazyFields()`（惰性取值）；只有 `actions` 是数据，原样放着。
    */
   const PRESCRIPTIONS = {
-    'R-vs-D': {
+    'R-vs-D': lazyFields({
       cause: 'E1 概念混淆',
       label: '混淆了「概率幅最大」与「概率最大」',
       actions: [
@@ -45,13 +79,12 @@ const ErrorDiagnosis = (function () {
         { action: 'highlightRadialFeature', params: { target: 'D', feature: 'peak' } },
         { action: 'linkRadialTo3D', params: { radius: '__PEAK__' } },
       ],
-      speech: '先不急着说答案。我把 R(r) 和 D(r) 画在同一张图上了——' +
-        '你看它们的峰顶是不是不在同一个位置？再想想：球壳的体积随半径怎么变？',
+      speech: '先不急着说答案。我把 R(r) 和 D(r) 画在同一张图上了——你看它们的峰顶是不是不在同一个位置？再想想：球壳的体积随半径怎么变？',
       avoid: '不要直接说出正确答案；不要一次给出全部解释。',
       followUp: '要不要我把这个半径对应的一层"球壳"在三维里标出来？',
-    },
+    }),
 
-    'radial-nodes': {
+    'radial-nodes': lazyFields({
       cause: 'E2 公式误用',
       label: '节点计数公式记错（径向 / 角 / 总数的混淆）',
       actions: [
@@ -60,13 +93,12 @@ const ErrorDiagnosis = (function () {
         { action: 'setIsosurfaceLevel', params: { fraction: 0.05 } },   // 降阈值显套娃
         { action: 'spotlightNodes', params: { type: 'radial', on: true } },
       ],
-      speech: '我把等值面阈值降下来，你看这个"套娃"结构——每两层壳之间就是一层径向节点。' +
-        '数一数有几层？对照公式 n−l−1 看看。',
+      speech: '我把等值面阈值降下来，你看这个"套娃"结构——每两层壳之间就是一层径向节点。数一数有几层？对照公式 n−l−1 看看。',
       avoid: '不要只说"公式是 n−l−1"，要让学生**数出来**。',
       followUp: '那角度节面呢？换个平面看看。',
-    },
+    }),
 
-    'node-shape': {
+    'node-shape': lazyFields({
       cause: 'E3 空间想象错误',
       label: '把角度节面一律当成平面（忽略了锥面）',
       actions: [
@@ -74,13 +106,12 @@ const ErrorDiagnosis = (function () {
         { action: 'spotlightNodes', params: { type: 'angular', on: true } },
         { action: 'setAutoRotate', params: { on: true } },
       ],
-      speech: '我打开等高线和角度节面高亮。注意看节面的形状——它是平的一个面，' +
-        '还是绕着 z 轴转出来的一圈？',
+      speech: '我打开等高线和角度节面高亮。注意看节面的形状——它是平的一个面，还是绕着 z 轴转出来的一圈？',
       avoid: '不要用"锥面"这个词直接提示，先让学生描述看到的形状。',
       followUp: '想想 P_l^{|m|}(cosθ)=0 解出来的 θ 是常数还是 φ 是常数？',
-    },
+    }),
 
-    'psi-vs-psi2': {
+    'psi-vs-psi2': lazyFields({
       cause: 'E1 概念混淆',
       label: '把 |ψ| 与 |ψ|² 的百分比读数混为一谈',
       actions: [
@@ -88,13 +119,12 @@ const ErrorDiagnosis = (function () {
         { action: 'setIsosurfaceLevel', params: { fraction: 0.09 } },
         { action: 'setPsiCriterion', params: { criterion: 'psi' } },
       ],
-      speech: '我先把判据切到 |ψ|²、阈值设成 9%，再切成 |ψ| 看看——' +
-        '同一个曲面，两种读法。它们是什么关系？',
+      speech: '我先把判据切到 |ψ|²、阈值设成 9%，再切成 |ψ| 看看——同一个曲面，两种读法。它们是什么关系？',
       avoid: '不要直接给出平方关系，让学生从两次读数自己推。',
       followUp: '所以同一读数下，按哪个判据得到的曲面更大？',
-    },
+    }),
 
-    'complex-real': {
+    'complex-real': lazyFields({
       cause: 'E1 概念混淆',
       label: '把实轨道与复轨道当成两种不同的物理',
       // ★ 这里原有两步 setColorMode（切相位色再切回轨道色）。那个开关已按用户第 5 条
@@ -106,22 +136,21 @@ const ErrorDiagnosis = (function () {
         { action: 'setSectionMode', params: { mode: 'phase' } },
         { action: 'setWavefunctionMode', params: { mode: 'real' } },
       ],
-      speech: '你看，切到复函数时密度是个环，切回实函数变成两个瓣。' +
-        '但它们的**能量**变了吗？想想为什么能量不变，形状却变了。',
+      speech: '你看，切到复函数时密度是个环，切回实函数变成两个瓣。但它们的**能量**变了吗？想想为什么能量不变，形状却变了。',
       avoid: '不要直接说"线性组合"，先让学生注意到能量没变这个事实。',
       followUp: '既然能量一样，它们的任意组合是不是也是合法状态？',
-    },
+    }),
   };
 
   /** 兜底处方：无法匹配到具体错因时使用通用流程 */
-  const FALLBACK = {
+  const FALLBACK = lazyFields({
     cause: 'E1 概念混淆',
     label: '需要进一步确认学生的推理路径',
     actions: [],
     speech: '先说说你是怎么想的？我想知道你推到哪一步觉得不对。',
     avoid: '在了解学生思路前不要给任何提示。',
     followUp: '',
-  };
+  });
 
   /**
    * @returns {{ cause, label, actions, speech, avoid, followUp }}
@@ -131,14 +160,16 @@ const ErrorDiagnosis = (function () {
     if (questionEngine && questionEngine.get) q = questionEngine.get(questionId);
 
     // 优先用题目自带的 hint，其次由题目内容推断
+    // ★ 判据同时认中英两种写法：英文模式下题干已经是英文，只认中文正则会让
+    //   这一整条推断**静默失效**（退回兜底处方，不报错）。命中顺序即优先级。
     let key = hintKey || (q && q.diagnosticHint) || null;
     if (!key && q) {
       const s = (q.stem || '') + (q.explanation || '');
-      if (/D\(r\)|概率最大|径向分布函数/.test(s)) key = 'R-vs-D';
-      else if (/径向节点|角度节面|总节点/.test(s)) key = 'radial-nodes';
-      else if (/节面|锥面|平面/.test(s)) key = 'node-shape';
-      else if (/\|ψ\|²|判据/.test(s)) key = 'psi-vs-psi2';
-      else if (/复轨道|实轨道|组合/.test(s)) key = 'complex-real';
+      if (/D\(r\)|概率最大|径向分布函数|most probable|radial distribution/i.test(s)) key = 'R-vs-D';
+      else if (/径向节点|角度节面|总节点|radial node|angular node|total node/i.test(s)) key = 'radial-nodes';
+      else if (/节面|锥面|平面|nodal surface|cone|plane/i.test(s)) key = 'node-shape';
+      else if (/\|ψ\|²|判据|criterion/i.test(s)) key = 'psi-vs-psi2';
+      else if (/复轨道|实轨道|组合|complex orbital|real orbital|combination/i.test(s)) key = 'complex-real';
     }
 
     const rx = PRESCRIPTIONS[key] || FALLBACK;
@@ -167,7 +198,7 @@ const ErrorDiagnosis = (function () {
       avoid: rx.avoid,
       followUp: rx.followUp,
       diagnosisKey: key || 'fallback',
-      note: '请按 speech 的语气引导，并执行 actions；**不要直接说出正确答案**。',
+      note: t('请按 speech 的语气引导，并执行 actions；**不要直接说出正确答案**。'),
     };
   }
 

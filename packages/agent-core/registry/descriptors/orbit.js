@@ -16,9 +16,40 @@
  *   `loadKnowledge` / `loadSkill` 不在此声明：它们由共享核心提供（CORE_TOOLS），
  *   对每个模块自动可用。
  */
+// ★ 路由关键词是**数据**不是文案：中英并列表见 packages/agent-core/i18n.js 的 `keywords`。
+import { keywords, zh as dictZh, en as dictEn } from '../../i18n.js'
+import { t } from '../../../i18n/index.js'
+
+/** 取一条双语关键词（`|` 分隔；见 i18n.js 的 keywords 表） */
+const kw = (key) => String(keywords[key] || '').split('|').filter(Boolean)
+
+/**
+ * 感知痕迹 `toggleCounts` / `recentActions` 的键是**模块 facade 的 fieldLabels 的值**
+ * （见 `modules/orbit/facade.js`），而那一份**现在也走 `t()`**，且 `fieldLabels` 是
+ * **创建 facade 时求值**的 ⇒ 同一个字段的键可能是：
+ *   ① 模块自己那份标签（本语言；`t('orbit.field.m')` 能取到，且自动跟随它的措辞）
+ *   ② 上一种语言的标签（facade 建好之后用户换过语言）
+ *   ③ 字段名本身（模块没给这个字段配标签时的兜底）
+ * 三种都认，规则才不会因为换过语言而**静默失效**（不报错、规则永不触发）。
+ * ★ 多认几个键只会让 `>= 阈值` 更容易命中、让 `=== 0` 更难命中，两个方向都是保守的。
+ */
+const traceKeys = (agentKey, fieldKey) => [
+  t('orbit.field.' + fieldKey),        // 模块自己的标签；它的字典没注册时返回键名，匹配不上、无害
+  dictZh[agentKey], dictEn[agentKey],
+  fieldKey,
+].filter(Boolean)
+const countToggles = (trace, keys) => {
+  const c = (trace && trace.toggleCounts) || {}
+  return keys.reduce((n, k) => n + (c[k] || 0), 0)
+}
+
 export default {
   id: 'orbit',
-  title: '原子轨道',
+  // ★ 模块名走 `text` 表（门户首页的模块卡把它当**文本节点**渲染），
+  //   不在 descriptor 里调 t()：registerModule 的展开赋值会把访问器求值冻住。
+  // ★ 名字取自参赛配图（`比赛配图-1.pptx` 第 1 页）：三门课 → 三个模块
+  //   「轨道视界 / 点群观鉴 / 晶典在线」，与点群观鉴页的品牌名同一套口径。
+  title: '轨道视界',
   scale: 'full',
   /**
    * 授课次序（1 = 最先讲）。
@@ -41,12 +72,12 @@ export default {
   //   orbit 接入后，壳里通过路由进入；那个独立页将来退役（重构计划 P0/P7）。
   entry: '#/orbit',
 
+  // 中英关键词并集；不含中文的专名（sp/sp2/sp3、1s/2p/3d）直接写在这里
   capabilities: {
-    orbitals: ['原子轨道', '波函数', '量子数', '径向分布', '角度分布', '节面', '节点',
-               '球谐', '相位', '杂化', 'sp', 'sp2', 'sp3', '叠加态',
-               '1s', '2p', '3d', '电子云', '概率密度'],
-    symmetryInOrbital: ['轨道的对称性', '轴对称', '相位缠绕'],
-    quantum: ['能级', '简并', '力学量', '期望值', '维里定理'],
+    orbitals: kw('agent.kw.orbit.orbitals')
+      .concat(['sp', 'sp2', 'sp3', '1s', '2p', '3d']),
+    symmetryInOrbital: kw('agent.kw.orbit.symmetryInOrbital'),
+    quantum: kw('agent.kw.orbit.quantum'),
   },
 
   knowledge: 'orbit',
@@ -81,19 +112,23 @@ export default {
   proactiveRules: [
     {
       id: 'orbit-m-fiddling',
-      desc: '反复调 m 却没切过实/复模式 → 主动解释两者差别',
+      get desc() { return t('agent.descriptor.orbit.ruleM') },
       /**
        * ★ 字段名要对着**感知层的实参**写（这是本仓库反复踩的一类静默失效）：
        *   `check(trace, state)` 里的 trace 是 `perception.getTrace()`，它的
        *   `toggleCounts` 以 **fieldLabels 的值**为键（见 modules/orbit/facade.js
-       *   的 perception.fieldLabels），**不是动作名**。
-       *   所以这里必须写 `'切换磁量子数'`，写 `setM` 会恒为 undefined——
+       *   的 perception.fieldLabels），**不是动作名**。写 `setM` 会恒为 undefined——
        *   规则永不触发、不报错、功能整个是死的（晶体那两条就是这么坏掉的）。
        *   `state` 是**门面的快照**，字段名见 getSnapshot（wavefunction ✓）。
+       *
+       * ★ 键的**语言**不确定（见上面 `traceKeys` 的说明）：模块可能建在中文下、
+       *   也可能建在英文下，用户还可能中途换过语言。故三种拼法都认；
+       *   英文那两条与本文件字典里的 `agent.descriptor.orbit.toggle*` **必须与
+       *   `modules/orbit/i18n.js` 的 `orbit.field.*` 保持一致**（措辞变了要同步）。
        */
       check: (trace, state) =>
-        ((trace && trace.toggleCounts && trace.toggleCounts['切换磁量子数']) || 0) >= 6
-        && ((trace && trace.toggleCounts && trace.toggleCounts['实轨道/复轨道']) || 0) === 0
+        countToggles(trace, traceKeys('agent.descriptor.orbit.toggleM', 'm')) >= 6
+        && countToggles(trace, traceKeys('agent.descriptor.orbit.toggleWavefunction', 'wavefunction')) === 0
         && state && state.wavefunction === 'real',
       suggest: [],
     },

@@ -21,7 +21,15 @@ import { el } from '../agent-core/ui/dom.js'
 /**
  * 智能体自身的标准设置项。hint 可以是字符串，也可以是 (store) => string
  * （密钥那项需要按"是否已配置"给不同提示）。
+ *
+ * ★ 大部分文案**留在源码里的中文原文**即可：它们最终都以文本节点出现在 DOM 上，
+ *   由宿主的 `startAutoSweep` 按 `text` 表替换（见 `packages/ui-kit/i18n.js`）。
+ *   只有**拼出来的**（密钥掩码那句、测试连接的结果、取色提示）必须走 `t()` ——
+ *   整段是运行时才成形的，扫描替换对不上。
  */
+import { t } from '../i18n/index.js'
+import './i18n.js'   // 副作用：把本区的中英词典注册进 @i18n 运行时
+
 export const DEFAULT_SCHEMA = [
   {
     key: 'endpoint', label: '接入点 endpoint', type: 'text',
@@ -32,12 +40,16 @@ export const DEFAULT_SCHEMA = [
     key: 'apiKey', label: 'API Key（BYOK）', type: 'secret',
     placeholder: 'sk-...',
     hint: (store) => (store.hasKey()
-      ? '已配置：' + store.mask(store.get().apiKey) + '　留空则保持不变'
+      ? t('uikit.configuredHint', { mask: store.mask(store.get().apiKey) })
       : '仅存本机，不上传服务器'),
   },
   {
     key: 'model', label: '模型名', type: 'text', placeholder: 'deepseek-flash',
-    hint: '如 deepseek-flash / gpt-4o-mini / qwen-plus',
+    // ★ 不再列别家的模型名。原先写的是「如 deepseek-flash / gpt-4o-mini / qwen-plus」——
+    //   那种清单**一定会过时**（用户就报了这一点：gpt-4 早已不是 OpenAI 的主流），
+    //   而过时的示例比没有示例更糟：读者会照抄一个已经下线的名字，然后拿到一个
+    //   看不懂的 404。这里只保留**本工具自己的默认值**，其余交给服务商文档。
+    hint: '填服务商文档里的模型名（本工具默认 deepseek-flash）。各家命名不同、且会随版本变化',
   },
   {
     key: 'effort', label: '推理强度 effort', type: 'select',
@@ -162,6 +174,15 @@ export function createSettingsPopup(cfg = {}) {
           sel.appendChild(o)
         }
         sel.value = v == null ? '' : String(v)
+        /**
+         * ★ 可选的 `def.onChange(v)`：**改完立即生效**，不等按「保存」。
+         *   只有"所见即所得"的偏好才该用它（界面语言就是这样：改成英文要马上看到，
+         *   否则用户会以为没生效而反复点）。默认不挂 —— 多数设置项应当在按保存时统一落库，
+         *   边改边写会让"取消"（关掉弹层）失去意义。
+         */
+        if (typeof def.onChange === 'function') {
+          sel.addEventListener('change', () => { try { def.onChange(sel.value, sel) } catch (e) { /* 单项失败不影响整层 */ } })
+        }
         return { node: sel, read: () => sel.value }
       }
       case 'range': {
@@ -230,7 +251,7 @@ export function createSettingsPopup(cfg = {}) {
             picker.value = it.color
             for (const n of grid.querySelectorAll('.agent-swatch')) n.classList.remove('active')
             b.classList.add('active')
-            caption.textContent = it.label + '：取色后立即生效'
+            caption.textContent = t('uikit.picked', { label: it.label })
           }
           grid.appendChild(b)
         }
@@ -285,9 +306,39 @@ export function createSettingsPopup(cfg = {}) {
 
     const body = el('div', { class: 'agent-settings-body' }, undefined, doc)
 
-    for (const g of groups) {
-      body.appendChild(el('div', { class: 'agent-sgroup-title', text: g.title }, undefined, doc))
-      const gEl = el('div', { class: 'agent-sgroup' }, undefined, doc)
+    /**
+     * 造一个**可折叠**分区。
+     *
+     * ★ 为什么改成折叠：设置项分三类来源（模型服务 / 教学偏好 / 各模块自己的小参数），
+     *   而模块越接越多、最后一项「逐元素配色」有 103 个格子 —— 全部平铺在一个滚动区里，
+     *   用户要在一条长列表里找"动画速度"。折叠之后**每一类一眼可见**，展开才铺开细节。
+     * ★ 用 `<section>` + 按钮头，而不是原生 `<details>`：头部样式要跟这套深色令牌走，
+     *   而 `<details>/<summary>` 的默认三角在各浏览器里长得不一样（且不可控）。
+     *   `aria-expanded` 照给，读屏用户仍能知道展开状态。
+     */
+    function makeSection(title, isOpen) {
+      const sec = el('section', { class: 'agent-sec' + (isOpen ? ' open' : '') }, undefined, doc)
+      const head = el('button', {
+        class: 'agent-sec-head', type: 'button', 'aria-expanded': isOpen ? 'true' : 'false',
+      }, [
+        el('span', { class: 'agent-sec-title', text: title }, undefined, doc),
+        el('span', { class: 'agent-sec-chev', text: '▸', 'aria-hidden': 'true' }, undefined, doc),
+      ], doc)
+      head.onclick = () => {
+        const on = !sec.classList.contains('open')
+        sec.classList.toggle('open', on)
+        head.setAttribute('aria-expanded', on ? 'true' : 'false')
+      }
+      const content = el('div', { class: 'agent-sec-body' }, undefined, doc)
+      sec.appendChild(head)
+      sec.appendChild(content)
+      body.appendChild(sec)
+      return content
+    }
+
+    groups.forEach((g, gi) => {
+      // 缺省：第一组展开、其余收起；`g.open` 可显式指定
+      const gEl = makeSection(g.title, g.open === true || (g.open !== false && gi === 0))
       for (const key of g.keys) {
         const def = byKey[key]
         if (!def) continue
@@ -311,13 +362,12 @@ export function createSettingsPopup(cfg = {}) {
             // ★ 文案要**说清"已保存"**：`collect()` 在测试之前就把表单落库了（见它的实现），
             //   但用户看不到这一点——只说"连接成功"会让人不确定密钥到底存没存，
             //   于是回到面板再发消息、看到"尚未配置 API Key"时就以为是 bug（实测反馈）。
-            testMsg.textContent = '✓ 连接成功（模型：' + ((r && r.model) || patch.model)
-              + '）· 已保存到本机'
+            testMsg.textContent = t('uikit.testOk', { model: (r && r.model) || patch.model })
             testMsg.className = 'agent-test-msg ok'
             refreshHints()
             if (typeof cfg.onSaved === 'function') cfg.onSaved(store.get())
           } catch (e) {
-            testMsg.textContent = '✗ ' + ((e && e.message) || '失败')
+            testMsg.textContent = t('uikit.testFail', { msg: (e && e.message) || t('uikit.testFailFallback') })
             testMsg.className = 'agent-test-msg bad'
           }
         }
@@ -325,12 +375,10 @@ export function createSettingsPopup(cfg = {}) {
         testRow.appendChild(testMsg)
         gEl.appendChild(testRow)
       }
-      body.appendChild(gEl)
-    }
+    })
 
-    // --- 数据与隐私 ---
-    body.appendChild(el('div', { class: 'agent-sgroup-title', text: '数据与隐私' }, undefined, doc))
-    const g3 = el('div', { class: 'agent-sgroup' }, undefined, doc)
+    // --- 数据与隐私（也是一个折叠分区；这类内容平时不该占版面）---
+    const g3 = makeSection('数据与隐私', false)
     g3.appendChild(el('div', { class: 'agent-note', text: cfg.privacyNote || (
       '· 学情与设置只存本机浏览器（localStorage），不上传。\n' +
       '· 对话内容不落库；只保留结构化动作序列用于复现与审计。\n' +
@@ -338,20 +386,19 @@ export function createSettingsPopup(cfg = {}) {
     ) }, undefined, doc))
     const clearBtn = el('button', { class: 'agent-btn danger', text: '清除本机全部数据' }, undefined, doc)
     clearBtn.onclick = () => {
-      if (win && win.confirm && !win.confirm('将清除本机的设置、学情与埋点数据，且不可恢复。确定？')) return
+      // ★ 原生对话框（confirm/alert）**不是 DOM 节点** —— 扫描替换碰不到它们。
+      //   这两句必须走 t()，否则英文界面下弹出来的还是中文（且不报错）。
+      if (win && win.confirm && !win.confirm(t('uikit.confirmClear'))) return
       store.clearAll()
-      if (win && win.alert) win.alert('已清除。页面将刷新。')
+      if (win && win.alert) win.alert(t('uikit.cleared'))
       if (win && win.location && win.location.reload) win.location.reload()
     }
     g3.appendChild(clearBtn)
-    body.appendChild(g3)
 
     // --- 关于 ---
     if (cfg.about) {
-      body.appendChild(el('div', { class: 'agent-sgroup-title', text: '关于' }, undefined, doc))
-      const g4 = el('div', { class: 'agent-sgroup' }, undefined, doc)
+      const g4 = makeSection('关于', false)
       g4.appendChild(el('div', { class: 'agent-note', html: cfg.about }, undefined, doc))
-      body.appendChild(g4)
     }
 
     // --- 底部 ---

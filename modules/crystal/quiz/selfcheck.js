@@ -14,6 +14,7 @@
  *   此时应当**报错而不是出题**。数据错了却照常出题，等于把错误写进学生的答案记忆里。
  */
 
+import { t } from '../i18n-live.js'
 import { SPACE_UTILIZATION_PCT, INTERSTICE_PER_SPHERE } from './data/constants.js'
 
 /** 数值答案的合理量级（超出即视为算出异常，不出题） */
@@ -42,10 +43,10 @@ export function selfCheck(q, ctx = {}) {
   if (!q || typeof q !== 'object') return { ok: false, problems: ['题目对象为空'] }
   if (!q.stem || typeof q.stem !== 'string') problems.push('题干为空')
   if (!Array.isArray(q.options) || q.options.length !== 4) {
-    problems.push(`选项数应为 4，实际 ${Array.isArray(q.options) ? q.options.length : '非数组'}`)
+    problems.push(t('crystal.t.quiz-selfcheck.1', { p1: (Array.isArray(q.options) ? q.options.length : '非数组') }))
   }
   if (!Number.isInteger(q.answerIndex) || q.answerIndex < 0 || q.answerIndex > 3) {
-    problems.push(`answerIndex 非法：${q.answerIndex}`)
+    problems.push(t('crystal.t.quiz-selfcheck.2', { p1: (q.answerIndex) }))
   }
 
   // ---- ② 选项互不相同（去重后仍须 4 个）----
@@ -58,12 +59,12 @@ export function selfCheck(q, ctx = {}) {
     const rightCount = q.options.filter((o) => o && o.correct === true).length
     // 允许"只有 answerIndex 标记正确"的写法；但若用了 correct 标记就必须恰好一个
     if (rightCount > 0 && rightCount !== 1) {
-      problems.push(`被标记为正确的选项有 ${rightCount} 个（应恰好 1 个）`)
+      problems.push(t('crystal.t.quiz-selfcheck.3', { p1: (rightCount) }))
     }
     if (rightCount === 1) {
       const idx = q.options.findIndex((o) => o && o.correct === true)
       if (idx !== q.answerIndex) {
-        problems.push(`correct 标记的下标(${idx})与 answerIndex(${q.answerIndex})不一致`)
+        problems.push(t('crystal.t.quiz-selfcheck.4', { p1: (idx), p2: (q.answerIndex) }))
       }
     }
   }
@@ -74,14 +75,14 @@ export function selfCheck(q, ctx = {}) {
     if (s) {
       if (!Number.isFinite(q.answerValue)) problems.push('答案是 NaN/Infinity')
       else if (q.answerValue < s.min || q.answerValue > s.max) {
-        problems.push(`答案 ${q.answerValue} 超出 ${q.answerKind} 的合理量级 [${s.min}, ${s.max}]${s.unit ? ' ' + s.unit : ''}`)
+        problems.push(t('crystal.t.quiz-selfcheck.5', { p1: (q.answerValue), p2: (q.answerKind), p3: (s.min), p4: (s.max), p5: (s.unit ? ' ' + s.unit : '') }))
       }
     }
   }
 
   // ---- ⑤ 答案与冻结值一致（防止"算一遍、填另一遍"的时序错误）----
   if (ctx.expected && q.answerValue != null && q.answerValue !== ctx.expected.value) {
-    problems.push(`题目答案(${q.answerValue})与程序冻结的答案(${ctx.expected.value})不一致`)
+    problems.push(t('crystal.t.quiz-selfcheck.6', { p1: (q.answerValue), p2: (ctx.expected.value) }))
   }
 
   // ---- ⑥ 解析不得与答案矛盾（★ 模板写错时唯一的拦截点）----
@@ -118,7 +119,7 @@ function checkExplanationAgainstAnswer(q) {
   ])
   for (const n of nums) {
     if (!allowed.has(n)) {
-      problems.push(`解析中出现数值 ${n}，既不是答案也不在常量白名单里——模板可能写错了`)
+      problems.push(t('crystal.t.quiz-selfcheck.7', { p1: (n) }))
     }
   }
   return problems
@@ -138,7 +139,7 @@ function crossCheckKnowledge(q) {
     const expect = SPACE_UTILIZATION_PCT[q.stacking]
     if (expect != null && Math.abs(Number(q.answerValue) - expect) > 0.05) {
       problems.push(
-        `空间利用率与内置知识表不符：程序算出 ${q.answerValue}%，而 ${q.stacking} 的理论值是 ${expect}%`
+        t('crystal.t.quiz-selfcheck.8', { p1: (q.answerValue), p2: (q.stacking), p3: (expect) })
         + ' —— 这通常意味着晶格参数或原子半径数据有误，应报错而非出题')
     }
   }
@@ -147,8 +148,8 @@ function crossCheckKnowledge(q) {
     const expect = (INTERSTICE_PER_SPHERE[q.stacking] || {})[q.intersticeKind]
     if (expect != null && Number(q.answerValue) !== expect) {
       problems.push(
-        `"每个球周围的${q.intersticeKind}空隙数" = ${q.answerValue}，`
-        + `与内置知识表（${q.stacking} 为 ${expect}）不符`)
+        t('crystal.t.quiz-selfcheck.9', { p1: (q.intersticeKind), p2: (q.answerValue) })
+        + t('crystal.t.quiz-selfcheck.10', { p1: (q.stacking), p2: (expect) }))
     }
   }
 

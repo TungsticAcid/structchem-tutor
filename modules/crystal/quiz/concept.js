@@ -20,6 +20,7 @@
  *   也不要给出与错误无关的动作）。
  */
 
+import { t } from '../i18n-live.js'
 import { CONCEPT_QUESTIONS } from './data/concept-questions.js'
 import { causeById } from './data/error-causes.js'
 
@@ -67,12 +68,12 @@ export function buildConcept(opts = {}) {
   if (opts.topic) {
     const f = pool.filter((q) => q.topic === opts.topic)
     if (!f.length) {
-      const avail = pool.map((q) => q.topic).join('、')
-      return { error: `知识点 ${kp} 没有概念题型「${opts.topic}」${avail ? `（可用：${avail}）` : ''}` }
+      const avail = pool.map((q) => q.topic).join(t('crystal.quiz.listSep'))
+      return { error: t('crystal.t.quiz-concept.1', { p1: (kp), p2: (opts.topic), p3: (avail ? t('crystal.quiz.availTopics', { list: avail }) : '') }) }
     }
     pool = f
   }
-  if (!pool.length) return { error: `知识点 ${kp} 暂无概念题` }
+  if (!pool.length) return { error: t('crystal.t.quiz-concept.2', { p1: (kp) }) }
 
   // 排除已出过的：按题干比对。★ 全出过时**允许重复**——宁可偶尔重复一道，
   //   也不能出现"出不了题"把教学流程卡死（与通道 A 的兜底同一取舍）。

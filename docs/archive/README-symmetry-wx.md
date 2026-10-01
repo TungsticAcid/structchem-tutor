@@ -3,7 +3,7 @@
 由 `H5`（three.js 网页版）迁移而来的微信小程序：识别并 3D 展示**分子对称元素、点群**，面向微信小程序（Android / iOS / 鸿蒙 / PC·Mac 微信客户端 / 开发者工具）。
 纯前端、无后端、纯 WebGL（`threejs-miniprogram` 适配版 three.js）。
 
-> 教学定位参考 `fig/预期效果图`：「36 分子 · 18 点群」。本版内置全部 26 个有机/无机分子示例，覆盖 C1/C2/Cs/Ci、Cnv/Cnh/Dn/Dnh/Dnd、Sₙ、Td/Oh/Ih、C∞v/D∞h 等点群。
+> 教学定位参考 `D:\xjl\program\Symmetry Viewer\fig\预期效果图`（仓库外）：「36 分子 · 18 点群」。本版内置全部 26 个有机/无机分子示例，覆盖 C1/C2/Cs/Ci、Cnv/Cnh/Dn/Dnh/Dnd、Sₙ、Td/Oh/Ih、C∞v/D∞h 等点群。
 
 ## 目录结构
 

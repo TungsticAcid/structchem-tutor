@@ -97,7 +97,15 @@ export function connect(url) {
   }
 }
 
-const PROFILE = join(tmpdir(), 'chem-agent-edge-profile')
+/**
+ * 浏览器 profile 目录。
+ *
+ * ★ **每个进程一个**（带上 pid）——固定路径会让**两个会话同时跑浏览器工具时互相挤**：
+ *   实测过两次 `CDP 超时：… 上的浏览器没起来`，退出码 1、看着像代码坏了，
+ *   而真实原因是另一路并发验证正占着同一个 profile 目录。
+ *   profile 本来就在 `finally` 与硬超时里各删一次，带 pid 不会留下垃圾。
+ */
+const PROFILE = join(tmpdir(), `chem-agent-edge-profile-${process.pid}`)
 
 /** 页面在本次会话里产生的 error / 异常（去重后的字符串数组） */
 export function pageErrors(cdp) {

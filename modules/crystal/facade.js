@@ -20,6 +20,7 @@
  *      （`this._events[name]` 一个名字只存一个回调），后注册者会静默顶掉先注册者——
  *      契约里专门警告过这件事。DOM 事件天然支持多订阅，且返回取消函数。
  */
+import { t, tr, trDeep } from './i18n-live.js'
 import { VOCAB, LAYER_PROPS, LAYER_LABELS, LAYER_NOTES, VIEW_DIRECTIONS, CELL_MODES, APPEARANCE_RANGES, validate as validateAction, listActions } from './actions.js'
 // 演示脚本是**模块自己的内容**（"NaCl 六步演示"、"以 Cu 型看空隙"…）。
 // 播放能力（分镜队列）在中枢，二者分得很干净——见契约的 demos 字段说明。
@@ -57,7 +58,7 @@ export function createCrystalFacade(opts = {}) {
   const view = opts.view
   if (!view) throw new Error('createCrystalFacade 需要 opts.view')
   for (const m of ['setProps', 'getProps', 'setView', 'resetView', 'getViewState']) {
-    if (typeof view[m] !== 'function') throw new Error(`view 缺方法 ${m}（门面依赖它实现模块契约）`)
+    if (typeof view[m] !== 'function') throw new Error(t('crystal.t.facade.1', { p1: (m) }))
   }
   const catalog = opts.catalog || []
   const byId = new Map(catalog.map((c) => [c.id, c]))
@@ -112,7 +113,7 @@ export function createCrystalFacade(opts = {}) {
       atomScale: props.atomScale,
       stickRadius: props.stickRadius,
       cellDisplayMode: props.cellDisplayMode,
-      cellDisplayModeNote: props.cellDisplayMode === 'primitive' ? '当前显示原胞（最小重复单元）' : '当前显示惯用晶胞（教材上画的那个）',
+      cellDisplayModeNote: props.cellDisplayMode === 'primitive' ? tr('当前显示原胞（最小重复单元）') : tr('当前显示惯用晶胞（教材上画的那个）'),
       hiddenElements,
       view: viewState
         ? { theta: round(viewState.theta), phi: round(viewState.phi), radius: round(viewState.radius) }
@@ -171,9 +172,8 @@ export function createCrystalFacade(opts = {}) {
         if (hit) {
           failed.push({
             action: name,
-            error: `练习进行中，已拒绝打开「${LAYER_LABELS[hit] || hit}」图层——`
-              + '它正是这道题要考的内容，画面一开就等于把答案说出来了。'
-              + '请先让学生作答；作答之后可引导学生点「去看结构」，那时再看不受限。',
+            error: t('crystal.t.facade.2', { p1: (LAYER_LABELS[hit] || hit) })
+              + '它正是这道题要考的内容，画面一开就等于把答案说出来了。请先让学生作答；作答之后可引导学生点「去看结构」，那时再看不受限。',
           })
           continue
         }
@@ -246,7 +246,7 @@ export function createCrystalFacade(opts = {}) {
   return {
     // ---- 标识 ----
     id: 'crystal',
-    title: '晶体结构',
+    get title() { return t('crystal.title') },
 
     // ---- 契约必需 ----
     getSnapshot,
@@ -329,7 +329,7 @@ export function createCrystalFacade(opts = {}) {
         }
       }
       const r = applyActions(actions, { bypassGuard: true })
-      if (!r.ok) return { ok: false, error: (r.failed[0] || {}).error || '还原失败' }
+      if (!r.ok) return { ok: false, error: (r.failed[0] || {}).error || tr('还原失败') }
       // ⑥ 视角：**完整**回设（四元数 / 平移 / 视锥）。
       //    只恢复角度与距离是不够的——正交取景的 frustumSize、拖拽平移量都在其中，
       //    少一项就会留下一个"角度转对了、但缩放与位置不对"的相机。
@@ -347,8 +347,12 @@ export function createCrystalFacade(opts = {}) {
      *   而快照字段叫 `crystal`（对象）——于是"用户换了晶体"不被识别成一次切换，
      *   痕迹里只剩一堆原始字段名。**字段名对不上不报错**，只是痕迹变得不可读，
      *   这类错很难发现；现由 assertModuleContract({ snapshotFields }) 在开发期守住。
+     *
+     * ★ 用 getter 现建：`fieldLabels` 是**给模型读的**痕迹标签（"用户切了晶体"），
+     *   在装配那一刻定死会让切语言后的痕迹仍是旧语言。中枢每次激活模块都读一次它。
      */
-    perception: {
+    get perception() {
+      return trDeep({
       fieldLabels: {
         crystal: '切换晶体',
         layersOn: '切换图层',
@@ -365,15 +369,22 @@ export function createCrystalFacade(opts = {}) {
       formatCompact: (snap) => {
         const s = (snap && snap.state) || {}
         const it = (snap && snap.interaction) || {}
+        // ★ 这两行是**拼出来的**（模块名/图层清单/计数都是变量），扫描替换够不着，
+        //   所以走带占位符的键。见 packages/i18n 顶部"两张表"的说明。
         return [
-          '【当前状态】模块 ' + (s.module || 'crystal')
-            + (s.crystal ? ' · ' + (s.crystal.name || s.crystal.id) : '')
-            + '；图层 ' + ((s.layersOn || []).join(',') || '（无）'),
-          '【交互】空闲 ' + Math.round((it.idleMs || 0) / 1000) + 's'
-            + '；切换次数 ' + JSON.stringify(it.toggleCounts || {})
-            + '；最近动作 ' + ((it.recentActions || []).join('→') || '（无）'),
+          t('crystal.perception.state', {
+            module: (s.module || 'crystal'),
+            crystal: (s.crystal ? ' · ' + tr(s.crystal.name || s.crystal.id) : ''),
+            layers: ((s.layersOn || []).join(',') || t('crystal.common.none')),
+          }),
+          t('crystal.perception.interaction', {
+            idle: Math.round((it.idleMs || 0) / 1000),
+            toggles: JSON.stringify(it.toggleCounts || {}),
+            recent: ((it.recentActions || []).join('→') || t('crystal.common.none')),
+          }),
         ].join('\n')
       },
+      })
     },
     /**
      * 模块自己的**预置演示脚本**（零 token：不经过模型，直接进分镜队列）。
@@ -381,10 +392,13 @@ export function createCrystalFacade(opts = {}) {
      * 见契约的 demos 字段说明——脚本属模块、播放属中枢。
      */
     demos: {
-      list: () => DEMO_SCRIPTS,
-      byId: (id) => demoById(id),
+      // ★ 演示脚本的标题与旁白是**模块自己的内容**，既要进模型上下文（listDemos /
+      //   playDemo 的工具结果），也要显示在面板上。统一在这里过语言：脚本保持中文原文，
+      //   取用时按当前语言翻（`trDeep` 查不到的原样返回，不会误伤 id/步骤号）。
+      list: () => trDeep(DEMO_SCRIPTS),
+      byId: (id) => trDeep(demoById(id)),
       /** 清单（给模型看的：只有 id/标题/知识点/步数，**不含每步动作**——渐进式披露） */
-      manifest: () => demoManifest(),
+      manifest: () => trDeep(demoManifest()),
     },
 
     /**
@@ -404,8 +418,9 @@ export function createCrystalFacade(opts = {}) {
     sceneVocabulary: {
       vocabulary: VOCAB,
       /** 按需拉取（**不进常驻上下文**）—— 对应工具 listSceneActions */
-      list: () => listActions(),
-      layerNotes: LAYER_NOTES,
+      list: () => trDeep(listActions()),
+      /** 图层教学说明（**给模型**，也作界面悬浮说明）——取用时过语言（见下 getter） */
+      get layerNotes() { return trDeep(LAYER_NOTES) },
     },
     /** 模块自己的小参数（声明式 schema，可直接喂给 ui-kit 的 settings-popup） */
     settings: [
@@ -422,10 +437,10 @@ export function createCrystalFacade(opts = {}) {
 
     // ---- 供工具层使用（不属于契约）----
     /** 动作校验（工具层可直接用，避免重复实现） */
-    validate: (name, params) => validateAction(name, params, {
+    validate: (name, params) => trDeep(validateAction(name, params, {
       crystalIds,
       currentCrystalId: (view.getProps && view.getProps().crystalId) || '',
-    }),
+    })),
     /** 可用晶体 id 列表（对应工具 listCrystals 的数据源） */
     crystalIds: () => [...crystalIds],
     /**
@@ -450,7 +465,10 @@ export function createCrystalFacade(opts = {}) {
      *   `params` 里 `kind:'id'` 的参数会用**该模块自己的** `listIds()` 校验——
      *   模块的 id 空间只有模块自己知道。
      */
-    routes: [
+    // ★ getter：中枢按各模块的声明**派生**导航工具的 schema（label / desc 都是
+    //   给模型看的），每次重建注册表都读一次它 —— 切语言后派生的那份就是新语言。
+    get routes() {
+      return trDeep([
       {
         target: 'crystal',
         label: '打开某个晶体的视图',
@@ -465,10 +483,11 @@ export function createCrystalFacade(opts = {}) {
           otherCrystalId: { kind: 'id', desc: '第二个晶体 id（不能与第一个相同）' },
         },
         // 跨参数的约束由**模块自己**表达：中枢不知道"两个晶体相同"为什么没意义
-        validate: (p) => (p.crystalId === p.otherCrystalId ? '两个对象相同，没有可对比的内容' : null),
+        validate: (p) => (p.crystalId === p.otherCrystalId ? tr('两个对象相同，没有可对比的内容') : null),
         hash: (p) => `#/compare/${encodeURIComponent(p.crystalId)}?b=${encodeURIComponent(p.otherCrystalId)}`,
       },
-    ],
+      ])
+    },
     /** 晶体元信息查询（对应工具 getCrystalDetail） */
     detailOf: (id) => byId.get(id) || null,
     /** 视角取值说明（供提示词与设置面板） */

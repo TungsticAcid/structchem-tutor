@@ -364,6 +364,9 @@ H2O2.aux = { type: 'dihedral', indices: [2, 0, 1, 3] }
 // ==================== 晶体示例（内联结构） ====================
 
 const NACL = createCrystal({
+  // ★ 这里**不能**加 titleEn：`createCrystal()` 只透传 title/formula/lattice/atoms/cell，
+  //   多给的字段会被**静默丢掉**（不报错）。双语的显示名属于**示例清单**（见文件末尾的
+  //   EXAMPLES），那里才有 title/titleEn。
   title: 'NaCl（岩盐）',
   formula: 'NaCl',
   lattice: { a: 5.64, b: 5.64, c: 5.64, alpha: 90, beta: 90, gamma: 90 },

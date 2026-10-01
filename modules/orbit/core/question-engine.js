@@ -7,7 +7,24 @@
  *   自包含依赖（OM / Formula / Observables / MasteryModel）改 import；
  *   宿主相关（页面运行时 / 面板 / 分镜桥 / 知识库）改注入。
  *   算法与题库逐字未动。
+ *
+ * ---------------------------------------------------------------------------
+ * i18n：题干 / 选项 / 解析 / 反馈 / 给模型的话（**都不进 DOM 扫描的范围**）
+ * ---------------------------------------------------------------------------
+ * 题库是"内容数据"，但它**不是静态 DOM**：题干与选项经 `renderRich()`（markdown +
+ * KaTeX）渲染、被拆成好几个文本节点，解析经 `innerHTML` 出来；给模型的 runAgent
+ * 提示词则根本不进 DOM。所以三条路都走不了 `text` 表，只能在这里显式接线：
+ *   · 没有变量的整句（多半是**内容数据**：题干、选项、解析）→ 原文进
+ *     `modules/orbit/i18n.js` 的 `text` 表，这里过 `t(原文)`；
+ *   · 带变量/拼接的（`径向节点数 = n − l − 1 = {n} …`）→ 走 `zh/en` 的键。
+ * ★ 取值一律发生在**出题/判分的那一刻**（每次 generate 都重新查表），
+ *   绝不能在模块求值阶段算好 —— 那会把译文冻住且不报错。
+ * ⚠ 本文件里 `t` 曾被用作局部循环变量（`const t = modes[0]`、`const t = rnd(list)`、
+ *   `const t = String(transcript)`）——那些已改名，否则 i18n 的 `t()` 会变成
+ *   "把对象当函数调"，而周围的 try/catch 会把它吞掉。
  */
+import '../i18n.js'
+import { t } from '../../../packages/i18n/index.js'
 import { OM } from './math.js'
 import { Formula } from './formula.js'
 import { Observables } from './observables.js'
@@ -101,11 +118,10 @@ const QuestionEngine = (function () {
     radialNodes(pick) {
       const { n, l } = pick;
       const nd = OMref().nodes(n, l);
-      const stem = `对 **${subOf(n, l)}** 轨道，它有几个**径向节点**（球壳状节面）？`;
+      const stem = t('orbit.qe.radialNodes.stem', { name: subOf(n, l) });
       return assemble(stem, nd.radial,
         [nd.angular, nd.total, nd.radial + 1, Math.max(0, nd.radial - 1)],
-        `径向节点数 = n − l − 1 = ${n} − ${l} − 1 = **${nd.radial}**。\n` +
-        `（同一 ${n} 层的角度节面数是 ${nd.angular}，总节点数是 ${nd.total}——三者容易混。）`,
+        t('orbit.qe.radialNodes.exp', { n: n, l: l, radial: nd.radial, angular: nd.angular, total: nd.total }),
         { kp: 'K5', difficulty: 'core', diagnosticHint: 'radial-nodes',
           // ★ level 一律按 **|ψ|² 语义**写（0.08 = 占 |ψ|² 峰值的 8%）。
           //   gotoStructure 会在下发前按当前判据换算，所以这里**不要**跟着默认判据去改 ——
@@ -117,10 +133,10 @@ const QuestionEngine = (function () {
     angularNodes(pick) {
       const { n, l } = pick;
       const nd = OMref().nodes(n, l);
-      const stem = `对 **${subOf(n, l)}** 轨道，它有几个**角度节面**？`;
+      const stem = t('orbit.qe.angularNodes.stem', { name: subOf(n, l) });
       return assemble(stem, nd.angular,
         [nd.radial, nd.total, nd.angular + 1, Math.max(0, nd.angular - 1)],
-        `角度节面数 = l = **${nd.angular}**。`,
+        t('orbit.qe.angularNodes.exp', { angular: nd.angular }),
         { kp: 'K5', difficulty: 'basic',
           presetView: { n: n, l: l, m: 0, sectionMode: 'contour' } });
     },
@@ -129,11 +145,10 @@ const QuestionEngine = (function () {
     totalNodes(pick) {
       const { n, l } = pick;
       const nd = OMref().nodes(n, l);
-      const stem = `**${subOf(n, l)}** 轨道的**总节点数**是多少？`;
+      const stem = t('orbit.qe.totalNodes.stem', { name: subOf(n, l) });
       return assemble(stem, nd.total,
         [nd.radial, nd.angular, nd.total + 1, n],
-        `总节点数 = n − 1 = **${nd.total}**，**与 l 无关**。\n` +
-        `这正是"同一层内 l 增大时，径向节点减少、角度节面增多，总数不变"的来源。`,
+        t('orbit.qe.totalNodes.exp', { total: nd.total }),
         { kp: 'K5', difficulty: 'core' });
     },
 
@@ -141,11 +156,11 @@ const QuestionEngine = (function () {
     energy(pick) {
       const n = pick.n;
       const E = OMref().energy(n);
-      const stem = `氢原子 **${n}s** 轨道的能量约为多少 eV？（E_n = −13.6/n²）`;
+      const stem = t('orbit.qe.energy.stem', { n: n });
       return assemble(stem, E.toFixed(2) + ' eV',
         [OMref().energy(n + 1).toFixed(2) + ' eV', OMref().energy(Math.max(1, n - 1)).toFixed(2) + ' eV',
          (-13.6).toFixed(2) + ' eV'],
-        `E_${n} = −13.6 / ${n}² = **${E.toFixed(2)} eV**。能量只依赖 n（氢原子）。`,
+        t('orbit.qe.energy.exp', { n: n, E: E.toFixed(2) }),
         { kp: 'K1', difficulty: 'basic' });
     },
 
@@ -153,9 +168,9 @@ const QuestionEngine = (function () {
     degeneracy(pick) {
       const n = pick.n;
       const d = OMref().degeneracy(n);
-      const stem = `第 **n = ${n}** 层共有多少个**轨道**（不计自旋）？`;
+      const stem = t('orbit.qe.degeneracy.stem', { n: n });
       return assemble(stem, d, [2 * n + 1, n, 2 * d, d - 1],
-        `第 n 层的轨道数 = n² = **${d}**（含自旋则为 2n² = ${2 * d}）。`,
+        t('orbit.qe.degeneracy.exp', { d: d, d2: 2 * d }),
         { kp: 'K1', difficulty: 'basic' });
     },
 
@@ -164,12 +179,10 @@ const QuestionEngine = (function () {
       const { n, l } = pick;
       const peaks = OMref().radialPeaks(n, l);
       const main = peaks[peaks.length - 1];
-      const stem = `对 **${subOf(n, l)}** 轨道，电子出现**概率最大**的半径约为多少？（单位 a₀）`;
+      const stem = t('orbit.qe.radialPeak.stem', { name: subOf(n, l) });
       return assemble(stem, main.toFixed(1) + ' a₀',
         [(n * n).toFixed(1) + ' a₀', (0).toFixed(1) + ' a₀', (peaks[0]).toFixed(1) + ' a₀', (main * 1.8).toFixed(1) + ' a₀'],
-        `**注意**：要用径向分布函数 D(r) = r²R(r)² 求极值，其主峰在 **r ≈ ${main.toFixed(1)} a₀**。\n` +
-        `若误用 R(r) 的峰值会得到 r=0（R 在原点最大），但那里球壳体积趋于零、概率反而最小——` +
-        `这正是"概率幅最大 ≠ 概率最大"的经典陷阱。`,
+        t('orbit.qe.radialPeak.exp', { main: main.toFixed(1) }),
         { kp: 'K3', difficulty: 'core', diagnosticHint: 'R-vs-D',
           presetView: { n: n, l: l, m: 0, radial: ['R', 'D'] } });
     },
@@ -177,11 +190,9 @@ const QuestionEngine = (function () {
     /** 1s 概率最大半径（特例，考点明确） */
     peak1s() {
       const peaks = OMref().radialPeaks(1, 0);
-      const stem = `对 **1s** 轨道，电子出现概率最大的半径是？（单位 a₀）`;
-      return assemble(stem, '1.0 a₀', ['0（原子核处）', '0.5 a₀', '2.0 a₀', '无限远'],
-        `1s 的 D(r) = r²R² 峰值在 **r = 1 a₀**。\n` +
-        `常见的错选是「0」——因为 R(r) 确实在原点最大，但球壳体积 ∝ r²，` +
-        `两者相乘后原点处为零。`,
+      const stem = t('对 **1s** 轨道，电子出现概率最大的半径是？（单位 a₀）');
+      return assemble(stem, '1.0 a₀', [t('0（原子核处）'), '0.5 a₀', '2.0 a₀', t('无限远')],
+        t('1s 的 D(r) = r²R² 峰值在 **r = 1 a₀**。常见的错选是「0」——因为 R(r) 确实在原点最大，但球壳体积 ∝ r²，两者相乘后原点处为零。'),
         { kp: 'K3', difficulty: 'basic', diagnosticHint: 'R-vs-D',
           presetView: { n: 1, l: 0, m: 0, radial: ['R', 'D'] } });
     },
@@ -194,18 +205,20 @@ const QuestionEngine = (function () {
       // 但几何**位置**不同，将来若要用到位置，取绝对值就会静默给错。
       const a = OMref().angularNodes(l, m, 'real');
       const nCones = a.cones.length, nPlanes = a.planes.length;
-      const shape = (nCones && nPlanes) ? (nCones + ' 个锥面 + ' + nPlanes + ' 个平面')
-        : (nCones ? nCones + ' 个锥面' : nPlanes + ' 个平面');
+      const shape = (nCones && nPlanes) ? t('orbit.qe.angGeo.both', { cones: nCones, planes: nPlanes })
+        : (nCones ? t('orbit.qe.angGeo.cones', { cones: nCones })
+                  : t('orbit.qe.angGeo.planes', { planes: nPlanes }));
       // ★ 实轨道用**名字**指代，不写 m —— m 是复球谐的本征值指标，实解不是 L̂z 的
       //   本征函数，拿它当实轨道的代号等于贴上一个它不再拥有的量子数。
       const nm = (Formula && Formula.realOrbitalLabelPlain)
         ? Formula.realOrbitalLabelPlain(l, m) : (l + ',' + m);
-      const stem = `实轨道 **${pick.n}${nm}** 的角度节面是什么形状？`;
+      const stem = t('orbit.qe.angGeo.stem', { name: pick.n + nm });
       return assemble(stem, shape,
-        [nPlanes + ' 个锥面', nCones + ' 个平面', (nCones + nPlanes) + ' 个锥面', '没有角度节面'],
-        `由 math.js 计算：该轨道有 **${shape}**。\n` +
-        `★ 常见误解是"角度节面一律是平面"——但 P_l^{|m|}(cosθ)=0 给出的是**锥面**，` +
-        `只有 cos(mφ)/sin(mφ)=0 才给出平面。`,
+        [t('orbit.qe.angGeo.wPlanesCones', { planes: nPlanes }),
+         t('orbit.qe.angGeo.wConesPlanes', { cones: nCones }),
+         t('orbit.qe.angGeo.wAllCones', { n: nCones + nPlanes }),
+         t('没有角度节面')],
+        t('orbit.qe.angGeo.exp', { shape: shape }),
         { kp: 'K5', difficulty: 'challenge',
           presetView: { n: pick.n, l: l, m: m, sectionMode: 'contour' } });
     },
@@ -213,12 +226,11 @@ const QuestionEngine = (function () {
     /** R 与 D 的峰值位置辨析 */
     rVsD(pick) {
       const { n, l } = pick;
-      const stem = `对 **${subOf(n, l)}** 轨道，下面哪句话是对的？`;
-      return assemble(stem, 'R(r) 的最大值出现在 r = 0，但概率最大的半径不是 0',
-        ['R(r) 与 D(r) 的峰值半径总是相同', 'D(r) 的最大值一定在 r = 0',
-         '概率最大的半径与 n 无关'],
-        `R(r) 在原点最大（对 l=0），但 D(r) = r²R² 含球壳体积因子 r²，` +
-        `其峰值在 **r ≈ n²a₀**。\n★ "概率幅最大"与"概率最大"是两件事。`,
+      const stem = t('orbit.qe.rVsD.stem', { name: subOf(n, l) });
+      return assemble(stem, t('R(r) 的最大值出现在 r = 0，但概率最大的半径不是 0'),
+        [t('R(r) 与 D(r) 的峰值半径总是相同'), t('D(r) 的最大值一定在 r = 0'),
+         t('概率最大的半径与 n 无关')],
+        t('R(r) 在原点最大（对 l=0），但 D(r) = r²R² 含球壳体积因子 r²，其峰值在 **r ≈ n²a₀**。\n★ "概率幅最大"与"概率最大"是两件事。'),
         { kp: 'K3', difficulty: 'core', diagnosticHint: 'R-vs-D',
           presetView: { n: n, l: l, m: 0, radial: ['R', 'D'] } });
     },
@@ -230,19 +242,17 @@ const QuestionEngine = (function () {
       const root = Math.sqrt(pct / 100) * 100;
       if (Math.random() < 0.5) {
         // 正向：给 |ψ|²，问 |ψ|
-        const stem = `等值面判据按 **|ψ|²** 计为 **${pct}%** 时，等价于按 **|ψ|** 计多少？`;
+        const stem = t('orbit.qe.psiVsPsi2.stemF', { pct: pct });
         return assemble(stem, root.toFixed(0) + '%',
           [(pct * 2).toFixed(0) + '%', (pct / 2).toFixed(0) + '%', (100 - pct).toFixed(0) + '%'],
-          `|ψ| = c ⟺ |ψ|² = c²，所以 ${pct}% = (${root.toFixed(0)}%)²。\n` +
-          `★ 二者是**同一族曲面**，切换判据只改变读数的含义，不改变形状族。`,
+          t('orbit.qe.psiVsPsi2.expF', { pct: pct, root: root.toFixed(0) }),
           { kp: 'K8', difficulty: 'core' });
       }
       // 反向：给 |ψ|，问 |ψ|²
-      const stem = `等值面判据按 **|ψ|** 计为 **${root.toFixed(0)}%** 时，等价于按 **|ψ|²** 计多少？`;
+      const stem = t('orbit.qe.psiVsPsi2.stemR', { pct: root.toFixed(0) });
       return assemble(stem, pct + '%',
         [(root * 2).toFixed(0) + '%', (100 - pct) + '%', (pct + 10) + '%'],
-        `|ψ| = ${root.toFixed(0)}% ⟹ |ψ|² = (${root.toFixed(0)}%)² = **${pct}%**。\n` +
-        `★ 同一读数下按 |ψ| 计算得到的绝对阈值更小，故曲面**更大**。`,
+        t('orbit.qe.psiVsPsi2.expR', { root: root.toFixed(0), pct: pct }),
         { kp: 'K8', difficulty: 'core' });
     },
 
@@ -252,12 +262,11 @@ const QuestionEngine = (function () {
       const OB = Observables;
       if (!OB) return null;
       const v = OB.meanR(n, l);
-      const stem = `氢原子 **${subOf(n, l)}** 态电子离核的**平均距离 ⟨r⟩** 约为多少？（单位 a₀）`;
+      const stem = t('orbit.qe.meanRadius.stem', { name: subOf(n, l) });
       const byR = v / 1.5, by2 = v * 1.5, byn2 = (n * n).toFixed(1) + ' a₀';
       return assemble(stem, v.toFixed(1) + ' a₀',
         [byR.toFixed(1) + ' a₀', by2.toFixed(1) + ' a₀', byn2, (0).toFixed(1) + ' a₀'],
-        `⟨r⟩ = (a₀/2)[3n² − l(l+1)] = (1/2)[3×${n}² − ${l}×${l + 1}] = **${v.toFixed(1)} a₀**。\n` +
-        `注意它比"概率最大半径"（≈n²a₀）小——因为 D(r) 的峰在远处，而 ⟨r⟩ 是对全空间加权的平均。`,
+        t('orbit.qe.meanRadius.exp', { n: n, l: l, l1: l + 1, v: v.toFixed(1) }),
         { kp: 'K3', difficulty: 'challenge',
           presetView: { n: n, l: l, m: 0, radial: ['D'] } });
     },
@@ -271,31 +280,30 @@ const QuestionEngine = (function () {
       const a = OB.angleToZ(l, m);
       const correct = a.deg.toFixed(1) + '°';
       const deg = (x) => (Math.acos(Math.max(-1, Math.min(1, x))) * 180 / Math.PI).toFixed(1) + '°';
-      const stem = `**复函数解** $\\psi_{${n},${l},${m}}$ 中，电子的轨道角动量矢量与 z 轴的夹角约为？`;
+      // ★ LaTeX 片段**单独拼好再当变量传**：`$\psi_{n,l,m}$` 里的花括号会被 `t()` 的
+      //   `{name}` 占位替换盯上（`${n}` 那种写法搬进译文表会变成"把 n 替换进去"）。
+      const psiTex = '$\\psi_{' + n + ',' + l + ',' + m + '}$';
+      const stem = t('orbit.qe.angleToZ.stem', { psi: psiTex });
       return assemble(stem, correct,
         [deg(m / l), deg(l / (l + 1)), (180 - a.deg).toFixed(1) + '°', '90.0°'],
-        `cosθ = m / √(l(l+1)) = ${m} / √(${l}×${l + 1}) ⇒ θ = **${correct}**。\n` +
-        `★ 常见错误是用 cosθ = m/l（把 $L_z/L$ 当成了 m/l），正确的分母是 √(l(l+1)) 而非 l。\n` +
-        `特别地：m = ±l 时夹角最小但不为 0（角动量不可能与 z 轴重合）；m = 0 时夹角为 90°。\n` +
-        `★ 这一问**只对复函数解成立**：L̂z 的本征态是 ψ_{n,l,m}（复解），而实解由 ±m 两个复解` +
-        `组合而来，不再是 L̂z 的本征函数，谈"它的 L_z 是多少"没有意义。`,
+        t('orbit.qe.angleToZ.exp', { m: m, l: l, l1: l + 1, correct: correct }),
         { kp: 'K9', difficulty: 'challenge' });
     },
 
     /** 由节面数反推量子数（常见反推题） */
     nodesReverse() {
       const wantR = 1, wantA = 2;          // 题面给定：径向节面 1 个、角度节面 2 个
-      const stem = '某氢原子波函数有 **一个径向节面**、**两个角度节面**。' +
-        '不查表，它的主量子数 n 与角量子数 l 分别是？';
-      const correct = `n = ${wantR + wantA + 1}，l = ${wantA}`;
+      const stem = t('某氢原子波函数有 **一个径向节面**、**两个角度节面**。不查表，它的主量子数 n 与角量子数 l 分别是？');
+      // ★ 选项里那个全角逗号（`n = 4，l = 2`）不是汉字，守卫看不见它 —— 但英文界面
+      //   下它会原样留着。所以这一条也走键（中英的逗号不同）。
+      const opt = (nn, ll) => t('orbit.qe.nodesReverse.opt', { n: nn, l: ll });
+      const correct = opt(wantR + wantA + 1, wantA);
       return assemble(stem, correct,
-        [`n = ${wantR + wantA}，l = ${wantA}`,
-         `n = ${wantA + 1}，l = ${wantR}`,
-         `n = ${wantR + 1}，l = ${wantA}`,
-         `n = ${wantR + wantA + 1}，l = ${wantA + 1}`],
-        `径向节面数 = n − l − 1，角度节面数 = l。\n` +
-        `由角度节面 2 个 ⇒ **l = 2**；代回 n − 2 − 1 = 1 ⇒ **n = 4**。\n` +
-        `★ 所以该态是 **4d**。检验：总节点数 = n − 1 = 3，与 1 + 2 = 3 一致。`,
+        [opt(wantR + wantA, wantA),
+         opt(wantA + 1, wantR),
+         opt(wantR + 1, wantA),
+         opt(wantR + wantA + 1, wantA + 1)],
+        t('径向节面数 = n − l − 1，角度节面数 = l。\n由角度节面 2 个 ⇒ **l = 2**；代回 n − 2 − 1 = 1 ⇒ **n = 4**。\n★ 所以该态是 **4d**。检验：总节点数 = n − 1 = 3，与 1 + 2 = 3 一致。'),
         { kp: 'K5', difficulty: 'challenge',
           presetView: { n: 4, l: 2, m: 0, sectionMode: 'contour', spotlight: 'radial' } });
     },
@@ -306,111 +314,107 @@ const QuestionEngine = (function () {
       const OB = Observables;
       if (!OB) return null;
       const e = OB.energyBreakdown(n);
-      const stem = `氢原子 **${n}s** 态电子的**势能平均值 ⟨V⟩** 约为多少 eV？（维里定理）`;
+      const stem = t('orbit.qe.energySplit.stem', { n: n });
       return assemble(stem, e.V.toFixed(1) + ' eV',
         [e.T.toFixed(1) + ' eV', e.E.toFixed(1) + ' eV', (e.V * 0.5).toFixed(1) + ' eV', (-13.6).toFixed(1) + ' eV'],
-        `维里定理（库仑势）：2⟨T⟩ = −⟨V⟩，且 ⟨E⟩ = ⟨T⟩ + ⟨V⟩。\n` +
-        `由 E_${n} = −13.6/${n}² = ${e.E.toFixed(2)} eV 得 **⟨V⟩ = 2⟨E⟩ = ${e.V.toFixed(1)} eV**、⟨T⟩ = ${e.T.toFixed(1)} eV。\n` +
-        `★ 注意 ⟨V⟩ 是 ⟨E⟩ 的两倍（负得更多），而动能恰为 −⟨E⟩ > 0。`,
+        t('orbit.qe.energySplit.exp', { n: n, E: e.E.toFixed(2), V: e.V.toFixed(1), T: e.T.toFixed(1) }),
         { kp: 'K9', difficulty: 'challenge' });
     },
 
 
     complexSymmetry(pick) {
       const modes = [
-        { q: '**复函数**下轨道的密度为什么绕 z 轴对称？', a: '因为 |e^{imφ}| = 1，相位因子取模后消失',
-          w: ['因为电子在绕 z 轴旋转', '因为复函数的 l 更小', '因为复函数没有角度节面'] },
+        { q: t('**复函数**下轨道的密度为什么绕 z 轴对称？'),
+          a: t('因为 |e^{imφ}| = 1，相位因子取模后消失'),
+          w: [t('因为电子在绕 z 轴旋转'), t('因为复函数的 l 更小'), t('因为复函数没有角度节面')] },
       ];
-      const t = modes[0];
-      return assemble(t.q, t.a, t.w,
-        `|Y_l^m|² = N²·P²·|e^{imφ}|² = N²·P²，与 φ 无关 → 绕 z 轴旋转对称。\n` +
-        `实函数含 cos(mφ)/sin(mφ)，取模后仍依赖 φ → 呈定向的瓣。`,
+      // ★ 变量不叫 `t`：本文件的 `t` 是 i18n 的取值函数（同名会把译文取值弄坏）。
+      const md = modes[0];
+      return assemble(md.q, md.a, md.w,
+        t('|Y_l^m|² = N²·P²·|e^{imφ}|² = N²·P²，与 φ 无关 → 绕 z 轴旋转对称。\n实函数含 cos(mφ)/sin(mφ)，取模后仍依赖 φ → 呈定向的瓣。'),
         { kp: 'K6', difficulty: 'core' });
     },
   };
 
   // ---------------------------------------------------------------------------
   // 通道 B：概念题（模板 + 校验）
+  //
+  // ★ 这里存的是**键**而不是中文：本对象在**模块求值阶段**就构造好了，直接写
+  //   `stem: t('…')` 会把译文冻在 import 那一刻（切语言不生效，且守卫照样绿）。
+  //   取值放在 buildOnce 里，每次出题现取。
   // ---------------------------------------------------------------------------
   const CONCEPT = {
     K6: [
       {
-        stem: '**$p_x$** 轨道可以由哪两个复轨道线性组合得到？',
-        correct: 'm = +1 与 m = −1',
-        wrong: ['m = 0 与 m = +1', 'm = 0 与 m = −1', 'm = +1 与 m = +1'],
-        exp: '实轨道是复轨道的线性组合：$p_x \\propto (Y_1^{-1} - Y_1^{+1})$。\n' +
-             '因为三者能量简并，组合态仍是合法的本征态。',
+        stem: 'orbit.qe.c.k6px.stem',
+        correct: 'orbit.qe.c.k6px.correct',
+        wrong: ['orbit.qe.c.k6px.w1', 'orbit.qe.c.k6px.w2', 'orbit.qe.c.k6px.w3'],
+        exp: 'orbit.qe.c.k6px.exp',
       },
       {
-        stem: '为什么**复函数**的密度绕 z 轴对称，而实函数呈定向的瓣？',
-        correct: '复函数含 e^{imφ}，取模后 |e^{imφ}| = 1，φ 消失了',
-        wrong: ['复函数的电子在绕 z 轴旋转（经典图像）',
-                '复函数的 l 更小', '复函数没有角度节面'],
-        exp: '|Y_l^m|² = N²P²·|e^{imφ}|² = N²P²，与 φ 无关 → 绕 z 轴旋转对称。\n' +
-             '实函数含 cos(mφ)/sin(mφ)，取模后仍依赖 φ → 呈定向的瓣。',
+        stem: 'orbit.qe.c.k6sym.stem',
+        correct: 'orbit.qe.c.k6sym.correct',
+        wrong: ['orbit.qe.c.k6sym.w1', 'orbit.qe.c.k6sym.w2', 'orbit.qe.c.k6sym.w3'],
+        exp: 'orbit.qe.c.k6sym.exp',
       },
     ],
     K7: [
       {
-        stem: '为什么说**相位**不是"多余的数学"？',
-        correct: '相位决定波函数如何叠加：同相增强、反相抵消，是成键/反键的根源',
-        wrong: ['相位只是计算中间量，没有物理意义',
-                '相位对应电子的自旋方向',
-                '相位只影响能量大小'],
-        exp: '概率密度只用到 |ψ|²，但两个态叠加时 ψ = ψ₁ + ψ₂ 的干涉项依赖相对相位：\n' +
-             '同相 → 增强（成键），反相 → 抵消（反键）。这是化学键的量子力学根源。',
+        stem: 'orbit.qe.c.k7phase.stem',
+        correct: 'orbit.qe.c.k7phase.correct',
+        wrong: ['orbit.qe.c.k7phase.w1', 'orbit.qe.c.k7phase.w2', 'orbit.qe.c.k7phase.w3'],
+        exp: 'orbit.qe.c.k7phase.exp',
       },
       {
-        stem: '**实函数**轨道的正负两色瓣代表什么？',
-        correct: '同一个波函数在不同区域取正号或负号（相位 0 或 π）',
-        wrong: ['两个不同的电子云', '两个不同的轨道', '电子的自旋两种取向'],
-        exp: '实函数的相位只有 0 与 π 两种，故表现为正负两色。\n' +
-             '中间隔开的那个面就是节面——相位在那里翻转。\n' +
-             '它不是"两个电子"，而是同一个波函数的不同符号区域。',
+        stem: 'orbit.qe.c.k7sign.stem',
+        correct: 'orbit.qe.c.k7sign.correct',
+        wrong: ['orbit.qe.c.k7sign.w1', 'orbit.qe.c.k7sign.w2', 'orbit.qe.c.k7sign.w3'],
+        exp: 'orbit.qe.c.k7sign.exp',
       },
       {
-        stem: '复轨道 e^{imφ} 的相位绕 z 轴转一圈（φ: 0→2π）会怎样？',
-        correct: '相位增加 2πm，即缠绕 m 圈',
-        wrong: ['相位不变（因为 |e^{imφ}|=1）', '相位增加 2π，与 m 无关', '相位增加 πm'],
-        exp: 'arg = mφ，φ 走完 2π 时 arg 增加 2πm。\n' +
-             '★ 用**截面卡的相位图**可以直接看到：xy 截面上绕原点一周，m=1 相位走完一周，m=2 走两周。',
+        stem: 'orbit.qe.c.k7wind.stem',
+        correct: 'orbit.qe.c.k7wind.correct',
+        wrong: ['orbit.qe.c.k7wind.w1', 'orbit.qe.c.k7wind.w2', 'orbit.qe.c.k7wind.w3'],
+        exp: 'orbit.qe.c.k7wind.exp',
       },
       {
-        stem: '为什么只用 |ψ|² 讲不清"化学键为什么形成"？',
-        correct: '因为成键与否取决于相位关系，|ψ|² 把相位信息丢掉了',
-        wrong: ['因为 |ψ|² 计算太复杂', '因为 |ψ|² 只适用于 s 轨道', '因为 |ψ|² 不是可观测量'],
-        exp: '|ψ|² 是可观测的概率密度，但它**丢掉了相位**。\n' +
-             '两个原子轨道靠近时，同相叠加使中间区域电子密度增大（成键），' +
-             '反相叠加使中间出现节面（反键）——这个差别完全来自相位。',
+        stem: 'orbit.qe.c.k7bond.stem',
+        correct: 'orbit.qe.c.k7bond.correct',
+        wrong: ['orbit.qe.c.k7bond.w1', 'orbit.qe.c.k7bond.w2', 'orbit.qe.c.k7bond.w3'],
+        exp: 'orbit.qe.c.k7bond.exp',
       },
     ],
     K9: [
       {
-        stem: '**2ψ_{3dz²} + 3ψ_{3dxy}** 这个叠加态是定态吗？',
-        correct: '是定态——两个分量能量简并',
-        wrong: ['不是定态——叠加态都会随时间变化',
-                '不是定态——因为系数不相等',
-                '无法判断'],
-        exp: '两个分量同属 n=3、l=2，**能量简并**。整体时间因子 e^{−iEt/ħ} 可提到求和号外，\n' +
-             '取模后消失 → 密度**不随时间变化**，故仍是定态。\n' +
-             '★ 只有**不同能量**的态叠加才是非定态。',
+        stem: 'orbit.qe.c.k9stat.stem',
+        correct: 'orbit.qe.c.k9stat.correct',
+        wrong: ['orbit.qe.c.k9stat.w1', 'orbit.qe.c.k9stat.w2', 'orbit.qe.c.k9stat.w3'],
+        exp: 'orbit.qe.c.k9stat.exp',
       },
       {
-        stem: '对叠加态 $\\psi = \\sum_i c_i \\psi_i$，测得力学量 $L_z$ 取值为 $\\hbar m$ 的概率是？',
-        correct: '所有 mᵢ = m 的分量的 |cᵢ|² 之和',
-        wrong: ['|cᵢ|² 的最大值', 'Σ|cᵢ|²  (恒为 1)', 'cᵢ 本身'],
-        exp: '测量假设：测得本征值 a 的概率 = 对应本征态系数模方之和 P(a) = Σ_{aᵢ=a}|cᵢ|²。\n' +
-             '期望值则是 ⟨Â⟩ = Σ|cᵢ|²aᵢ。',
+        stem: 'orbit.qe.c.k9lz.stem',
+        correct: 'orbit.qe.c.k9lz.correct',
+        wrong: ['orbit.qe.c.k9lz.w1', 'orbit.qe.c.k9lz.w2', 'orbit.qe.c.k9lz.w3'],
+        exp: 'orbit.qe.c.k9lz.exp',
       },
       {
-        stem: '**sp³** 杂化轨道由哪些原子轨道组合而成？',
-        correct: '一个 s 与三个 p（$p_x$, $p_y$, $p_z$）',
-        wrong: ['一个 s 与两个 p', '两个 s 与两个 p', '三个 s 与一个 p'],
-        exp: '$sp^3 = \\frac{1}{2}(s + p_x + p_y + p_z)$，共 4 个等价杂化轨道，指向正四面体，夹角 109.5°。\n' +
-             '★ 杂化轨道是**叠加态的特例**，系数由对称性唯一确定。',
+        stem: 'orbit.qe.c.k9sp3.stem',
+        correct: 'orbit.qe.c.k9sp3.correct',
+        wrong: ['orbit.qe.c.k9sp3.w1', 'orbit.qe.c.k9sp3.w2', 'orbit.qe.c.k9sp3.w3'],
+        exp: 'orbit.qe.c.k9sp3.exp',
       },
     ],
   };
+
+  /** 概念题（通道 B）：把键解析成当前语言的题干 / 选项 / 解析 */
+  function conceptOf(c) {
+    return {
+      stem: t(c.stem),
+      correct: t(c.correct),
+      wrong: c.wrong.map((k) => t(k)),
+      exp: t(c.exp),
+    };
+  }
 
   // ---------------------------------------------------------------------------
   // 选点：为数据驱动题挑一组合适的量子数
@@ -463,16 +467,17 @@ const QuestionEngine = (function () {
             : BUILDERS.angleToZ({ n: rnd([3, 4]), l: 2, m: rnd([-2, -1, 0, 1, 2]) });
           if (q) return q;
         }
-        const t9 = rnd(CONCEPT.K9);
-        const q9 = assemble(t9.stem, t9.correct, t9.wrong, t9.exp,
+        const c9 = conceptOf(rnd(CONCEPT.K9));
+        const q9 = assemble(c9.stem, c9.correct, c9.wrong, c9.exp,
           { kp: 'K9', difficulty: difficulty || 'core', origin: 'B' });
         if (q9) q9.presetView = { advanced: true };
         return q9;
       }
       case 'K6': case 'K7': {
         const list = CONCEPT[kp] || CONCEPT.K6;
-        const t = rnd(list);
-        return assemble(t.stem, t.correct, t.wrong, t.exp,
+        // ★ 变量不叫 `t`：本文件的 `t` 是 i18n 的取值函数。
+        const cq = conceptOf(rnd(list));
+        return assemble(cq.stem, cq.correct, cq.wrong, cq.exp,
           { kp: kp, difficulty: difficulty || 'core', origin: 'B' });
       }
       default: {
@@ -507,13 +512,13 @@ const QuestionEngine = (function () {
         return q2;
       }
     }
-    return { error: '出题失败：题目模板不可用（知识点 ' + kp + '）' };
+    return { error: t('orbit.qe.err.buildFailed', { kp: kp }) };
   }
 
   /** 变式题：同知识点，变动一个维度 */
   function variant(questionId) {
     const q = bank[questionId];
-    if (!q) return { error: '找不到原题：' + questionId };
+    if (!q) return { error: t('orbit.qe.err.noOriginal', { id: questionId }) };
     const kp = q.kp;
     // 优先换量子数 / 换问法
     for (let i = 0; i < 8; i++) {
@@ -524,7 +529,7 @@ const QuestionEngine = (function () {
         return nq;
       }
     }
-    return { error: '未能生成变式题' };
+    return { error: t('未能生成变式题') };
   }
 
 
@@ -543,13 +548,22 @@ const QuestionEngine = (function () {
       entries: entries.map((e) => ({ id: e.id, title: e.title, body: e.body, source: e.source,
         misconceptions: e.misconceptions })),
       presetView: opts && opts.presetView ? opts.presetView : (meta && meta.orbital ? meta.orbital[0] : null),
-      tip: '讲解时请按条目顺序组织，并配套 applySceneActions 把关键结论"演示"出来，而不是只念文字。',
+      tip: t('讲解时请按条目顺序组织，并配套 applySceneActions 把关键结论"演示"出来，而不是只念文字。'),
     };
   }
 
   // ---------------------------------------------------------------------------
   // 费曼复述评估（离线规则初筛，供模型参考）
   // ---------------------------------------------------------------------------
+  /**
+   * 费曼复述的评分要点（关键词组，命中一组得一分）。
+   * ★ 这些中文**是匹配数据**，不是界面文案 —— 它们要和**学生自己打的字**比。所以
+   *   逐词过 `t()`（原文登记在 `i18n.js` 的 `text` 表）：英文模式下学生用英文复述，
+   *   拿中文关键词去 `indexOf` 会**全部落空**，表现为"复述缺少全部关键概念"且不报错。
+   *   中文模式下 `t()` 原样返回原文（`tsrc` 在中文模式不替换），行为与从前一致。
+   * ★ 纯 ASCII 的词（`n` / `l` / `r²` / `phi`）不过 `t()`：它们是符号或拉丁字母，
+   *   翻译没有意义，而过一道没登记的表只会多一次查表、多一分被同名键误伤的机会。
+   */
   const FEYNMAN_KEYS = {
     K3: [['r²', 'r方', '体积', '球壳'], ['峰值', '最大'], ['密度', '概率']],
     K5: [['节点', '节面'], ['径向', '角'], ['n', 'l']],
@@ -558,10 +572,16 @@ const QuestionEngine = (function () {
     K9: [['简并', '能量相同'], ['定态', '不随时间', '随时间'], ['系数', '模方', '概率']],
   };
 
+  /** 复述评估用：把关键词表取成当前语言（纯 ASCII 的原样留着） */
+  function feynmanKeys(kp) {
+    return (FEYNMAN_KEYS[kp] || []).map((g) => g.map((k) => (/[^\x00-\x7F]/.test(k) ? t(k) : k)));
+  }
+
   function evaluateFeynman(kp, transcript) {
-    const t = String(transcript || '');
-    const keys = FEYNMAN_KEYS[kp] || [];
-    const groups = keys.map((g) => ({ hit: g.some((k) => t.indexOf(k) >= 0), keys: g }));
+    // ★ 变量不叫 `t`：本文件的 `t` 是 i18n 的取值函数（同名会把下面每一处取值弄坏）。
+    const txt = String(transcript || '');
+    const keys = feynmanKeys(kp);
+    const groups = keys.map((g) => ({ hit: g.some((k) => txt.indexOf(k) >= 0), keys: g }));
     const hitCount = groups.filter((g) => g.hit).length;
     const missing = keys.filter((g, i) => !groups[i].hit).map((g) => g[0]);
     const verdict = hitCount >= keys.length ? 'complete'
@@ -574,8 +594,8 @@ const QuestionEngine = (function () {
       missingKeywords: missing,
       suggestedMasteryDelta: verdict === 'complete' ? 2 : (verdict === 'partial' ? 1 : 0),
       note: verdict === 'complete'
-        ? '复述覆盖了全部关键概念，可判定掌握。'
-        : '复述缺少部分关键概念，请针对缺失项追问（不要直接说出答案）。',
+        ? t('复述覆盖了全部关键概念，可判定掌握。')
+        : t('复述缺少部分关键概念，请针对缺失项追问（不要直接说出答案）。'),
     };
   }
 
@@ -594,11 +614,12 @@ const QuestionEngine = (function () {
   function pickKnowledgePoint() {
     const P = getPanel();
     const list = MasteryModel ? MasteryModel.allKnowledgePoints() : ['K1', 'K3', 'K5', 'K6', 'K7', 'K8', 'K9'];
-    let html = '<b>选择要练习的知识点：</b><div class="agent-picker">';
+    let html = '<b>' + t('选择要练习的知识点：') + '</b><div class="agent-picker">';
     list.forEach((k) => {
       const m = MasteryModel.meta(k);
       const s = MasteryModel.summary()[k];
-      const tag = s.mastered ? '已掌握' : (s.wrong ? '待巩固' : '');
+      // 复用学情那两个键（同一件事只有一个说法；也免得再往 text 表里塞同义条目）
+      const tag = s.mastered ? t('orbit.kp.mastered') : (s.wrong ? t('orbit.kp.review') : '');
       html += '<button class="agent-pick-btn" data-kp="' + k + '">' + k + ' · ' + m.name +
         (tag ? '<span class="agent-pick-tag">' + tag + '</span>' : '') + '</button>';
     });
@@ -620,16 +641,14 @@ const QuestionEngine = (function () {
     flow.active = true;
     const meta = MasteryModel.meta(kp);
     await getPanel().runAgent(
-      '请讲解知识点 ' + kp + '（' + meta.name + '）。先用 explainConcept 取讲解稿，' +
-      '再按讲解稿用 applySceneActions 把关键结论**演示**出来（不要只念文字）。' +
-      '控制在 300 字以内，最后用一句话总结。'
+      t('orbit.qe.agent.explain', { kp: kp, name: meta.name })
     );
 
     // 讲解结束 → 给出出题入口（闭环的下一步）
     const P = getPanel();
-    const card = P.addMsg('<button class="agent-btn primary agent-go-quiz">我懂了，出题吧 →</button>', 'assistant');
+    const card = P.addMsg('<button class="agent-btn primary agent-go-quiz">' + t('我懂了，出题吧 →') + '</button>', 'assistant');
     const btn = card.querySelector('.agent-go-quiz');
-    if (btn) btn.onclick = function () { btn.disabled = true; btn.textContent = '出题中…'; askQuestion(); };
+    if (btn) btn.onclick = function () { btn.disabled = true; btn.textContent = t('出题中…'); askQuestion(); };
     return { ok: true, kp: kp };
   }
 
@@ -650,7 +669,7 @@ const QuestionEngine = (function () {
     if (!q || q.error) { getPanel().addMsg('<span class="agent-err">' + (q && q.error) + '</span>', 'assistant'); return; }
     flow.current = q;
     const P = getPanel();
-    let html = '<div class="agent-q"><div class="agent-q-kp">' + q.kp + ' · 难度 ' + q.difficulty + '</div>' +
+    let html = '<div class="agent-q"><div class="agent-q-kp">' + t('orbit.qe.card.kp', { kp: q.kp, difficulty: q.difficulty }) + '</div>' +
       '<div class="agent-q-stem">' + P.renderRich(q.stem) + '</div><div class="agent-opts">';
     q.options.forEach((o, i) => {
       html += '<button class="agent-opt" data-i="' + i + '">' +
@@ -667,7 +686,7 @@ const QuestionEngine = (function () {
   /** 判定 —— 纯本地比较，不经过 LLM */
   function answer(questionId, chosenIndex, cardEl) {
     const q = bank[questionId];
-    if (!q) return { error: '题目不存在' };
+    if (!q) return { error: t('题目不存在') };
     const correct = (chosenIndex === q.answerIndex);
     // 标记选项
     if (cardEl) {
@@ -683,10 +702,10 @@ const QuestionEngine = (function () {
 
     const P = getPanel();
     let fb = '<div class="agent-fb ' + (correct ? 'ok' : 'bad') + '">' +
-      '<b>' + (correct ? '✓ 答对了' : '✗ 不对') + '</b>' +
+      '<b>' + (correct ? t('✓ 答对了') : t('✗ 不对')) + '</b>' +
       '<div class="agent-fb-exp">' + P.renderRich(q.explanation) + '</div>';
     if (q.presetView) {
-      fb += '<button class="agent-btn agent-goto" data-qid="' + q.id + '">去看结构 →</button>';
+      fb += '<button class="agent-btn agent-goto" data-qid="' + q.id + '">' + t('去看结构 →') + '</button>';
     }
     fb += '</div>';
     P.addMsg(fb, 'assistant');
@@ -695,12 +714,11 @@ const QuestionEngine = (function () {
 
     // 答错 → 触发诊断节点（走 LLM，让它组织引导语并执行诊断动作）
     if (!correct) {
-      P.runAgent('学生答错了这道题（questionId=' + q.id + '，他选了第 ' + chosenIndex +
-        ' 项，正确是第 ' + q.answerIndex + ' 项）。请调用 diagnoseError 取得错因与诊断动作，' +
-        '**不要直接说出正确答案**，而是把视图切到能揭示错误根源的状态并引导学生自己看出来。');
+      P.runAgent(t('orbit.qe.agent.wrong', {
+        id: q.id, chosen: chosenIndex + 1, correct: q.answerIndex + 1,
+      }));
     } else {
-      P.runAgent('学生答对了这道题（questionId=' + q.id + '）。请先调用 startFeynmanCheck 邀请他用自己的话复述，' +
-        '以把"识别性掌握"推进到"生成性掌握"。');
+      P.runAgent(t('orbit.qe.agent.right', { id: q.id }));
     }
     return { correct: correct, answerIndex: q.answerIndex };
   }
@@ -729,7 +747,7 @@ const QuestionEngine = (function () {
     if (p.radial) actions.push({ action: 'showRadial', params: { which: p.radial } });
     if (p.sectionMode) actions.push({ action: 'setSectionMode', params: { mode: p.sectionMode } });
     getSceneBridge().applySequence(actions);
-    getPanel().addChip('已切换到对应结构（观察状态已预置）');
+    getPanel().addChip(t('已切换到对应结构（观察状态已预置）'));
   }
 
   function next() { return generate(flow.kp || 'K5'); }

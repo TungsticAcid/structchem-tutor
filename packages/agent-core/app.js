@@ -24,6 +24,12 @@
  * ★ 本文件不碰 DOM：面板与视图由调用方注入。因此整条装配链路可以在 Node 里无头测试
  *   （见 tools/test-app.mjs）——那是唯一能证明"各层真的接上了"的办法。
  */
+// ★ 注册本区字典（纯数据 ESM，副作用即 registerDict）——工具描述与提示词都要用它。
+//   缺了它，t() 查不到键会**原样把键名当文案返回**（`agent.tool.noModule`），
+//   而覆盖率守卫照样绿 —— 它只读字典文件里登记了哪些原文，不看谁 import 了它。
+//   （其余调用 t() 的文件也各自 import 了字典，见 core/ 与 store/ 里的同一条注释。）
+import './i18n.js'
+import { t, i18n } from '../i18n/index.js'
 import { createPerception } from './core/perception.js'
 import { createStoryboard } from './core/storyboard.js'
 import { createConversation, buildManifestText, composeSystemPrompt } from './core/conversation.js'
@@ -72,7 +78,7 @@ export function createShellTools(ctx) {
    *   （动作 `applySceneActions` 相反——它**只作用于当前模块**，两者的边界不能混。）
    */
   const shellModules = typeof ctx.getModules === 'function' ? ctx.getModules() : []
-  const routeList = [{ owner: null, target: 'home', label: '回门户', params: {}, hash: () => '#/' }]
+  const routeList = [{ owner: null, target: 'home', label: t('agent.tool.navigateTo.homeLabel'), params: {}, hash: () => '#/' }]
   for (const m of shellModules) {
     const rs = (m && m.facade && m.facade.routes) || []
     for (const r of rs) if (r && r.target) routeList.push(Object.assign({ owner: m.id }, r))
@@ -98,40 +104,29 @@ export function createShellTools(ctx) {
 
   const defs = {
     read: [
-      def('getSnapshot', '获取当前视图状态的完整快照（正在看什么、哪些图层开着、外观与视角），'
-        + '含【交互痕迹】（空闲时长、切换次数、最近动作）。需要了解"用户此刻在看什么、刚才做了什么"'
-        + '时必须先调用它。返回的是**当前激活模块**的状态。'),
+      def('getSnapshot', t('agent.tool.getSnapshot.desc')),
     ],
     query: [
-      def('listSceneActions', '拉取当前模块的**受控动作词汇表**（能做哪些动作、参数取值范围）。'
-        + '词汇表不进常驻上下文，需要时调用本工具获取。', {}),
-      def('loadKnowledge', '按 id 加载知识条目正文。系统提示里只有清单（id/标题/关键词），'
-        + '正文必须用本工具按需拉取——**不要臆测条目内容**。', {
-        id: { type: 'string', description: '条目 id，形如 crystal:C4-1 或 orbit:K3-1' },
+      def('listSceneActions', t('agent.tool.listSceneActions.desc'), {}),
+      def('loadKnowledge', t('agent.tool.loadKnowledge.desc'), {
+        id: { type: 'string', description: t('agent.tool.loadKnowledge.id') },
       }, ['id']),
-      def('loadSkill', '按名加载教学法技能的完整步骤。系统提示里只有技能名与一句话说明。', {
-        name: { type: 'string', description: '技能名，如 feynman / socratic' },
+      def('loadSkill', t('agent.tool.loadSkill.desc'), {
+        name: { type: 'string', description: t('agent.tool.loadSkill.name') },
       }, ['name']),
       // 演示脚本由**模块**提供（见契约的 demos 字段）；模块没提供则本工具不存在
-      ...(demos ? [def('listDemos',
-        '列出**预置的标准演示**（零 token：内容是事先编排好的，播放时不花额度）。'
-        + '当学生想看某个核心教学过程、而你又不想临时编排时，先用它看有哪些可用。', {})] : []),
+      ...(demos ? [def('listDemos', t('agent.tool.listDemos.desc'), {})] : []),
       // ★ 只在 route / explain 节点可见（经 constraints 的 allowExtra 单点放行）。
       //   它让"意图判断"成为**结构化的工具参数**，而不是让模型吐一段 JSON 文本再解析
       //   ——后者在模型加代码块、加解释、漏引号时会静默失败，而我们连它想说什么都拿不到。
-      ...(canDeclareIntent ? [def('declareIntent',
-        '声明你判断出的用户意图，供系统切换决策节点。'
-        + '**只在当前决策节点为「意图分流」时可用**。'
-        + 'confidence 低于 0.6 会被忽略并回退到讲解节点。', {
-        intent: { type: 'string', description: `目标节点名，取值：${listNodes().join(' / ')}` },
-        confidence: { type: 'number', description: '0~1 的置信度' },
-        slots: { type: 'object', description: '可选：意图相关槽位，如 { skill: "feynman" }' },
+      ...(canDeclareIntent ? [def('declareIntent', t('agent.tool.declareIntent.desc'), {
+        intent: { type: 'string', description: t('agent.tool.declareIntent.intent', { nodes: listNodes().join(' / ') }) },
+        confidence: { type: 'number', description: t('agent.tool.declareIntent.confidence') },
+        slots: { type: 'object', description: t('agent.tool.declareIntent.slots') },
       }, ['intent', 'confidence'])] : []),
     ],
     hand: [
-      def('applySceneActions', '在当前视图上播放一组动作。动作会排成**分镜队列逐步播放**：'
-        + '第一步立刻执行，之后停下等用户点「下一步」。因此本工具**立即返回受理回执、不等播完**，'
-        + '返回里没有 executed 是正常的。单次 4–8 个动作；**每步必须写 speech 旁白**。', {
+      def('applySceneActions', t('agent.tool.applySceneActions.desc'), {
         actions: {
           type: 'array',
           items: {
@@ -139,7 +134,7 @@ export function createShellTools(ctx) {
             properties: {
               action: { type: 'string' },
               params: { type: 'object' },
-              speech: { type: 'string', description: '这一步的旁白（必填）' },
+              speech: { type: 'string', description: t('agent.tool.applySceneActions.speech') },
             },
             required: ['action', 'speech'],
           },
@@ -155,46 +150,30 @@ export function createShellTools(ctx) {
        * 与 applySceneActions 的区别：动作词汇表描述的是"**当前视图内**的操作"，
        * 而"跳到另一个页面"超出了这个范畴，故它是一个独立**工具**而非动作。
        */
-      ...(canNavigate ? [def('navigateTo',
-        '把学生带到指定的页面或晶体。当学生要看的对象不在当前页面时用它——'
-        + '例如在首页问某个晶体、或需要跳到对比页。id 必须来自模块的 id 清单（工具会校验）。', {
+      ...(canNavigate ? [def('navigateTo', t('agent.tool.navigateTo.desc'), {
         // ★ schema 从各模块声明的 routes **派生**（原先这里是硬编码的晶体语义：
         //   target 只有 home/crystal/compare、参数写死叫 crystalId——接第二个模块就失效）
-        target: { type: 'string', enum: routeTargets, description: '目标页面（取值由模块声明）' },
+        target: { type: 'string', enum: routeTargets, description: t('agent.tool.navigateTo.target') },
         ...routeParamProps,
       }, ['target'])] : []),
       // ---- 演示工具（脚本来自模块，播放能力在中枢）----
       ...(demos ? [
-        def('playDemo',
-          '播放一段**预置的标准演示**（零 token）。它会像 applySceneActions 那样排成'
-          + '分镜队列、每步停下等你点「下一步」。适用于那几个最核心的教学过程；'
-          + '学生临时提出的、脚本没覆盖的请求仍应自己编排动作。', {
-          id: { type: 'string', description: '演示 id，来自 listDemos' },
+        def('playDemo', t('agent.tool.playDemo.desc'), {
+          id: { type: 'string', description: t('agent.tool.playDemo.id') },
         }, ['id']),
-        def('replayDemo',
-          '**回放**之前放过的一段演示。★ 结束或播完之后**仍然可用**——'
-          + '演示记录独立于播放队列，所以停止不会让演示丢失。'
-          + '学生说"再看一遍"时用它，不必重新编排动作。省略 demoId 则回放最近一次。', {
-          demoId: { type: 'string', description: '可选：演示记录号（如 d1）；省略则回放最近一次' },
+        def('replayDemo', t('agent.tool.replayDemo.desc'), {
+          demoId: { type: 'string', description: t('agent.tool.replayDemo.demoId') },
         }, []),
-        def('reviseDemo',
-          '修订**某一条**演示：替换某步 / 在某步后插入 / 删除某步 / 跳回某步。'
-          + '★ 学生说"刚才那个演示第 3 步不对、换个说法、太快了"时用它——**不要**用 '
-          + 'applySceneActions 把整条重发一遍：重发会开一条**新**演示，学生已经看过、'
-          + '确认过的其他步骤就全丢了。'
-          + '★ **已经播完的演示同样可以改**（这是最常见的情形）：程序会按整改后的完整步骤'
-          + '重播、并快进到被改的那一步停下，所以其余步骤一个都不会少；'
-          + '回执里的 steps 就是整改后的完整清单，用它核对。'
-          + 'demoId 与步号取自 getSnapshot 的「演示播放」一行（steps[].i 即步号）。', {
+        def('reviseDemo', t('agent.tool.reviseDemo.desc'), {
           op: {
             type: 'string', enum: ['replace', 'insert', 'remove', 'jump'],
-            description: 'replace=替换某步 / insert=在该步之后插入 / remove=删除该步 / jump=跳回该步（仅在播时可用）',
+            description: t('agent.tool.reviseDemo.op'),
           },
-          demoId: { type: 'string', description: '要改的演示号（如 d2）；省略则改当前这条' },
-          index: { type: 'number', description: '步号，从 0 起（见 getSnapshot 的 steps[].i）' },
+          demoId: { type: 'string', description: t('agent.tool.reviseDemo.demoId') },
+          index: { type: 'number', description: t('agent.tool.reviseDemo.index') },
           step: {
             type: 'object',
-            description: 'op 为 replace / insert 时必填：新的那一步',
+            description: t('agent.tool.reviseDemo.step'),
             properties: {
               action: { type: 'string' },
               params: { type: 'object' },
@@ -213,7 +192,7 @@ export function createShellTools(ctx) {
     if (!a || !a.facade) return null
     return a
   }
-  const noModule = { error: '当前没有激活任何模块（请先让用户选定要讲解的对象）' }
+  const noModule = { error: t('agent.tool.noModule') }
 
   const handlers = {
     getSnapshot() {
@@ -228,11 +207,11 @@ export function createShellTools(ctx) {
     },
     loadKnowledge(p) {
       const k = ctx.knowledge.load(p && p.id)
-      return k || { error: `未找到知识条目：${p && p.id}（可用条目见系统提示中的清单）` }
+      return k || { error: t('agent.tool.loadKnowledge.notFound', { id: p && p.id }) }
     },
     loadSkill(p) {
       const s = ctx.skills.load(p && p.name)
-      return s || { error: `未找到技能：${p && p.name}（可用技能见系统提示中的清单）` }
+      return s || { error: t('agent.tool.loadSkill.notFound', { name: p && p.name }) }
     },
     async applySceneActions(p) {
       const a = active()
@@ -248,7 +227,7 @@ export function createShellTools(ctx) {
         overflow: r.overflow,
         manual: r.manual,
         totalSteps: r.total,
-        note: (r.note || '') + ' 提示：用户点「下一步」后才会有下一步动作，中途可以「停止」。',
+        note: (r.note || '') + ' ' + t('agent.tool.applySceneActions.hint'),
       }
     },
 
@@ -259,7 +238,7 @@ export function createShellTools(ctx) {
      */
     declareIntent(p) {
       if (typeof ctx.onIntent !== 'function') {
-        return { error: '当前不支持意图声明（未接入路由）' }
+        return { error: t('agent.tool.declareIntent.unsupported') }
       }
       return ctx.onIntent(p)
     },
@@ -271,8 +250,7 @@ export function createShellTools(ctx) {
       return {
         count: list.length,
         demos: list,
-        note: '这些是**预置演示**（零 token：内容事先编排好，播放不花额度）。'
-          + '播放后会排成分镜队列，每步停下等学生点「下一步」。',
+        note: t('agent.tool.listDemos.note'),
       }
     },
 
@@ -280,7 +258,7 @@ export function createShellTools(ctx) {
       const id = p && p.id
       const script = demos.byId(id)
       if (!script) {
-        return { error: `未找到演示「${id}」（可用：${demos.list().map((d) => d.id).join(' / ')}）` }
+        return { error: t('agent.tool.playDemo.notFound', { id, list: demos.list().map((d) => d.id).join(' / ') }) }
       }
       const a = active()
       if (!a) return noModule
@@ -289,10 +267,7 @@ export function createShellTools(ctx) {
       //   判据用契约的 canApplyActions()，**不是**猜快照里的某个字段——
       //   后者正是"中枢退化成晶体中枢"的根源（见契约里该方法的 why）。
       if (typeof a.facade.canApplyActions === 'function' && !a.facade.canApplyActions()) {
-        return {
-          error: '当前没有可驱动的视图，无法播放演示。'
-            + '可先用 navigateTo 把学生带到目标视图，再播放演示。',
-        }
+        return { error: t('agent.tool.playDemo.noView') }
       }
       // origin='script'：让演示记录能区分"预置脚本回放"与"智能体现场编排"
       const r = await ctx.storyboard.applySequence(
@@ -307,20 +282,18 @@ export function createShellTools(ctx) {
         title: script.title,
         totalSteps: r.total,
         failed: r.failed,
-        note: `正在播放「${script.title}」（共 ${r.total} 步），每步停下等学生点「下一步」。`
-          + `结束或播完后可用 replayDemo 重放（记录号 ${r.demoId}）。`,
+        note: t('agent.tool.playDemo.note', { title: script.title, total: r.total, demoId: r.demoId }),
       }
     },
 
     replayDemo(p) {
       const r = ctx.storyboard.replay(p && p.demoId)
-      if (!r || !r.ok) return { ok: false, error: (r && r.error) || '没有可回放的演示' }
+      if (!r || !r.ok) return { ok: false, error: (r && r.error) || t('agent.tool.replayDemo.none') }
       return {
         ok: true,
         demoId: r.demoId,
         totalSteps: r.total,
-        note: `正在回放第 ${r.demoId} 号演示（共 ${r.total} 步）。`
-          + '若学生只是想再看某一步，也可以让他点「上一步」回到那一步。',
+        note: t('agent.tool.replayDemo.note', { demoId: r.demoId, total: r.total }),
       }
     },
 
@@ -338,12 +311,11 @@ export function createShellTools(ctx) {
         p && p.index,
         (p && p.step) || {},
       )
-      if (!r || !r.ok) return { ok: false, error: (r && r.error) || '修订失败' }
+      if (!r || !r.ok) return { ok: false, error: (r && r.error) || t('agent.tool.reviseDemo.failed') }
       return Object.assign(r, {
         note: r.mode === 'reload'
-          ? `已按整改后的完整步骤重播，并快进到第 ${r.resumedAt} 步停下；`
-            + '请让学生点「下一步」看这一步改成了什么。'
-          : '已在原队列中就地修改，学生不必重看已经看过的步骤。',
+          ? t('agent.tool.reviseDemo.noteReload', { step: r.resumedAt })
+          : t('agent.tool.reviseDemo.noteInplace'),
       })
     },
 
@@ -357,21 +329,28 @@ export function createShellTools(ctx) {
      */
     navigateTo(p) {
       if (typeof window === 'undefined' || !window.location) {
-        return { error: '当前环境不支持导航（无头测试）' }
+        return { error: t('agent.tool.navigateTo.noEnv') }
       }
-      const t = (p && p.target) || ''
-      const route = routeList.find((r) => r.target === t)
+      // ★ 变量名刻意不叫 `t`：本文件顶部 import 的 `t()` 是 i18n 取值函数，
+      //   局部同名会把整段函数里的翻译调用变成"拿字符串当函数调"的运行时崩溃。
+      const target = (p && p.target) || ''
+      const route = routeList.find((r) => r.target === target)
       if (!route) {
-        return { error: `未知 target：${t || '（空）'}（可用：${routeTargets.join(' / ')}）` }
+        return {
+          error: t('agent.tool.navigateTo.unknownTarget', {
+            target: target || t('agent.tool.navigateTo.unknownTargetEmpty'),
+            list: routeTargets.join(' / '),
+          }),
+        }
       }
 
       // 参数校验：id 类用**该 route 所属模块**的 id 清单（模块的 id 空间只有它自己知道）
       const ids = idsOfRoute(route)
       for (const [name, spec] of Object.entries(route.params || {})) {
         const v = p && p[name]
-        if (!v) return { error: `target 为 ${t} 时必须给 ${name}` }
+        if (!v) return { error: t('agent.tool.navigateTo.needParam', { target, name }) }
         if (spec && spec.kind === 'id' && ids && !ids.has(v)) {
-          return { error: `未知 id：${v}（id 必须来自模块的 id 清单，不可编造）` }
+          return { error: t('agent.tool.navigateTo.unknownId', { id: v }) }
         }
       }
       // 跨参数的约束（如"两个对象不能相同"）由 route 自己表达——中枢不猜
@@ -382,9 +361,9 @@ export function createShellTools(ctx) {
 
       let hash = null
       try { hash = typeof route.hash === 'function' ? route.hash(p) : null } catch (e) { hash = null }
-      if (!hash) return { error: `target 为 ${t} 的参数不完整，无法生成目标地址` }
+      if (!hash) return { error: t('agent.tool.navigateTo.incomplete', { target }) }
       window.location.hash = hash
-      return { ok: true, note: route.note || `已打开：${route.label || t}` }
+      return { ok: true, note: route.note || t('agent.tool.navigateTo.opened', { label: route.label || target }) }
     },
   }
 
@@ -518,14 +497,14 @@ export function createAgentApp(opts = {}) {
     vocabulary: {},                       // 由 setActiveModule 换成当前模块的词汇表
     validate: (name, params) => {
       const m = modules.get(activeId)
-      if (!m || !m.validate) return { err: `当前模块不支持动作：${name}` }
+      if (!m || !m.validate) return { err: t('agent.storyboard.unsupportedAction', { name }) }
       return m.validate(name, params)
     },
     applyStep: async (name, params) => {
       const m = modules.get(activeId)
-      if (!m) return { ok: false, error: '模块未激活' }
+      if (!m) return { ok: false, error: t('agent.storyboard.noModule') }
       const r = m.facade.applyActions([{ action: name, params }])
-      return r.ok ? { ok: true } : { ok: false, error: (r.failed[0] || {}).error || '执行失败' }
+      return r.ok ? { ok: true } : { ok: false, error: (r.failed[0] || {}).error || t('agent.sb.execFailed') }
     },
     capture: () => {
       const m = modules.get(activeId)
@@ -614,13 +593,15 @@ export function createAgentApp(opts = {}) {
   function handleIntent(p) {
     const intent = p && p.intent
     const confidence = Number(p && p.confidence)
-    if (!intent || !NODES[intent]) return { error: `未知的决策节点：${intent}（可用：${listNodes().join(' / ')}）` }
-    if (!(confidence >= 0.6)) {
-      return { ok: true, ignored: true, node, note: `置信度 ${confidence} 低于 0.6，保持当前节点「${node}」` }
+    if (!intent || !NODES[intent]) {
+      return { error: t('agent.intent.unknownNode', { intent, list: listNodes().join(' / ') }) }
     }
-    if (intent === node) return { ok: true, node, note: `已经在「${node}」节点` }
+    if (!(confidence >= 0.6)) {
+      return { ok: true, ignored: true, node, note: t('agent.intent.lowConfidence', { confidence, node }) }
+    }
+    if (intent === node) return { ok: true, node, note: t('agent.intent.same', { node }) }
     setNode(intent)
-    return { ok: true, node: intent, note: `已切到「${intent}」节点` }
+    return { ok: true, node: intent, note: t('agent.intent.switched', { intent }) }
   }
 
   /**
@@ -664,6 +645,23 @@ export function createAgentApp(opts = {}) {
     return reg
   }
   let registry = buildRegistry()
+
+  /**
+   * 换语言后**重建中枢工具**。
+   *
+   * ★ 为什么必需：工具描述与参数说明是 `createShellTools()` 那一刻调 `t()` 定下来的
+   *   （`def()` 把结果写进定义对象），而 `registry.definitions()` 每一轮都把这些
+   *   **同一批对象**原样发给模型。不重建的话，切成英文之后模型收到的仍是中文描述——
+   *   这正是"守卫绿了、运行时其实没生效"的那一类。
+   * ★ 只重建中枢工具与注册表：分镜队列、感知层、对话历史都不受影响
+   *   （换语言不该打断正在播的演示，也不该丢上下文）。
+   */
+  const offLangChange = i18n.onChange(() => {
+    try {
+      shell = makeShell()
+      registry = buildRegistry()
+    } catch (e) { /* 重建失败不该影响语言切换本身 */ }
+  })
 
   // ---------------------------------------------------------------------------
   // 对话循环
@@ -754,7 +752,14 @@ export function createAgentApp(opts = {}) {
   return {
     // ---- 生命周期 ----
     start() { started = true; perception.start() },
-    stop() { started = false; perception.stop(); storyboard.stop(); conversation.stop() },
+    stop() {
+      started = false
+      perception.stop()
+      storyboard.stop()
+      conversation.stop()
+      // 退订语言变更（否则反复装配的宿主会积下一串没人再用的回调与注册表）
+      try { offLangChange() } catch (e) { /* 忽略 */ }
+    },
     // ---- 模块与节点 ----
     setActiveModule, setNode,
     get activeModule() { return activeId },

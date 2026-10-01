@@ -6,6 +6,7 @@
  *   ② `coordination` 字段的解析器（数据已结构化，但字段里没有"配位构型"）
  */
 
+import { tr } from '../../i18n-live.js'
 import {
   POLYHEDRON_BY_CN, POLYHEDRON_CN12, NO_CLASSIC_CN_PREFIX,
 } from './constants.js'
@@ -137,6 +138,8 @@ export function coordinationOf(crystalData, element) {
     || parsed.entries.find((e) => bare(e.element) === bare(element))
   if (!hit) return null
 
+  // ★ 构型名来自**常量表**（模块级对象，切语言不会自己变），所以在返回前过一遍 tr()。
+  //   这里是唯一的出口：调用方（templates.js / teach-tools.js）拿到的一律是当前语言。
   let polyhedron = POLYHEDRON_BY_CN[hit.cn] || ''
   if (hit.cn === 12) {
     const st = STACKING_BY_CRYSTAL[crystalData.id]
@@ -146,6 +149,7 @@ export function coordinationOf(crystalData, element) {
     // 括号内是描述而非配位原子（如石墨的层内配位）——此时不宜给多面体名
     polyhedron = '（非经典配位多面体）'
   }
+  polyhedron = polyhedron ? tr(polyhedron) : ''
 
   return {
     cn: hit.cn,

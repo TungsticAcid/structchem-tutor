@@ -17,6 +17,10 @@
  *
  * 来源：orbit/H5/js/agent/perception-snapshot.js（168 行），2026-09-24 迁入。
  */
+// ★ 紧凑快照是**每轮注入模型的 system 段**（不是 DOM 文本），故走 t()。
+// ★ 自己 import 字典（副作用即 registerDict），不依赖入口替你注册
+import '../i18n.js'
+import { t } from '../../i18n/index.js'
 
 /** 采样周期（毫秒） */
 export const DEFAULT_POLL_MS = 500
@@ -182,10 +186,12 @@ export function createPerception(opts = {}) {
     const s = snap || snapshot()
     const it = s.interaction || {}
     return [
-      '【当前状态】' + JSON.stringify(s.state),
-      '【交互】空闲 ' + Math.round((it.idleMs || 0) / 1000) + 's' +
-        '；切换次数 ' + JSON.stringify(it.toggleCounts || {}) +
-        '；最近动作 ' + (it.recentActions || []).join('→'),
+      t('agent.perception.state', { state: JSON.stringify(s.state) }),
+      t('agent.perception.interaction', {
+        idle: Math.round((it.idleMs || 0) / 1000),
+        toggles: JSON.stringify(it.toggleCounts || {}),
+        recent: (it.recentActions || []).join('→'),
+      }),
     ].join('\n')
   }
 

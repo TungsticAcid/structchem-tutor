@@ -78,7 +78,7 @@ skills/
 | `packing-derivation` | 堆积推演——从密堆积推空隙、推配位 | 结构化学的核心推理链 |
 | `notation-reading` | 晶体学记号识读——cF / Fm-3m / 4b 位怎么读 | 学生普遍陌生 |
 
-设计要点见 `projects/crystal/activity/智能体知识资产设计.md` §5.2。
+设计要点见 `D:\xjl\program\crystal\activity\智能体知识资产设计.md` §5.2（仓库外）。
 
 **状态**：⏳ 未开始
 

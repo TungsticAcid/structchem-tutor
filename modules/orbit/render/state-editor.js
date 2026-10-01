@@ -22,6 +22,9 @@ import { Formula } from '../core/formula.js'
 import { Observables } from '../core/observables.js'
 // 杂化轨道的系数只有一份定义（见下方 sp3/sp2/sp 的说明）
 import { Hybrids } from '../core/hybrids.js'
+// ★ 字典的副作用 import：下面的 PRESETS.note 等常量表在**模块求值阶段**就取译文。
+import '../i18n.js'
+import { t } from '../../../packages/i18n/index.js'
 
 const StateEditor = (function () {
   'use strict';
@@ -58,7 +61,7 @@ const StateEditor = (function () {
     pure: {
       label: '纯态 ψ(n,l,m)',
       terms: [],
-      note: '单一本征态（定态）。叠加态编辑器的"原点"——任何时候都可回到这里。',
+      get note() { return t('orbit.se.preset.pure.note') },
     },
     '2ψ3dz²+3ψ3dxy': {
       label: '2ψ₃dz² + 3ψ₃dxy',
@@ -66,7 +69,7 @@ const StateEditor = (function () {
         { n: 3, l: 2, m: 0, mode: 'real', c: { re: 2 / Math.sqrt(13), im: 0 } },
         { n: 3, l: 2, m: 2, mode: 'real', c: { re: 3 / Math.sqrt(13), im: 0 } },
       ],
-      note: '同 n 同 l → 能量**简并** → 组合态**仍是定态**：密度是静态干涉图样，不随时间变化。',
+      get note() { return t('orbit.se.preset.degenerate.note') },
     },
     'ψ1s+ψ2s': {
       label: 'ψ₁ₛ + ψ₂ₛ',
@@ -74,7 +77,7 @@ const StateEditor = (function () {
         { n: 1, l: 0, m: 0, mode: 'real', c: { re: S, im: 0 } },
         { n: 2, l: 0, m: 0, mode: 'real', c: { re: S, im: 0 } },
       ],
-      note: '能量**不同** → 非定态：密度随时间"呼吸"。★ 动画参数是**相对相位**而非真实时间（ΔE≈10.2 eV ⇒ ν≈2.5×10¹⁵ Hz，不可视化）。',
+      get note() { return t('orbit.se.preset.nonStationary.note') },
     },
     'ψ2pz+ψ2px': {
       label: 'ψ₂pz + ψ₂px',
@@ -82,45 +85,45 @@ const StateEditor = (function () {
         { n: 2, l: 1, m: 0, mode: 'real', c: { re: S, im: 0 } },
         { n: 2, l: 1, m: 1, mode: 'real', c: { re: S, im: 0 } },
       ],
-      note: '同 n 同 l → 简并 → 定态。两个正交的 p 轨道组合出**斜向的瓣**——杂化轨道的雏形。',
+      get note() { return t('orbit.se.preset.twoP.note') },
     },
     // ★ sp³ 的 4 个等价杂化轨道：s 系数恒为 +½，三个 p 取正四面体的四个方向
     'sp3-1': {
       label: 'sp³-1', terms: sp3(1, 1, 1), hybrid: true,
-      note: '$\\psi = \\frac{1}{2}(s + p_x + p_y + p_z)$。四个 sp³ 完全等价，指向**正四面体**，两两夹角 109.5°。',
+      get note() { return t('orbit.se.preset.sp3-1.note') },
     },
     'sp3-2': {
       label: 'sp³-2', terms: sp3(1, -1, -1), hybrid: true,
-      note: '$\\psi = \\frac{1}{2}(s + p_x - p_y - p_z)$。与 sp³-1 等价且正交，指向另一个顶点。',
+      get note() { return t('orbit.se.preset.sp3-2.note') },
     },
     'sp3-3': {
       label: 'sp³-3', terms: sp3(-1, 1, -1), hybrid: true,
-      note: '$\\psi = \\frac{1}{2}(s - p_x + p_y - p_z)$。与 sp³-1 等价且正交，指向第三个顶点。',
+      get note() { return t('orbit.se.preset.sp3-3.note') },
     },
     'sp3-4': {
       label: 'sp³-4', terms: sp3(-1, -1, 1), hybrid: true,
-      note: '$\\psi = \\frac{1}{2}(s - p_x - p_y + p_z)$。与 sp³-1 等价且正交，指向第四个顶点。',
+      get note() { return t('orbit.se.preset.sp3-4.note') },
     },
     // sp²：三个轨道共面、两两 120°（只给一个看不出"共面"，故给全）
     'sp2-1': {
       label: 'sp²-1', terms: sp2(0), hybrid: true,
-      note: '$\\psi = \\frac{1}{\\sqrt{3}}\\,s + \\sqrt{\\frac{2}{3}}\\,p_x$。三个等价轨道之一，**120° 共面**。',
+      get note() { return t('orbit.se.preset.sp2-1.note') },
     },
     'sp2-2': {
       label: 'sp²-2', terms: sp2(1), hybrid: true,
-      note: '$\\psi = \\frac{1}{\\sqrt{3}}\\,s - \\frac{1}{\\sqrt{6}}\\,p_x + \\frac{1}{\\sqrt{2}}\\,p_y$。由 sp²-1 绕 $z$ 轴转 120° 得到。',
+      get note() { return t('orbit.se.preset.sp2-2.note') },
     },
     'sp2-3': {
       label: 'sp²-3', terms: sp2(2), hybrid: true,
-      note: '$\\psi = \\frac{1}{\\sqrt{3}}\\,s - \\frac{1}{\\sqrt{6}}\\,p_x - \\frac{1}{\\sqrt{2}}\\,p_y$。由 sp²-1 绕 $z$ 轴转 240° 得到。',
+      get note() { return t('orbit.se.preset.sp2-3.note') },
     },
     'sp-1': {
       label: 'sp-1', terms: sp(1), hybrid: true,
-      note: '$\\psi = \\frac{1}{\\sqrt{2}}(s + p_z)$。两个等价轨道之一，**180°** 直线型。',
+      get note() { return t('orbit.se.preset.sp-1.note') },
     },
     'sp-2': {
       label: 'sp-2', terms: sp(-1), hybrid: true,
-      note: '$\\psi = \\frac{1}{\\sqrt{2}}(s - p_z)$。另一个 sp 轨道，与 sp-1 正交、恰好反向。',
+      get note() { return t('orbit.se.preset.sp-2.note') },
     },
   };
 
@@ -259,17 +262,17 @@ const StateEditor = (function () {
    */
   function addPreset(label, terms, note, key) {
     const list = cloneTerms(terms && terms.length ? terms : state.terms);
-    if (!list.length) return { error: '当前没有叠加态分量，无法存为预设' };
+    if (!list.length) return { error: t('orbit.se.noTerms') };
     const k = key || ('u-' + Date.now().toString(36) + Math.floor(Math.random() * 1e3).toString(36));
-    PRESETS[k] = { label: String(label || '自定义态'), terms: list, note: note || '', custom: true };
+    PRESETS[k] = { label: String(label || t('orbit.se.customDefault')), terms: list, note: note || '', custom: true };
     persistCustomPresets();
     render();
     return { ok: true, key: k, label: PRESETS[k].label, terms: list.length };
   }
 
   function removePreset(key) {
-    if (!PRESETS[key]) return { error: '未找到预设：' + key };
-    if (!PRESETS[key].custom) return { error: '内置预设不可删除（只允许删自定义预设）' };
+    if (!PRESETS[key]) return { error: t('orbit.se.presetNotFound', { key }) };
+    if (!PRESETS[key].custom) return { error: t('orbit.se.presetCustomOnly') };
     delete PRESETS[key];
     if (state.preset === key) state.preset = 'pure';
     persistCustomPresets();
@@ -316,7 +319,8 @@ const StateEditor = (function () {
       wrap.appendChild(b);
       // 自定义预设才带删除按钮：内置的是教学内容，不该被误删
       if (p.custom) {
-        const del = el('button', { class: 'se-chipdel', text: '✕', title: '删除「' + p.label + '」' });
+        const del = el('button', { class: 'se-chipdel', text: '✕',
+          title: t('orbit.se.deleteTitle', { label: p.label }) });
         del.onclick = function (ev) {
           if (ev) ev.stopPropagation();
           removePreset(k);
@@ -350,26 +354,27 @@ const StateEditor = (function () {
       head.appendChild(el('span', { class: 'se-hcol', text: kv[0], title: kv[1] }));
     });
     head.appendChild(el('span', { class: 'se-hcol se-hcol-mode', text: '解型',
-      title: '该分量取波函数的实数解还是复数解。**逐项可选** —— 所以"全实""全复""实复混合"三种都表达得出来。' }));
+      title: t('orbit.se.modeTitle') }));
     head.appendChild(el('span', { class: 'se-hcol se-hcol-pick', text: '轨道 / m',
-      title: '复数解用磁量子数 m 标记（m 是 L̂z 的本征值指标，对它才有意义）；'
-        + '实数解用实轨道名标记（实解不是 L̂z 的本征函数，m 对它没有意义）。' }));
+      title: t('orbit.se.pickTitle') }));
     head.appendChild(el('span', { class: 'se-hcol se-hcol-c', text: 'c',
-      title: '该分量的系数（本模块只填正实数；虚部与项间相位用下面的「相对相位」表达）' }));
+      title: t('orbit.se.ampTitle') }));
     list.appendChild(head);
-    state.terms.forEach(function (t, i) {
-      const md = t.mode || 'real';
+    // ★ 循环变量叫 `term` 而不是 `t`：本文件的 `t` 是 i18n 的取值函数，
+    //   同名会把下面那几处 title 的取值变成"读一个 term 对象的属性当函数调"。
+    state.terms.forEach(function (term, i) {
+      const md = term.mode || 'real';
       const r = el('div', { class: 'se-term' });
       r.appendChild(el('span', { class: 'se-idx', text: String(i + 1) }));
       ['n', 'l'].forEach(function (key) {
-        const inp = el('input', { class: 'se-num', type: 'number', value: String(t[key]), title: key });
+        const inp = el('input', { class: 'se-num', type: 'number', value: String(term[key]), title: key });
         inp.onchange = function () {
           const v = parseInt(inp.value, 10);
           if (!Number.isFinite(v)) return;
-          t[key] = v;
-          t.n = Math.max(1, Math.min(6, t.n));
-          t.l = Math.max(0, Math.min(t.n - 1, t.l));
-          t.m = Math.max(-t.l, Math.min(t.l, t.m));
+          term[key] = v;
+          term.n = Math.max(1, Math.min(6, term.n));
+          term.l = Math.max(0, Math.min(term.n - 1, term.l));
+          term.m = Math.max(-term.l, Math.min(term.l, term.m));
           push(false);
         };
         r.appendChild(inp);
@@ -378,31 +383,31 @@ const StateEditor = (function () {
       //   实解不是 L̂z 的本征函数，所以对实项来说 m 只是个内部索引 —— 界面上就不给它看，
       //   换成实轨道名（p_x、d_xy…；l≥4 没有通名，用直角坐标多项式，见 formula.js）。
       const mb = el('button', { class: 'se-mode' + (md === 'complex' ? ' cx' : ''), text: md === 'complex' ? '复' : '实' });
-      mb.title = (md === 'complex')
-        ? '该分量为**复数解**（L̂z 的本征函数，用 m 标记）—— 点击改为实数解'
-        : '该分量为**实数解**（不是 L̂z 的本征函数，用实轨道名标记）—— 点击改为复数解';
-      mb.onclick = function () { t.mode = (md === 'complex') ? 'real' : 'complex'; push(false); };
+      mb.title = (md === 'complex') ? t('orbit.se.modeTipComplex') : t('orbit.se.modeTipReal');
+      mb.onclick = function () { term.mode = (md === 'complex') ? 'real' : 'complex'; push(false); };
       r.appendChild(mb);
-      // 标记：复解给 m 下拉；实解给实轨道下拉（两者都直接写回同一个 t.m）
+      // 标记：复解给 m 下拉；实解给实轨道下拉（两者都直接写回同一个 term.m）
       const sel = el('select', { class: 'se-pick' });
       const order = [0];
-      for (let mm = 1; mm <= t.l; mm++) order.push(mm, -mm);
+      for (let mm = 1; mm <= term.l; mm++) order.push(mm, -mm);
       order.forEach(function (mm) {
         const label = (md === 'complex')
           ? ('m = ' + (mm > 0 ? '+' + mm : mm))
           : ((Formula && Formula.realOrbitalLabelPlain)
-              ? Formula.realOrbitalLabelPlain(t.l, mm) : String(mm));
+              ? Formula.realOrbitalLabelPlain(term.l, mm) : String(mm));
         sel.appendChild(el('option', { value: String(mm), text: label }));
       });
-      sel.value = String(t.m);
-      sel.title = (md === 'complex') ? '磁量子数 m' : '实轨道（该支壳层的 ' + order.length + ' 个实轨道之一）';
-      sel.onchange = function () { t.m = parseInt(sel.value, 10); push(false); };
+      sel.value = String(term.m);
+      sel.title = (md === 'complex')
+        ? t('orbit.se.magneticTitle')
+        : t('orbit.se.realOrbitalTitle', { n: order.length });
+      sel.onchange = function () { term.m = parseInt(sel.value, 10); push(false); };
       r.appendChild(sel);
-      const amp = el('input', { class: 'se-amp', type: 'number', step: '0.1', value: t.c.re.toFixed(2), title: '系数' });
+      const amp = el('input', { class: 'se-amp', type: 'number', step: '0.1', value: term.c.re.toFixed(2), title: '系数' });
       amp.onchange = function () {
         const v = Number(amp.value);
         if (!Number.isFinite(v)) return;
-        t.c.re = v; t.c.im = 0;
+        term.c.re = v; term.c.im = 0;
         push(false);
       };
       r.appendChild(amp);
@@ -416,10 +421,7 @@ const StateEditor = (function () {
     //   所以任何单项的绝对值都只是"相对大小"。不写清楚，学生会以为工具算错了。
     // ★ 这里必须过 mdInline：`$...$` 要经 KaTeX 才成公式，**加粗** 才成粗体。
     //   原先直接塞 html，屏幕上显示的就是字面的 $\sum_i |c_i|^2 = 1$ 与两个星号。
-    host.appendChild(el('div', { class: 'se-hint', html: mdInline(
-      '系数按 $\\sum_i |c_i|^2 = 1$ **等比归一化**（本程序基组正交归一，故只需这一条），'
-      + '因此**只有比值有物理意义**：把某项填成 0.35，落库可能是 0.37（其余项会同比例缩放），'
-      + '这是归一化的必然结果。' ) }));
+    host.appendChild(el('div', { class: 'se-hint', html: mdInline(t('orbit.se.normHint')) }));
 
     const addRow = el('div', { class: 'se-addrow' });
     const add = el('button', { class: 'se-btn', text: '+ 添加态' });
@@ -477,9 +479,7 @@ const StateEditor = (function () {
     slider.addEventListener('change', endDrag);
     host.appendChild(slider);
 
-    host.appendChild(el('div', { class: 'se-note', html: mdInline(
-      '$\\varphi = (E_i - E_j)\\,t/\\hbar$ 是**相对相位**，不是真实时间。真实振荡频率约 $10^{15}$ Hz 无法可视化，'
-      + '而干涉图样只依赖相对相位。' )}));
+    host.appendChild(el('div', { class: 'se-note', html: mdInline(t('orbit.se.phaseNote'))}));
 
     renderObs();
   }
@@ -572,7 +572,7 @@ const StateEditor = (function () {
 
   function applyPreset(key) {
     const p = PRESETS[key];
-    if (!p) return { error: '未知预设：' + key };
+    if (!p) return { error: t('orbit.se.unknownPreset', { key }) };
     state.preset = key;
     if (key === 'pure') {
       state.terms = []; state.relPhase = 0;
@@ -586,7 +586,7 @@ const StateEditor = (function () {
     state.relPhase = 0;
     expand();
     push(false);
-    if (getPanel()) getPanel().addChip('已载入：' + p.label);
+    if (getPanel()) getPanel().addChip(t('orbit.se.loaded', { label: p.label }));
     return { ok: true, preset: key, note: p.note, terms: state.terms.length };
   }
 
@@ -617,7 +617,8 @@ const StateEditor = (function () {
       finished = true;
       const name = inp.value.trim();
       if (save && name) {
-        const r = addPreset(name, state.terms, '自定义预设（' + state.terms.length + ' 个分量）');
+        const r = addPreset(name, state.terms,
+          t('orbit.se.customNote', { n: state.terms.length }));
         if (r && r.ok) applyPreset(r.key);
         else render();
       } else {
@@ -742,6 +743,21 @@ const StateEditor = (function () {
     d = d || {};
     if (typeof d.getApp === 'function') getApp = d.getApp;
     if (typeof d.getPanel === 'function') getPanel = d.getPanel;
+  }
+
+  /**
+   * 语言切换后重渲染这一小块。
+   *
+   * ★ 为什么必须自己订阅：本块的文案有一大半是 `t()` **现取**的（预设说明、
+   *   表头 title、带变量的提示），它们不在 `text` 表里 —— 运行时的 `sweep()`
+   *   只认"整段就是中文原文"的文本节点，够不着这些。
+   * ★ 为什么敢在这里重渲染：`render()` 只重建这一小块 DOM，**不碰任何几何**
+   *   （等值面要十几秒，绝不能为换语言重建它）。
+   */
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('langchange', function () {
+      try { if (host) render(); } catch (e) { /* 重渲染失败不该影响语言切换本身 */ }
+    });
   }
 
   return { configure, init, applyPreset, clear, expand, setAvailable, PRESETS, PHASE_PRESETS,

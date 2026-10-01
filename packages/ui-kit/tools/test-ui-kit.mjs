@@ -198,8 +198,7 @@ section('settings-popup：声明式表单与密钥安全')
     }
     const mkNode = (tag) => {
       const n = {
-        tag, className: '', textContent: '', children: [], attrs: {}, dataset: {},
-        // 真实 DOM 里 setAttribute 会**反射**到同名属性（type/value/placeholder 都是），
+        tag, _classes: new Set(), textContent: '', children: [], attrs: {}, dataset: {},        // 真实 DOM 里 setAttribute 会**反射**到同名属性（type/value/placeholder 都是），
         // 桩必须照做，否则 'el() 写 attrs、代码读属性' 的组合会让测试假通过。
         // ★ 同理，**赋值也要能反射回属性**（`input.placeholder = 'x'`）——
         //   只写 getter 会让"重算提示文案"这类实现直接抛
@@ -212,7 +211,7 @@ section('settings-popup：声明式表单与密钥安全')
         get value() { return n._value !== undefined ? n._value : (n.attrs.value || '') },
         set value(v) { n._value = String(v) },
         checked: false,
-        _classes: new Set(), _html: '', _ev: {},
+        _html: '', _ev: {},
         setAttribute(k, v) { n.attrs[k] = v },
         removeAttribute(k) { delete n.attrs[k] },
         appendChild(c) { n.children.push(c); return c },
@@ -223,10 +222,24 @@ section('settings-popup：声明式表单与密钥安全')
         focus() {},
         get firstChild() { return n.children[0] || null },
       }
+      /**
+       * ★ `className` 与 `classList` 在真实 DOM 里是**同一份数据**（改一个另一个跟着变）。
+       *   桩原先让它们各存一份：`el({ class: 'agent-sec open' })` 只写 className，
+       *   而 `classList.contains('open')` 查的是另一个空集合 —— 于是"折叠分区默认展开"
+       *   这类逻辑在桩里看不到初始态，测试与实现会对不上（假通过、假失败两个方向都可能）。
+       */
+      Object.defineProperty(n, 'className', {
+        get: () => [...n._classes].join(' '),
+        set: (v) => { n._classes = new Set(String(v).split(/\s+/).filter(Boolean)) },
+      })
       n.classList = {
         add: (...c) => c.forEach((x) => n._classes.add(x)),
         remove: (...c) => c.forEach((x) => n._classes.delete(x)),
-        toggle: (c, on) => { if (on) n._classes.add(c); else n._classes.delete(c) },
+        toggle: (c, on) => {
+          const want = on === undefined ? !n._classes.has(c) : !!on
+          if (want) n._classes.add(c); else n._classes.delete(c)
+          return want
+        },
         contains: (c) => n._classes.has(c),
       }
       Object.defineProperty(n, 'innerHTML', { get: () => n._html, set: (v) => { n._html = v } })
@@ -256,13 +269,44 @@ section('settings-popup：声明式表单与密钥安全')
   popup.open()
   check('open 后弹层可见', popup.isOpen() === true)
 
-  const overlay = dom.body.children.find((c) => c.className === 'agent-overlay')
+  // ★ 判据从 `className === '…'` 改成 `classList.contains('…')`：
+  //   `open()` 会给弹层 `classList.add('show')`，而**真实 DOM 里 className 与 classList
+  //   是同一份数据** —— 加了 show 之后 `className` 是 `'agent-overlay show'`，
+  //   严格相等必然为假（这条断言此前只是被桩的"两份数据"假通过）。
+  const overlay = dom.body.children.find((c) => c.classList && c.classList.contains('agent-overlay'))
   check('用真实类名建出弹层', !!overlay)
   const box = overlay.children[0]
-  check('弹层内层类名与 CSS 一致', box.className === 'agent-settings-box')
-  check('头部类名与 CSS 一致', box.children[0].className === 'agent-settings-head')
+  check('弹层内层类名与 CSS 一致', box.classList.contains('agent-settings-box'))
+  check('头部类名与 CSS 一致', box.children[0].classList.contains('agent-settings-head'))
+  // ★ 分组标题的**载体变了**：从"一个 div 当标题"改成"可折叠分区的头部按钮"
+  //   （settings-popup 的 makeSection）。断言跟着改，并补上三条**新行为**的断言 ——
+  //   否则"全部收起"也会让下面第一条过。
   check('分组标题沿用原措辞（带使用场景提示）',
-    dom.collectAll(box, 'div').some((d) => /模型服务（改一次就不动）/.test(d.textContent)))
+    dom.collectAll(box, 'span').some((d) => /模型服务（改一次就不动）/.test(d.textContent)))
+  const secs = dom.collectAll(box, 'section')
+  check('设置项分组成可折叠分区', secs.length >= 4, `分区数 ${secs.length}`)
+  check('第一组默认展开、其余默认收起',
+    secs.length > 0 && secs[0].classList.contains('open')
+    && secs.slice(1).every((s) => !s.classList.contains('open')))
+  {
+    // ★ 用**子 span 的 textContent** 找头部按钮：桩的 textContent 是普通属性，
+    //   不会像真实 DOM 那样从子节点拼出来（所以不能直接 /模型服务/.test(b.textContent)）。
+    const head = dom.collectAll(box, 'button')
+      .find((b) => b.children.some((c) => /模型服务/.test(c.textContent)))
+    check('分区头部是可点按钮且带 aria-expanded',
+      !!head && head.attrs['aria-expanded'] === 'true')
+    // 点一次 → 收起；再点一次 → 展开（可逆，且 aria 跟着变）
+    if (head && typeof head.onclick === 'function') {
+      head.onclick()
+      const closed = !secs[0].classList.contains('open') && head.attrs['aria-expanded'] === 'false'
+      head.onclick()
+      const reopened = secs[0].classList.contains('open') && head.attrs['aria-expanded'] === 'true'
+      check('点分区头部可收起、再点可展开（可逆）', closed && reopened,
+        `closed=${closed} reopened=${reopened}`)
+    } else {
+      check('点分区头部可收起、再点可展开（可逆）', false, '没有 onclick')
+    }
+  }
   check('含「测试连接」按钮',
     dom.collectAll(box, 'button').some((b) => b.textContent === '测试连接'))
 

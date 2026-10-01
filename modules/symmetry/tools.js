@@ -9,6 +9,8 @@
  *   模型不得凭记忆回答（"水是 C2v"它当然知道，但"联苯是 D2h 还是 D2d"它未必，
  *   而这类判断正是本模块存在的意义）。
  */
+// 错误串会原样进**模型上下文**（不经 DOM，扫描替换够不着）⇒ 必须走 t()/tr()。
+import { t } from './i18n/index.js'
 /**
  * 创建工具集。
  *
@@ -99,8 +101,8 @@ export function createSymmetryTools(facade) {
       if (!r) {
         return {
           error: id
-            ? `未知示例 id：${id}（id 必须来自 listExamples 的返回值）`
-            : '当前没有选中的结构（先用 listExamples 挑一个，或让学生打开一个）',
+            ? t('sym.err.unknownExampleStrict', { id })
+            : t('sym.err.noSelection'),
         }
       }
       return {

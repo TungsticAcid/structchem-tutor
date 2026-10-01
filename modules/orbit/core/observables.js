@@ -7,7 +7,15 @@
  *   内部逻辑逐字未动——P1 的纪律是"只加 export/import，不动逻辑"，
  *   这样将来与上游对拍时 diff 是可读的。
  * ★ 本文件**不引用 DOM**，可在 Node 里直接测试。
+ *
+ * ---------------------------------------------------------------------------
+ * i18n：这些 `note` 会随 queryOrbital/energySplit 直接**进模型上下文**
+ * ---------------------------------------------------------------------------
+ * 全部是**没有变量的整句**，故原文进 `modules/orbit/i18n.js` 的 `text` 表，
+ * 这里在**返回的那一刻**过 `t(原文)`——函数每次调用都重新查表，所以切语言跟着变。
  */
+import '../i18n.js'
+import { t } from '../../../packages/i18n/index.js'
 /**
  * observables.js — 力学量计算（全部解析式，确定性，模型不得口算）
  *
@@ -55,7 +63,7 @@ const Observables = (function () {
   /** 能量分解（eV）：E = T + V，且由维里定理 2⟨T⟩ = −⟨V⟩ */
   function energyBreakdown(n) {
     const E = -13.6 / (n * n);
-    return { E: E, T: -E, V: 2 * E, note: '维里定理：⟨T⟩ = −⟨E⟩，⟨V⟩ = 2⟨E⟩' };
+    return { E: E, T: -E, V: 2 * E, note: t('维里定理：⟨T⟩ = −⟨E⟩，⟨V⟩ = 2⟨E⟩') };
   }
 
   /** 角动量量子化：L = ħ√(l(l+1))，L_z = ħm */
@@ -72,7 +80,7 @@ const Observables = (function () {
    * cosθ = m / √(l(l+1))；l=0 时角动量为零，夹角无定义。
    */
   function angleToZ(l, m) {
-    if (l === 0) return { defined: false, note: 'l=0 时角动量为零，夹角无定义' };
+    if (l === 0) return { defined: false, note: t('l=0 时角动量为零，夹角无定义') };
     const cos = m / Math.sqrt(l * (l + 1));
     const rad = Math.acos(Math.max(-1, Math.min(1, cos)));
     return { defined: true, cos: cos, rad: rad, deg: rad * 180 / Math.PI };
@@ -92,7 +100,7 @@ const Observables = (function () {
    * @param {Array} terms [{n,l,m,c:{re,im}}]
    */
   function superposition(terms) {
-    if (!terms || !terms.length) return { error: '叠加态至少需要一项' };
+    if (!terms || !terms.length) return { error: t('叠加态至少需要一项') };
     const w = terms.map((t) => t.c.re * t.c.re + t.c.im * t.c.im);   // |c|²
 
     // 能量
@@ -138,12 +146,12 @@ const Observables = (function () {
         mean: +E.toFixed(4),
         definite: eSame,
         values: Array.from(new Set(energies)).map((x) => +x.toFixed(4)),
-        note: eSame ? '各分量能量简并 → 能量有确定值，且态仍是定态' : '各分量能量不同 → 能量无确定值（非定态）',
+        note: eSame ? t('各分量能量简并 → 能量有确定值，且态仍是定态') : t('各分量能量不同 → 能量无确定值（非定态）'),
       },
       L2: {
         mean: +L2.toFixed(4),
         definite: lSame,
-        note: lSame ? '各分量 l 相同 → L² 有确定值' : '各分量 l 不同 → L² 无确定值',
+        note: lSame ? t('各分量 l 相同 → L² 有确定值') : t('各分量 l 不同 → L² 无确定值'),
       },
       Lz: {
         mean: +Lz.toFixed(4),
@@ -151,14 +159,12 @@ const Observables = (function () {
         spectrum: Object.keys(spectrum).sort((a, b) => a - b).map((k) => ({ m: +k, prob: +spectrum[k].toFixed(6) })),
         hasRealNonZero: hasRealNonZero,
         note: hasRealNonZero
-          ? '含**实数解**分量（m≠0）：实解不是 L̂z 的本征函数，它在 L_z 谱上贡献 ±|m| 各 1/2，'
-            + '所以这类态的 ⟨L_z⟩ 恒为 0、L_z 也没有确定值。'
-          : (mSame ? '各分量 m 相同 → L_z 有确定值' : '各分量 m 不同 → L_z 无确定值，只能给谱分布与平均值'),
+          ? t('含**实数解**分量（m≠0）：实解不是 L̂z 的本征函数，它在 L_z 谱上贡献 ±|m| 各 1/2，所以这类态的 ⟨L_z⟩ 恒为 0、L_z 也没有确定值。')
+          : (mSame ? t('各分量 m 相同 → L_z 有确定值') : t('各分量 m 不同 → L_z 无确定值，只能给谱分布与平均值')),
       },
       deltaLz: +dLz.toFixed(4),
       isStationary: stationary,
-      note: '测量假设：测得本征值 a 的概率 = 对应系数模方之和；仅当所有分量本征值相同时该量才有确定值。'
-        + '★ L_z 的本征函数是**复数解** —— 实数解（m≠0）由 ±m 两个复解组合而来，不是它的本征函数。',
+      note: t('测量假设：测得本征值 a 的概率 = 对应系数模方之和；仅当所有分量本征值相同时该量才有确定值。★ L_z 的本征函数是**复数解** —— 实数解（m≠0）由 ±m 两个复解组合而来，不是它的本征函数。'),
     };
   }
 

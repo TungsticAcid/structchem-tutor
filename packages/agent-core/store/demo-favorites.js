@@ -15,6 +15,11 @@
  * ★ 收藏的是**步骤清单**（action/params/speech），不是渲染结果：回放时按当前
  *   视图重新执行一遍，所以一年后回放仍然是对的（而截图会过时）。
  */
+// ★ 两条文案都走 t() 而不是 `text` 表：默认名会被面板渲染成 `'★ ' + label`
+//   （同一个文本节点里带了前缀），整段不等于原文，扫描替换匹配不上。
+// ★ 自己 import 字典（副作用即 registerDict），不依赖入口替你注册
+import '../i18n.js'
+import { t } from '../../i18n/index.js'
 
 /** 最多收藏多少条（每条几十步，50 条大约几十 KB，远在配额之内） */
 const MAX_FAVORITES = 50
@@ -81,10 +86,10 @@ export function createDemoFavorites(opts = {}) {
   function save(label, steps, meta) {
     const list = read()
     if (!Array.isArray(steps) || !steps.length) {
-      return { ok: false, error: '这条演示没有可收藏的步骤' }
+      return { ok: false, error: t('agent.fav.noSteps') }
     }
     const name = String(label || '').trim()
-      || (steps.find((s) => s && s.speech) || {}).speech || '未命名演示'
+      || (steps.find((s) => s && s.speech) || {}).speech || t('agent.fav.untitled')
     const entry = {
       key: 'f' + now().toString(36) + Math.floor(Math.random() * 1e4).toString(36),
       label: String(name).slice(0, 40),

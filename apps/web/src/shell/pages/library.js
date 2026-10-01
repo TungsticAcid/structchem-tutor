@@ -11,6 +11,8 @@
 
 import { CrystalCard } from '@crystal/components/crystal-card.js'
 import crystalIndex from '@crystal/data/crystalIndex.js'
+// ★ 只有带变量的读数走 t()（`{n} 种`）；分类名等静态文案留在模板里交给扫描替换。
+import { t } from '@i18n/index.js'
 
 /** 分类筛选（顺序即展示顺序；`null` 表示"全部"） */
 const CATEGORIES = [
@@ -55,6 +57,11 @@ export class LibraryPage {
     this._container = null
   }
 
+  /** 语言变更：只需重算那个走 `t()` 的读数（分类名等静态文案由运行时扫描替换） */
+  onLangChange() {
+    if (this._container) this._renderCards()
+  }
+
   /** 按当前分类重建卡片（先清空，避免叠加） */
   _renderCards() {
     const grid = this._container && this._container.querySelector('.card-grid')
@@ -76,7 +83,9 @@ export class LibraryPage {
       this._cards.push(card)
     }
     const count = this._container.querySelector('#libCount')
-    if (count) count.textContent = `${list.length} 种`
+    // ★ 原文里带数字 ⇒ 必须走 `t('key', {n})`：扫描替换对不了变量
+    //   （"12 种"与"3 种"是两条不同原文，字典里列不完）。
+    if (count) count.textContent = t('shell.lib.count', { n: list.length })
   }
 
   _render() {

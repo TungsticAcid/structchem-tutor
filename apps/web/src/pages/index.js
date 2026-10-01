@@ -85,7 +85,10 @@ export class IndexPage {
           ${filtered.length === 0
             ? `<div class="list-empty">暂无该分类的晶体数据</div>`
             /* ★ 骨架阶段的占位：卡片组件是懒加载的，先给一句话比给一个空白网格好
-               （`_renderCards()` 会把它清掉）。见 mount 里关于首屏时序的说明。 */
+               （_renderCards() 会把它清掉）。见 mount 里关于首屏时序的说明。
+               ★ 这里刻意**不写反引号**：本注释在模板串的 ${} 里，而覆盖率守卫的
+                 词法扫描不理解 ${} 嵌套，反引号会把它的字面量边界切乱，
+                 于是它把注释文字当成"待译文案"报出来（真解析没这问题）。 */
             : `<div class="list-empty">正在加载晶体预览…</div>`}
         </div>
       </div>
@@ -110,7 +113,14 @@ export class IndexPage {
       .settings-icon { font-size: 20px; }
       .category-bar {
         flex-shrink: 0; padding: 8px 12px; background: #fff; border-bottom: 1px solid #eee;
-        display: flex; gap: 8px; overflow-x: auto;
+        /* ★ flex-wrap 与 overflow-x 并存：中文六个分类名在手机上正好一行，
+         *   英文（All / Metallic crystals / Ionic crystals / Covalent crystals /
+         *   Molecular crystals / Mixed bonding）会往右溢出 —— 只靠横向滚动的话，
+         *   最后一个分类默认停在屏幕外，用户根本不知道还有它。
+         *   换行之后全部可见；overflow-x: auto 保留，作为极窄屏的最后兜底。
+         *   ⚠ 本文件整份是一个**模板字符串**：注释里写反引号会把模板截断成语法错误
+         *   （本轮就这么白屏过一次，浏览器控制台报 SyntaxError: Unexpected identifier）。 */
+        display: flex; gap: 8px; flex-wrap: wrap; overflow-x: auto;
       }
       .category-item {
         display: inline-block; padding: 6px 14px; border-radius: 16px;

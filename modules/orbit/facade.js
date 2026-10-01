@@ -20,6 +20,10 @@ import { VOCAB, validate as rawValidate, listActions, labels as actionLabels } f
 // 预置演示脚本是**模块自己的内容**（零 token 的分镜脚本）。
 // 播放能力（队列、逐步闸门、回放、整改）在中枢——脚本属模块、播放属中枢。
 import { DEMO_SCRIPTS, demoById, demoManifest } from './demo/scripts.js'
+// ★ 字典的副作用 import：本文件也在**模块求值阶段**用 t()（routes 的 label、
+//   perception.fieldLabels 都是常量表），字典没先注册就会把键名当成文案。
+import './i18n.js'
+import { t } from '../../packages/i18n/index.js'
 
 /** 无运行时时的空快照（门面据此生成"当前没在看轨道"的状态） */
 const EMPTY_SNAPSHOT = {
@@ -56,6 +60,10 @@ const EMPTY_SNAPSHOT = {
   orbitalCount: 0,
   orbitalVisible: '',
   orbitalShown: 0,
+  // ★ 新加的快照字段必须**同时**出现在这份空快照里（见上面那段关于"字段集不一致"
+  //   的说明）：少了它们，进出页面会在痕迹里凭空多出一次「同屏轨道清单变化」。
+  orbitalItems: '',
+  orbitalBuilding: 0,
 }
 
 /**
@@ -122,7 +130,11 @@ export function createOrbitFacade(opts = {}) {
   return {
     // ---- 标识 ----
     id: 'orbit',
-    title: '原子轨道',
+    /**
+     * 模块标题。**是取值器而不是字符串**：它会被门户首页拼进「进入{title}」，
+     * 写成常量就会把 import 时的语言固化下来，切了语言标题还是旧语言。
+     */
+    get title() { return t('orbit.title') },
 
     // ---- 契约必需 ----
     getSnapshot,
@@ -135,13 +147,16 @@ export function createOrbitFacade(opts = {}) {
         const v = rawValidate(name, (a && a.params) || {})
         if (v.err) { failed.push({ action: name, error: v.err }); continue }
         if (!runtime) {
-          failed.push({ action: name, error: '当前不在原子轨道页面——请先打开该页面再操作' })
+          failed.push({ action: name, error: t('orbit.facade.notOnPage') })
           continue
         }
         let r
         try { r = runtime.applyAction({ action: name, params: v.params }) }
         catch (e) { failed.push({ action: name, error: (e && e.message) || String(e) }); continue }
-        if (r && r.ok === false) { failed.push({ action: name, error: r.error || '动作执行失败' }); continue }
+        if (r && r.ok === false) {
+          failed.push({ action: name, error: r.error || t('orbit.facade.actionFailed') })
+          continue
+        }
         applied.push({ action: name, params: v.params })
       }
       return { ok: failed.length === 0, applied, failed }
@@ -166,7 +181,7 @@ export function createOrbitFacade(opts = {}) {
     routes: [
       {
         target: 'orbit',
-        label: '打开原子轨道页面',
+        get label() { return t('orbit.facade.routeOpen') },
         params: {},
         hash: () => '#/orbit',
       },
@@ -177,10 +192,14 @@ export function createOrbitFacade(opts = {}) {
      *   （重算由 applyAction 统一做一次），否则一次回退会连着重算七八遍。
      */
     restoreState(state) {
-      if (!state || typeof state !== 'object') return { ok: false, error: '没有可还原的状态' }
-      if (!runtime) return { ok: false, error: '当前不在原子轨道页面' }
+      if (!state || typeof state !== 'object') {
+        return { ok: false, error: t('orbit.facade.noStateToRestore') }
+      }
+      if (!runtime) return { ok: false, error: t('orbit.facade.notOnPageShort') }
       const r = this.applyActions([{ action: 'restoreState', params: { state } }])
-      return r.ok ? { ok: true } : { ok: false, error: (r.failed[0] || {}).error || '还原失败' }
+      return r.ok
+        ? { ok: true }
+        : { ok: false, error: (r.failed[0] || {}).error || t('orbit.facade.restoreFailed') }
     },
     onAction(cb) {
       if (typeof cb !== 'function') return () => {}
@@ -215,25 +234,32 @@ export function createOrbitFacade(opts = {}) {
      */
     perception: {
       fieldLabels: {
-        n: '切换主量子数',
-        l: '切换角量子数',
-        m: '切换磁量子数',
-        nuclearCharge: '调整核电荷',
-        viewTarget: '切换视图目标',
-        wavefunction: '实轨道/复轨道',
-        render: '切换渲染模式',
-        psiCriterion: '切换阈值判据',
-        levelFraction: '调整等值面阈值',
-        pointCount: '调整粒子数',
-        plane: '切换截面',
-        sectionMode: '切换截面显示',
-        angularWhich: '切换角度分布函数',
-        radial: '切换径向曲线',
-        isSuperposition: '叠加态变化',
-        relPhase: '调整相对相位',
-        chartTerm: '切换图表对象',
-        orbitalModel: '切换轨道模型',
-        orbitalSet: '切换多轨道同屏',
+        n: t('orbit.field.n'),
+        l: t('orbit.field.l'),
+        m: t('orbit.field.m'),
+        nuclearCharge: t('orbit.field.nuclearCharge'),
+        viewTarget: t('orbit.field.viewTarget'),
+        wavefunction: t('orbit.field.wavefunction'),
+        render: t('orbit.field.render'),
+        psiCriterion: t('orbit.field.psiCriterion'),
+        levelFraction: t('orbit.field.levelFraction'),
+        pointCount: t('orbit.field.pointCount'),
+        plane: t('orbit.field.plane'),
+        sectionMode: t('orbit.field.sectionMode'),
+        angularWhich: t('orbit.field.angularWhich'),
+        radial: t('orbit.field.radial'),
+        isSuperposition: t('orbit.field.isSuperposition'),
+        relPhase: t('orbit.field.relPhase'),
+        chartTerm: t('orbit.field.chartTerm'),
+        orbitalModel: t('orbit.field.orbitalModel'),
+        orbitalSet: t('orbit.field.orbitalSet'),
+        // ★ 为什么 orbitalItems 有标签、orbitalCount/orbitalVisible/orbitalShown 没有：
+        //   后三个都是 orbitalSet 的**派生量**，跟着它一起变，各自再记一笔等于同一件事
+        //   记四遍。而 orbitalItems 带着**颜色与显隐**——那是用户能单独改的状态，
+        //   模型要能看出"他把第 2 个改成红的了"。
+        orbitalItems: t('orbit.field.orbitalItems'),
+        // 排队建额外轨道时的进度（条数）：让模型知道"我下发的动作还没全部落到画面上"
+        orbitalBuilding: t('orbit.field.orbitalBuilding'),
       },
       // ★ 停留时长只填**少数几个真正有教学意义**的：dwellMs 会为每个字段保留最近 6 次，
       //   全填等于白撑大快照。
@@ -241,26 +267,28 @@ export function createOrbitFacade(opts = {}) {
       formatCompact: (snap) => {
         const s = (snap && snap.state) || {}
         const it = (snap && snap.interaction) || {}
-        const orb = (s.n == null) ? '（未附着页面）' : `${s.n}${['s', 'p', 'd', 'f'][s.l] || '?'}${s.m}`
+        const orb = (s.n == null) ? t('orbit.facade.detached') : `${s.n}${['s', 'p', 'd', 'f'][s.l] || '?'}${s.m}`
         return [
-          '【当前状态】模块 orbit · 轨道 ' + orb
-            + '；视图 ' + (s.viewTarget || '—')
-            + '；渲染 ' + (s.render || '—')
-            + (s.isSuperposition ? `；**叠加态 ${s.termCount} 个分量**` : '')
+          t('orbit.facade.compactHead') + ' ' + orb
+            + t('orbit.facade.view') + ' ' + (s.viewTarget || '—')
+            + t('orbit.facade.render') + ' ' + (s.render || '—')
+            + (s.isSuperposition ? t('orbit.facade.superTerms', { n: s.termCount }) : '')
             + (s.orbitalModel === 'slater'
-              ? `；**Slater 型（STO）**径向${s.orbitalZeta ? ` ζ=${s.orbitalZeta}` : '（ζ=Z/n）'}`
-              : '；氢型（真实类氢）径向')
+              ? (s.orbitalZeta
+                ? t('orbit.facade.slaterZeta', { zeta: s.orbitalZeta })
+                : t('orbit.facade.slaterNoZeta'))
+              : t('orbit.facade.hydrogenic'))
             // 多轨道档要显式说出来：模型若不知道它是开着的，就解释不了
             // "为什么画面上有四个瓣、而且不是叠加态"（两者长得很像）。
             // ★ 这一句必须**拼在同一行**里（上面那行末尾不能有逗号）——
             //   多一个逗号它就变成数组的第二个元素，会被 join 换到下一行去。
             + (s.orbitalSet && s.orbitalSet !== 'off'
-              ? '；**多轨道同屏 ' + s.orbitalSet + '**（' + s.orbitalShown + '/' + s.orbitalCount
-                + ' 个可见，每个一个颜色，与叠加态无关）'
+              ? t('orbit.facade.multi',
+                { set: s.orbitalSet, shown: s.orbitalShown, count: s.orbitalCount })
               : ''),
-          '【交互】空闲 ' + Math.round((it.idleMs || 0) / 1000) + 's'
-            + '；切换次数 ' + JSON.stringify(it.toggleCounts || {})
-            + '；最近动作 ' + ((it.recentActions || []).join('→') || '（无）'),
+          t('orbit.facade.idle') + ' ' + Math.round((it.idleMs || 0) / 1000) + 's'
+            + t('orbit.facade.toggles') + ' ' + JSON.stringify(it.toggleCounts || {})
+            + t('orbit.facade.recent') + ' ' + ((it.recentActions || []).join('→') || t('orbit.facade.none')),
         ].join('\n')
       },
     },

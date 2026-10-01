@@ -5,7 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run test:core && npm run test:ui && npm run test:viewer && npm run test:shared && npm run test:modules && npm run test:symmetry && npm run test:data && npm run test:orbit && npm run test:shell",
+    "test": "npm run test:secrets && npm run test:i18n && npm run test:core && npm run test:ui && npm run test:viewer && npm run test:shared && npm run test:modules && npm run test:symmetry && npm run test:data && npm run test:orbit && npm run test:shell",
+    "test:i18n": "node tools/check-i18n.mjs",
     "test:core": "node packages/agent-core/tools/selftest.mjs && node packages/agent-core/tools/test-core.mjs && node packages/agent-core/tools/test-app.mjs",
     "test:ui": "node packages/ui-kit/tools/test-ui-kit.mjs",
     "test:viewer": "node packages/viewer/tools/test-viewer.mjs",
@@ -15,7 +16,8 @@
     "test:symmetry": "node modules/symmetry/tools/test-symmetry-engine.mjs && node modules/symmetry/tools/test-symmetry-module.mjs",
     "test:orbit": "node modules/orbit/tools/test-orbit-core.mjs && node modules/orbit/tools/test-orbit-module.mjs && node modules/orbit/tools/test-orbit-engine.mjs",
     "test:shell": "node apps/web/tools/test-shell.mjs",
-    "verify:live": "node tools/acceptance.mjs"
+    "verify:live": "node tools/acceptance.mjs",
+    "test:secrets": "node tools/check-secrets.mjs"
   },
   "comment": "刻意不使用 npm workspaces：各包之间目前是源码级相对引用（无构建步骤），加 workspaces 会改变 node_modules 布局并引入安装步骤，收益不足。等阶段 B6 建 apps/web 时再评估。",
   "devDependencies": {

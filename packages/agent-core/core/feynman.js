@@ -7,6 +7,11 @@
  *
  * 来源：orbit/H5/js/agent/skills.js 的 startFeynman，2026-09-24 迁入。
  */
+// ★ 三处文案都会回到模型或界面（邀请语经工具回执给模型、note 是给模型的下一步提示），
+//   故走 t()，不进 `text` 表。
+// ★ 自己 import 字典：`modules/crystal/teach-tools.js` 直接引用本文件（不经 app.js）
+import '../i18n.js'
+import { t } from '../../i18n/index.js'
 
 /**
  * 发起一次费曼式复述。
@@ -18,17 +23,16 @@
  */
 export function startFeynman(skillsCatalog, knowledgePoint) {
   const skill = skillsCatalog.load('feynman')
-  if (!skill) return { error: '费曼技能未注册' }
+  if (!skill) return { error: t('agent.feynman.notRegistered') }
 
   return {
     skill: 'feynman',
     knowledgePoint: knowledgePoint || '',
     // 邀请语刻意强调"别背公式"——这是费曼法的要点：暴露的是理解缺口，不是记忆缺口
-    invitation:
-      '试着用**你自己的话**说一遍，就当我是完全没学过的同学——不要背公式，讲你理解的那个版本。',
+    invitation: t('agent.feynman.invitation'),
     // 评分要点取自技能正文的 steps；技能库怎么定义，这里就怎么用
     rubric: (skill.steps && skill.steps.length) ? skill.steps : [],
-    note: '学生复述后调用 evaluateFeynman 评估',
+    note: t('agent.feynman.note'),
   }
 }
 

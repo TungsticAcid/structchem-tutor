@@ -7,7 +7,15 @@
  *   四个跨文件全局引用改成 import、**反向依赖宿主状态的那几处改成注入**。
  *   算法本身逐字未动（P1 的纪律）。
  * ★ 本文件**不引用 DOM**，可在 Node 里直接测试。
+ *
+ * ---------------------------------------------------------------------------
+ * i18n：`toCompactText` / `demoLine` 的输出**整段进模型上下文**
+ * ---------------------------------------------------------------------------
+ * 这些行是**多段拼接**出来的（`'【模式】看' + … + ' / ' + …`），扫描替换够不着，
+ * 所以整行走 `t('orbit.ps.…', {…})` 的键；键值在**每次调用时**现取，切语言跟着变。
  */
+import '../i18n.js'
+import { t } from '../../../packages/i18n/index.js'
 import { Formula } from './formula.js'
 /**
  * perception-snapshot.js — 感知快照（智能体的「眼」）
@@ -208,38 +216,61 @@ const Perception = (function () {
     const s = snap || snapshot();
     const it = s.interaction || {};
     const SUBSHELL = ['s', 'p', 'd', 'f', 'g', 'h'];
+    // ★ 每行都是**一整句模板**（键），不在这里拼中文片段 —— 见文件顶部说明。
+    const termOf = Number(s.charts.term);
     const lines = [
-      '【当前视图】' + s.orbital.name +
-        (s.orbital.chemName ? '(' + s.orbital.chemName + ')' : '') +
-        '  n=' + s.orbital.n + ' l=' + s.orbital.l + ' m=' + s.orbital.m +
+      t('orbit.ps.view', {
+        name: s.orbital.name,
+        chem: s.orbital.chemName ? '(' + s.orbital.chemName + ')' : '',
+        n: s.orbital.n, l: s.orbital.l, m: s.orbital.m,
         // Z 只有非 1 时才写出来 —— 默认的氢原子不必每轮占一个字段的位置
-        (s.orbital.nuclearCharge && s.orbital.nuclearCharge !== 1
-          ? ' Z=' + s.orbital.nuclearCharge + '（类氢，非氢原子）' : ''),
-      '【模式】看' + (s.mode.target === 'spherical' ? '球谐函数 Y' : '完整波函数 ψ') +
-        ' / ' + s.mode.wavefunction + ' / ' + s.mode.render,
-      '【等值面】判据 ' + s.isosurface.criterion + '，阈值 ' + (s.isosurface.levelFraction * 100).toFixed(1) + '%',
-      '【图表】径向 [' + (s.charts.radial || []).join(',') + ']；球谐判据 ' + s.charts.angular +
-        '；截面 ' + s.charts.section.plane + '/' + s.charts.section.mode +
+        z: (s.orbital.nuclearCharge && s.orbital.nuclearCharge !== 1)
+          ? t('orbit.ps.zHlike', { z: s.orbital.nuclearCharge }) : '',
+      }),
+      t('orbit.ps.mode', {
+        target: s.mode.target === 'spherical' ? t('orbit.ps.target.spherical') : t('orbit.ps.target.wave'),
+        wavefunction: s.mode.wavefunction,
+        render: s.mode.render,
+      }),
+      t('orbit.ps.iso', {
+        criterion: s.isosurface.criterion,
+        pct: (s.isosurface.levelFraction * 100).toFixed(1),
+      }),
+      t('orbit.ps.charts', {
+        radial: (s.charts.radial || []).join(','),
+        angular: s.charts.angular,
+        plane: s.charts.section.plane,
+        mode: s.charts.section.mode,
         // 有叠加态时才写：这三张 2D 图各自在画哪一份（第 G 批）
-        (s.charts.term != null
-          ? '；分量 径向/ΘΦ=' + (s.charts.term === 'super' ? '第1个分量（这两张图不支持叠加态）' : '#' + (Number(s.charts.term) + 1)) +
-            '、截面=' + (s.charts.term === 'super' ? '叠加态整体' : '#' + (Number(s.charts.term) + 1))
-          : ''),
-      '【交互】空闲 ' + Math.round((it.idleMs || 0) / 1000) + 's' +
-        '；切换次数 ' + JSON.stringify(it.toggleCounts || {}) +
-        '；最近动作 ' + (it.recentActions || []).join('→'),
+        term: (s.charts.term != null)
+          ? t('orbit.ps.charts.term', {
+              radialTerm: (s.charts.term === 'super')
+                ? t('orbit.ps.term.superRadial') : ('#' + (termOf + 1)),
+              sectionTerm: (s.charts.term === 'super')
+                ? t('orbit.ps.term.superSection') : ('#' + (termOf + 1)),
+            })
+          : '',
+      }),
+      t('orbit.ps.interaction', {
+        idle: Math.round((it.idleMs || 0) / 1000),
+        toggles: JSON.stringify(it.toggleCounts || {}),
+        recent: (it.recentActions || []).join('→'),
+      }),
     ];
     // ★ 叠加态必须进快照（原先完全没有）—— 不写这一行，模型会把"叠加态"当成单一本征态。
     if (s.superposition) {
-      lines.push('【叠加态】' + s.superposition.count + ' 个分量，相对相位 '
-        + s.superposition.relPhasePi + 'π：'
-        + s.superposition.terms.map(function (t) {
-            // 实项写实轨道名（2p_x），复项写 n+支壳层+m（2p(m=+1)）—— 与界面、公式一致
-            const lb = (t.mode === 'complex')
-              ? ('' + t.n + SUBSHELL[Math.min(t.l, SUBSHELL.length - 1)] + '(m=' + (t.m > 0 ? '+' + t.m : t.m) + ')')
-              : ('' + t.n + t.label);
-            return lb + ' c=' + t.c.re + (t.c.im ? ((t.c.im > 0 ? '+' : '') + t.c.im + 'i') : '');
-          }).join(' + '));
+      // 实项写实轨道名（2p_x），复项写 n+支壳层+m（2p(m=+1)）—— 与界面、公式一致
+      const terms = s.superposition.terms.map(function (term) {
+        const lb = (term.mode === 'complex')
+          ? ('' + term.n + SUBSHELL[Math.min(term.l, SUBSHELL.length - 1)] + '(m=' + (term.m > 0 ? '+' + term.m : term.m) + ')')
+          : ('' + term.n + term.label);
+        return lb + ' c=' + term.c.re + (term.c.im ? ((term.c.im > 0 ? '+' : '') + term.c.im + 'i') : '');
+      }).join(' + ');
+      lines.push(t('orbit.ps.super', {
+        count: s.superposition.count,
+        phase: s.superposition.relPhasePi,
+        terms: terms,
+      }));
     }
     // ★ 演示状态原先**不在**每轮注入的快照里（只有模型主动调 getSnapshot 才看得到），
     //   于是它常常不带"演示走到哪一步"就开始说话。补上这一行。
@@ -263,24 +294,32 @@ const Perception = (function () {
     try { st = S.state(); } catch (e) { st = null; }
     if (st && st.total) {
       const next = (st.steps || []).filter(function (s) { return !s.done; })[0];
-      out.push('【演示】#' + st.demoId + '（' + (st.origin || '未知来源') + '）'
-        + (st.playing ? '播放中' : '已播完')
-        + ' · 第 ' + (st.index + 1) + '/' + st.total + ' 步'
-        + (st.waitingForUser ? '（正在等学生点「下一步」）' : '')
-        + (next ? '；下一步：' + next.action : '；已播完'));
+      out.push(t('orbit.ps.demo', {
+        id: st.demoId,
+        origin: st.origin || t('orbit.ps.origin.unknown'),
+        state: st.playing ? t('orbit.ps.playing') : t('orbit.ps.finished'),
+        index: st.index + 1,
+        total: st.total,
+        waiting: st.waitingForUser ? t('orbit.ps.waiting') : '',
+        next: next ? t('orbit.ps.next', { action: next.action }) : t('orbit.ps.nextDone'),
+      }));
     }
     if (S.listDemos) {
       let ds = [];
       try { ds = S.listDemos() || []; } catch (e) { ds = []; }
       if (ds.length) {
-        out.push('【演示清单】' + ds.map(function (d) {
-          return '#' + d.id + '(' + d.steps + '步' + (d.current ? '·当前' : '')
-            + (d.label ? '·' + String(d.label).slice(0, 14) : '') + ')';
-        }).join(' '));
+        const items = ds.map(function (d) {
+          return t('orbit.ps.demoItem', {
+            id: d.id, steps: d.steps,
+            current: d.current ? t('orbit.ps.demoItem.current') : '',
+            label: d.label ? '·' + String(d.label).slice(0, 14) : '',
+          });
+        }).join(' ');
+        out.push(t('orbit.ps.demoList', { list: items }));
       }
     }
     if (!out.length) return null;
-    out.push('（学生若要求改动，用 reviseDemo 并指定 demo_id 与步号，别重发整条演示）');
+    out.push(t('orbit.ps.demoRevise'));
     return out.join('\n');
   }
 

@@ -13,6 +13,9 @@ import { globalData } from '../shell/app-state.js'
 //   注册表的存在是因为 ViewerPage 实例由路由器创建、没有稳定的全局句柄（见 view-registry.js）。
 import { registerViewerPage, unregisterViewerPage } from '../shell/agent-bridge.js'
 import { createViewerPageAdapter } from '@modules/crystal/adapters/viewer-page-adapter.js'
+// ★ 别名 `@i18n`（vite）——页面代码走别名，**字典文件**才走相对路径（守卫要能 import 它）。
+//   本文件里没有名为 t 的局部变量，可以直接用 t()。
+import { t } from '@i18n/index.js'
 
 /** 将小数分数坐标转为分数字符串 */
 function formatFrac(val) {
@@ -180,6 +183,21 @@ export class ViewerPage {
     this._container = null
   }
 
+  /**
+   * 语言变更时由路由调用（见 shell/router.js 的 `_notifyLang`）。
+   *
+   * ★ 本页只有**一处**文案是走 `t()` 取值的（标题的兜底"晶体结构"），其余全是静态文案
+   *   ——那些由运行时的 restore + sweep 处理，这里不必重复劳动。
+   * ★ 只改一个文本节点，**不重建画布**：三维几何与语言无关，重建纯属浪费
+   *   （本仓库对"换语言重建几何"有过明确的禁令）。
+   */
+  onLangChange() {
+    const meta = this._state.crystalMeta
+    if (!meta || meta.name) return       // 有晶体名时不碰（那是数据，不是文案）
+    const el = this._container?.querySelector('#crystalTitle')
+    if (el) el.textContent = t('pages.viewer.crystalFallback')
+  }
+
   _initFromData(data) {
     const s = this._state
     s.crystalData = data
@@ -254,7 +272,7 @@ export class ViewerPage {
       <!-- 顶部标题栏 -->
       <div data-page-topbar class="top-bar">
         <div class="back-btn" id="backBtn"><span class="back-icon">←</span></div>
-        <span class="crystal-title" id="crystalTitle">${meta.name || '晶体结构'}</span>
+        <span class="crystal-title" id="crystalTitle">${meta.name || t('pages.viewer.crystalFallback')}</span>
       </div>
 
       <!-- 对比按钮 -->

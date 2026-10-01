@@ -17,29 +17,32 @@
  *      （放进来的话会被永久判为"缺失"，因为装配时它必然还没有）
  *   ③ 模块 → 宿主（facade.js）：模块提供什么
  */
+// ★ 这些 note 会随 `hostReport.degraded` 交给宿主去报（见 packages/agent-core/app.js
+//   的宿主降级告警），所以它们走 t() 而不是写死中文——写死的话英文界面的告警会是中文。
+//   同文件里那句「字典要在任何 t() 之前注册」的说明见 index.js。
+import './i18n.js'
+import { t } from '../../packages/i18n/index.js'
+
 export const HOST_REQUIREMENTS = [
   {
     key: 'quiz',
     required: false,
-    note: '出题引擎。缺省时 generateQuestion / 判分 / 错因诊断那 8 个 teach 类工具'
-      + '**如实为空**——descriptor 里也相应地把它们放在 plannedTools。',
+    note: t('orbit.host.quiz'),
   },
   {
     key: 'diagnosis',
     required: false,
-    note: '错因诊断（通常给 core/error-diagnosis.js 的实例）。缺省时 diagnoseError 不存在。',
+    note: t('orbit.host.diagnosis'),
   },
   {
     key: 'mastery',
     required: false,
-    note: '掌握度模型。缺省时 updateMastery / 推荐不存在。'
-      + '★ 注意它自身还需要一个 storageKey（见 modules/orbit/store/mastery.js 的 configure），'
-      + '存储命名空间**必须由宿主注入**，没有缺省值。',
+    note: t('orbit.host.mastery'),
   },
   {
     key: 'skills',
     required: false,
-    note: '技能目录。费曼复述的入口要用它取评分要点；缺省时费曼类工具不存在。',
+    note: t('orbit.host.skills'),
   },
 ]
 

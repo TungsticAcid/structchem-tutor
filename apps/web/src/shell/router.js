@@ -37,6 +37,11 @@ class Router {
     //   （实测踩到：从库页点卡片后地址栏已变，界面还停在库页；
     //     而单测抓不到——无头测试不涉及路由。）
     window.addEventListener('hashchange', () => this._handleRoute())
+    // ★ 语言变更通知当前页面（见 `_notifyLang` 的说明：由页面决定重画哪一块，
+    //   而不是无条件 remount —— 轨道页的等值面重建要十几秒）。
+    //   这里订阅 window 事件而不是 import i18n：路由器不该依赖 i18n 包 ——
+    //   它俩一个管"去哪一页"、一个管"文案是什么"，耦合起来会让 router 无法单独测。
+    window.addEventListener('langchange', () => this._notifyLang())
   }
 
   /** 注册路由。pattern 形如 `/crystal/viewer/:crystal`，`:name` 为命名参数 */
@@ -79,6 +84,33 @@ class Router {
 
   /** 当前路径（如 '/crystal/viewer/naCl'） */
   get currentPath() { return (location.hash.slice(1) || '/').split('?')[0] }
+
+  /**
+   * **重挂当前路由**：卸载再按当前 hash 挂一次。
+   *
+   * ★ 什么时候需要它：`sweep()` 是**单向**的（中文原文 → 译文），字典里没有反路。
+   *   运行时在换语言时会自己把替换过的节点还原成中文再重扫（见 packages/i18n
+   *   的 `restore`），所以**静态文案**不需要重挂。需要重挂的是那些**走 `t()` 取值**
+   *   的文案 —— 它们的值是在渲染那一刻算出来的，DOM 扫描够不着。
+   * ★ 但重挂有代价（轨道页会重建十几秒的等值面），所以**默认不要用它**：
+   *   页面若能只重画自己的一小块，就实现 `onLangChange()` —— 见下面的 `_notifyLang`。
+   */
+  remount() { this._handleRoute() }
+
+  /**
+   * 通知当前页面"语言变了"。
+   *
+   * ★ 为什么不直接 remount：轨道的等值面流水线在这个无头环境里要 10–15 秒，
+   *   换语言重建它既慢又没必要（几何与语言无关）。所以由**页面自己**决定
+   *   "要重画哪一块"；没实现 `onLangChange` 的页面什么都不用做 ——
+   *   静态文案已经由运行时的 restore + sweep 处理过了。
+   */
+  _notifyLang() {
+    const p = this._currentPage
+    if (p && typeof p.onLangChange === 'function') {
+      try { p.onLangChange() } catch (e) { console.warn('[router] 语言变更重渲染失败：', e) }
+    }
+  }
 
   _handleRoute() {
     const hash = location.hash.slice(1) || '/'

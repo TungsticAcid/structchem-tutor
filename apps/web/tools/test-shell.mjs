@@ -13,9 +13,13 @@
  *
  * 用法：node apps/web/tools/test-shell.mjs
  */
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
+// ★ 词汇表是**纯 JS**（不碰 DOM），可以从 Node 直接 import —— 正因如此，
+//   "模型看到的动作"与"页面实现的动作"才有可能在测试里逐条比对。
+import { VOCAB as orbitVOCAB } from '../../../modules/orbit/actions.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO = resolve(HERE, '..', '..', '..')
@@ -283,6 +287,121 @@ console.log('【⑩ 每个页面都有可命中的顶栏】')
     ok(warned >= 1, '没有可命中顶栏时会 warn（实机 --console 能把它变成红，而不是哑巴失效）',
       `warn 了 ${warned} 次`)
   }
+}
+
+console.log('【⑪ orbit：词汇表与页面实现逐条对齐（"声明了却调不动"）】')
+{
+  /**
+   * ★ 这一节守的是一条**本仓库反复踩**的缝：词汇表（模型看到的）与
+   *   ACTIONS 表（真正执行的）之间没有任何别的检查。
+   *
+   *   踩过的三次，形态各不相同，但都是"同源断言只保证名字对得上、不保证调得动"：
+   *     · 上游 `generateQuestion` 在 descriptor 里声明了，实现里没有；
+   *     · descriptor 与**死副本**互相印证（都引同一份陈旧来源），一直绿着却什么也没守住；
+   *     · 对称模块的 `listExamples` 引用了一个从未定义的常量，每次调用都抛——
+   *       而没有任何测试**调用过**它。
+   *
+   *   词汇表这边更危险：模型是照着它下发动作的，缺一个实现意味着
+   *   "模型每次用到那个能力都失败"，而失败信息还是"动作执行异常"。
+   *   所以这里**双向**比对：词汇表 ⊆ 实现、实现 ⊆ 词汇表。
+   */
+  const orbitSrc = readFileSync(resolve(REPO, 'apps/web/src/pages/orbit.js'), 'utf8')
+  const i0 = orbitSrc.indexOf('const ACTIONS = {')
+  if (i0 < 0) {
+    ok(false, '在 orbit.js 里找到 ACTIONS 表')
+  } else {
+    // 花括号配对求 ACTIONS 表本身的范围（不是"到下一个 } 为止"——
+    // 表里每个动作的方法体都是花括号）
+    let d = 0
+    let k = orbitSrc.indexOf('{', i0)
+    const start = k
+    for (;;) {
+      if (orbitSrc[k] === '{') d++
+      else if (orbitSrc[k] === '}') { d--; if (d === 0) break }
+      k++
+    }
+    const body = orbitSrc.slice(start + 1, k)
+    const impl = new Set()
+    for (const line of body.split('\n')) {
+      let m = /^ {4}([A-Za-z_$][\w$]*)\s*\(/.exec(line)
+      if (m) { impl.add(m[1]); continue }
+      m = /^ {4}([A-Za-z_$][\w$]*)\s*:\s*function/.exec(line)
+      if (m) impl.add(m[1])
+    }
+    const vocab = Object.keys(orbitVOCAB)
+    const missing = vocab.filter((a) => !impl.has(a))
+    const orphan = [...impl].filter((a) => vocab.indexOf(a) < 0).sort()
+    ok(missing.length === 0, `词汇表里 ${vocab.length} 个动作，页面 ACTIONS 里**都有实现**`,
+      missing.join(','))
+    ok(orphan.length === 0, '页面 ACTIONS 里没有词汇表之外的动作（模型看不到的孤儿）',
+      orphan.join(','))
+    ok(impl.size === vocab.length,
+      `两处条数相同（各 ${vocab.length} 个）`, `实现 ${impl.size} / 词汇表 ${vocab.length}`)
+
+    // ★ 动作在 ACTIONS 表里 ≠ 用户点得到。这次真栽过一次：改动的补丁没落盘，
+    //   ACTIONS 表齐全，而「＋ 加入当前轨道」按钮**根本没绑事件** ——
+    //   点下去毫无反应，控制台干净，测试全绿。
+    //   这两条钩子是用户进入/操控多轨道的**唯一入口**，所以显式点名。
+    ok(/els\.multiAddBtn\.addEventListener/.test(orbitSrc),
+      '「＋ 加入当前轨道」按钮真的绑了事件（不是只在 markup 里摆着）')
+    ok(/els\.multiList\.addEventListener/.test(orbitSrc),
+      '同屏轨道清单绑了事件（改色 / 显隐 / 删除）')
+  }
+}
+
+console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
+{
+  /**
+   * ★ 这一片源码此前**从未被解析过**：test-shell 把 main.js 当文本读（正则找名字），
+   *   orbit.js 只在实机里跑。于是出现过一次"全绿却整页白屏"：
+   *   orbit-markup.js 那个大模板字符串的 HTML 注释里写了一个反引号，
+   *   模板字符串当场被截断，后面的字成了 JS → SyntaxError，整页打不开。
+   *   1389 项断言全过，一条都没红。
+   *
+   * ★ 用 `node --check` 而不是自己写正则找反引号：它就是 Node 真正的解析器
+   *   （apps/web/package.json 有 "type":"module"，所以 .js 按 ESM 解析）。
+   *   语法错、括号不配、字符串未闭合、模板字符串被截断 —— 一次全抓。
+   *   （本仓库的教训：桩与自检若用自己的近似，就会在"实际能跑"的地方报红、
+   *     在"实际跑不了"的地方报绿。）
+   */
+  const walk = (dir, out) => {
+    for (const name of readdirSync(dir)) {
+      if (name === 'node_modules' || name === 'dist') continue
+      const f = resolve(dir, name)
+      if (statSync(f).isDirectory()) walk(f, out)
+      else if (name.endsWith('.js')) out.push(f)
+    }
+    return out
+  }
+  const files = walk(resolve(REPO, 'apps/web/src'), [])
+  const broken = []
+  for (const f of files) {
+    try {
+      execFileSync(process.execPath, ['--check', f], { stdio: 'pipe' })
+    } catch (e) {
+      // ★ 要报的是**那一句 SyntaxError**，不是栈。
+      //   第一版取的是 stderr 的最后两行，结果报出来的是 "at checkSyntax (...)"
+      //   和 "Node.js v24.19.0" —— 一句有用的话都没有，等于把排查线索扔了。
+      const lines = String(e.stderr || e.stdout || '').split('\n').map((l) => l.trim())
+      const msg = lines.find((l) => /^\w*Error: /.test(l)) || lines.find((l) => l) || '(无输出)'
+      const shown = f.replace(/\\/g, '/').replace(REPO.replace(/\\/g, '/') + '/', '')
+      broken.push(`${shown}：${msg.slice(0, 120)}`)
+    }
+  }
+  // ★ 断言“扫到了哪几个关键文件”而不是“扫到多少个”——
+  //   后者是个拍脑袋的数字（我第一版写 > 20，而实际只有 16 个，当场就红了），
+  //   而前者守的是“这个遍历真的走到了那些会白屏的文件”。
+  //   两个 *-markup.js 尤其要盯住：它们整份就是一个大模板字符串，
+  //   注释里混进一个反引号就当场截断（实测就是这么白屏的）。
+  const critical = ['src/main.js', 'src/pages/orbit.js', 'src/pages/orbit-markup.js',
+    'src/pages/symmetry.js', 'src/pages/symmetry-markup.js', 'src/pages/viewer.js',
+    'src/shell/router.js']
+  const rel = files.map((f) => f.replace(/\\/g, '/').replace(REPO.replace(/\\/g, '/') + '/apps/web/', ''))
+  const lost = critical.filter((c) => rel.indexOf(c) < 0)
+  ok(files.length >= critical.length, `扫到 ${files.length} 个前端源文件`, String(files.length))
+  ok(lost.length === 0, '这些会白屏的关键文件都在扫描范围内', lost.join(','))
+  ok(broken.length === 0, `全部 ${files.length} 个文件都能被解析（语法错会直接白屏）`,
+    broken.slice(0, 3).join(' ｜ '))
 }
 
 console.log('')

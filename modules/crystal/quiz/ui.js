@@ -22,6 +22,7 @@
  *      一条 assistant 消息，四个按钮就全绑不上，而页面不报错。
  */
 
+import { t, tr } from '../i18n-live.js'
 import { judgmentFor, shortFor } from './data/practice-questions.js'
 
 /** HTML 转义（题干与选项都可能含学生可读的化学式，但绝不能让其破坏结构） */
@@ -99,7 +100,7 @@ export function createQuizUI(deps = {}) {
     // ★ 直接调本地 handler——与模型调的是同一个函数，但省掉一次往返
     const r = module_.handlers.checkAnswer({ questionId, chosenIndex })
     if (r && r.error) {
-      panel.addChip(`判分失败：${r.error}`, 'warn')
+      panel.addChip(t('crystal.t.ui.1', { p1: (r.error) }), 'warn')
       return
     }
     answered.add(questionId)
@@ -152,14 +153,13 @@ export function createQuizUI(deps = {}) {
     // ★ 诊断动作**不在这里自动执行**：那会让画面在学生还没看懂时就变了。
     //   按 grade 节点的纪律，动作应由模型编排并逐步下发（学生点「下一步」）。
     if (!r.correct) {
-      panel.addChip(`错因：${r.causeLabel || '待诊断'}`, 'warn')
+      panel.addChip(t('crystal.t.ui.2', { p1: (r.causeLabel || t('crystal.quiz.toDiagnose')) }), 'warn')
       if (r.followUp && typeof panel.runAgent === 'function') {
         panel.runAgent(
-          '学生刚刚答错了一道题。'
-          + `错因类型：${r.causeType || '未归类'}（${r.causeLabel || ''}）。`
-          + '请按 grade 节点的纪律引导他：先下发诊断动作让他自己看出矛盾，'
-          + '**不要直接说出正确答案**，也不要用"你错了"开头。'
-          + `可参考的引导话术：${r.followUp}`,
+          tr('学生刚刚答错了一道题。')
+          + t('crystal.t.ui.3', { p1: (r.causeType || t('crystal.quiz.uncategorized')), p2: (r.causeLabel || '') })
+          + tr('请按 grade 节点的纪律引导他：先下发诊断动作让他自己看出矛盾，**不要直接说出正确答案**，也不要用"你错了"开头。')
+          + t('crystal.t.ui.4', { p1: (r.followUp) }),
         )
       }
     }
@@ -176,7 +176,7 @@ export function createQuizUI(deps = {}) {
     }
     app.storyboard.applySequence(actions, { auto: false }).then((r) => {
       if (r && r.failed && r.failed.length) {
-        panel.addChip(`有 ${r.failed.length} 个动作没被接受`, 'warn')
+        panel.addChip(t('crystal.t.ui.5', { p1: (r.failed.length) }), 'warn')
       }
     }).catch(() => { panel.addChip('下发演示动作失败', 'warn') })
   }
@@ -201,7 +201,7 @@ export function createQuizUI(deps = {}) {
   function startPractice(kp) {
     const meta = deps.kpLabel ? deps.kpLabel(kp) : String(kp || '').replace(/^crystal:/, '')
     session = { kp, kpLabel: meta, index: 0, correct: 0, kindCursor: 0 }
-    panel.addChip(`开始练习：${meta}（共 3 种题型轮换，随时可退出）`, 'info')
+    panel.addChip(t('crystal.t.ui.6', { p1: (meta) }), 'info')
     nextPracticeQuestion()
   }
 
@@ -211,7 +211,7 @@ export function createQuizUI(deps = {}) {
     const s = session
     session = null
     if (!silent) {
-      panel.addChip(`练习结束：共作答 ${s.index} 题，答对 ${s.correct} 题`, 'info')
+      panel.addChip(t('crystal.t.ui.7', { p1: (s.index), p2: (s.correct) }), 'info')
     }
   }
 
@@ -274,7 +274,7 @@ export function createQuizUI(deps = {}) {
       <div class="agent-practice-head">
         <span class="agent-practice-kp">${esc(s.kpLabel)}</span>
         <span class="agent-practice-kind">${kindTag}</span>
-        <span class="agent-practice-idx">第 ${s.index} 题</span>
+        <span class="agent-practice-idx">${t('crystal.t.ui.8', { p1: (s.index) })}</span>
         <button class="agent-practice-exit" type="button">退出练习</button>
       </div>`
 
@@ -358,16 +358,16 @@ export function createQuizUI(deps = {}) {
       bodyHtml = `<div class="agent-fb-head">正确答案：<b>${esc(p.answerText)}</b></div>`
         + (p.explanation ? `<div class="agent-fb-exp">${panel.renderRich ? panel.renderRich(p.explanation) : esc(p.explanation)}</div>` : '')
     } else if (q.kind === 'judge') {
-      bodyHtml = `<div class="agent-fb-head">正确答案：<b>${q.answer ? '正确' : '错误'}</b></div>
+      bodyHtml = `<div class="agent-fb-head">正确答案：<b>${q.answer ? t('crystal.quiz.judgeTrue') : t('crystal.quiz.judgeFalse')}</b></div>
         <div class="agent-fb-exp">${panel.renderRich ? panel.renderRich(q.exp) : esc(q.exp)}</div>`
     } else {
       const mine = studentAnswer
-        ? `<div class="agent-fb-exp agent-short-mine">你的作答：${esc(studentAnswer)}</div>` : ''
+        ? `<div class="agent-fb-exp agent-short-mine">${t('crystal.t.ui.9', { p1: (esc(studentAnswer)) })}</div>` : ''
       bodyHtml = mine
         + '<div class="agent-fb-head">参考答案</div>'
         + `<div class="agent-fb-exp">${panel.renderRich ? panel.renderRich(q.answer) : esc(q.answer)}</div>`
         + (q.keyPoints && q.keyPoints.length
-          ? `<div class="agent-fb-exp agent-short-points">要点：${q.keyPoints.map(esc).join('；')}</div>` : '')
+          ? `<div class="agent-fb-exp agent-short-points">${t('crystal.t.ui.10', { p1: (q.keyPoints.map(esc).join(t('crystal.quiz.pointSep'))) })}</div>` : '')
     }
     // 看过答案后禁止再点选项（否则"先看答案再选对"会污染正确率）
     card.querySelectorAll('.agent-opt, .agent-short-submit').forEach((b) => { b.disabled = true })
@@ -378,7 +378,7 @@ export function createQuizUI(deps = {}) {
   /** 选择题作答：走与本地面板同一条判分链（不经模型） */
   function answerChoice(q, chosenIndex, card) {
     const r = module_.handlers.checkAnswer({ questionId: q.id, chosenIndex })
-    if (r && r.error) return panel.addChip(`判分失败：${r.error}`, 'warn')
+    if (r && r.error) return panel.addChip(t('crystal.t.ui.1', { p1: (r.error) }), 'warn')
     card.querySelectorAll('.agent-opt').forEach((btn) => {
       btn.disabled = true
       const i = Number(btn.dataset.i)
@@ -406,7 +406,7 @@ export function createQuizUI(deps = {}) {
       else if (b === chosen) btn.classList.add('wrong')
     })
     if (session) { if (correct) session.correct++ }
-    const head = correct ? '✓ 答对了' : `✗ 答错了　正确答案是 <b>${q.answer ? '正确' : '错误'}</b>`
+    const head = correct ? '✓ 答对了' : `✗ 答错了　正确答案是 <b>${q.answer ? t('crystal.quiz.judgeTrue') : t('crystal.quiz.judgeFalse')}</b>`
     const exp = q.exp
       ? `<div class="agent-fb-exp">${panel.renderRich ? panel.renderRich(q.exp) : esc(q.exp)}</div>` : ''
     appendPracticeFeedback(card, `<div class="agent-fb-head">${head}</div>${exp}`)

@@ -68,6 +68,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* ★ 允许换行 + 允许子项收缩：英文标题/副标题/徽标都比中文长，
+   *   不换行时它们会一起把顶栏撑出视口（窄屏尤其明显）。 */
+  flex-wrap: wrap;
+  gap: 10px;
   padding: 14px 22px;
   border-bottom: 1px solid var(--line-soft);
   background: rgba(12, 17, 34, 0.7);
@@ -76,7 +80,7 @@
   top: 0;
   z-index: 10;
 }
-.orbit-page .brand { display: flex; align-items: center; gap: 12px; }
+.orbit-page .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .orbit-page .logo { font-size: 26px; }
 .orbit-page .brand h1 { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: 0.5px; }
 .orbit-page .subtitle { font-size: 12px; color: var(--text-dim); align-self: flex-end; margin-bottom: 3px; }
@@ -108,6 +112,10 @@
   grid-template-columns: 1fr 320px;
   gap: 18px;
 }
+/* ★ 栅格项默认 `min-width: auto`（= 内容宽度），内容一宽就把整列撑破，而外层
+ *   `overflow-x: hidden` 会把溢出**悄悄裁掉**。本仓库在晶体页踩过同一个坑
+ *   （"展示区太宽、模型不居中、右栏被挤出屏幕"），判据相同：**栅格子项必须 min-width:0**。 */
+.orbit-page .grid-main > * { min-width: 0; }
 .orbit-page .grid-charts {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -267,8 +275,16 @@
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   border: 2px solid #dbeaff; cursor: pointer;
 }
-.orbit-page .seg { display: inline-flex; background: var(--active); border-radius: 10px; padding: 3px; gap: 3px; }
-.orbit-page .seg.center { display: flex; width: fit-content; margin: 0 auto; }
+/* ★ 分段按钮**必须能换行**：中文两三个字时它是紧凑的一行，英文一上来就长得多
+ *   （"Spherical harmonics / Spatial wavefunction"、"Real solution / Complex solution"），
+ *   不换行会直接冲出右栏 —— 而右栏 `.panel-body` 是 `overflow-x: hidden`，
+ *   于是**看不到任何报错，只看到按钮被切掉一半**（实测：1440px 下 #targetSeg 右边界超出视口）。
+ *   `max-width: 100%` 保证它不会撑破父容器，`flex: 0 1 auto` 让按钮在极窄时也能收缩。 */
+.orbit-page .seg {
+  display: inline-flex; background: var(--active); border-radius: 10px; padding: 3px; gap: 3px;
+  flex-wrap: wrap; max-width: 100%;
+}
+.orbit-page .seg.center { display: flex; width: fit-content; max-width: 100%; margin: 0 auto; }
 .orbit-page .seg.small .seg-btn { font-size: 12px; padding: 5px 10px; }
 .orbit-page .seg.wrap { display: flex; flex-wrap: wrap; }
 .orbit-page .seg.wrap .seg-btn { flex: 0 0 auto; padding: 6px 11px; font-size: 12.5px; }
@@ -283,6 +299,8 @@
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 .orbit-page .seg-btn:hover { color: var(--text); }
 .orbit-page .seg-btn.active {
@@ -406,3 +424,64 @@ body.agent-open .chart-overlay { justify-content: flex-start; }
     margin-left: 2px;
 }
 .orbit-page .hint .multi-tip a:hover { filter: brightness(1.25); }
+
+
+/* --------------------------------------------------------------------------
+ * 同屏轨道清单（多轨道同屏）
+ *
+ * ★ 为什么每一行都带一个取色器而不是只给个色块：用户这一轮明确要的是
+ *   "同屏时能改每个轨道的颜色"——而四个面若都走相位色，就是四组一模一样的
+ *   红蓝瓣，根本分不清谁是谁。取色器是**输入端**，色块只是它的显示。
+ * ★ 取色器改的是顶点色，**不重建几何**（见 orbit.js 的 applyOrbitalColor），
+ *   所以拖动它是实时的；而"加一个轨道"要跑一次等值面流水线，会慢得多。
+ *   两种反馈速度必须让用户能分辨，故"生成中…"要显示出来。
+ * -------------------------------------------------------------------------- */
+.orbit-page .mini-btn {
+    appearance: none;
+    background: var(--active, #2b3d6b);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: var(--border-radius, 8px);
+    padding: 5px 12px;
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: filter .15s;
+}
+.orbit-page .mini-btn:hover { filter: brightness(1.18); }
+.orbit-page .mini-btn:disabled { opacity: .5; cursor: default; }
+
+.orbit-page .orb-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.orbit-page .orb-row {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto auto auto;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: var(--border-radius, 8px);
+    border: 1px solid transparent;
+}
+.orbit-page .orb-row:hover { border-color: var(--line); }
+/* 隐藏的轨道整行弱化，但**仍然可读** —— 它是"我关掉了哪个"的唯一线索 */
+.orbit-page .orb-row.is-off { opacity: .45; }
+.orbit-page .orb-eye { display: inline-flex; cursor: pointer; }
+.orbit-page .orb-eye input { cursor: pointer; }
+.orbit-page .orb-color {
+    width: 26px; height: 20px; padding: 0; cursor: pointer;
+    background: none; border: 1px solid var(--line); border-radius: 4px;
+}
+.orbit-page .orb-label {
+    font-size: 13px; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.orbit-page .orb-badge {
+    font-size: 10.5px; padding: 1px 6px; border-radius: 999px;
+    color: var(--text-dim); border: 1px solid var(--line);
+}
+.orbit-page .orb-state { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.orbit-page .orb-state.is-building { color: var(--accent-bright, var(--accent)); }
+.orbit-page .orb-del {
+    appearance: none; background: none; border: 0; cursor: pointer;
+    color: var(--text-dim); font-size: 15px; line-height: 1; padding: 0 4px;
+}
+.orbit-page .orb-del:hover { color: var(--accent-bright, var(--accent)); }

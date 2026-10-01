@@ -49,6 +49,11 @@ import {
   isUserOverridden, markUserOverride,
 } from '@modules/symmetry/data/settings.js'
 import { resolvedTheme, onThemeChange } from '@ui-kit/theme.js'
+// ★ 宿主侧 i18n（本页另有对称模块**自己**那一套，见上面的 import）：
+//   只用于两处**带变量**的信息面板文案（"{n} 号空间群"、"晶系 … · 点群 …"）——
+//   那两处是字符串拼接，模块自己那套 t() 不支持占位符，而 host 这套支持。
+//   别名 hostT：与模块的 t 一眼可分，免得后来者以为它们是同一个东西。
+import { t as hostT } from '@i18n/index.js'
 
 
 /** 页面实例（一次只挂一个；unmount 时释放） */
@@ -513,12 +518,18 @@ export function bootSymmetryPage(deps = {}) {
 
       const result = await analyzeSpaceGroup(structure)
       symmetryElements = operationsToSymmetryElements(result.operations)
+      // ★ 这两行是**带变量**的句子（空间群序号 / 晶系 / 点群 / Pearson 符号）：
+      //   拼接出来的串扫描替换够不着，故走宿主 i18n 的占位符（`{number}` 等）。
+      //   Pearson 符号本身是国际记号（如 cP4），中英通用，故只做"有没有"的条件拼接。
+      const pearson = result.pearsonSymbol ? ' · ' + result.pearsonSymbol : ''
       info = {
         title: structureTitle(structure) || title || structure.title || '晶体',
         formula: structureFormula(structure),
         groupSymbol: result.hmSymbol,
-        groupName: `${result.number} 号空间群`,
-        meta: `晶系 ${result.crystalSystem} · 点群 ${result.pointGroup}${result.pearsonSymbol ? ' · ' + result.pearsonSymbol : ''}`,
+        groupName: hostT('pages.symmetry.spaceGroupNo', { number: result.number }),
+        meta: hostT('pages.symmetry.crystalMeta', {
+          system: result.crystalSystem, point: result.pointGroup, pearson: pearson,
+        }),
         elements: symmetryElements,
         characterTable: getCharacterTable(result.pointGroup)
       }

@@ -21,16 +21,12 @@ export const HOST_REQUIREMENTS = [
   {
     key: 'view',
     required: true,
-    note: '视图句柄，须提供 setProps / getProps / setView / resetView / getViewState。'
-      + '★ 契约要点：setProps 必须走宿主自己的意图通路（晶体线由 page.applyIntent 保证），'
-      + '否则"用户操作"与"智能体操作"会走两条路，撤回、练习守卫都会失效。',
+    note: '视图句柄，须提供 setProps / getProps / setView / resetView / getViewState。★ 契约要点：setProps 必须走宿主自己的意图通路（晶体线由 page.applyIntent 保证），否则"用户操作"与"智能体操作"会走两条路，撤回、练习守卫都会失效。',
   },
   {
     key: 'catalog',
     required: true,
-    note: '晶体索引（crystalIndex：[{id, name, ...}]）。模块用它校验 id 合法性、'
-      + '生成 id 清单（listIds）。缺了它，openCrystal 会把每一个 id 都判为"未知"，'
-      + '模块看起来在跑，其实一句都答不上来。',
+    note: '晶体索引（crystalIndex：[{id, name, ...}]）。模块用它校验 id 合法性、生成 id 清单（listIds）。缺了它，openCrystal 会把每一个 id 都判为"未知"，模块看起来在跑，其实一句都答不上来。',
   },
   {
     key: 'loadData',
@@ -40,20 +36,17 @@ export const HOST_REQUIREMENTS = [
   {
     key: 'quiz',
     required: false,
-    note: '出题引擎（createQuizEngine 的返回值）。缺省时 teach 类工具**如实为空**，'
-      + '而不是塞一批"尚未实现"的占位工具——交给模型调不动的名字，它只会反复调用然后失败。',
+    note: '出题引擎（createQuizEngine 的返回值）。缺省时 teach 类工具**如实为空**，而不是塞一批"尚未实现"的占位工具——交给模型调不动的名字，它只会反复调用然后失败。',
   },
   {
     key: 'compute',
     required: false,
-    note: '确定性计算（必须是 tools.js 那一批：密度里有 Z 陷阱守卫，另写一份就会丢）。'
-      + '缺省时双晶体对比工具为空。',
+    note: '确定性计算（必须是 tools.js 那一批：密度里有 Z 陷阱守卫，另写一份就会丢）。缺省时双晶体对比工具为空。',
   },
   {
     key: 'mastery',
     required: false,
-    note: '掌握度模型。缺省时费曼复述评估仍可走，但学情不落盘'
-      + '（工具会如实回"本次未接入掌握度模型"）。',
+    note: '掌握度模型。缺省时费曼复述评估仍可走，但学情不落盘（工具会如实回"本次未接入掌握度模型"）。',
   },
   {
     key: 'skills',
@@ -63,9 +56,7 @@ export const HOST_REQUIREMENTS = [
   {
     key: 'practiceGuard',
     required: false,
-    note: '() => Set<图层名>：练习未作答时不许打开的图层。'
-      + '★ 缺省时**没有这道闸**——这是刻意的：它不是"能力"，是宿主自己要不要设的纪律。'
-      + '但宿主应当知道，不给它就没有结构性防护（提示词劝不住模型）。',
+    note: '() => Set<图层名>：练习未作答时不许打开的图层。★ 缺省时**没有这道闸**——这是刻意的：它不是"能力"，是宿主自己要不要设的纪律。但宿主应当知道，不给它就没有结构性防护（提示词劝不住模型）。',
   },
 ]
 

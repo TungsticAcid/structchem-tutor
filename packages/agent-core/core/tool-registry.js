@@ -23,6 +23,11 @@
  * 新增了节点白名单过滤与执行期二次拒签（orbit 原实现 14 个工具无条件全暴露，
  * 没有按节点授权裁剪——这是接入共享核时必须补上的一环）。
  */
+// ★ 这里的每一段文字都会作为**工具结果回灌给模型**（拒绝理由、异常说明），
+//   不是 DOM 文本 ⇒ 全部走 t()。
+// ★ 自己 import 字典（副作用即 registerDict），不依赖入口替你注册
+import '../i18n.js'
+import { t } from '../../i18n/index.js'
 import { resolveTools } from '../nodes/constraints.js'
 
 /**
@@ -127,26 +132,26 @@ export function createToolRegistry(opts = {}) {
     // 第一道之外的第二道：执行期再比对白名单
     if (!allowed || !allowed.has(name)) {
       return {
-        error: '工具 ' + name + ' 在当前决策节点不可用'
-          + (currentNode ? '（节点：' + currentNode + '）' : '')
-          + '。可用工具：' + available().join(', '),
+        error: t('agent.tool.notAllowed', { name })
+          + (currentNode ? t('agent.tool.notAllowedNode', { node: currentNode }) : '')
+          + t('agent.tool.notAllowedAvailable', { tools: available().join(', ') }),
       }
     }
     const fn = handlers[name]
-    if (typeof fn !== 'function') return { error: '工具尚未实现：' + name }
+    if (typeof fn !== 'function') return { error: t('agent.tool.notImplemented', { name }) }
 
     let args
     try {
       args = typeof argsJson === 'string' ? JSON.parse(argsJson || '{}') : (argsJson || {})
     } catch (e) {
-      return { error: '参数不是合法 JSON：' + (e && e.message) }
+      return { error: t('agent.tool.badJson', { msg: (e && e.message) }) }
     }
 
     try {
       const r = await fn(args)
       return r == null ? { ok: true } : r
     } catch (err) {
-      return { error: '工具执行异常：' + (err && err.message ? err.message : String(err)) }
+      return { error: t('agent.tool.execError', { msg: (err && err.message ? err.message : String(err)) }) }
     }
   }
 

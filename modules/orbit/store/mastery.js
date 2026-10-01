@@ -18,6 +18,9 @@
  * 推荐依据：掌握度最低 + 与当前轨道的关联度（取自知识点—轨道映射矩阵）。
  * 数据只存本机 localStorage，不上传。
  */
+import '../i18n.js'
+import { t } from '../../../packages/i18n/index.js'
+
 const MasteryModel = (function () {
   'use strict';
 
@@ -30,16 +33,23 @@ const MasteryModel = (function () {
 
   // （键名改由 configure 注入，见上）
 
+  /**
+   * 知识点元信息。
+   *
+   * ★ `name` 是取值器而不是常量：它既进 `toText()`（给模型看），也进
+   *   core/question-engine.js 的知识点选择按钮（进 DOM）—— 两处都必须跟着当前语言走。
+   *   写成常量就会把 import 时的语言固化下来。
+   */
   const KP_META = {
-    K1: { name: '量子数与轨道命名', orbital: [{ n: 1, l: 0, m: 0 }, { n: 2, l: 1, m: 0 }, { n: 3, l: 2, m: 0 }] },
-    K2: { name: '波函数与分离变量', orbital: [{ n: 3, l: 1, m: 0 }] },
-    K3: { name: '径向函数辨析 R/R²/D', orbital: [{ n: 1, l: 0, m: 0 }, { n: 3, l: 0, m: 0 }] },
-    K4: { name: '角度分布与轨道形状', orbital: [{ n: 2, l: 1, m: 0 }, { n: 3, l: 2, m: 1 }] },
-    K5: { name: '节面与节点计数', orbital: [{ n: 3, l: 0, m: 0 }, { n: 3, l: 1, m: 0 }, { n: 3, l: 2, m: 0 }] },
-    K6: { name: '波函数的实数解与复数解', orbital: [{ n: 2, l: 1, m: 1 }] },
-    K7: { name: '相位与符号', orbital: [{ n: 3, l: 2, m: 2 }] },
-    K8: { name: '概率诠释与 |ψ|²', orbital: [{ n: 1, l: 0, m: 0 }] },
-    K9: { name: '叠加态 / 杂化 / 力学量', orbital: [{ n: 3, l: 2, m: 0 }] },
+    K1: { get name() { return t('orbit.kp.K1') }, orbital: [{ n: 1, l: 0, m: 0 }, { n: 2, l: 1, m: 0 }, { n: 3, l: 2, m: 0 }] },
+    K2: { get name() { return t('orbit.kp.K2') }, orbital: [{ n: 3, l: 1, m: 0 }] },
+    K3: { get name() { return t('orbit.kp.K3') }, orbital: [{ n: 1, l: 0, m: 0 }, { n: 3, l: 0, m: 0 }] },
+    K4: { get name() { return t('orbit.kp.K4') }, orbital: [{ n: 2, l: 1, m: 0 }, { n: 3, l: 2, m: 1 }] },
+    K5: { get name() { return t('orbit.kp.K5') }, orbital: [{ n: 3, l: 0, m: 0 }, { n: 3, l: 1, m: 0 }, { n: 3, l: 2, m: 0 }] },
+    K6: { get name() { return t('orbit.kp.K6') }, orbital: [{ n: 2, l: 1, m: 1 }] },
+    K7: { get name() { return t('orbit.kp.K7') }, orbital: [{ n: 3, l: 2, m: 2 }] },
+    K8: { get name() { return t('orbit.kp.K8') }, orbital: [{ n: 1, l: 0, m: 0 }] },
+    K9: { get name() { return t('orbit.kp.K9') }, orbital: [{ n: 3, l: 2, m: 0 }] },
   };
 
   let state = null;
@@ -61,7 +71,7 @@ const MasteryModel = (function () {
 
   function update(kp, delta) {
     load();
-    if (!state[kp]) return { error: '未知知识点：' + kp };
+    if (!state[kp]) return { error: t('orbit.kp.unknown', { kp }) };
     const s = state[kp];
     s.score += Number(delta) || 0;
     s.lastAt = Date.now();
@@ -90,7 +100,8 @@ const MasteryModel = (function () {
     load();
     return Object.keys(KP_META).map(function (kp) {
       const s = state[kp];
-      const tag = s.mastered ? '已掌握' : (s.score > 0 ? '学习中' : (s.wrong ? '待巩固' : '未接触'));
+      const tag = s.mastered ? t('orbit.kp.mastered')
+        : (s.score > 0 ? t('orbit.kp.learning') : (s.wrong ? t('orbit.kp.review') : t('orbit.kp.untouched')));
       return kp + '(' + KP_META[kp].name + '):' + tag + '/' + s.score;
     }).join('；');
   }
@@ -124,7 +135,7 @@ const MasteryModel = (function () {
     const n = Math.max(1, Math.min(count || 1, 3));
     return {
       recommended: list.slice(0, n),
-      note: '优先推荐掌握度最低且与当前轨道关联度高的知识点',
+      note: t('orbit.mastery.recommendNote'),
     };
   }
 

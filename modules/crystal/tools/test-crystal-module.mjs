@@ -14,6 +14,11 @@
 import { createCrystalFacade } from '../facade.js'
 import { validate, listActions, LAYER_PROPS } from '../actions.js'
 import { assertModuleContract } from '../../../packages/module-contract/index.js'
+// ★ 模块名要**对着 descriptor 断言**，而不是在测试里再抄一份字面量：
+//   抄一份的下场是"改名字要改两处"，而漏掉一处的表现是测试红得莫名其妙
+//   （本轮：模块名按参赛配图从「晶体结构」改成「晶典在线」，这条断言就是唯一被它打红的地方）。
+//   真正的判据是**门户上只有一个名字** —— 也就是 descriptor 与实现一致。
+import crystalDescriptor from '../../../packages/agent-core/registry/descriptors/crystal.js'
 
 let pass = 0
 let fail = 0
@@ -77,7 +82,9 @@ section('契约合规')
   const r = assertModuleContract(F, { label: 'crystal' })
   check('门面通过模块契约校验（必需方法齐备）', r.ok === true, r.missingRequired.join(','))
   check('缺 highlightAtoms 被报为缺失（而非假装支持）', r.missing.includes('highlightAtoms'), r.missing.join(','))
-  check('门面 id/title 正确', F.id === 'crystal' && F.title === '晶体结构')
+  check('门面 id/title 与 descriptor 一致（门户上只有一个名字）',
+    F.id === crystalDescriptor.id && F.title === crystalDescriptor.title,
+    `facade="${F.title}" descriptor="${crystalDescriptor.title}"`)
 }
 
 // ============================================================================

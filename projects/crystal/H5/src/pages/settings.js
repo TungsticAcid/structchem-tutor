@@ -8,6 +8,12 @@ import {
   getAllVisualColors, setVisualColor, resetVisualColors
 } from '../data/settings.js'
 import { router } from '../adapters/router.js'
+// ★ 相对路径而不是 `@i18n/index.js` 别名：本文件同时被统一壳（有别名）与
+//   `projects/crystal/H5` 独立页（**没有**别名）引用，只有相对路径两边都认。
+import { t, tsrc } from '../../../../../packages/i18n/index.js'
+
+/** 「周期表 / 列表」切换按钮上的字（提到模板串外面，扫描替换才够得着，见 HOWTO §4） */
+const VIEW_MODE_LABELS = { grid: '周期表', list: '列表' }
 
 const VISUAL_COLOR_KEYS = [
   { key: 'bgColor', label: '背景颜色' },
@@ -191,7 +197,7 @@ export class SettingsPage {
       <div class="section-header">
         <span class="section-title">元素颜色</span>
         <span class="reset-btn" id="resetElemBtn">恢复默认</span>
-        <span class="view-toggle" id="viewToggleBtn">${this._viewMode === 'grid' ? '周期表' : '列表'}</span>
+        <span class="view-toggle" id="viewToggleBtn">${VIEW_MODE_LABELS[this._viewMode] || VIEW_MODE_LABELS.list}</span>
       </div>
       <p class="section-desc">点击元素可自定义其在3D视图中的显示颜色</p>
       <div class="color-${this._viewMode === 'grid' ? 'grid' : 'pt'}">${elemHtml}</div>
@@ -249,7 +255,13 @@ export class SettingsPage {
   _renderPicker() {
     if (!this._pickerVisible) return ''
     const target = this._pickerTarget || {}
-    const title = target.type === 'visual' ? `选择${target.label}颜色` : `选择 ${target.key || ''} 的颜色`
+    // ★ 标题里带变量（颜色名 / 元素符号），扫描替换够不着 → 必须走 `t()`。
+    //   这条在**点击那一刻**才求值，所以换语言后下次打开就是新语言，不存在"卡住"。
+    //   ★ 颜色名本身是**数据字段**、也在 `text` 表里：它嵌进变量位后不再经过 DOM
+    //     扫描，故先用 `tsrc()` 翻一道（中文模式下回 null，原样用中文）。
+    const title = target.type === 'visual'
+      ? t('h5.settings.pickVisualColor', { label: tsrc(target.label) || target.label })
+      : t('h5.settings.pickElementColor', { key: target.key || '' })
 
     return `
     <div class="picker-overlay" id="pickerOverlay">

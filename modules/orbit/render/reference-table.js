@@ -17,21 +17,26 @@
  * 本模块依赖 assets/ref/ 下的两张表格图片，这两张图**未随仓库分发**
  * （静态资源的取舍见 .gitignore）。图片缺失时面板给出说明而不是裂图。
  */
+// ★ 字典的副作用 import：TABLES 的标题/说明都走 t() 现取（它们是 img.alt 与
+//   textContent，不是 DOM 里原样写死的中文，扫描替换够不着）。
+import '../i18n.js'
+import { t } from '../../../packages/i18n/index.js'
+
 const ReferenceTable = (function () {
   'use strict';
 
   const TABLES = {
     R: {
       src: 'assets/ref/R-table.jpg',
-      title: '表 2.2.4　函数 R_{n,l}(r)',
-      source: '表 2.2.4　函数 R_{n,l}(r)',
-      note: '含核电荷 Z 的显式闭式：R₁₀ / R₂₀ / R₂₁ / R₃₀ / R₃₁ / R₃₂',
+      title: 'orbit.reftable.R.title',
+      source: 'orbit.reftable.R.title',
+      note: 'orbit.reftable.R.note',
     },
     Y: {
       src: 'assets/ref/Y-table.jpg',
-      title: '表 2.2.3　函数 Y(θ,φ) 的解',
-      source: '表 2.2.3　函数 Y(θ,φ) 的解',
-      note: '复球谐 Y_l^m 与实球谐（Y_{p_z} / Y_{d_z²} / Y_{d_xz} …）对照',
+      title: 'orbit.reftable.Y.title',
+      source: 'orbit.reftable.Y.title',
+      note: 'orbit.reftable.Y.note',
     },
   };
 
@@ -81,11 +86,12 @@ const ReferenceTable = (function () {
 
   function show(which) {
     const p = build();
-    const t = TABLES[which] || TABLES.R;
+    // ★ 局部变量不叫 `t`：本模块的 `t` 是 i18n 的取值函数，同名会把译文取值弄坏。
+    const tb = TABLES[which] || TABLES.R;
     p.querySelectorAll('.reftable-tabs .seg-btn').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-t') === which);
     });
-    p.querySelector('.reftable-note').textContent = t.note;
+    p.querySelector('.reftable-note').textContent = tr(tb.note);
 
     const img = p.querySelector('.reftable-img');
     const fb = p.querySelector('.reftable-fallback');
@@ -98,7 +104,7 @@ const ReferenceTable = (function () {
       fb.innerHTML =
         '<div class="reftable-fb-title">本仓库未包含这两张表格图片</div>' +
         '<div class="reftable-fb-body">' +
-        '请查阅结构化学教材中对应的 <b>' + escapeText(t.source) + '</b>。<br>' +
+        '请查阅结构化学教材中对应的 <b>' + escapeText(tr(tb.source)) + '</b>。<br>' +
         '本项目参照的书目见仓库 README 的「参考书目」章节。' +
         '</div>';
     };
@@ -108,10 +114,32 @@ const ReferenceTable = (function () {
     };
     img.classList.remove('hidden');
     fb.classList.add('hidden');
-    img.alt = t.title;
-    img.src = t.src;
+    img.alt = tr(tb.title);
+    img.src = tb.src;
     p.classList.add('show');
     p.dataset.current = which;
+  }
+
+  /** 取译文：TABLES 里存的是**键**（见文件顶部说明），真正取值在用的那一刻 */
+  function tr(key) { return t(key) }
+
+  /**
+   * 语言切换后重写面板上那几处现取的文字。
+   * ★ 面板若开着，说明与 alt 都是 t() 写进去的，扫描替换够不着；
+   *   ★ 顺带重挂一次 onerror 也没必要 —— 换一次说明即可，路径不变。
+   */
+  function refreshChrome() {
+    if (!panel || !panel.classList.contains('show')) return;
+    const which = panel.dataset.current || 'R';
+    const tb = TABLES[which] || TABLES.R;
+    panel.querySelector('.reftable-note').textContent = tr(tb.note);
+    panel.querySelector('.reftable-img').alt = tr(tb.title);
+  }
+
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('langchange', function () {
+      try { refreshChrome(); } catch (e) { /* 换语言时重写参考表失败不该影响切换本身 */ }
+    });
   }
 
   function escapeText(s) {

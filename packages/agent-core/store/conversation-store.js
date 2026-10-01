@@ -36,6 +36,14 @@
  * 参考实现：orbit/H5/js/agent/conv-store.js（674 行）。本文件按本仓库的约束重写，
  * 但保留了它用真实故障换来的三条：编号水位要跟上、裁剪不能砍头、切分支先 stop 队列。
  */
+// ★ 会话默认标题 `新对话` **刻意不在这里走 t()**：它是**存盘的数据**（用户可改名，
+//   面板把它当文本节点渲染）。若在创建时取当前语言，中文下建的会话切到英文后标题就
+//   永远停在中文；反过来更糟——英文下建的会话回不到中文。故它登记在 `./i18n.js`
+//   的 `text` 表里，由 DOM 扫描替换按**当前语言**渲染，数据保持语言中立。
+//   唯一需要翻译的是回灌给模型的那条占位说明（它进的是消息历史，不是 DOM）。
+// ★ 自己 import 字典（副作用即 registerDict），不依赖入口替你注册
+import '../i18n.js'
+import { t } from '../../i18n/index.js'
 
 /** 存储键前缀 */
 const KEY_PREFIX = 'crystal.agent.conv'
@@ -518,7 +526,7 @@ export function createConversationStore(opts = {}) {
       if (paired) continue
       appendNode({
         role: 'tool', tool_call_id: tid,
-        content: JSON.stringify({ aborted: true, note: '（此调用未执行完，占位以保持历史合法）' }),
+        content: JSON.stringify({ aborted: true, note: t('agent.store.abortedPlaceholder') }),
       })
       fixed++
     }
