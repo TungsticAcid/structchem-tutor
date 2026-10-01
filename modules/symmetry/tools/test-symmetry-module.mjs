@@ -14,6 +14,8 @@
  */
 import { createModule } from '../index.js'
 import { assertModuleContract, REQUIRED_METHODS } from '../../../packages/module-contract/index.js'
+// 示例分子的化学合理性检查要用它（见文件末那节）
+import { EXAMPLES } from '../data/examples-index.js'
 
 let pass = 0
 let fail = 0
@@ -319,6 +321,94 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
     check('每个动作都有 label / group / desc',
       acts.every(([, v]) => v.label && v.group && v.desc),
       acts.filter(([, v]) => !(v.label && v.group && v.desc)).map(([k]) => k).join(','))
+  }
+}
+
+// ============================================================================
+// 示例分子的**化学合理性**（坐标本身对不对）
+// ============================================================================
+{
+  /**
+   * ★ 这一节守的是一次实测踩到的坑：三苯甲烷的坐标把三个苯环都接反了 ——
+   *   环的对位碳落在中心碳上（0.10 Å），本该成键的异位碳在 2.90 Å 外。
+   *   **画面看起来仍是"三苯甲烷"**，点群识别也照样给 C3（因为错得"对称"），
+   *   所以既没有报错、也没有任何既有断言变红。
+   *
+   *   判据是**化学常识**，不是"和某个基线比"：
+   *     · 没有两个原子重叠（最短间距 ≥ 0.9 Å）
+   *     · 每个 H 恰好连一个重原子
+   *     · 每个重原子至少有一个近邻（不飘着）
+   *     · 每个原子不超配（按元素的常见键长设阈值）
+   */
+  const el = (a) => a.element || a.el || a.symbol
+  const dist = (a, b) => Math.hypot(a.xyz[0] - b.xyz[0], a.xyz[1] - b.xyz[1], a.xyz[2] - b.xyz[2])
+  /**
+   * 成键判据：两原子的**共价半径之和 + 0.45 Å** 之内算挨着。
+   * ★ 为什么不用「按元素定一个固定阈值」：那样 Xe–F（1.935 Å）会卡在阈值边上被判成"飘着"，
+   *   而 SF₆ / IF₅ / 二茂铁 / Co(en)₃ 这些**本来就是高配位**的也会被误判。
+   *   按半径成对判就不会：Xe–F 的判据是 2.42、Fe–C 是 2.53。
+   */
+  const R_COV = { H: 0.31, B: 0.84, C: 0.76, N: 0.71, O: 0.66, F: 0.57, P: 1.07,
+    S: 1.05, Cl: 1.02, Br: 1.20, I: 1.39, Xe: 1.40, Fe: 1.32, Co: 1.26 }
+  const bonded = (a, b, d) => d <= (R_COV[a] || 0.9) + (R_COV[b] || 0.9) + 0.45
+
+  const overlap = []
+  const loneH = []
+  const floating = []
+  let mols = 0
+
+  for (const ex of EXAMPLES) {
+    if (ex.category !== 'molecule' || !ex.structure || !ex.structure.atoms) continue
+    mols++
+    const A = ex.structure.atoms
+    const E = A.map(el)
+    for (let i = 0; i < A.length; i++) {
+      for (let j = i + 1; j < A.length; j++) {
+        const d = dist(A[i], A[j])
+        if (d < 0.9) overlap.push(`${ex.id}: ${E[i]}${i}–${E[j]}${j} = ${d.toFixed(3)} Å`)
+      }
+    }
+    for (let i = 0; i < A.length; i++) {
+      let n = 0
+      for (let j = 0; j < A.length; j++) {
+        if (i !== j && bonded(E[i], E[j], dist(A[i], A[j]))) n++
+      }
+      if (E[i] === 'H') {
+        let heavy = 0
+        for (let j = 0; j < A.length; j++) {
+          if (i !== j && E[j] !== 'H' && dist(A[i], A[j]) <= 1.35) heavy++
+        }
+        if (heavy !== 1) loneH.push(`${ex.id}: H${i} 的重原子邻居数 = ${heavy}`)
+      } else {
+        if (n === 0) floating.push(`${ex.id}: ${E[i]}${i} 没有任何成键邻居`)
+      }
+    }
+  }
+
+  check(`扫了 ${mols} 个分子示例`, mols > 20, String(mols))
+  check('没有原子重叠（最短间距 ≥ 0.9 Å）', overlap.length === 0, overlap.slice(0, 4).join('；'))
+  check('每个 H 恰好连一个重原子', loneH.length === 0, loneH.slice(0, 4).join('；'))
+  check('没有飘着的重原子', floating.length === 0, floating.slice(0, 4).join('；'))
+
+  // ★ 按参数生成的示例，键长必须是**构造出来的**那个值（而不是"差不多"）
+  {
+    const tpm = EXAMPLES.find((e) => e.id === 'triphenylmethane')
+    if (tpm) {
+      const A = tpm.structure.atoms
+      const dIpso = dist(A[0], A[2])
+      check('三苯甲烷：中心–异位 = 1.52 Å（手敲那份是 2.90）',
+        Math.abs(dIpso - 1.52) < 0.01, dIpso.toFixed(3))
+      check('三苯甲烷：中心–对位 ≈ 4.24 Å（环朝外长，不是反过来）',
+        Math.abs(dist(A[0], A[5]) - 4.24) < 0.05, dist(A[0], A[5]).toFixed(3))
+    }
+    const s8 = EXAMPLES.find((e) => e.id === 's8')
+    if (s8) {
+      const A = s8.structure.atoms
+      const L = dist(A[0], A[1])
+      check('环八硫：S–S = 2.06 Å（手敲那份是 2.354）', Math.abs(L - 2.06) < 0.01, L.toFixed(3))
+    }
+    check('碗烯已撤下（坐标错乱且理想化模型下无法重建）',
+      !EXAMPLES.some((e) => e.id === 'corannulene'))
   }
 }
 

@@ -49,6 +49,23 @@ export class HomePage {
     this._available = new Set(ctx.available || [])
     this._theme = ctx.theme || 'dark'
     this._container = null
+    /**
+     * 首页上的设置回调（都由宿主提供）。
+     *
+     * ★ 为什么这些设置放在首页而不是只藏在智能体面板里：
+     *   「界面风格」与「界面语言」是**与具体模块无关**的偏好，用户第一次打开应用
+     *   就会想调；而面板（⚙）要先进对话、还只在一处。实测本仓库此前**根本没有**
+     *   主题的界面入口 —— 只有 `window.__chemAgent.theme` 这个调试把手。
+     * ★ 全部可选：没给就**不渲染那一行**，而不是渲染一个点了没反应的控件
+     *   （"看起来能用、其实没接"是本仓库反复记为缺陷的形态）。
+     */
+    this._ui = {
+      getTheme: ctx.getTheme || null,
+      onTheme: ctx.onTheme || null,
+      getLang: ctx.getLang || null,
+      onLang: ctx.onLang || null,
+      onOpenSettings: ctx.onOpenSettings || null,
+    }
     // ★ 按授课次序排（缺失的排到最后，而不是排到最前——"没标注"不该抢占首位）
     this._modules.sort((a, b) => {
       const oa = typeof a.teachingOrder === 'number' ? a.teachingOrder : Number.MAX_SAFE_INTEGER
@@ -73,11 +90,59 @@ export class HomePage {
         window.location.hash = '#/' + id
       })
     })
+
+    // ---- 设置区：分段控件（界面风格 / 界面语言）与打开完整设置 ----
+    this._container.querySelectorAll('[data-set]').forEach((el) => {
+      el.addEventListener('click', () => {
+        const kind = el.dataset.set
+        const v = el.dataset.v
+        if (kind === 'theme' && this._ui.onTheme) this._ui.onTheme(v)
+        if (kind === 'lang' && this._ui.onLang) this._ui.onLang(v)
+        // 就地更新高亮，**不整页重渲** —— 重渲会把用户刚点的那一下的视觉反馈冲掉，
+        // 看着像"点了没反应"。主题/语言生效后页面自己会跟着变。
+        el.parentElement.querySelectorAll('.pl-seg-btn')
+          .forEach((b) => b.classList.toggle('is-on', b === el))
+      })
+    })
+    const openBtn = this._container.querySelector('[data-act="open-settings"]')
+    if (openBtn && this._ui.onOpenSettings) {
+      openBtn.addEventListener('click', () => this._ui.onOpenSettings())
+    }
   }
 
   unmount() {
     if (this._container) this._container.innerHTML = ''
     this._container = null
+  }
+
+  /**
+   * 首页底部的设置区（界面风格 · 界面语言 · 打开完整设置）。
+   *
+   * ★ 只渲染**真的接上了**的行：回调没给就不出这一行，而不是给出一个
+   *   点了没反应的控件 —— 后者正是本仓库反复记为缺陷的形态。
+   */
+  _renderSettings() {
+    const segOf = (kind, cur, pairs) => pairs.map(([v, label]) =>
+      '<button type="button" class="pl-seg-btn' + (v === cur ? ' is-on' : '') +
+      '" data-set="' + kind + '" data-v="' + v + '">' + label + '</button>').join('')
+    const rows = []
+    if (this._ui.getTheme && this._ui.onTheme) {
+      rows.push('<div class="pl-set-row"><span class="pl-set-label">界面风格</span>'
+        + '<span class="pl-seg">' + segOf('theme', this._ui.getTheme() || 'system',
+          [['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']]) + '</span></div>')
+    }
+    if (this._ui.getLang && this._ui.onLang) {
+      rows.push('<div class="pl-set-row"><span class="pl-set-label">界面语言</span>'
+        + '<span class="pl-seg">' + segOf('lang', this._ui.getLang() || 'zh',
+          [['zh', '中文'], ['en', 'English']]) + '</span>'
+        + '<span class="pl-set-hint">目前作用于「点群观鉴」</span></div>')
+    }
+    if (this._ui.onOpenSettings) {
+      rows.push('<div class="pl-set-row"><span class="pl-set-label">模型与教学偏好</span>'
+        + '<button type="button" class="pl-set-link" data-act="open-settings">'
+        + '打开设置（API Key · 模型 · 教学偏好）→</button></div>')
+    }
+    return rows.length ? '<div class="pl-settings">' + rows.join('') + '</div>' : ''
   }
 
   _render() {
@@ -104,6 +169,7 @@ export class HomePage {
           <p class="pl-sub">一个中枢 · 可插拔教学模块 —— 问它问题，它会一边讲一边把画面演出来</p>
         </header>
         <nav class="pl-list">${rows}</nav>
+        ${this._renderSettings()}
         <footer class="pl-foot">纯前端 · 数值由程序计算（防幻觉）· 模型由使用者自备（BYOK）</footer>
       </div>
       <style>
@@ -184,6 +250,33 @@ export class HomePage {
           margin-top: 64px; font-size: 11.5px; letter-spacing: .06em;
           color: var(--text-dim, #9aa7c6); opacity: .75;
         }
+        /* ---- 设置区：与模块列表同一套"极简学术风"，不另做卡片 ---- */
+        .pl-settings {
+          margin-top: 56px; padding-top: 28px;
+          border-top: 1px solid var(--line-soft, rgba(255,255,255,.08));
+          display: flex; flex-direction: column; gap: 14px;
+        }
+        .pl-set-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .pl-set-label {
+          min-width: 7.5em; font-size: 12px; letter-spacing: .08em;
+          color: var(--text-dim, #9aa7c6);
+        }
+        .pl-seg { display: inline-flex; border: 1px solid var(--line, #2a3558); border-radius: 8px; overflow: hidden; }
+        .pl-seg-btn {
+          appearance: none; background: transparent; border: 0; cursor: pointer;
+          color: var(--text-dim, #9aa7c6); font-size: 12.5px; padding: 6px 12px;
+          font-family: inherit; transition: background .15s, color .15s;
+        }
+        .pl-seg-btn + .pl-seg-btn { border-left: 1px solid var(--line, #2a3558); }
+        .pl-seg-btn:hover { color: var(--text, #e8ecf7); }
+        .pl-seg-btn.is-on { background: var(--active, #2b3d6b); color: var(--text, #e8ecf7); }
+        .pl-set-hint { font-size: 11.5px; color: var(--text-dim, #9aa7c6); opacity: .8; }
+        .pl-set-link {
+          appearance: none; background: transparent; border: 0; padding: 0; cursor: pointer;
+          color: var(--accent, #55c2ff); font-size: 12.5px; font-family: inherit;
+          text-decoration: underline; text-underline-offset: 3px;
+        }
+        .pl-set-link:hover { filter: brightness(1.2); }
         @media (max-width: 560px) {
           .portal { padding: 64px 22px 48px; }
           .pl-head h1 { font-size: 30px; }

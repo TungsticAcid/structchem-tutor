@@ -115,6 +115,25 @@ export class SymmetryViewer {
   }
 
   /** 更新正交视锥（缩放） */
+  /**
+   * 由"建议半径"算视锥的**竖直**全高。
+   *
+   * ★ 为什么不能用 `半径 × 常数`（原先写死 ×1.2）：`suggestedRadius` 来自场景构建器，
+   *   它等于"最远原子的距心距离 **+ 1.5 Å 留白**"，所以分子**直径 ≈ 2×(半径−1.5)**，
+   *   而 ×1.2 给出的视高只有 1.2×半径 —— **比直径还小**，大分子直接溢出视口。
+   *   实测：苯、三苯甲烷都溢出；小分子因为构建器有 3.0 的下限才没露馅。
+   * ★ 除以 min(1, aspect)：正交相机的 frustumSize 是**竖直**全高，水平是 frustumSize×aspect。
+   *   宽屏时竖直是紧的那一边、窄屏时水平才是 —— 取 min 让两边都装得下
+   *   （与晶体取景那处是同一套修法）。
+   */
+  _frustumFor(radius) {
+    const w = this.container.clientWidth || window.innerWidth
+    const h = this.container.clientHeight || window.innerHeight
+    const aspect = w / (h || 1)
+    const fitR = Math.max(0.5, radius - 1.5)      // 去掉构建器加的那 1.5 Å 留白
+    return 2 * fitR * 1.25 / Math.min(1, aspect)
+  }
+
   _updateFrustum() {
     const s = this._state
     const width = this.container.clientWidth || window.innerWidth
@@ -173,7 +192,7 @@ export class SymmetryViewer {
     // 切换结构时重置视角；同一结构改设置时保留视角
     if (!preserveView && suggestedRadius) {
       this._resetView(Math.PI / 4, Math.atan(Math.sqrt(2)), suggestedRadius)
-      s.frustumSize = suggestedRadius * 1.2
+      s.frustumSize = this._frustumFor(suggestedRadius)
       this._updateFrustum()
     }
     this._updateCameraPosition()
@@ -210,7 +229,7 @@ export class SymmetryViewer {
   resetView() {
     const radius = this._currentRadius || DEFAULT_RADIUS
     this._resetView(Math.PI / 4, Math.atan(Math.sqrt(2)), radius)
-    this._state.frustumSize = radius * 1.2
+    this._state.frustumSize = this._frustumFor(radius)
     this._updateFrustum()
     this._updateCameraPosition()
     if (this._state.root) {

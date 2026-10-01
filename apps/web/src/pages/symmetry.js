@@ -603,6 +603,12 @@ export function bootSymmetryPage(deps = {}) {
    *   与模型完全同源。
    */
   function renderFromState(snap) {
+    // ★ 界面语言也由**模块状态**驱动（放在最前：后面所有渲染文案都按它取）。
+    //   缺了这一步，模型下发 setLanguage 时页面纹丝不动 —— 而它**不报错**。
+    //   赋值前先比一下：i18n.setLang 会派发 langchange，而那个事件会让整页重渲染，
+    //   不比就会"渲染→派发→再渲染"地转圈。
+    if (snap && snap.language && i18n.lang !== snap.language) i18n.setLang(snap.language)
+
     if (!snap) return
     const showSym = snap.showSymmetry !== false
     const showLb = !!snap.showLabels
@@ -855,7 +861,13 @@ export function bootSymmetryPage(deps = {}) {
   })
 
   document.getElementById('set-lang').addEventListener('change', (e) => {
-    i18n.setLang(e.target.value)   // 派发 langchange → 全局重渲染
+    // ★ 走动作，与模型同一条通路（门面持有 language，renderFromState 再落到 i18n）。
+    //   原先直接调 i18n.setLang —— 于是"模型改语言"页面完全不知道、
+    //   "人改语言"模型那边也不知道，同一个状态分裂成两份真源。
+    //   独立页（没有门面）时退回本地设置。
+    if (!dispatchDisplay('setLanguage', { lang: e.target.value }, null)) {
+      i18n.setLang(e.target.value)
+    }
   })
 
   document.getElementById('set-anim-speed').addEventListener('input', (e) => {

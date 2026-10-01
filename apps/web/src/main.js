@@ -367,6 +367,40 @@ const orbit = createOrbitModule({
   skills,
 })
 
+/**
+ * 模块 id → 模块对象。
+ * ★ 为什么需要这张表：面板的空态、设置项这些**宿主层**的东西要按当前模块取内容，
+ *   而 `app.listModules()` 只给 id。手写三处 `if (id === 'crystal')` 会在加第四个
+ *   模块时静默漏掉一个分支——那种漏洞表现为"新模块下显示的还是别人的话"。
+ */
+const MODULES_BY_ID = { crystal, symmetry, orbit }
+
+/**
+ * 界面语言（宿主级偏好）。
+ *
+ * ★ 下发走的是**点群观鉴模块的门面动作** `setLanguage`，而不是宿主伸手去改
+ *   模块内部的 i18n。这样人改与模型改是同一条通路：模块自己持有这个状态，
+ *   页面的 `renderFromState` 再把它落到 i18n 上，感知快照与痕迹也跟着有。
+ *   （此前页面的语言下拉直接调 `i18n.setLang`，模型那边完全不知情。）
+ * ★ 宿主另存一份：首页要据此把分段控件的高亮画对。两份由这条通路保持同步。
+ * ★ 目前有 i18n 的只有「点群观鉴」一个页面 —— 首页那行如实写了这一点，
+ *   不假装它已经全局生效。
+ */
+const UI_LANG_KEY = 'chem-agent.ui-lang'
+function getUiLang() {
+  try { return localStorage.getItem(UI_LANG_KEY) === 'en' ? 'en' : 'zh' } catch (e) { return 'zh' }
+}
+function setUiLang(lang) {
+  const v = (lang === 'en') ? 'en' : 'zh'
+  try { localStorage.setItem(UI_LANG_KEY, v) } catch (e) { /* 不可用时只是不记忆 */ }
+  try {
+    symmetry.facade.applyActions([{ action: 'setLanguage', params: { lang: v } }])
+  } catch (e) { /* 模块未就绪（装配早期）——下一次换页会重来 */ }
+}
+// 启动时把存下来的偏好**推进模块**：否则点群观鉴页一挂载就按它自己的默认 'zh'
+// 把用户先前的选择冲掉（页面的 renderFromState 以模块状态为准）。
+setUiLang(getUiLang())
+
 // ---------------------------------------------------------------------------
 // 4b. 三维背景色：**跟随界面主题**，但尊重用户的显式选择
 // ---------------------------------------------------------------------------
@@ -668,14 +702,21 @@ panel = createPanel({
       app.conversation.setHistory(convStore.messages())
     } catch (e) { console.warn('[agent] 同步会话历史失败：', e) }
   },
-  greeting: [
-    '<b>我是结构化学教学智能体</b><br>',
-    '我能感知你此刻在看哪个晶体，也能动手把话演示出来。<br><br>',
-    '试试：<br>',
-    '· 「NaCl 的密度是多少」<br>',
-    '· 「打开八面体空隙，让我数一数」<br>',
-    '· 「为什么 CsCl 是简单立方而不是体心立方」',
-  ].join(''),
+  /**
+   * 面板空态的开场白：**按当前模块取**，文字由模块自己提供（见各模块的 `greeting`）。
+   *
+   * ★ 为什么是函数而不是字符串：面板的 `renderEmptyState` 每次都会调用它，
+   *   而当前模块**会随路由/自动路由变**。写成常量就会出现"在原子轨道页上
+   *   被建议去问 NaCl 密度"——正是本轮用户报的"提示词全是晶体的"。
+   * ★ 兜底：模块没给 greeting 时用一句与学科无关的话，而不是退回晶体的那段
+   *   （退回最像"能用"，实则把错误信息又带回来了）。
+   */
+  greeting: () => {
+    const id = (app && app.activeModule) || null
+    const m = MODULES_BY_ID[id]
+    return (m && m.greeting)
+      || '<b>我是结构化学教学智能体</b><br>直接问就行——我能查数据、也能把结论演示到画面上。'
+  },
   actionLabels: crystal.actionLabels,
   sequenceToolName: 'applySceneActions',
   getShowReasoning: () => settings.get().showReasoning,
@@ -847,6 +888,13 @@ router.onAfterMount(() => {
   //   （原子轨道页的三张图表卡、三维卡片），同步量一次会量到半成品。
   docScroll.sync()
   docScroll.schedule()
+  // ★ 开场白跟着**当前模块**走：换页后（路由会把 activeModule 切到该页的模块）
+  //   若会话还是空的，重渲一次空态。缺了这一步，开场白就停在首屏那个模块上
+  //   —— 用户看到的正是"在原子轨道页上被建议去问 NaCl 密度"。
+  //   只在**空会话**时重渲：有消息时重渲会把对话清掉（面板的空态是"清空+重画"）。
+  try {
+    if (panel && convStore && convStore.messages().length === 0) panel.renderEmptyState()
+  } catch (e) { /* 面板尚未就绪（装配早期）；开场白是锦上添花，不能因此中断换页 */ }
 })
 
 router
@@ -857,6 +905,10 @@ router
       modules: listDeclaredModules(),
       // 已接入的（本应用里真能打开的）：app.listModules() 返回的就是已装配的模块
       available: app.listModules(),
+      // 设置区（见 shell/pages/home.js 的 _renderSettings）：给全才渲染那一行
+      getTheme, onTheme: setTheme, setTheme,
+      getLang: getUiLang, onLang: setUiLang,
+      onOpenSettings: () => settingsPopup.open(),
     })
     p.mount($('#app'))
     return p

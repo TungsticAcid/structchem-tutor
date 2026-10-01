@@ -1328,7 +1328,18 @@ export function bootOrbitPage(deps = {}) {
     bindSeg('#renderSeg', 'data-mode');
     bindSeg('#psiSeg', 'data-mode');
     bindSeg('#orbModelSeg', 'data-model');
-    bindSeg('#multiSeg', 'data-s');
+    // ★ 这一组**不能**用通用 bindSeg：那条路只做 "readFromControls + recompute"，
+    //   而切到 sp³ 还要求把状态编辑器的预设载成 sp³-1（主面必须就是第 0 个
+    //   等价轨道，其余三个是它的旋转克隆）。通用绑定不载预设，于是 updateViewer
+    //   里的"前提核对"当场判失效、把档位改回 off —— 表现就是**点了没反应**
+    //   （而提示条与复选框行已经更新，看着像只坏了一半）。
+    //   改成走动作，与模型下发走同一条通路，也顺带修掉"人机两条路"的分叉。
+    $('#multiSeg').addEventListener('click', (e) => {
+      const btn = e.target.closest('.seg-btn');
+      if (!btn) return;
+      ACTIONS.setOrbitals({ set: btn.getAttribute('data-s') });
+      recompute();
+    });
     // 轨道模型的 ζ：不是整数，用不了 commitNumber（它按整数校验），故单独绑。
     // ★ 非法值**直接 return、不重算**——否则 readFromControls 会把非法文本读成 null（自动），
     //   于是"输入框里还是乱码、状态已经悄悄回自动"，用户根本不知道发生了什么。
