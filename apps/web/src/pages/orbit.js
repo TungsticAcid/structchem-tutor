@@ -17,6 +17,8 @@ import { ORBIT_HTML } from './orbit-markup.js'
 // KaTeX 是懒加载的（277 KB）；本页首帧可能还没到，故要用它的加载器做补画
 import { loadKatex } from '@core/ui/katex-loader.js'
 
+// 视口自适应：算出 --viewer-h / --panel-h（见 packages/ui-kit/viewport.js）
+import { createViewport } from '@ui-kit/viewport.js'
 import { OM } from '@modules/orbit/core/math.js'
 // 等价轨道集合（sp³/sp²/sp）的唯一定义 —— 与动作词汇表、渲染层共用
 import { Hybrids } from '@modules/orbit/core/hybrids.js'
@@ -1956,6 +1958,25 @@ export function bootOrbitPage(deps = {}) {
     });
   }
 
+  /**
+   * 视口自适应。
+   *
+   * ★ 这一条是**独立版观感的一半**，而我们壳里原先整个缺了：
+   *   两边的 CSS 都写着 `height: var(--viewer-h, 44vh)`，独立版有 layout.js 去算
+   *   那个变量，我们没人算 —— 于是永远落在 44vh 这个**兜底值**上。
+   *   实测：独立版画布 996×653，我们 996×353（宽度相同、高度不到一半）。
+   *   同理 `--panel-h`（面板与三维卡片等高、内部自己滚）也没人算，
+   *   面板便跟着自己的内容无限变高 —— 我们的面板比上游多了两组控件，
+   *   同一行里三维卡片反被衬托得更矮。
+   * ★ 选择器与上游一致（`#viewer` + `.topbar` / `.viewer-card .card-head`）：
+   *   只观察"会改变画布顶端位置、又不受画布高度影响"的元素，避免自激。
+   */
+  const viewportFit = createViewport({
+    viewerSelector: '#viewer',
+    chromeSelectors: ['.topbar', '.viewer-card .card-head'],
+  });
+  viewportFit.init();
+
   // ★ 上游等 DOMContentLoaded，因为它是整页脚本。这里页面在 mount 时
   //   已经把 markup 注入容器，DOM 就绪，直接启动。
   start();
@@ -1966,6 +1987,9 @@ export function bootOrbitPage(deps = {}) {
    *   配上容器被清空，渲染器与几何都会随 canvas 一起被回收。
    */
   function dispose() {
+    // ★ 必须先销毁视口适配器：它把 --viewer-h / --panel-h 写在 **documentElement** 上，
+    //   是全局量 —— 不清掉的话切到点群页时，那边会顶着轨道页的画布高度。
+    try { viewportFit.destroy(); } catch (e) { /* 忽略 */ }
     if (levelSweepRaf) { cancelAnimationFrame(levelSweepRaf); levelSweepRaf = null; }
     try { Orbit3D.disposeGrid(); } catch (e) { /* 已经释放过了 */ }
     try { ChartOverlay.close(); } catch (e) { /* 浮窗本来就没开 */ }

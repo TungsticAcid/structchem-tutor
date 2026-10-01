@@ -31,6 +31,7 @@ import '@crystal/styles/global.css'
 //   映射到 ui-kit 的令牌（--bg/--text…），从而让主题切换对两边都生效。
 //   顺序反了会被 global.css 的 :root 覆盖掉。
 import './shell/theme-bridge.css'
+import { createDocScroll } from './shell/doc-scroll.js'
 
 import { createAgentApp } from '@core/app.js'
 import { createCatalog } from '@core/core/catalog.js'
@@ -840,6 +841,12 @@ router.setContainer($('#app')).setFallback('/')
 router.onAfterMount(() => {
   // 首页自己不需要出口
   if (router.currentPath !== '/') installHomeButton($('#app'))
+  // ★ 每次换页都重新裁决"这一页能不能整页滚动"。
+  //   量的是**内容有没有超出视口**（见 shell/doc-scroll.js），所以不依赖各页面自觉声明。
+  //   这里再 schedule 一次是因为有些页面的内容要等异步渲染才长出来
+  //   （原子轨道页的三张图表卡、三维卡片），同步量一次会量到半成品。
+  docScroll.sync()
+  docScroll.schedule()
 })
 
 router
@@ -910,7 +917,12 @@ try {
 // ---------------------------------------------------------------------------
 // 15. 起动
 // ---------------------------------------------------------------------------
+/** 文档级滚动策略（壳的职责，见 shell/doc-scroll.js 与 theme-bridge.css 的说明） */
+const docScroll = createDocScroll(window, document)
 router.start()
+// 首屏也要裁决一次：onAfterMount 只在路由挂载时触发，而路由是同步挂完的，
+// 首屏这一次要显式补上（否则从首页直接刷新到 /orbit 时不会同步）。
+docScroll.sync()
 app.start()
 
 if (!settings.hasKey()) {
@@ -920,6 +932,8 @@ if (!settings.hasKey()) {
 // 调试用把手（只读为主，供实机验证与排查；**不含密钥**）
 window.__chemAgent = {
   app, panel, crystal, symmetry, orbit, settings, router,
+  /** 文档级滚动裁决（实机验证"页面内容超出了能不能滚"时直接查它） */
+  docScroll,
   // 内容与学情：实机验证"出题/判分/推荐/刷新还原"时直接查它们
   quiz, quizUI, mastery, proactive,
   store: convStore,

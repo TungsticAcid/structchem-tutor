@@ -60,3 +60,35 @@ body .lib-page {
   background: var(--bg);
   color: var(--text);
 }
+
+/* ==========================================================================
+ * 文档级滚动策略
+ *
+ * ★ 壳 import 了晶体项目的 global.css，而它写死
+ *     `html, body { width:100%; height:100%; overflow:hidden }`
+ *   —— 那是晶体**全屏查看器**要的（满屏拖拽，不该有页面滚动）。
+ *   但壳里还有**文档流页面**：原子轨道纵向排着三维卡片 + 公式卡 + 三张图表卡，
+ *   实测内容高 1691px、可见 807px，滚动被锁死 → 公式卡与三张图表卡整块够不着。
+ *
+ * ★ 这里把这条策略**收回到壳自己手里**：默认锁死（与全屏路由一致），
+ *   由 doc-scroll.js 量出"内容超出视口"时加上 `.doc-scroll`。
+ *   不依赖各页面自觉声明，也不依赖 crystal 的样式表 —— 它改了也不会波及壳。
+ * ★ 这两条必须在本文件里（即 global.css **之后**）：靠后加载取胜。
+ * ========================================================================== */
+html:not(.doc-scroll) {
+  height: 100%;
+  overflow: hidden;
+}
+html.doc-scroll {
+  height: auto;
+  min-height: 100%;
+  /* 允许滚动时要把 global.css 的 overscroll-behavior:none 放开，
+     否则到底/到顶时的惯性滚动会被吃掉（文档流页面里那手感很怪） */
+  overflow-y: auto;
+  overscroll-behavior: auto;
+}
+html.doc-scroll body {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+}
