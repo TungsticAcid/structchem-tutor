@@ -427,6 +427,17 @@ npm run verify:live -- --key-file "…/orbit.txt"              # 真跑，**消�
 > `projects/crystal/.gitignore` 已忽略该路径 —— 结构上与 `projects/orbit/activity/` 对齐
 > （同一种材料，此前一个被忽略、一个被提交，是当初随手为之）。
 
+> 🔴 **未决事项（2026-10-02 记录）："移出"不等于"从公开历史里消失"。**
+> 上面那句「2026-10-01 移出」当时**只改了 `.gitignore` 并暂存了删除，并没有提交** ——
+> 直到 2026-10-02 的提交 `28c9363` 才真正从版本库移出 `projects/crystal/activity/`（6 份）
+> 与 `projects/symmetry/fig/预期效果图/`（7 份）。
+> **但它们在历史里还在**：实测匿名请求
+> `GET https://api.github.com/repos/TungsticAcid/structchem-tutor/contents/projects/crystal/activity/数据核查报告.md?ref=eca511c`
+> 返回 **200 / 17484 字节**，而本仓库是**公开**的。
+> 要真正消除暴露只有一条路：重写历史（`git filter-repo --path projects/crystal/activity --path projects/symmetry/fig/预期效果图 --invert-paths`）
+> 再强推 —— 那会改写**全部提交 SHA**，需要先把仓库备份好、并通知协作者。
+> **这件事还没做。** 在决定之前，别在任何地方把这条风险写成"已解决"。
+
 > ⚠️ `projects/orbit/activity/` 下**另有一份同名但内容完全不同的**《AI智能体建设方案.md》
 > （句子重合度 0.0%，是 orbit 模块自己的方案，55 KB vs 39 KB）。**按文件名去重会丢掉其中一份。**
 
