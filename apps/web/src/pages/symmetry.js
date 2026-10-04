@@ -574,7 +574,27 @@ export function bootSymmetryPage(deps = {}) {
       }
     }
 
-    viewer.setContent(root, radius, { preserveView })
+    // ---------------------------------------------------------------------
+    // 取景半径：必须同时装下**结构**与**对称元素层**（轴 + 端部标签）
+    //
+    // ★ 用户报的症状：打开「标签」后，Cn 轴的端部标签与 CsCl 角上的原子被裁掉。
+    //   两个原因**都不是 near/far**（把近平面调到 0 也救不回来）：
+    //   ① 相机距离 = 结构半径，而轴端标签在 0.8·半径·scale 处 —— 标签会落到
+    //      **相机后方**，相机后面的东西怎么调裁剪面都看不见；
+    //   ② 正交视锥半高 = 1.25×(半径−1.5)，而对称元素层伸到 0.8·半径·scale + 标签半高，
+    //      大分子 / 大 scale 下会超出视锥的四条边。
+    //   所以正解是**按"结构 ∪ 对称元素层"来算取景半径**，而不是只按结构。
+    // ---------------------------------------------------------------------
+    const labelFontSizeForFrame = getAppearance('labelFontSize')
+    const axisHalf = radius * 0.8 * symmetryScale
+    // 标签精灵高 ≈ 0.7×(fontSize/28) 世界单位（见 symmetry-draw 的 buildLabelSprite），取半
+    const labelHalf = 0.35 * (labelFontSizeForFrame / 28)
+    const needHalf = Math.max(radius, axisHalf + 0.5 * symmetryScale + labelHalf)
+    // 视锥半高 = (R−1.5)×1.25，相机注视点又被 pan 上移约 0.12R：
+    //   (R−1.5)×1.25 ≥ needHalf + 0.12R  ⇒  R ≥ (needHalf + 1.875) / 1.13
+    const frameRadius = Math.max(radius, (needHalf + 1.875) / 1.13)
+
+    viewer.setContent(root, frameRadius, { preserveView })
     if (!preserveView) viewer.alignToView(alignDir)
     renderInfo(info, {
       // ★ 人点勾选也**走动作通路**（与模型同源）：页面只发动作，由 renderFromState 落到画面。
@@ -808,7 +828,8 @@ export function bootSymmetryPage(deps = {}) {
     document.getElementById('set-sym-scale-val').textContent = getAppearance('symmetryScale').toFixed(1)
     document.getElementById('set-label-font-size').value = getAppearance('labelFontSize')
     document.getElementById('set-label-font-val').textContent = getAppearance('labelFontSize')
-    document.getElementById('set-lang').value = i18n.lang
+    // ★ 原来这里有一行 `set-lang` 回填 —— 随页面里那个「语言」下拉一起去掉了，
+    //   语言入口改由设置弹层的「界面」组统一提供（全局 i18n）。
     document.getElementById('set-anim-speed').value = getAppearance('animAngularSpeed')
     document.getElementById('set-anim-speed-val').textContent = getAppearance('animAngularSpeed')
     document.getElementById('set-anim-duration').value = getAppearance('animDuration')
@@ -871,15 +892,17 @@ export function bootSymmetryPage(deps = {}) {
     openSettings()
   })
 
-  document.getElementById('set-lang').addEventListener('change', (e) => {
-    // ★ 走动作，与模型同一条通路（门面持有 language，renderFromState 再落到 i18n）。
-    //   原先直接调 i18n.setLang —— 于是"模型改语言"页面完全不知道、
-    //   "人改语言"模型那边也不知道，同一个状态分裂成两份真源。
-    //   独立页（没有门面）时退回本地设置。
-    if (!dispatchDisplay('setLanguage', { lang: e.target.value }, null)) {
-      i18n.setLang(e.target.value)
-    }
-  })
+  /**
+   * ★ 这里原来挂着 `#set-lang` 的 change 监听（走 `dispatchDisplay('setLanguage')`）——
+   *   随页面里那个「语言」下拉一起去掉了（用户要求：有全局 i18n 就不该再来一个）。
+   *
+   * ★ 动作本身**保留**：`main.js` 在换语言/启动时仍要下发 `setLanguage`。
+   *   原因是本页的 DOM 文案**不全是**宿主扫描能换的 —— 模块用 `t()` 产出的那几十条
+   *   （特征标表 / 不可约表示 / 等价原子 / 二重旋转轴…）以及给模型看的
+   *   `actionLabels`/工具 desc 都走模块自己的字典；宿主 `sweep` 只认 `text` 表的键。
+   *   而"页面还没挂载"时宿主也要把它们切对 —— 那条通路正是这个动作。
+   *   所以这里删的是**入口**，不是**动作**。
+   */
 
   document.getElementById('set-anim-speed').addEventListener('input', (e) => {
     const val = parseInt(e.target.value, 10)

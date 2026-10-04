@@ -295,8 +295,13 @@ export const SYMMETRY_HTML = `  <div class="sym-page">
     <div id="settings-panel" hidden>
       <div class="settings-header"><span data-i18n="set.title">外观设置</span><button id="settings-close">✕</button></div>
       <div class="settings-body">
-        <div class="setting-row"><label><span data-i18n="set.lang">语言</span></label>
-          <select id="set-lang"><option value="zh">简体中文</option><option value="en">English</option></select></div>
+        <!-- ★ 2026-10-05 删掉了这里的「语言」下拉（用户要求）：
+             全站 i18n 已经接管界面文案，语言入口在**设置弹层的「界面」组**
+             （每一页都能打开），页面自己再来一个只会让人不知道该信哪个。
+             ⚠ 只删这一行的 markup 不够，逻辑侧的两处（openSettings 里的回填、
+             set-lang 的 change 监听）也一并删了 —— 留着会在 boot 期因为
+             getElementById 拿到 null 而抛 TypeError，整页起不来。
+             ⚠ 本文件整份是一个模板字符串：注释里写反引号会把模板截断成语法错误。 -->
         <div class="setting-row"><label><span data-i18n="set.bg">背景色</span></label><input type="color" id="set-bg" /></div>
         <div class="setting-row"><label><span data-i18n="set.atomScale">原子缩放</span> <span id="set-scale-val">1.0</span></label><input type="range" id="set-atom-scale" min="0.5" max="2" step="0.1" value="1" /></div>
         <div class="setting-row"><label><span data-i18n="set.stick">键粗细</span> <span id="set-stick-val">0.1</span></label><input type="range" id="set-stick-radius" min="0.03" max="0.3" step="0.01" value="0.1" /></div>

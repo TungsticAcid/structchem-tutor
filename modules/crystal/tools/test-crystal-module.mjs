@@ -19,6 +19,10 @@ import { assertModuleContract } from '../../../packages/module-contract/index.js
 //   （本轮：模块名按参赛配图从「晶体结构」改成「晶典在线」，这条断言就是唯一被它打红的地方）。
 //   真正的判据是**门户上只有一个名字** —— 也就是 descriptor 与实现一致。
 import crystalDescriptor from '../../../packages/agent-core/registry/descriptors/crystal.js'
+// ★ 逐元素配色的周期表布局：位置表与元素表是两份数据，必须在本测试里对账
+import elementsData from '../../../projects/crystal/H5/src/data/elements.js'
+import { PERIODIC_POS, PERIODIC_COLS, PERIODIC_ROWS, PERIODIC_GAP_ROW } from '../periodic-layout.js'
+import { elementColorItems } from '../settings-visual.js'
 
 let pass = 0
 let fail = 0
@@ -250,6 +254,48 @@ section('动作词汇表本身')
     typeof validate('setView', {}).err === 'string')
   check('validate 未传 ctx 时不校验 id 存在性（宽松模式，供非 agent 场景用）',
     validate('loadCrystal', { crystalId: '任意' }).params.crystalId === '任意')
+}
+
+// ============================================================================
+section('逐元素配色的周期表布局（位置表与元素表必须逐符号咬合）')
+// ============================================================================
+{
+  // ★ 为什么守这个：位置表（`periodic-layout.js`）与元素表是**两份数据**，
+  //   漏一个符号的表现是"周期表上凭空少一个格子"——不报错，也不会有人想到是位置表。
+  //   反过来，位置表里多出来的符号会画出一个**点不动的空格子**。
+  const items = elementColorItems()
+  const syms = Object.keys(elementsData)
+  check('元素表是 103 个元素（H…Lr）', syms.length === 103, String(syms.length))
+  const missing = syms.filter((s) => !PERIODIC_POS[s])
+  check('每个元素都能在周期表上定位（无遗漏）', missing.length === 0, missing.join(','))
+  const extra = Object.keys(PERIODIC_POS).filter((s) => !syms.includes(s))
+  check('位置表里没有元素表之外的符号', extra.length === 0, extra.join(','))
+
+  const seen = new Set()
+  let bad = 0
+  for (const s of syms) {
+    const p = PERIODIC_POS[s]
+    if (!p || p[0] < 1 || p[0] > PERIODIC_ROWS || p[1] < 1 || p[1] > PERIODIC_COLS) { bad++; continue }
+    const k = p[0] + ':' + p[1]
+    if (seen.has(k)) bad++
+    seen.add(k)
+  }
+  check('行列都在范围内且无两个元素抢同一格', bad === 0, `异常 ${bad} 个`)
+  check('f 区下挂两行、主表留出空隙行',
+    PERIODIC_GAP_ROW === 8 && PERIODIC_POS.La[0] === 6 && PERIODIC_POS.Ce[0] === 9
+    && PERIODIC_POS.Ac[0] === 7 && PERIODIC_POS.Th[0] === 10)
+  check('镧系/锕系各 14 个元素',
+    syms.filter((s) => PERIODIC_POS[s][0] === 9).length === 14
+    && syms.filter((s) => PERIODIC_POS[s][0] === 10).length === 14)
+
+  check('配色项带上了周期表要用的 name/period/group',
+    items.length === 103
+    && items.every((it) => it.period >= 1 && it.group >= 1 && typeof it.name === 'string'))
+  check('配色项按原子序数排序（周期表的阅读顺序）',
+    items.every((it, i) => i === 0 || it.order >= items[i - 1].order))
+  // 氢是近白色底 —— 弹层要据此给深色字（readableOn），这里只保证这一格真的存在
+  const h = items.find((it) => it.key === 'H')
+  check('氢在 (1,1)', !!h && h.period === 1 && h.group === 1)
 }
 
 // ============================================================================

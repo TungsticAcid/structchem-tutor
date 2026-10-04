@@ -72,8 +72,8 @@ export const text = {
   '浅色': 'Light',
   '晶体三维视图的背景会一并切换（白底更接近教材插图与课堂投屏）':
     'The 3D crystal view background switches with it (a white background is closer to textbook figures and classroom projection)',
-  '晶体模块参数（模块自己声明的）': 'Crystal module parameters (declared by the module)',
-  '三维配色（改完立即生效）': '3D colors (applied immediately)',
+  '晶体模块参数': 'Crystal module parameters',
+  '三维配色': '3D colors',
   '逐元素配色': 'Per-element colors',
 
   // ---- 设置弹层的「关于」 ----

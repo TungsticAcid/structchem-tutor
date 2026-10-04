@@ -12,7 +12,7 @@ import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { createViewport } from '../viewport.js'
 import { createSettingsStore } from '../settings-store.js'
-import { createSettingsPopup, DEFAULT_SCHEMA } from '../settings-popup.js'
+import { createSettingsPopup, DEFAULT_SCHEMA, readableOn } from '../settings-popup.js'
 
 const HERE = new URL('.', import.meta.url)
 const repo = (p) => fileURLToPath(new URL('../../../' + p, HERE))
@@ -279,10 +279,11 @@ section('settings-popup：声明式表单与密钥安全')
   check('弹层内层类名与 CSS 一致', box.classList.contains('agent-settings-box'))
   check('头部类名与 CSS 一致', box.children[0].classList.contains('agent-settings-head'))
   // ★ 分组标题的**载体变了**：从"一个 div 当标题"改成"可折叠分区的头部按钮"
-  //   （settings-popup 的 makeSection）。断言跟着改，并补上三条**新行为**的断言 ——
+  //   （settings-popup 的 makeSection）。断言跟着改，并补上几条**新行为**的断言 ——
   //   否则"全部收起"也会让下面第一条过。
-  check('分组标题沿用原措辞（带使用场景提示）',
-    dom.collectAll(box, 'span').some((d) => /模型服务（改一次就不动）/.test(d.textContent)))
+  // ★ 措辞也变了：一级标题后的括号说明按用户要求删掉了（2026-10-05）。
+  check('分组标题沿用原措辞',
+    dom.collectAll(box, 'span').some((d) => /模型服务/.test(d.textContent)))
   const secs = dom.collectAll(box, 'section')
   check('设置项分组成可折叠分区', secs.length >= 4, `分区数 ${secs.length}`)
   check('第一组默认展开、其余默认收起',
@@ -307,6 +308,71 @@ section('settings-popup：声明式表单与密钥安全')
       check('点分区头部可收起、再点可展开（可逆）', false, '没有 onclick')
     }
   }
+
+  // ---------------------------------------------------------------------
+  // open({ expand })：按**分区 id** 定位要展开的那一组
+  //
+  // ★ 为什么必须有：程序因「缺 API Key」自动弹设置时，用户要填的是模型服务，
+  //   而默认展开的是第一组「界面」——他先看到一个与自己目的无关的面板还得自己找。
+  // ★ 用 id 而不是标题匹配：标题会被 i18n 换成英文，中文匹配会静默失效。
+  // ---------------------------------------------------------------------
+  check('按 id 展开指定分区（缺 Key 自动弹层要展开模型服务）', (() => {
+    popup.open({ expand: 'model' })
+    const modelSec = secs.find((s) => s.attrs && s.attrs['data-gid'] === 'model')
+    return !!modelSec && modelSec.classList.contains('open')
+      && secs.filter((s) => s !== modelSec).every((s) => !s.classList.contains('open'))
+  })())
+  check('展开态每次 open 都重置（不残留上一次的展开）', (() => {
+    popup.open()   // 无参 → 回到"第一组展开"
+    return secs[0].classList.contains('open') && secs.slice(1).every((s) => !s.classList.contains('open'))
+  })())
+  check('未知 id 时不误展开任何一组（全收起，而不是悄悄展开第一组）', (() => {
+    popup.open({ expand: 'no-such-section' })
+    return secs.every((s) => !s.classList.contains('open'))
+  })())
+  popup.open()   // 复原，免得影响下面的断言
+
+  // ---------------------------------------------------------------------
+  // 缺值兜底：字段在 store 里没有值时**不许**把 undefined 拼进 DOM
+  // （用户报的「晶体模块参数里显示 undefined」根因就是这个）
+  // ---------------------------------------------------------------------
+  {
+    const dom2 = mkDom()
+    const mem2 = {}
+    const store2 = createSettingsStore({
+      storage: { getItem: (k) => (k in mem2 ? mem2[k] : null), setItem: (k, v) => { mem2[k] = v }, removeItem: (k) => { delete mem2[k] } },
+      storageKey: 't2.s',
+    })
+    const p2 = createSettingsPopup({
+      doc: dom2.document, win, store: store2,
+      // 故意声明两个"store 里没有默认值"的字段 —— 模块设置项的常见形态
+      schema: [
+        { key: 'noDefaultRange', label: '无默认滑块', type: 'range', min: 0, max: 2, step: 0.1, unit: '×' },
+        { key: 'noDefaultSelect', label: '无默认下拉', type: 'select', options: [['a', '甲'], ['b', '乙']] },
+      ],
+      groups: [{ title: '测试组', keys: ['noDefaultRange', 'noDefaultSelect'] }],
+    })
+    p2.open()
+    const ov2 = dom2.body.children.find((c) => c.classList && c.classList.contains('agent-overlay'))
+    const box2 = ov2.children[0]
+    check('缺值时不产出字面量 undefined',
+      !dom2.collectAll(box2, 'span').some((n) => /undefined/.test(n.textContent)),
+      dom2.collectAll(box2, 'span').map((n) => n.textContent).join('|'))
+    const rng = dom2.collectAll(box2, 'input').find((i) => i.attrs.type === 'range')
+    check('range 缺值回落到 min（不是 midpoint、更不是 undefined）',
+      !!rng && String(rng.value) === '0', rng && String(rng.value))
+    const sel2 = dom2.collectAll(box2, 'select')[0]
+    check('select 缺值/越界时回落到第一项（不留空白下拉）',
+      !!sel2 && sel2.value === 'a', sel2 && String(sel2.value))
+  }
+
+  // readableOn：周期表格子的字色要跟底色反着来（氢是近白底，写白字就看不见）
+  check('readableOn：浅底给深字、深底给浅字', (() => {
+    return readableOn('#FFFFFF') === '#111' && readableOn('#000000') === '#fff'
+      && readableOn('#FFD700') === '#111'   // 亮黄也是浅底
+      && readableOn('#1E3A8A') === '#fff'   // 深蓝给白字
+      && readableOn('bad') === '#fff'       // 非法值不抛错
+  })())
   check('含「测试连接」按钮',
     dom.collectAll(box, 'button').some((b) => b.textContent === '测试连接'))
 

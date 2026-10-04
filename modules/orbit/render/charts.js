@@ -46,7 +46,7 @@ const Charts = (function () {
 
   // 基于 canvas 元素上的"字符"设置，绘制淡色网格/轴（通用）
   function drawFrame(ctx, w, h, pad) {
-    ctx.strokeStyle = 'rgba(120,135,170,0.35)';
+    ctx.strokeStyle = ink('rgba(120,135,170,0.35)');
     ctx.lineWidth = 1;
     ctx.strokeRect(pad.l, pad.t, w - pad.l - pad.r, h - pad.t - pad.b);
   }
@@ -127,6 +127,88 @@ const Charts = (function () {
     [150, 210, 255], [120, 255, 190], [255, 235, 130], [255, 165, 95],
     [255, 120, 190], [200, 150, 255], [150, 180, 255], [255, 255, 255],
   ];
+  /**
+   * 浅色主题下的等高线序列：**同一套色相、压暗到能在白底上看清**。
+   *
+   * ★ 为什么必须另配一套而不是共用：上面那套是"亮色"（最高一层是纯白 `255,255,255`），
+   *   那是给深色图版选的；白底上白线等于没画 —— 界面跟随主题之后，
+   *   共用一套会直接把截面图变成一张白纸（而且不报错，只是"看不见"）。
+   *   色相顺序与深色那套一一对应，只是明度整体下移、饱和度提高。
+   */
+  const CONT_COLORS_LIGHT = [
+    [38, 92, 176], [0, 132, 108], [168, 118, 0], [198, 82, 18],
+    [186, 32, 116], [118, 62, 190], [58, 88, 172], [40, 44, 52],
+  ];
+
+  /** 当前是不是浅色主题。★ 取 `<html data-theme>`（theme.js 写在 documentElement 上）；
+   *  拿不到 document（Node 侧测试）时按深色算 —— 与改动前的行为一致。 */
+  function isLightTheme() {
+    try {
+      if (typeof document === 'undefined' || !document.documentElement) return false;
+      return document.documentElement.getAttribute('data-theme') === 'light';
+    } catch (e) { return false; }
+  }
+
+  /**
+   * 中性"墨水色"表：深色主题 → 浅色主题。
+   *
+   * ★ 为什么需要它：图表把颜色**画进像素**里，CSS 变量管不到。原先这些颜色清一色是
+   *   "浅灰蓝 / 纯白"（给深底选的）：界面跟随主题之后，浅色卡片上这些线、网格、
+   *   数值标注**会直接消失**（不是报错，是看不见 —— 最难发现的那一类）。
+   * ★ 只换**中性色**（网格/坐标/文字/描边）；轨道与相位的**数据色**（s 蓝 / p 绿 /
+   *   d 橙 / f 紫、相位红蓝）两套主题都够饱和，保持原样 —— 换掉它们会改变
+   *   "哪条线是什么"的语义，那是重新设计，不是适配。
+   * ★ 表是"逐字替换"而不是重新配色：每个浅色值都是对应深色值**降明度、提饱和**，
+   *   这样两套主题下同一元素的主次关系（谁重谁轻）完全一致。
+   */
+  const INK_LIGHT = {
+    'rgba(120,135,170,0.35)': 'rgba(90,105,140,0.38)',
+    'rgba(120,135,170,0.18)': 'rgba(90,105,140,0.22)',
+    'rgba(120,135,170,0.2)': 'rgba(90,105,140,0.24)',
+    'rgba(170,185,215,0.7)': 'rgba(70,85,115,0.85)',
+    'rgba(200,210,235,0.9)': 'rgba(50,62,88,0.9)',
+    'rgba(200,210,235,0.95)': 'rgba(45,56,80,0.95)',
+    'rgba(200,210,235,0.35)': 'rgba(60,72,96,0.35)',
+    'rgba(220,228,245,0.9)': 'rgba(40,50,70,0.9)',
+    'rgba(220,228,245,0.92)': 'rgba(40,50,70,0.92)',
+    'rgba(220,228,245,0.4)': 'rgba(60,72,96,0.4)',
+    'rgba(150,170,210,0.9)': 'rgba(75,90,120,0.9)',
+    'rgba(170,190,225,0.9)': 'rgba(70,85,115,0.9)',
+    'rgba(180,196,225,0.75)': 'rgba(80,95,125,0.75)',
+    'rgba(200,215,240,0.8)': 'rgba(55,68,92,0.8)',
+    'rgba(206,219,244,0.98)': 'rgba(30,40,60,0.98)',
+    // 纯白与"压在白字后面的深色垫底"要成套翻转，否则会变成白底白字/深底深字
+    'rgba(255,255,255,0.95)': 'rgba(28,34,48,0.95)',
+    'rgba(255,255,255,0.9)': 'rgba(28,34,48,0.9)',
+    'rgba(10,15,31,0.9)': 'rgba(255,255,255,0.9)',
+    'rgba(8,12,24,0.85)': 'rgba(255,255,255,0.85)',
+    // 节面/标注用的粉色：浅底上要压暗才看得清
+    'rgba(255,138,212,0.5)': 'rgba(198,36,138,0.62)',
+    'rgba(255,190,235,0.95)': 'rgba(175,18,116,0.95)',
+    'rgba(140,175,225,0.13)': 'rgba(40,90,170,0.14)',
+  };
+
+  /** 取一个中性色在当前主题下的值（表里没有的原样返回 —— 数据色与橙色标注就走这条） */
+  function ink(dark) {
+    if (!isLightTheme()) return dark;
+    return Object.prototype.hasOwnProperty.call(INK_LIGHT, dark) ? INK_LIGHT[dark] : dark;
+  }
+
+  /** 当前等高线序列（随主题切） */
+  function contourPalette() {
+    return isLightTheme() ? CONT_COLORS_LIGHT : CONT_COLORS;
+  }
+
+  /** 等高线图版的底色：读 CSS 变量 `--contour-bg`（定义在 `.orbit-page` 上，
+   *  随 `[data-theme="light"]` 翻），拿不到就回退到深色底。 */
+  function contourBg(ctx) {
+    try {
+      const el = (ctx && ctx.canvas && ctx.canvas.parentElement) || null;
+      if (!el || typeof getComputedStyle !== 'function') return '#0a0f1f';
+      const v = getComputedStyle(el).getPropertyValue('--contour-bg');
+      return (v && v.trim()) || '#0a0f1f';
+    } catch (e) { return '#0a0f1f'; }
+  }
 
   // --- 径向曲线 ---------------------------------------------------------------
   // ★ 只有 R / R² / D 三条。原先还有 D²，但 D ≥ 0 恒成立，平方**不改变极值点与零点**，
@@ -257,8 +339,8 @@ const Charts = (function () {
     const valueToY = (v) => pad.t + ih * (1 - (v - yMin) / (yMax - yMin));
 
     // 水平网格线 + 刻度（纵轴值，支持负值）
-    ctx.strokeStyle = 'rgba(120,135,170,0.18)';
-    ctx.fillStyle = 'rgba(170,185,215,0.7)';
+    ctx.strokeStyle = ink('rgba(120,135,170,0.18)');
+    ctx.fillStyle = ink('rgba(170,185,215,0.7)');
     ctx.font = '11px system-ui, sans-serif';
     ctx.lineWidth = 1;
     const yTicks = signed ? [-1, -0.5, 0, 0.5, 1] : [0, 0.2, 0.4, 0.6, 0.8, 1];
@@ -275,7 +357,7 @@ const Charts = (function () {
       ctx.fillText(rv.toFixed(1), gx - 8, h - pad.b + 16);
     }
     // 轴标签
-    ctx.fillStyle = 'rgba(200,210,235,0.9)';
+    ctx.fillStyle = ink('rgba(200,210,235,0.9)');
     ctx.font = '12px system-ui, sans-serif';
     // x 轴：钟标居中偏右、**压在刻度数字下面一行**（原先 x = w−pad.r−34 与最后一个
     // 刻度（如 41.4）横向重叠，看着挤在一起）
@@ -326,7 +408,7 @@ const Charts = (function () {
       const col = RADIAL_PALETTE[c.key];
       ctx.fillStyle = 'rgb(' + col.join(',') + ')';
       ctx.fillRect(lx, pad.t + 2, 12, 3);
-      ctx.fillStyle = 'rgba(220,228,245,0.9)';
+      ctx.fillStyle = ink('rgba(220,228,245,0.9)');
       ctx.font = '11px system-ui, sans-serif';
       fillMath(ctx, RADIAL_NAME[c.key], lx + 15, pad.t + 6);
       lx += 64;
@@ -400,7 +482,7 @@ const Charts = (function () {
     // ---- 极坐标网格（两幅共用）----
     // 8 条 45° 辐射线对"自 +z 起"与"自 +x 起"两种基准是**同一组**线，
     // 所以不必分两套画法，只有角标文字不同。
-    ctx.strokeStyle = 'rgba(120,135,170,0.2)';
+    ctx.strokeStyle = ink('rgba(120,135,170,0.2)');
     ctx.lineWidth = 1;
     for (const cx of [cxT, cxP]) {
       for (const fr of [0.5, 1.0]) {
@@ -436,7 +518,7 @@ const Charts = (function () {
           const dx = (g.sym === 'θ') ? Math.sin(ang) : Math.cos(ang);
           const dy = (g.sym === 'θ') ? -Math.cos(ang) : -Math.sin(ang);
           ctx.save();
-          ctx.strokeStyle = 'rgba(255,138,212,0.5)';      // 与三维的节面标注同一支粉色
+          ctx.strokeStyle = ink('rgba(255,138,212,0.5)');      // 与三维的节面标注同一支粉色
           ctx.lineWidth = 1.4;
           ctx.setLineDash([4, 3]);
           ctx.beginPath();
@@ -447,7 +529,7 @@ const Charts = (function () {
           // 角度写在射线末端外侧。多个零点时交替远近一点，避免文字叠在一起。
           const rLab = Rho * (1.12 + (k % 2) * 0.11);
           ctx.save();
-          ctx.fillStyle = 'rgba(255,190,235,0.95)';
+          ctx.fillStyle = ink('rgba(255,190,235,0.95)');
           ctx.font = '11px system-ui, sans-serif';
           ctx.textAlign = 'center';
           fillMath(ctx, '*' + g.sym + '*=' + Math.round((ang * 180) / Math.PI) + '°',
@@ -472,7 +554,7 @@ const Charts = (function () {
     //   原先这里是蓝/橙，而三维是红/青，那句说明其实一直是假的（用户看出来了）。
     const POS = cssOf(OM.phaseColor(0, 0.62), 0.95);          // 相位 0 → 红（三维实解正瓣同源）
     const NEG = cssOf(OM.phaseColor(Math.PI, 0.62), 0.95);    // 相位 π → 青
-    const FILL = 'rgba(140,175,225,0.13)';                    // 瓣的填充：中性淡色，两档通用
+    const FILL = ink('rgba(140,175,225,0.13)');                    // 瓣的填充：中性淡色，两档通用
 
     /**
      * @param cx      极点 x
@@ -545,12 +627,12 @@ const Charts = (function () {
 
     // ---- 标注 ----
     ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(200,210,235,0.95)';
+    ctx.fillStyle = ink('rgba(200,210,235,0.95)');
     ctx.font = 'bold 12px system-ui, sans-serif';
     fillMath(ctx, '*Θ*(*θ*)', cxT, 14);
     fillMath(ctx, '*Φ*(*φ*)', cxP, 14);
     // 中间的乘号 —— 整张卡的论点就是它
-    ctx.fillStyle = 'rgba(150,170,210,0.9)';
+    ctx.fillStyle = ink('rgba(150,170,210,0.9)');
     ctx.font = 'bold 15px system-ui, sans-serif';
     ctx.fillText('×', w * 0.5, cy + 5);
 
@@ -562,8 +644,8 @@ const Charts = (function () {
     const axisLabel = function (t, x, y, align) {
       ctx.textAlign = align || 'center';
       ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(10,15,31,0.9)';
-      ctx.fillStyle = 'rgba(206,219,244,0.98)';
+      ctx.strokeStyle = ink('rgba(10,15,31,0.9)');
+      ctx.fillStyle = ink('rgba(206,219,244,0.98)');
       fillMath(ctx, t, x, y, true);        // true = 先描一圈底色（压在瓣色上也要读得清）
     };
     const INSET = 15;
@@ -578,7 +660,7 @@ const Charts = (function () {
     //   max|Y| 对照，见 README 的验证一节）。
     ctx.textAlign = 'center';
     ctx.font = '10px system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(170,190,225,0.9)';
+    ctx.fillStyle = ink('rgba(170,190,225,0.9)');
     const f3 = function (x) { return x.toFixed(3); };
     fillMath(ctx, 'max:  *Θ* ' + f3(mxT) + '  ×  *Φ* ' + f3(mxP) + '  =  *Y* ' + f3(mxT * mxP),
                  w * 0.5, h - 5);
@@ -671,7 +753,7 @@ const Charts = (function () {
 
   // 统一的坐标轴 + 平面名 + 方向标签
   function drawSectionFrame(ctx, w, h, plane, win) {
-    ctx.strokeStyle = 'rgba(200,210,235,0.35)';
+    ctx.strokeStyle = ink('rgba(200,210,235,0.35)');
     ctx.lineWidth = 1;
     // ★ 十字线（u=0 / v=0）随视窗移动 —— 原先写死在 w/2、h/2，缩放平移后就不对了。
     //   线跑出画布时不画（免得在边缘留下一条看着像轴线的假线）。
@@ -679,7 +761,7 @@ const Charts = (function () {
     const y0 = win ? ((0 - win.v0) / (2 * win.hv)) * h : h / 2;
     if (x0 >= 0 && x0 <= w) { ctx.beginPath(); ctx.moveTo(x0, 0); ctx.lineTo(x0, h); ctx.stroke(); }
     if (y0 >= 0 && y0 <= h) { ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(w, y0); ctx.stroke(); }
-    ctx.fillStyle = 'rgba(220,228,245,0.92)';
+    ctx.fillStyle = ink('rgba(220,228,245,0.92)');
     ctx.font = '12px system-ui, sans-serif';
     fillMath(ctx, t(PLANES[plane]), 8, 18);
     // 轴名固定贴在**绘图区边缘**：它说明的是"横/纵轴各是什么"，与视窗位置无关
@@ -728,10 +810,13 @@ const Charts = (function () {
 
   // 无填色等高线 + 节面(白线) + 数值标注
   function drawContour(ctx, vals, Gx, Gy, w, h, maxV, n, l, m, mode, plane, uv2xyz, win, nodalPlane, Z, sup, supPhases) {
-    ctx.fillStyle = '#0a0f1f';                 // 暗底，突出线条
+    // ★ 底色与线色都跟着主题走：界面跟随全局主题之后，写死的深底会在浅色卡片里
+    //   变成一块突兀的黑板（而写死的亮线在浅底上等于看不见）。两者必须成对切。
+    ctx.fillStyle = contourBg(ctx);
     ctx.fillRect(0, 0, w, h);
+    const PALETTE = contourPalette();
     if (nodalPlane) {                          // 整面为节面
-      ctx.fillStyle = 'rgba(255,170,90,0.95)';
+      ctx.fillStyle = ink('rgba(255,170,90,0.95)');
       ctx.font = '13px system-ui, sans-serif';
       ctx.textAlign = 'center';
       fillMath(ctx, t('orbit.chart.nodalPlane'), w / 2, h / 2 - 6);
@@ -744,7 +829,7 @@ const Charts = (function () {
     for (let i = 0; i < NLEV; i++) {
       const frac = Math.pow(10, Math.log10(lf0) + (Math.log10(lf1) - Math.log10(lf0)) * i / (NLEV - 1));
       const L = frac * maxV;
-      const col = CONT_COLORS[i % CONT_COLORS.length];
+      const col = PALETTE[i % PALETTE.length];
       const segs = marchSquareSegments(vals, Gx, Gy, L, w, h);
       levelCols.push({ L: L, col: col, segs: segs });
       ctx.strokeStyle = 'rgb(' + col.join(',') + ')';
@@ -789,7 +874,7 @@ const Charts = (function () {
     } else {
       nodeSegs = marchSquareSegments(vals, Gx, Gy, maxV * 1e-4, w, h);
     }
-    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.strokeStyle = ink('rgba(255,255,255,0.95)');
     ctx.lineWidth = 2.2;
     ctx.beginPath();
     for (const s of nodeSegs) { ctx.moveTo(s[0][0], s[0][1]); ctx.lineTo(s[1][0], s[1][1]); }
@@ -813,7 +898,7 @@ const Charts = (function () {
       }
     }
     // 说明
-    ctx.fillStyle = 'rgba(200,215,240,0.8)';
+    ctx.fillStyle = ink('rgba(200,215,240,0.8)');
     ctx.font = '10px system-ui, sans-serif';
     fillMath(ctx, t('orbit.chart.contourTitle'), 8, h - 6);
   }
@@ -823,7 +908,7 @@ const Charts = (function () {
     ctx.save();
     ctx.font = '10px system-ui, sans-serif';
     const tw = ctx.measureText(text).width;
-    ctx.fillStyle = 'rgba(8,12,24,0.85)';
+    ctx.fillStyle = ink('rgba(8,12,24,0.85)');
     ctx.fillRect(x - tw / 2 - 3, y - 7, tw + 6, 14);
     ctx.fillStyle = 'rgb(' + col.join(',') + ')';
     ctx.textAlign = 'center';
@@ -943,7 +1028,7 @@ const Charts = (function () {
       if (thr > 0 && thr < maxV) {
         const segs = marchSquareSegments(vals, Gx, Gy, thr, w, h);
         if (segs.length) {
-          ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+          ctx.strokeStyle = ink('rgba(255,255,255,0.95)');
           ctx.lineWidth = 1.6;
           ctx.setLineDash([6, 3]);
           ctx.beginPath();
@@ -953,7 +1038,7 @@ const Charts = (function () {
           // 线上不给文字（密集处会糊），只在左下角标一行说明。
           // ★ 用**画布坐标**（不随绘图区平移）：这一行起于左侧留白，只有尾端压在绘图区左下角。
           const pf = levelFraction * 100;
-          ctx.fillStyle = 'rgba(255,255,255,0.9)';
+          ctx.fillStyle = ink('rgba(255,255,255,0.9)');
           ctx.font = '11px system-ui, sans-serif';
           ctx.textAlign = 'left';
           fillMath(ctx, t('orbit.chart.isoLine', { pct: (pf >= 10 ? pf.toFixed(1) : pf.toFixed(2)) }), 8, h - 8);
@@ -963,7 +1048,7 @@ const Charts = (function () {
 
     // 节面提示（填色模式下，把"空白"变成教学点）—— 分两行居中，避开右边缘的 `x` 轴名
     if (nodalPlane) {
-      ctx.fillStyle = 'rgba(255,170,90,0.95)';
+      ctx.fillStyle = ink('rgba(255,170,90,0.95)');
       ctx.font = '13px system-ui, sans-serif';
       ctx.textAlign = 'center';
       fillMath(ctx, t('orbit.chart.nodalPlaneShort'), w / 2, h / 2 - 4);
@@ -978,7 +1063,7 @@ const Charts = (function () {
   function drawSectionLegend(ctx, w, h, phaseMode, maxV) {
     const bw = 11, bh = Math.min(104, h * 0.4);
     const x = w - bw - 20, y = h - bh - 14;
-    ctx.strokeStyle = 'rgba(220,228,245,0.4)';
+    ctx.strokeStyle = ink('rgba(220,228,245,0.4)');
     ctx.lineWidth = 1;
     ctx.strokeRect(x - 0.5, y - 0.5, bw + 1, bh + 1);
     // 逐像素填充色条：顶部为高端值/相位 0，底部为低端
@@ -996,7 +1081,7 @@ const Charts = (function () {
       ctx.fillRect(x, y + i, bw, 1);
     }
     // 标注
-    ctx.fillStyle = 'rgba(220,228,245,0.9)';
+    ctx.fillStyle = ink('rgba(220,228,245,0.9)');
     ctx.font = '10px system-ui, sans-serif';
     // ★ 说明文字一律画在色条**上方、右对齐**（原先：相位档画在 y + bh + 15，而色条是
     //   贴底摆的（y = h − bh − 14），那一行落在画布**外**，整句被裁掉只剩半个字；
@@ -1007,12 +1092,12 @@ const Charts = (function () {
       ctx.fillText('0', x + bw + 4, y + 9);
       ctx.fillText('π', x + bw + 4, y + bh / 2 + 3);
       ctx.fillText('2π', x + bw + 4, y + bh + 3);
-      ctx.fillStyle = 'rgba(180,196,225,0.75)';
+      ctx.fillStyle = ink('rgba(180,196,225,0.75)');
       fillMath(ctx, t('orbit.chart.phaseArg'), x - 6, y - 5);
     } else {
       ctx.fillText(t('orbit.chart.max'), x + bw + 4, y + 9);
       ctx.fillText('0', x + bw + 4, y + bh + 3);
-      ctx.fillStyle = 'rgba(180,196,225,0.75)';
+      ctx.fillStyle = ink('rgba(180,196,225,0.75)');
       fillMath(ctx, t('orbit.chart.maxDensity', { v: fmtNum(maxV) }), x - 6, y - 5);
     }
     ctx.textAlign = 'left';   // 恢复默认，别把对齐状态漏给后面画的图元

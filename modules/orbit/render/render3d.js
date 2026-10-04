@@ -74,10 +74,10 @@ const Orbit3D = (function () {
      *   于是速度取决于帧率：60Hz 下约 12°/s，144Hz 下变成约 29°/s。
      *   "同一份代码在不同机器上转得不一样快"是最难复现的那类问题，而用户
      *   这一轮报的正是"自动旋转太快"。
-     * ★ 数值从 12°/s 降到约 **5°/s**（0.09 rad/s ≈ 78 秒一圈）：这是教学演示的
-     *   空闲自转，看得清结构、又不至于让人来不及读旁边的读数。
+     * ★ 数值：0.08 rad/s ≈ 4.6°/s（约 78 秒绕轴一圈）。这一档是"看得见在动、又不抢眼睛"：
+     *   上一版 12°/s 被报"太快"，而 0.0035 rad/s（被覆盖的那个遗留值）被报"没反应"。
      */
-    const autoRotateSpeed = opts.autoRotateSpeed != null ? opts.autoRotateSpeed : 0.09;
+    const autoRotateSpeed = opts.autoRotateSpeed != null ? opts.autoRotateSpeed : 0.08;
     /** 上一帧的时间戳（毫秒）；第一帧没有差值，按 60fps 走 */
     let lastFrameMs = 0;
 
@@ -96,6 +96,22 @@ const Orbit3D = (function () {
     const AXIS_Z = new THREE.Vector3(0, 0, 1);   // 世界竖直轴（仅初始 lookAt 用）
     const AXIS_X = new THREE.Vector3(1, 0, 0);   // 相机局部 X（屏幕水平）
     const AXIS_Y = new THREE.Vector3(0, 1, 0);   // 相机局部 Y（屏幕竖直）
+    /**
+     * 自动旋转的转轴（**相机局部系**）：刻意**不是**纯竖直轴。
+     *
+     * ★ 用户报「自动旋转没反应」的真因就在这里 —— 不是没转，是**看不见**：
+     *   原实现绕相机局部 Y（≈ 世界 Z，因为相机是 z 轴朝上）转，而默认的 3p_z
+     *   轨道**恰好以世界 Z 为旋转对称轴**（所有 m=0 的实轨道、以及 s 轨道都如此）。
+     *   绕对称轴自转，画面在数学上**逐像素不变**：实测相隔 8 秒（转过约 42°）
+     *   两张截图除了细轴线几乎完全一样 —— 换成 s/p_z/d_z² 都是同一个结果。
+     * ★ 取 `(0.6, 0.8, 0)`（与竖直轴约 37°）而不是纯水平轴：纯水平转会让物体
+     *   一路翻到倒立（转过 180° 就上下颠倒），而带 0.8 竖直分量后，物体只在一个
+     *   ±37° 的锥内**摆动式自转** —— 既看得见，又始终保持"正着"、不晃眼。
+     * ★ 观感：物体的对称轴会绕这个倾斜轴画一个锥面，**相对屏幕的倾角在 0…~74° 之间往复**
+     *   （轴与竖直轴夹角 37° ⇒ 锥半角 37°）。所以默认的 3p_z 会缓慢地"立起来—倒下去"，
+     *   既看得见又在往复（不会一路翻到倒立不回来），实测 8 秒能看出明显变化。
+     */
+    const AUTO_AXIS = new THREE.Vector3(0.6, 0.8, 0).normalize();
     const _v = new THREE.Vector3();
     const _right = new THREE.Vector3();
     const _up = new THREE.Vector3();
@@ -220,9 +236,9 @@ const Orbit3D = (function () {
       if (!(dt > 0)) dt = 1 / 60;
       if (dt > 0.25) dt = 0.25;
       if (autoRotate && !dragging) {
-        // 自动旋转同样绕相机局部 Y（屏幕竖直）→ 视觉上始终是水平自转，
-        // 与拖拽行为一致（用世界 Z 的话，俯视极点时会变成原地打转）
-        _qYaw.setFromAxisAngle(AXIS_Y, autoRotateSpeed * dt);
+        // ★ 绕**倾斜的**相机局部轴（见 AUTO_AXIS 的说明）——不是纯竖直轴：
+        //   绕竖直轴自转对"以竖直轴为对称轴"的轨道（3p_z、3d_z²、s…）是**看不见**的。
+        _qYaw.setFromAxisAngle(AUTO_AXIS, autoRotateSpeed * dt);
         quatTarget.multiply(_qYaw).normalize();
       }
       if (quat.angleTo(quatTarget) > 1e-5) {
@@ -326,8 +342,13 @@ const Orbit3D = (function () {
     container.appendChild(renderer.domElement);
 
     // 四元数轨道控制器（z 竖直，俯视极点也不会万向节锁）
+    // ★ 这里**不要**再传 `autoRotateSpeed`：`createQuatOrbit` 的默认值就是唯一的那个数
+    //   （见那里的说明）。原先这里写着 `autoRotateSpeed: 0.0035` —— 那是"每帧步长"
+    //   时代的遗留值，改成"弧度/秒"之后它把默认值**完全覆盖**掉，
+    //   实际变成 0.0035 rad/s = 0.2°/s ≈ **30 分钟一圈**，用户看到的就是"没反应"。
+    //   两处各写一个数，改一处漏一处 —— 所以只留默认值这一处。
     viewCtl = createQuatOrbit(camera, renderer.domElement, {
-      distance: 5, rotateSpeed: 1.0, damping: 0.18, autoRotateSpeed: 0.0035,
+      distance: 5, rotateSpeed: 1.0, damping: 0.18,
     });
     viewCtl.setView(new THREE.Vector3(0, -4, 3), new THREE.Vector3(0, 0, 0));
     viewCtl.setAutoRotate(true);

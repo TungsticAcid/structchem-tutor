@@ -30,6 +30,23 @@ import { el } from '../agent-core/ui/dom.js'
 import { t } from '../i18n/index.js'
 import './i18n.js'   // 副作用：把本区的中英词典注册进 @i18n 运行时
 
+/**
+ * 给定底色，返回一个**看得清**的文字颜色。
+ *
+ * ★ 为什么需要它：周期表格子的底色就是该元素的配色，而这 103 个颜色横跨
+ *   "纯白（H）/ 近黑（C）/ 各种饱和色"。写死白字的话，氢（#FFFFFF）那格就是白底白字 ——
+ *   看不见，而且不报错。判据用 WCAG 的相对亮度近似（0.2126R+0.7152G+0.0722B），
+ *   阈值 150：比上游 `pages/settings.js` 那种"只特判 #ffffff/#cccccc"的两值写法稳，
+ *   黄色（#FFD700，亮度约 200）这类"浅底深字"也能正确翻过来。
+ */
+export function readableOn(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex == null ? '' : hex).trim())
+  if (!m) return '#fff'
+  const n = parseInt(m[1], 16)
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 150 ? '#111' : '#fff'
+}
+
 export const DEFAULT_SCHEMA = [
   {
     key: 'endpoint', label: '接入点 endpoint', type: 'text',
@@ -71,8 +88,11 @@ export const DEFAULT_SCHEMA = [
 ]
 
 export const DEFAULT_GROUPS = [
-  { title: '模型服务（改一次就不动）', keys: ['endpoint', 'apiKey', 'model', 'effort', 'maxTokens'], test: true },
-  { title: '教学偏好（可能每次教学都调）', keys: ['showReasoning', 'proactive', 'animSpeed', 'playback'] },
+  // ★ 标题**不带括号说明**（用户明确要求）：括号里那句是给开发者写使用场景的，
+  //   放在一级标题后面既占宽度又像注释；真要解释，该写成该组第一项的 hint。
+  // ★ `id` 供 `open({ expand })` 定位（缺 Key 自动弹层要展开这一组），别用标题匹配。
+  { id: 'model', title: '模型服务', keys: ['endpoint', 'apiKey', 'model', 'effort', 'maxTokens'], test: true },
+  { title: '教学偏好', keys: ['showReasoning', 'proactive', 'animSpeed', 'playback'] },
 ]
 
 /**
@@ -103,6 +123,13 @@ export function createSettingsPopup(cfg = {}) {
 
   let overlay = null
   const inputs = {}   // key → { node, read, ... }
+  /**
+   * 建出来的折叠分区清单（`buildOverlay` 里重建）。
+   * ★ 声明在**这个闭包**而不是 `buildOverlay` 内部：`open({expand})` 要用它，
+   *   而 `open` 在 `buildOverlay` 之外（把它们放一起的写法会让 `open` 抛
+   *   `ReferenceError: sections is not defined` —— 实测就这么崩过一次）。
+   */
+  let sections = []
 
   function resolveHint(def) {
     return typeof def.hint === 'function' ? def.hint(store) : def.hint
@@ -175,6 +202,17 @@ export function createSettingsPopup(cfg = {}) {
         }
         sel.value = v == null ? '' : String(v)
         /**
+         * ★ 值不在 options 里（模块字段漏写默认值、或存储里是旧值）时，浏览器把
+         *   `selectedIndex` 置为 -1，下拉显示**空白** —— 看起来像"这个控件坏了"。
+         *   回落到第一项，至少给出一个合法值（实测「晶体模块参数」的「晶胞显示」原本就是空白）。
+         * ★ 判据写成"显式比对 options"而不是读 `selectedIndex`：桩 DOM 没有 selectedIndex，
+         *   用它判断会让这条兜底在测试里**永远走不到**（假绿）。
+         */
+        const opts = def.options || []
+        if (!opts.some(([val2]) => String(val2) === sel.value)) {
+          sel.value = opts.length ? String(opts[0][0]) : ''
+        }
+        /**
          * ★ 可选的 `def.onChange(v)`：**改完立即生效**，不等按「保存」。
          *   只有"所见即所得"的偏好才该用它（界面语言就是这样：改成英文要马上看到，
          *   否则用户会以为没生效而反复点）。默认不挂 —— 多数设置项应当在按保存时统一落库，
@@ -186,11 +224,20 @@ export function createSettingsPopup(cfg = {}) {
         return { node: sel, read: () => sel.value }
       }
       case 'range': {
+        /**
+         * ★ 缺值兜底：`v == null` 时取 `def.min`（拿不到 min 就 0）。
+         *   原实现把 `v` 直接拼进 `value=` 与读数文本，于是**没有一个字段漏写默认值**，
+         *   界面上就会出现字面量 `value="undefined"` 与读数 `×undefined`
+         *   （实测：「晶体模块参数」的三个滑块全是这样，中文界面下看着像乱码）。
+         *   `undefined` 从来不是合法的滑块值：浏览器会把它丢弃、滑块滑到中点，
+         *   用户不动任何东西按「保存」就把中点写进了存储 —— 一个静默的数据损坏。
+         */
+        const rv = v == null ? (def.min == null ? 0 : def.min) : v
         const input = el('input', {
           class: 'agent-input', type: 'range',
-          min: String(def.min), max: String(def.max), step: String(def.step || 1), value: String(v),
+          min: String(def.min), max: String(def.max), step: String(def.step || 1), value: String(rv),
         }, undefined, doc)
-        const out = el('span', { class: 'agent-fhint', text: (def.unit || '') + v }, undefined, doc)
+        const out = el('span', { class: 'agent-fhint', text: (def.unit || '') + rv }, undefined, doc)
         input.addEventListener('input', () => { out.textContent = (def.unit || '') + input.value })
         return { node: el('div', {}, [input, out], doc), read: () => +input.value }
       }
@@ -236,9 +283,30 @@ export function createSettingsPopup(cfg = {}) {
          *   一格一按钮 + 一个共享取色器，既保住"一眼看全配色"的用法，
          *   也不让开销随元素表规模线性增长。
          * ★ `noStore`：落库在点击时由 `def.set` 负责，没有"一个字段一个值"可言。
+         *
+         * ★ 2026-10-05 新增 `def.layout === 'periodic'` 分支（用户报"逐元素配色太不直观"）：
+         *   原来是一块 16 列的密集色块阵列 —— 103 个纯色方块，**看不出哪格是哪个元素**，
+         *   只能靠悬浮提示逐个试。改成**元素周期表**：位置本身就说明了身份
+         *   （周期 = 行、族 = 列，镧系/锕系下挂两行），格子里再写上元素符号，
+         *   并且**字色按底色亮度自动取深/浅**（H 是近白色底的，白字看不见）。
+         *   位置数据来自 `def`（模块给的 `period`/`group`），弹层不自己排周期表 ——
+         *   那是学科数据，属于模块。
          */
         const items = (typeof def.items === 'function' ? def.items() : (def.items || [])).slice()
-        const grid = el('div', { class: 'agent-palette' }, undefined, doc)
+        const periodic = def.layout === 'periodic'
+        const grid = el('div', { class: 'agent-palette' + (periodic ? ' is-periodic' : '') }, undefined, doc)
+        if (periodic) {
+          // 行列数由数据给：格子用 `1fr` 均分，整张表随弹层宽度缩放
+          grid.style.gridTemplateColumns = 'repeat(' + (def.layoutCols || 18) + ', minmax(0, 1fr))'
+          grid.style.setProperty('--pt-rows', String(def.layoutRows || 10))
+          grid.style.setProperty('--pt-gap-row', String(def.layoutGapRow || 0))
+          for (const rl of (def.rowLabels || [])) {
+            const lab = el('span', { class: 'agent-pt-rowlabel', text: rl.key }, undefined, doc)
+            lab.style.gridRow = String(rl.row)
+            lab.style.gridColumn = '1 / 3'
+            grid.appendChild(lab)
+          }
+        }
         const picker = el('input', { class: 'agent-input agent-color', type: 'color' }, undefined, doc)
         const caption = el('span', { class: 'agent-fhint', text: '点一个格子选中元素，再取色' }, undefined, doc)
         let target = null
@@ -246,6 +314,19 @@ export function createSettingsPopup(cfg = {}) {
         for (const it of items) {
           const b = el('button', { class: 'agent-swatch', type: 'button', title: it.label, 'data-el': it.key }, undefined, doc)
           b.style.background = it.color
+          if (periodic) {
+            if (it.period && it.group) {
+              b.style.gridRow = String(it.period)
+              b.style.gridColumn = String(it.group)
+            }
+            b.style.color = readableOn(it.color)
+            b.appendChild(el('span', { class: 'agent-swatch-txt', text: it.key }, undefined, doc))
+            // ★ 中文元素名只有 1 个字（氢/氦/锂…），塞得进格子；英文名（Hydrogen）塞不下，
+            //   硬塞会溢出到相邻格子。所以只在短名时补第二行，长名交给 title 提示。
+            if (it.name && it.name.length <= 2) {
+              b.appendChild(el('span', { class: 'agent-swatch-name', text: it.name }, undefined, doc))
+            }
+          }
           b.onclick = () => {
             target = it
             picker.value = it.color
@@ -259,7 +340,10 @@ export function createSettingsPopup(cfg = {}) {
           if (!target) { caption.textContent = '先点一个格子选中元素'; return }
           target.color = picker.value
           const n = swatchOf(target.key)
-          if (n) n.style.background = picker.value
+          if (n) {
+            n.style.background = picker.value
+            if (periodic) n.style.color = readableOn(picker.value)   // 换底色就要重算字色
+          }
           if (typeof def.set === 'function') def.set(target.key, picker.value)
           caption.textContent = target.label + ' → ' + picker.value
         })
@@ -269,7 +353,10 @@ export function createSettingsPopup(cfg = {}) {
           const fresh = typeof def.items === 'function' ? def.items() : []
           for (const it of fresh) {
             const n = swatchOf(it.key)
-            if (n) n.style.background = it.color
+            if (n) {
+              n.style.background = it.color
+              if (periodic) n.style.color = readableOn(it.color)
+            }
           }
           target = null
           caption.textContent = '已恢复默认配色'
@@ -292,6 +379,7 @@ export function createSettingsPopup(cfg = {}) {
 
   function buildOverlay() {
     if (overlay) return overlay
+    sections = []   // 重建时清空（弹层只建一次，但这条让"重建"这件事仍然成立）
     const s = store.get()
 
     const box = el('div', { class: 'agent-settings-box' }, undefined, doc)
@@ -307,6 +395,13 @@ export function createSettingsPopup(cfg = {}) {
     const body = el('div', { class: 'agent-settings-body' }, undefined, doc)
 
     /**
+     * ★ 必须用 **id** 而不是标题文本匹配：标题会被 i18n 的 DOM 扫描替换成英文
+     *   （`main.js` 的 `startAutoSweep`），英文界面下用中文标题匹配会**静默失效** ——
+     *   不报错，只是又回到"展开第一组"，正好是这次要修的那个现象。
+     *   （清单本身是闭包级的 `sections`，见它声明处。）
+     */
+
+    /**
      * 造一个**可折叠**分区。
      *
      * ★ 为什么改成折叠：设置项分三类来源（模型服务 / 教学偏好 / 各模块自己的小参数），
@@ -316,8 +411,10 @@ export function createSettingsPopup(cfg = {}) {
      *   而 `<details>/<summary>` 的默认三角在各浏览器里长得不一样（且不可控）。
      *   `aria-expanded` 照给，读屏用户仍能知道展开状态。
      */
-    function makeSection(title, isOpen) {
-      const sec = el('section', { class: 'agent-sec' + (isOpen ? ' open' : '') }, undefined, doc)
+    function makeSection(title, isOpen, id) {
+      const sec = el('section', {
+        class: 'agent-sec' + (isOpen ? ' open' : ''), 'data-gid': id || '',
+      }, undefined, doc)
       const head = el('button', {
         class: 'agent-sec-head', type: 'button', 'aria-expanded': isOpen ? 'true' : 'false',
       }, [
@@ -333,12 +430,13 @@ export function createSettingsPopup(cfg = {}) {
       sec.appendChild(head)
       sec.appendChild(content)
       body.appendChild(sec)
+      sections.push({ id: id || '', sec })
       return content
     }
 
     groups.forEach((g, gi) => {
       // 缺省：第一组展开、其余收起；`g.open` 可显式指定
-      const gEl = makeSection(g.title, g.open === true || (g.open !== false && gi === 0))
+      const gEl = makeSection(g.title, g.open === true || (g.open !== false && gi === 0), g.id)
       for (const key of g.keys) {
         const def = byKey[key]
         if (!def) continue
@@ -378,7 +476,7 @@ export function createSettingsPopup(cfg = {}) {
     })
 
     // --- 数据与隐私（也是一个折叠分区；这类内容平时不该占版面）---
-    const g3 = makeSection('数据与隐私', false)
+    const g3 = makeSection('数据与隐私', false, 'privacy')
     g3.appendChild(el('div', { class: 'agent-note', text: cfg.privacyNote || (
       '· 学情与设置只存本机浏览器（localStorage），不上传。\n' +
       '· 对话内容不落库；只保留结构化动作序列用于复现与审计。\n' +
@@ -397,7 +495,7 @@ export function createSettingsPopup(cfg = {}) {
 
     // --- 关于 ---
     if (cfg.about) {
-      const g4 = makeSection('关于', false)
+      const g4 = makeSection('关于', false, 'about')
       g4.appendChild(el('div', { class: 'agent-note', html: cfg.about }, undefined, doc))
     }
 
@@ -452,7 +550,42 @@ export function createSettingsPopup(cfg = {}) {
     return store.set(patch)
   }
 
-  function open() { buildOverlay(); overlay.classList.add('show') }
+  /** 展开/收起一个分区，并把 `aria-expanded` 同步过去（两处状态必须一致） */
+  function setSectionOpen(sec, on) {
+    sec.classList.toggle('open', on)
+    const head = sec.querySelector && sec.querySelector('.agent-sec-head')
+    if (head && head.setAttribute) head.setAttribute('aria-expanded', on ? 'true' : 'false')
+  }
+
+  /**
+   * 打开设置弹层。
+   *
+   * @param {Object} [opts]
+   * @param {string} [opts.expand] 要**展开**的分区 id（见 `groups[].id`）。
+   *        不传 = 默认行为：第一组展开、其余收起。
+   *
+   * ★ 为什么需要 `expand`：程序**因缺 API Key 自动弹设置**时，用户要填的是「模型服务」，
+   *   而当时默认展开的是第一组「界面」——用户还得自己找。宿主在自动那条路径上
+   *   传 `{ expand: 'model' }` 即可；手动打开仍走无参默认。
+   * ★ 定位用 **id 而非标题文本**：标题会被 i18n 的 DOM 扫描替换成英文，
+   *   英文界面下按中文标题匹配会静默失效（又回到"展开界面组"）。
+   * ★ **每次 open 都重置一次展开态**：弹层只建一次并缓存（`buildOverlay` 的
+   *   `if (overlay) return overlay`），不重置的话上一次手动展开的分区会留着，
+   *   "自动弹出要展开模型服务"就会被用户的旧操作顶掉。
+   */
+  function open(opts) {
+    buildOverlay()
+    const want = opts && opts.expand
+    sections.forEach(({ id, sec }, i) => setSectionOpen(sec, want == null ? i === 0 : id === want))
+    overlay.classList.add('show')
+    // 命中的分区可能在滚动区下方（弹层体是 overflow-y:auto），滚进视野才算"贴心"
+    if (want) {
+      const hit = sections.find((x) => x.id === want)
+      if (hit && hit.sec.scrollIntoView) {
+        try { hit.sec.scrollIntoView({ block: 'nearest' }) } catch (e) { /* 老浏览器不接受参数对象 */ }
+      }
+    }
+  }
   function close() { if (overlay) overlay.classList.remove('show') }
 
   return {

@@ -415,13 +415,26 @@ export const text = {
   '点一下：显示 / 隐藏这个轨道': 'Click to show / hide this orbital',
   '叠加态': 'Superposition',
   '单一本征态': 'Single eigenstate',
-  '主': 'Main',
-  '克隆': 'Clone',
-  '独立': 'Independent',
+  // 同屏轨道清单里的三个角色徽标。
+  // ★ 原先是「主 / 克隆 / 独立」—— 用户明确说"看不懂"（那是实现视角的词）。
+  //   改成自解释的说法；`主` 这种**单字全局键**本身也脆弱（任何地方的"主"都会命中）。
+  '主面': 'Main',
+  '旋转副本': 'Rotated copy',
+  '独立面': 'Separate',
+  '主面：正在编辑的那一个，不可移除': 'Main face: the one being edited; cannot be removed',
+  '旋转副本：由主面整体旋转得到，几乎瞬间完成': 'Rotated copy: the main face rotated as a whole; appears almost instantly',
+  '独立面：单独算出来的一张等值面': 'Separate face: an isosurface computed on its own',
+  '未生成（当前阈值下抽不出曲面）': 'Not generated (no surface at this isovalue)',
+  // 「自定义」档的按钮与提示（2026-10-05 把该档位从隐藏改为可见）
+  '自定义同屏：点进来是空清单，再逐个「＋ 加入当前轨道」':
+    'Custom side-by-side: you start with an empty list; add orbitals one by one with "+ Add current orbital"',
+  '钉进画面，再改量子数继续加（': 'into the scene, then change the quantum numbers and keep adding (',
+  '最多 12 条': 'at most 12',
+  '），每行都能单独改色与显隐': '); each row can have its own colour and visibility',
   '从同屏里移除': 'Remove from the on-screen set',
   '轨道': 'Orbital',
   // 截面图的"叠加态"下拉项（整段是一个 option 文本）
-  '叠加态 ψ = Σcᵢψᵢ（本图可直接画）': 'Superposition ψ = Σcᵢψᵢ (this chart can draw it directly)',
+  '叠加态 ψ = Σcᵢψᵢ': 'Superposition ψ = Σcᵢψᵢ',
 
   // ==========================================================================
   // symmetry-markup.js —— 点群观鉴页（整份是一个模板字符串）

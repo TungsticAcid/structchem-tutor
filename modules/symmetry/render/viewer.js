@@ -4,6 +4,9 @@
  * 交互逻辑移植自 crystal 项目 components/viewer-canvas/viewer-canvas.js（Web 化）
  */
 import * as THREE from 'three'
+// ★ 环境贴图：原子球换成 PBR 之后，"金属感"有一半来自**反射周围环境**；
+//   没有它，`metalness 0.55` 的球会发黑发脏（晶体模块的同一段注释也这么说）。
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { setupLights, DEFAULT_LIGHT_CONFIG } from './materials.js'
 import { getVisualColor } from '../data/settings.js'
 
@@ -61,6 +64,11 @@ export class SymmetryViewer {
 
     // 场景
     s.scene = new THREE.Scene()
+
+    // ★ 环境贴图（与晶体模块同一手法、同一参数）：原子球是 PBR 材质，
+    //   金属度的观感依赖"反射到了什么"。用 RoomEnvironment 现场烘一张 PMREM，
+    //   失败就降级（保持原样 + 一次警告），绝不让整页渲染不出来。
+    this._setupEnvironment(s)
 
     // 灯光
     s.lights = setupLights(s.scene, DEFAULT_LIGHT_CONFIG)
@@ -190,10 +198,27 @@ export class SymmetryViewer {
     if (suggestedRadius) this._currentRadius = suggestedRadius
 
     // 切换结构时重置视角；同一结构改设置时保留视角
-    if (!preserveView && suggestedRadius) {
-      this._resetView(Math.PI / 4, Math.atan(Math.sqrt(2)), suggestedRadius)
-      s.frustumSize = this._frustumFor(suggestedRadius)
-      this._updateFrustum()
+    if (suggestedRadius) {
+      const grew = suggestedRadius > (s._framedRadius || 0)
+      if (!preserveView) {
+        this._resetView(Math.PI / 4, Math.atan(Math.sqrt(2)), suggestedRadius)
+        s.frustumSize = this._frustumFor(suggestedRadius)
+        this._updateFrustum()
+        s._framedRadius = suggestedRadius
+      } else if (grew) {
+        /**
+         * ★ `preserveView` 该保留的是**视角**（θ/φ/pan），不是**取景窗**。
+         *   页面在改「原子缩放 / 对称元素大小」时传的就是它 —— 内容变大了而视锥不变，
+         *   边上直接被裁（用户报的"模型显示不全"就是这么来的）。
+         *   相机距离也要一并抬：正交投影下距离不影响成像大小，但**近平面会切内容**，
+         *   内容伸到相机后面就彻底消失（轴端标签正是这样不见的）。
+         *   ★ 只"增大"不"减小"：内容变小时保持原取景，免得滑块往回拖时画面反复缩放。
+         */
+        s.frustumSize = this._frustumFor(suggestedRadius)
+        this._updateFrustum()
+        if (suggestedRadius > s.radius) s.radius = suggestedRadius
+        s._framedRadius = suggestedRadius
+      }
     }
     this._updateCameraPosition()
   }
@@ -221,6 +246,9 @@ export class SymmetryViewer {
     s.phi = phi
     s.orbitQuat = this._makeOrbitQuat(theta, phi)
     s.radius = radius || DEFAULT_RADIUS
+    // ★ 记下"当前视锥是按哪个半径拟合的"：`setContent` 靠它判断
+    //   `preserveView` 时内容有没有变大到需要重算取景（见那里的说明）。
+    s._framedRadius = s.radius
     s.target = { x: 0, y: 0, z: 0 }
     s.panOffset = { x: 0, y: -s.radius * 0.12, z: 0 }
   }
@@ -506,12 +534,38 @@ export class SymmetryViewer {
     return null
   }
 
+  /**
+   * 生成环境贴图（PMREM）。移植自 `projects/crystal/H5/src/components/viewer-canvas.js:344-355`。
+   *
+   * ★ 为什么用 try/catch 包住：`PMREMGenerator` 需要 WebGL 渲染器与浮点纹理支持，
+   *   老设备/软件渲染下可能失败。失败时的正确行为是"退化回直射高光"，
+   *   而不是让整个三维视图白屏 —— 金属感是观感，渲染不出来才是故障。
+   */
+  _setupEnvironment(s) {
+    if (!s.renderer || !THREE.PMREMGenerator) return
+    try {
+      const pmrem = new THREE.PMREMGenerator(s.renderer)
+      // fromScene 的第二个参数是模糊度：越大反射越柔（0.04 接近打磨金属）
+      s.envRT = pmrem.fromScene(new RoomEnvironment(), 0.04)
+      s.scene.environment = s.envRT.texture
+      pmrem.dispose()          // pmrem 本身用完即弃；环境贴图在 s.envRT 里
+    } catch (e) {
+      console.warn('[symmetry-viewer] 环境贴图生成失败，金属质感将退化为普通高光：', e)
+    }
+  }
+
   /** 销毁并释放资源 */
   dispose() {
     const s = this._state
     s.renderer.setAnimationLoop(null)
     this._clearRoot()
     for (const light of s.lights) s.scene.remove(light)
+    // ★ 环境贴图是显存里的 RT，不 dispose 会随每次进出点群页累积（route 反复挂载）
+    if (s.envRT) {
+      try { s.envRT.dispose() } catch (e) { /* 已经释放过 */ }
+      if (s.scene) s.scene.environment = null
+      s.envRT = null
+    }
     s.renderer.dispose()
     if (s.renderer.domElement && s.renderer.domElement.parentNode) {
       s.renderer.domElement.parentNode.removeChild(s.renderer.domElement)

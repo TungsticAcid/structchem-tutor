@@ -461,6 +461,19 @@ function applyThemeCanvasBg(resolved) {
 // ---------------------------------------------------------------------------
 const settings = createSettingsStore({
   storageKey: 'chem-agent.settings',
+  /**
+   * ★ 模块参数必须有默认值（用户报「晶体模块参数里显示 undefined」的根因）。
+   *
+   *   `modules/crystal/facade.js` 声明的这四项**没有走 get/set 外挂通道**，
+   *   所以弹层是从本 store 里读的；而本 store 原先没有这四个键 ⇒ 读出来是 undefined
+   *   ⇒ 滑块写出字面量 `undefined`、读数显示 `×undefined`、下拉显示空白。
+   *   更糟的是"静默数据损坏"：不动任何滑块按「保存」，滑块的中点会被当成用户的选择写进存储，
+   *   再经 onSaved 下发到三维视图 —— 用户只是打开看了一眼设置，外观就被改了。
+   *
+   *   取值与视图默认值同源：`modules/crystal/view-props.js` 的 DEFAULTS
+   *   与下面 EMPTY_PROPS 一致（改一处要一起改）。
+   */
+  defaults: { atomScale: 1, stickRadius: 0.08, opacity: 0, cellDisplayMode: 'conventional' },
   // ★ 「清除本机数据」必须真的清干净。学情、悬浮球位置、演示收藏是**静态键**，
   //   列出来即可；对话是**动态键**（索引 + 每个会话一个），静态列表表达不了，
   //   交给 onClearAll —— convStore 在上面已经建好，所以这里可以闭包直接用。
@@ -512,17 +525,20 @@ const settingsPopup = createSettingsPopup({
     { title: '界面', keys: ['uiLang', 'theme'], open: true },
   ].concat(DEFAULT_GROUPS, [
     {
-      title: '晶体模块参数（模块自己声明的）',
+      // ★ 标题不带括号（用户明确要求）：括号里那句是写给开发者的使用场景。
+      id: 'crystalParams',
+      title: '晶体模块参数',
       keys: ['atomScale', 'stickRadius', 'opacity', 'cellDisplayMode'],
     },
     {
       // ★ 配色项由**模块**声明（见 modules/crystal/settings-visual.js），
       //   但它们的值存在模块自己的 localStorage 里，不经本 store——
       //   弹层只是那份数据的**视图**（schema 里的 get/set 外挂通道）。
-      title: '三维配色（改完立即生效）',
+      title: '三维配色',
       keys: crystal.settings.filter((x) => x.type === 'color').map((x) => x.key),
     },
     {
+      id: 'elementColors',
       title: '逐元素配色',
       keys: ['elementColors'],
     },
@@ -819,7 +835,11 @@ panel = createPanel({
   send: (text, handlers) => app.send(text, wrapHandlers(handlers)),
   onStop: () => app.stop(),
   hasKey: () => settings.hasKey(),
-  openSettings: () => settingsPopup.open(),
+  // ★ 这条是**唯一**的"因缺 Key 自动弹设置"通路（面板发送时 / 收到 no_key 时都走它）。
+  //   所以要展开「模型服务」—— 用户此刻要做的就是填 API Key，
+  //   而默认展开的第一组是「界面」，他会先看到一个跟自己目的无关的面板，还得自己找。
+  //   手动入口（面板菜单 / 首页链接）保持无参 open()，仍默认展开第一组。
+  openSettings: () => settingsPopup.open({ expand: 'model' }),
   // ★ 存储键由宿主给出（命名空间纪律：面板的缺省值不得指向某个具体产品名）
   storageKey: 'chem-agent.panel.fabPos',
 })

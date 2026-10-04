@@ -14,6 +14,7 @@
  * 用法：node modules/orbit/tools/test-orbit-module.mjs
  */
 import { createModule } from '../index.js'
+import { readFileSync } from 'node:fs'
 import { createOrbitFacade } from '../facade.js'
 import { DEMO_SCRIPTS, demoById, demoManifest } from '../demo/scripts.js'
 import { VOCAB, validate, listActions } from '../actions.js'
@@ -331,6 +332,27 @@ console.log('【⑥ 多轨道同屏：任意轨道 / 任意数量 / 逐轨道配
     ok(noCase.length === 0, 'VOCAB 里每个动作在 validate 里都有 case（空参数不会回落到"不支持该动作"）',
       noCase.join(','))
   }
+}
+
+// ---------------------------------------------------------------------------
+// 源码棘轮：自动旋转的角速度**只能有一个数**
+//
+// ★ 用户报「自动旋转没反应」，真因不是没转，而是 `init()` 里那句
+//   `autoRotateSpeed: 0.0035` 把构造器的默认值（0.12 rad/s）**覆盖**成了
+//   0.0035 rad/s = 0.2°/s ≈ 30 分钟一圈。两处各写一个数，改一处漏一处。
+//   这条断言就是钉住"不许再出现第二处"——它是纯源码检查，不需要浏览器。
+// ---------------------------------------------------------------------------
+{
+  const raw = readFileSync(new URL('../render/render3d.js', import.meta.url), 'utf8')
+  // ★ 先**剥掉注释**再判：这段说明本身就写着"原先这里是 autoRotateSpeed: 0.0035"，
+  //   不剥注释的话棘轮会被自己的说明文打红（实测第一版就是这么假红的）。
+  const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
+  ok(!/autoRotateSpeed:\s*[0-9]/.test(src),
+    '调用点不得覆盖 autoRotateSpeed（默认值必须真的生效）')
+  ok(/autoRotateSpeed \* dt/.test(src),
+    '自动旋转按**时间**推进（弧度/秒），不按帧数')
+  ok(/AUTO_AXIS/.test(src) && !/setFromAxisAngle\(AXIS_Y,\s*autoRotateSpeed/.test(src),
+    '自动旋转绕倾斜轴（绕竖直轴对 3p_z / s / d_z² 这些轴对称轨道是看不见的）')
 }
 
 console.log('')

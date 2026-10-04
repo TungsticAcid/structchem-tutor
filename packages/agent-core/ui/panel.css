@@ -685,6 +685,32 @@ body.agent-resizing .compare-page {
   padding: 3px 5px; outline: none; text-align: center;
 }
 .se-amp { width: 56px; border-color: rgba(85,194,255,.35); }
+/* ---------------------------------------------------------------------------
+ * 「进阶：量子态」里的两个选择控件
+ *
+ * ★ 用户报「『实』『复』切换与轨道选择选项卡的背景色和字体颜色与其他设置不一致」——
+ *   根因是**这两个类名全仓没有任何 CSS 规则**（只有 js 在用），于是它们吃的是浏览器
+ *   UA 默认样式：浅灰/白底 + 纯黑字 + 2px outset 边框 + 直角 + 13.33px 字号。
+ *   而面板是恒深色表面（正文 rgb(232,236,247)），同一行的 `.se-num/.se-amp` 是
+ *   `--card` 底 + 浅字 + 6px 圆角 —— 同一行里一个控件像"系统灰按钮"、另一个是深色
+ *   主题控件，看着像两套界面拼起来的。按兄弟控件的同源写法补齐，不另造一套令牌。
+ * ------------------------------------------------------------------------- */
+.se-mode, .se-pick {
+  background: var(--card, #151c33);
+  border: 1px solid var(--line, #2a3558);
+  border-radius: 6px;
+  color: var(--text, #e8ecf7);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 3px 5px;
+  outline: none;
+  cursor: pointer;
+}
+.se-mode { min-width: 46px; text-align: center; }
+.se-pick { max-width: 118px; }
+/* `.cx`（复解态）原本是个死类名：给它与 `.se-amp` 同一口径的蓝色描边 */
+.se-mode.cx { border-color: rgba(85,194,255,.5); color: var(--accent, #55c2ff); }
+.se-mode:focus-visible, .se-pick:focus-visible { border-color: var(--accent, #55c2ff); }
 .se-del {
   margin-left: auto; background: none; border: none; color: #ff8f8f;
   cursor: pointer; font-size: 12px; padding: 2px 6px;

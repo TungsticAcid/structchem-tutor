@@ -26,7 +26,11 @@
 }
 .agent-overlay.show { display: flex; }
 .agent-settings-box {
-  width: min(520px, 94vw);
+  /* ★ 2026-10-05 从 520px 放宽到 720px：`逐元素配色` 改成了**元素周期表**（18 列）。
+     520px 时每格只有约 26px，而 tokens.css 把 `--fs-xs` 定为 12px 下限
+     （并点名批评过"周期表单元格 7px、不可读"）—— 26px 放 12px 的符号会顶格。
+     放宽后每格约 36px；顺带让长 hint 少折几行。 */
+  width: min(720px, 94vw);
   max-height: 88vh;
   background: linear-gradient(180deg, #151c33, #111830);
   border: 1px solid var(--line, #2a3558);
@@ -203,4 +207,43 @@
   outline: 2px solid var(--accent);
   outline-offset: 1px;
   border-color: var(--accent);
+}
+
+/* ------------------------------------------------------------------
+   元素周期表布局（settings-popup.js 的 `def.layout === 'periodic'`）
+   ------------------------------------------------------------------
+ * ★ 为什么改成周期表：原先是 16 列密集色块阵列，103 个纯色方块看不出
+ *   "哪格是哪个元素"，只能靠悬浮提示逐个试（用户就是这么报的）。
+ *   周期表里**位置即身份**（行=周期、列=族），格子里再写元素符号即可。
+ * ★ 与前两行的行数约定绑定 `modules/crystal/periodic-layout.js`：
+ *   7 个周期 + 1 个空隙行 + 镧系 + 锕系 = 10 行。数据侧有结构守卫逐符号对账，
+ *   这里若与数据漂移（比如改成 9 行），表现是"镧系那一行跑到表格外"。
+ */
+.agent-palette.is-periodic {
+  grid-template-rows: repeat(7, minmax(24px, auto)) var(--pt-gap-row, 10px) repeat(2, minmax(24px, auto));
+  gap: 2px;
+  max-height: none;
+  overflow-x: auto;
+  padding: 6px;
+  background: rgba(0, 0, 0, .22);
+}
+.agent-palette.is-periodic .agent-swatch {
+  aspect-ratio: auto;      /* 周期表格子由行列决定尺寸，不用 1:1 */
+  min-height: 24px;
+  padding: 0;
+  line-height: 1.05;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+/* 格子里的元素符号：字色由 JS 按底色亮度给（见 readableOn） */
+.agent-swatch-txt { font-size: 12px; font-weight: 700; }
+.agent-swatch-name { font-size: 9px; opacity: .85; white-space: nowrap; }
+/* 「镧系 / 锕系」两行的行标签 */
+.agent-pt-rowlabel {
+  font-size: 11px;
+  color: var(--text-dim, #9aa7c6);
+  align-self: center;
+  text-align: right;
+  padding-right: 4px;
+  white-space: nowrap;
 }

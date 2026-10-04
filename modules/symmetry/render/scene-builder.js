@@ -110,8 +110,9 @@ export function buildMoleculeScene(molecule, options = {}) {
   const sphereGeom = new THREE.SphereGeometry(1, 32, 32)
   const matOpacity = 1.0 - opacity
 
-  // 记录每个原子渲染后的世界位置（用于键定位）
+  // 记录每个原子渲染后的世界位置（用于键定位）与半径（用于包围球）
   const positions = []
+  const atomRadii = []
 
   for (const atom of atoms) {
     const color = getElementColor(atom.element)
@@ -134,6 +135,7 @@ export function buildMoleculeScene(molecule, options = {}) {
     label.userData = { atomLabel: true, atomIndex: positions.length }   // 关联原子序号，选中该原子时其标签不虚化
     group.add(label)
     positions.push(new THREE.Vector3(x, y, z))
+    atomRadii.push(r)
   }
 
   // 球棍键
@@ -177,13 +179,18 @@ export function buildMoleculeScene(molecule, options = {}) {
   }
 
   // 计算包围球半径（用于相机距离）
+  // ★ 必须把**原子半径**算进去：只取"球心到质心的距离"，球的外缘就落在包围球之外
+  //   —— 表现是"边上那个原子被画面裁掉半个"（实测 CsCl 角上的 Cs 就是被上边缘切的）。
+  //   原实现里 `const atomR = 0` 是个从没被用过的死变量，显然是为此留的位置。
   let maxR = 0
-  for (const p of positions) {
-    const d = p.length()
-    const atomR = 0
+  let maxAtomR = 0
+  for (let i = 0; i < positions.length; i++) {
+    const d = positions[i].length()
     if (d > maxR) maxR = d
+    const ar = atomRadii[i] || 0
+    if (ar > maxAtomR) maxAtomR = ar
   }
-  const radius = Math.max(maxR + 1.5, 3.0)
+  const radius = Math.max(maxR + maxAtomR + 1.5, 3.0)
 
   return { group, radius }
 }
@@ -215,10 +222,13 @@ export function buildCrystalScene(crystal, options = {}) {
   const sphereGeom = new THREE.SphereGeometry(1, 32, 32)
   const matCache = {}
   const matOpacity = 1.0 - opacity
+  // ★ 累计最大原子半径：包围球要含球的外缘（见下面 radius 的说明）
+  let maxAtomR = 0
 
   for (const atom of expanded) {
     const color = getElementColor(atom.element)
     const r = getElementRadius(atom.element) * sizeFactor * atomScale
+    if (r > maxAtomR) maxAtomR = r
     if (!matCache[color]) {
       matCache[color] = createAtomMaterial(color, { opacity: matOpacity })
     }
@@ -234,9 +244,11 @@ export function buildCrystalScene(crystal, options = {}) {
   const wireframe = buildCellWireframe(lattice)
   contentGroup.add(wireframe)
 
-  // 包围球半径 = 体对角线一半
+  // 包围球半径 = 体对角线一半 + **角上原子的半径**
+  // ★ 加原子半径的理由与分子场景同一处：CsCl 的 Cs 在晶胞角上，
+  //   `diag/2` 只到球心，球的外缘会越过包围球 → 被画面裁掉。
   const diag = Math.sqrt(lattice.a * lattice.a + lattice.b * lattice.b + lattice.c * lattice.c)
-  const radius = Math.max(diag / 2 + 1.5, 3.0)
+  const radius = Math.max(diag / 2 + maxAtomR + 1.5, 3.0)
 
   return { group, radius }
 }

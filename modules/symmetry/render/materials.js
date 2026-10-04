@@ -63,16 +63,33 @@ export function setupLights(scene, config = DEFAULT_LIGHT_CONFIG) {
 }
 
 /**
- * 创建原子材质（MeshPhongMaterial，参数与 crystal 一致）
+ * 创建原子材质（**PBR**：MeshStandardMaterial，参数与晶体模块一致）
+ *
+ * ★ 2026-10-05 从 MeshPhongMaterial 换成 MeshStandardMaterial（用户报"原子球缺少金属光泽"）。
+ *   根因不是光源 —— 本页与晶体页的四灯配置逐字相同（见本文件 setupLights 与
+ *   `modules/crystal/view-props.js`）；差别只有两条：
+ *   ① 材质模型：Phong 只有"直射高光"，而 `specular` 缺省值是 `0x222222`（极暗），
+ *      实拍下来就是一层很弱的塑料高光，怎么调 shininess 都出不来金属感；
+ *   ② **没有环境贴图**：金属感的一半来自"反射周围环境"，而 Phong 根本没有 envMap 通道。
+ *   晶体页那套（`projects/crystal/H5/src/lib/scene-builder.js:1102-1136`）就是
+ *   Standard + `metalness 0.55 / roughness 0.32 / envMapIntensity 1.0`，
+ *   配套 `scene.environment`（见 `render/viewer.js` 的 `_setupEnvironment`）。
+ *
+ * ★ 必须**成对**改：只换材质不加环境贴图，metalness 0.55 的球会因为
+ *   "金属没有漫反射、又没东西可反射"而发黑发脏（晶体那边的注释也这么写着）。
+ *
  * @param {string} color - 十六进制颜色
- * @param {Object} opts - { opacity: 0~1 的透明度（1=不透明），shininess, specular }
- * @returns {THREE.MeshPhongMaterial}
+ * @param {Object} opts - { opacity: 0~1 的透明度（1=不透明），metalness, roughness, envMapIntensity }
+ * @returns {THREE.MeshStandardMaterial}
  */
 export function createAtomMaterial(color, opts = {}) {
   const matOpts = {
     color: color,
-    shininess: opts.shininess ?? 30,
-    specular: new THREE.Color(opts.specular ?? 0x222222)
+    // ★ 用**元素原色**，不做提亮：PBR 下亮度由 metalness/roughness 与环境反射共同决定，
+    //   再手工提亮会让深色元素被洗白，而元素色本身是教学信息（学生靠颜色认元素）。
+    metalness: opts.metalness ?? 0.55,
+    roughness: opts.roughness ?? 0.32,
+    envMapIntensity: opts.envMapIntensity ?? 1.0,
   }
   // 透明度处理：与 crystal buildAtoms 一致
   const matOpacity = opts.opacity ?? 1.0
@@ -81,7 +98,7 @@ export function createAtomMaterial(color, opts = {}) {
     matOpts.opacity = matOpacity
     matOpts.depthWrite = matOpacity > 0.5
   }
-  return new THREE.MeshPhongMaterial(matOpts)
+  return new THREE.MeshStandardMaterial(matOpts)
 }
 
 /**

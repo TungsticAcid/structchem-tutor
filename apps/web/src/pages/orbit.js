@@ -29,6 +29,8 @@ import { t as hostT } from '@i18n/index.js'
 
 // 视口自适应：算出 --viewer-h / --panel-h（见 packages/ui-kit/viewport.js）
 import { createViewport } from '@ui-kit/viewport.js'
+// ★ 主题变更订阅：二维图表的颜色画在像素里，必须靠它重画（见 bootOrbitPage 里那处注释）
+import { onThemeChange } from '@ui-kit/theme.js'
 import { OM } from '@modules/orbit/core/math.js'
 // 等价轨道集合（sp³/sp²/sp）的唯一定义 —— 与动作词汇表、渲染层共用
 import { Hybrids } from '@modules/orbit/core/hybrids.js'
@@ -232,6 +234,8 @@ export function bootOrbitPage(deps = {}) {
   let realOrbL = -1;
   /** 阈值扫描的 rAF 句柄（同一时刻只允许一条扫描在跑） */
   let levelSweepRaf = null;
+/** 主题变更的退订函数（dispose 时必须调，否则页面卸载后仍会重画到已销毁的画布上） */
+let offTheme = null;
   function syncRealOrbitButtons() {
     const l = state.l;
     if (l !== realOrbL) {
@@ -392,14 +396,23 @@ export function bootOrbitPage(deps = {}) {
    */
   const MULTI_HINT = {
     off: '开启后，一组等价轨道同时显示，每个一个颜色',
+    // ★ 「数量不限」是**假话**：动作层与界面都卡在 MAX_MULTI_ORBITALS（12）上
+    //   （见上面的 `full` 判断）。这里写死 12 与那个常量同值 —— 改一处要一起改；
+    //   写"不限"会让用户加到第 13 条时以为程序坏了。
     custom: '自定义同屏：点「＋ 加入当前轨道」把此刻这个轨道（<b>纯态或叠加态都行</b>）'
-      + '钉进画面，再改量子数继续加 —— <b>数量不限</b>，每行都能单独改色与显隐',
+      + '钉进画面，再改量子数继续加（<b>最多 12 条</b>），每行都能单独改色与显隐',
     sp3: '四个等价 <i>sp</i>³：指向<b>正四面体</b>，两两 109.47°',
     sp2: '三个等价 <i>sp</i>²：<b>共面</b>、互成 120°',
     sp: '两个等价 <i>sp</i>：成 <b>180°</b> 直线型',
   };
   let multiListBuiltFor = null;
   let multiListTimer = 0;   // 「生成中…」的低频轮询（额外轨道是排队建的）
+  /** 已经轮询了多少轮（600ms 一轮）—— 用来给"真的抽不出曲面"设一个上限 */
+  let multiPollRounds = 0;
+  /** 轮询上限（600ms × 300 = 3 分钟） */
+  const MULTI_POLL_MAX = 300;
+  /** 超过这么多轮还没顶点，就不再假称"生成中"，改说"未生成"（50 轮 ≈ 30 秒） */
+  const MULTI_POLL_GIVEUP = 50;
 
   /**
    * 渲染"同屏轨道"清单：每一行 = 一个轨道（色块 / 名字 / 显隐 / 移除）。
@@ -458,19 +471,37 @@ export function bootOrbitPage(deps = {}) {
 
     const rows = [];
     const spec = multiRenderSpec();
+    // ★ 「还有行没落定」= 得继续轮询。见下面轮询条件的说明。
+    let anyUnresolved = false;
+    // ★ 等够久还没建出来，就不再假称"生成中"，如实说"没抽出来"（见下面的第三态）。
+    const giveUp = multiPollRounds > MULTI_POLL_GIVEUP;
     if (spec) {
       spec.items.forEach(function (it, i) {
         const info = (Orbit3D.multiInfo ? Orbit3D.multiInfo() : null) || {};
         const state0 = info.items && info.items[i] ? info.items[i] : null;
-        // 还没建出来的行要如实标出来：额外轨道是**排队一张张建**的（每张 10–15 秒），
-        // 不标的话用户会以为"点了没反应"——而它其实正在建。
-        const pending = !!(info.building === it.key)
-          || (!state0 || !state0.verts);
-        const tag = pending
-          ? '<span class="orb-state is-building">生成中…</span>'
+        const hasVerts = !!(state0 && state0.verts);
+        // 渲染层正在建这一张（或队里还有活），与"压根没人建"是两回事
+        const active = (info.building === it.key) || (info.pending > 0);
+        const pending = !hasVerts && !(giveUp && !active);
+        if (pending) anyUnresolved = true;
+        const label = it.label || '';
+        const tag = hasVerts
           // ★ 「N 顶点」是**一个**文本节点：数字与"顶点"拼在一起，扫描替换匹配不到 →
           //   必须走 t()（中文"顶点"在英文里是复数形式，也不能只换半边）。
-          : '<span class="orb-state">' + hostT('pages.orbit.vertexCount', { n: state0.verts || 0 }) + '</span>';
+          ? '<span class="orb-state">' + hostT('pages.orbit.vertexCount', { n: state0.verts || 0 }) + '</span>'
+          : (pending
+            ? '<span class="orb-state is-building">生成中…</span>'
+            // ★ 第三态：没人建、也没顶点 ⇒ 这个阈值下真的抽不出曲面。
+            //   原先一律说"生成中…"，那是**假话**，用户会一直等一个永远不来的东西。
+            : '<span class="orb-state is-empty">未生成（当前阈值下抽不出曲面）</span>');
+        // ★ 三个标签是**实现视角**的词（主 / 克隆 / 独立），界面上没有图例 ——
+        //   用户明确说"看不懂"。改成自解释的说法 + 悬浮说明。
+        const role = (i === 0) ? '主面' : (it.rotation ? '旋转副本' : '独立面');
+        const roleTip = (i === 0)
+          ? '主面：正在编辑的那一个，不可移除'
+          : (it.rotation
+            ? '旋转副本：由主面整体旋转得到，几乎瞬间完成'
+            : '独立面：单独算出来的一张等值面');
         rows.push('<div class="orb-row' + (it.visible === false ? ' is-off' : '') + '" data-key="'
           + it.key + '">'
           + '<label class="orb-eye" title="点一下：显示 / 隐藏这个轨道">'
@@ -478,9 +509,9 @@ export function bootOrbitPage(deps = {}) {
           + '></label>'
           + '<input type="color" class="orb-color" data-act="color" value="'
           + rgbToHex(it.color) + '" title="' + hostT('pages.orbit.colorPickTitle') + '">'
-          + '<span class="orb-label" title="' + (it.terms ? '叠加态' : '单一本征态')
-          + '">' + it.label + '</span>'
-          + '<span class="orb-badge">' + (i === 0 ? '主' : (it.rotation ? '克隆' : '独立'))
+          + '<span class="orb-label" title="' + (it.terms ? '叠加态' : '单一本征态') + '">'
+          + labelHtmlOf(label) + '</span>'
+          + '<span class="orb-badge" title="' + roleTip + '">' + role
           + '</span>'
           + tag
           + (i === 0 ? '' : '<button class="orb-del" data-act="del" title="从同屏里移除">×</button>')
@@ -493,13 +524,25 @@ export function bootOrbitPage(deps = {}) {
     //   "生成中…"会一直挂着 —— 用户看到的就是"点了没反应"，而它其实正在建。
     //   用低频定时器而不是 rAF：这里要的是"隔一阵对一次账"，不是逐帧动画，
     //   而 rAF 循环正是本仓库记过的 CPU 炸弹（软件渲染下尤其）。
+    //
+    // ★★ 2026-10-05 修：轮询条件原先写的是 `pendingCount() > 0`（队列非空），
+    //   而 sp³/sp²/sp 的额外轨道是 **clone**（复制主面几何 + 旋转），**队列本来就是空的**
+    //   ⇒ `pendingCount()` 恒为 0 ⇒ **从来不轮询** ⇒ 四行永远停在点击那一刻的快照上，
+    //   一直写着"生成中…"，而面其实几百毫秒就建好了（实测：随便做一次无关操作，
+    //   四行立刻全变成"N 顶点"）。用户报的"一直显示生成中"就是这个。
+    //   现在按"**还有行没落定**"轮询 —— 那才是"要不要再看一眼"的真正判据。
     if (multiListTimer) { clearTimeout(multiListTimer); multiListTimer = 0; }
-    if (pendingCount() > 0) {
+    if (anyUnresolved && multiPollRounds < MULTI_POLL_MAX) {
+      multiPollRounds += 1;
       multiListTimer = setTimeout(function () {
         multiListTimer = 0;
         multiListBuiltFor = null;
         syncMultiUI();
       }, 600);
+    } else {
+      // ★ 上限只防"真的抽不出曲面"时定时器永远跑；一旦不再有未落定的行就清零，
+      //   下次用户再加轨道时预算重新计。
+      multiPollRounds = 0;
     }
   }
 
@@ -1012,7 +1055,10 @@ export function bootOrbitPage(deps = {}) {
       bar.style.display = has ? '' : 'none';
       if (!has) { sel.innerHTML = ''; return; }
       let html = '';
-      if (spec[2]) html += '<option value="super">叠加态 ψ = Σcᵢψᵢ（本图可直接画）</option>';
+      // ★ 这里原写「叠加态 ψ = Σcᵢψᵢ（本图可直接画）」——括号里那句是**实现视角的自述**
+      //   （"这张图支持叠加态"），用户在截面图的术语下拉里看到它只会觉得莫名其妙：
+      //   能选就说明能画，不能选就不会出现在这个列表里。已删。
+      if (spec[2]) html += '<option value="super">叠加态 ψ = Σcᵢψᵢ</option>';
       t.forEach(function (x, i) { html += '<option value="' + i + '">' + labelOf(x, i) + '</option>'; });
       sel.innerHTML = html;
       // 不支持叠加态的图：当前选的是 'super' 时落到第 1 个分量（state.chartTerm 不动，
@@ -1587,6 +1633,16 @@ export function bootOrbitPage(deps = {}) {
       Orbit3D.resize(els.viewer.clientWidth, els.viewer.clientHeight);
       updateCharts();
     });
+    // ---------------------------------------------------------------------------
+    // 主题切换 → 重画二维图表
+    //
+    // ★ 为什么必须显式接这一根线：三维视口是 `alpha: true` 的透明画布，底色由 CSS
+    //   （`.viewer` 的渐变）决定 —— 变量一变它自己就跟着变，不用管。
+    //   但**二维图表把颜色画进了像素里**，CSS 管不到：不重画的话，浅色主题下
+    //   网格、坐标、数值标注仍是"给深底选的浅灰蓝"，白底上直接看不见（不报错）。
+    //   `updateCharts()` 会在重画时按当前主题取色（见 charts.js 的 ink()）。
+    // ---------------------------------------------------------------------------
+    offTheme = onThemeChange(() => { try { updateCharts() } catch (e) { /* 图表还没建好，忽略 */ } });
   }
 
   // ---- 动画循环 -----------------------------------------------------------
@@ -1663,6 +1719,18 @@ export function bootOrbitPage(deps = {}) {
     if (!row) return n + '(l=' + l + ',m=' + m + ')';
     const idx = (l === 1) ? (m === 0 ? 0 : (m > 0 ? 1 : 2)) : (m + l);
     return n + (row[idx] || ('(l=' + l + ',m=' + m + ')'));
+  }
+
+  /**
+   * 清单行里的**显示用**名字：把 `_z` / `_xy` / `_z2` 这些下标段包进 `<sub>`。
+   *
+   * ★ 为什么不能直接印 `orbitalLabel()` 的结果：那个函数产出的是**纯文本**
+   *   （`3p_z`、`3d_z2`、`4f_z3`），它同时被快照标量串、日志、模型上下文消费 ——
+   *   那些通道必须保持纯文本。所以只在**渲染清单行**这一步转成 HTML。
+   * ★ 用正则而不是另写一套名字表：名字表有两份就一定会漂开（这次改的正是这一类）。
+   */
+  function labelHtmlOf(label) {
+    return String(label || '').replace(/_([A-Za-z][A-Za-z0-9]*)/g, '<sub>$1</sub>');
   }
 
   /** 当前正在编辑的那个轨道（主轨道）的一个**冻结副本**；terms 非空即为叠加态 */
@@ -1923,7 +1991,17 @@ export function bootOrbitPage(deps = {}) {
     state.orbitalSet = 'custom';
     setSeg('#multiSeg', 'data-s', 'custom');
     if (!state.orbitalMainColor) state.orbitalMainColor = ORB_PALETTE[0].slice();
-    state.orbitals = list.map(function (it, i) {
+    /**
+     * ★ 必须**边建边挂**，不能 `state.orbitals = list.map(...)`。
+     *   `nextOrbitalColor()`（见上文）扫的是 `state.orbitals` 与主色 —— 在 `map()`
+     *   里调用它时 `state.orbitals` 还是**旧数组**，于是"一次给多条"时每一项都拿到
+     *   同一个"没被占用的颜色"：实测一次给 3p_z + 3d_z² 两条，后两条都是 `#5b9bd5`，
+     *   同屏两个同色轨道根本分不清谁是谁（同屏的**唯一**身份线索就是颜色）。
+     *   先把空数组挂上去，每建一条就 push，下一条就能看到上一条占用的色。
+     */
+    const built = [];
+    state.orbitals = built;
+    list.forEach(function (it) {
       state.orbitalSeq += 1;
       const terms = Array.isArray(it.terms) && it.terms.length
         ? it.terms.map(function (t) {
@@ -1932,14 +2010,14 @@ export function bootOrbitPage(deps = {}) {
         })
         : null;
       const n = it.n, l = it.l, m = it.m;
-      return {
+      built.push({
         key: it.key || ('orb-' + state.orbitalSeq),
         label: it.label || orbitalLabel(n, l, m, terms, it.mode),
         color: Array.isArray(it.color) ? it.color.slice() : nextOrbitalColor(),
         visible: it.visible !== false,
         terms: terms,
         n: n, l: l, m: m, mode: it.mode || 'real',
-      };
+      });
     });
     multiListBuiltFor = null;
     return true;
@@ -2588,6 +2666,7 @@ export function bootOrbitPage(deps = {}) {
     //   是全局量 —— 不清掉的话切到点群页时，那边会顶着轨道页的画布高度。
     try { viewportFit.destroy(); } catch (e) { /* 忽略 */ }
     if (levelSweepRaf) { cancelAnimationFrame(levelSweepRaf); levelSweepRaf = null; }
+    if (typeof offTheme === 'function') { try { offTheme() } catch (e) { /* 忽略 */ } offTheme = null; }
     try { Orbit3D.disposeGrid(); } catch (e) { /* 已经释放过了 */ }
     try { ChartOverlay.close(); } catch (e) { /* 浮窗本来就没开 */ }
     try { if (typeof deps.onDispose === 'function') deps.onDispose(); } catch (e) { /* 忽略 */ }

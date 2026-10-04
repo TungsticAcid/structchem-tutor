@@ -113,15 +113,17 @@ export const ORBIT_HTML = `<div class="orbit-page">
                   title="三个等价 sp² 同屏：共面、互成 120°">sp²</button>
           <button class="seg-btn" data-s="sp"
                   title="两个等价 sp 同屏：成 180° 直线">sp</button>
-          <!--   ★ 自定义档的按钮**故意隐藏**：它不是"点一下进入某个集合"，而是由
-               「＋ 加入当前轨道」进入的状态。但按钮本身必须存在 —— 页面的
-               setSeg / silentSeg 是按 data-s 属性找按钮来打高亮的，
-               （注意本文件整体是一个模板字符串，注释里**不能出现反引号**：）
-               （写一个就会把字符串截断，整页当场 SyntaxError 白屏。）
-               没有它，"进入自定义档"这一步就没有可高亮的按钮，
-               档位状态与界面当场对不上（而且不报错）。 -->
-          <button class="seg-btn" data-s="custom" style="display:none"
-                  title="自定义同屏（由「＋ 加入当前轨道」进入）">自定义</button>
+          <!--   ★ 2026-10-05：这个按钮**改为可见**（原来写死 style="display:none"）。
+               原设计里它"不是点一下进入的集合"，只能靠「＋ 加入当前轨道」进入 ——
+               但那个「＋」在"关闭"档下整块是隐藏的（#multiListSet 只在 custom/预设档显示），
+               于是用户**根本没有入口**开始自定义同屏（实测关闭档下：
+               listDisplay=none、customBtnDisplay=none ⇒ 无从下手）。
+               用户这一轮要的就是"自由地同屏任意几个轨道"，所以把它放出来当第 4 个档位：
+               点进去是空清单，再逐个「＋ 加入当前轨道」。
+               （注意本文件整体是一个模板字符串，注释里**不能出现反引号**：
+                写一个就会把字符串截断，整页当场 SyntaxError 白屏。） -->
+          <button class="seg-btn" data-s="custom"
+                  title="自定义同屏：点进来是空清单，再逐个「＋ 加入当前轨道」">自定义</button>
         </div>
         <div class="set" id="multiListSet" style="display:none">
           <div class="row"><label>同屏轨道</label>

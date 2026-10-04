@@ -69,8 +69,8 @@ export const text = {
   '自动：按节奏连续播放': 'Auto: play continuously at a steady pace',
   '手动适合跟着讲解走；自动适合一次性放完。演示条上可临时切换。':
     'Manual suits explaining along the way; auto suits playing it all at once. Switchable from the demo bar.',
-  '模型服务（改一次就不动）': 'Model service (set once, rarely changed)',
-  '教学偏好（可能每次教学都调）': 'Teaching preferences (may change every session)',
+  '模型服务': 'Model service',
+  '教学偏好': 'Teaching preferences',
 
   // ---- 配色 ----
   '点一个格子选中元素，再取色': 'Click a cell to select an element, then pick a color',

@@ -114,6 +114,15 @@ export const text = Object.assign({
     'The crystal index (crystalIndex: [{id, name, ...}]). The module uses it to validate ids and to build the id list (listIds). Without it, openCrystal judges every id "unknown": the module looks like it is running but cannot answer a single question.',
   '答案已由程序算定并冻结在本地。请把题干与 4 个选项原样呈现给学生，**不要猜测或提示答案**；学生作答后调用 checkAnswer({questionId, chosenIndex})，判定与解析由本地完成。★ questionView 可以下发作"题境演示"（它只切晶体、开原子与线框）；但**作答前不得打开对称元素 / 空隙 / 点阵点 / 辅助几何等图层**——那会让学生从画面上直接读出答案，等于泄题。':
     'The answer has been computed in code and frozen locally. Present the stem and the 4 options to the student exactly as given — **do not guess or hint at the answer**; once the student answers, call checkAnswer({questionId, chosenIndex}) and the marking and explanation are done locally. ★ questionView may be sent as a "question-setting demonstration" (it only switches crystal and shows atoms and bonds); but **before the student answers you must not open layers such as symmetry elements / interstices / lattice points / auxiliary geometry** — that would let them read the answer straight off the screen, which gives it away.',
+  // ★ 周期表分区的位置表标签（`periodic-layout.js` 的 PERIODIC_ROW_LABELS）
+  '镧系': 'Lanthanides',
+  '锕系': 'Actinides',
+  // ★ 「逐元素配色」改周期表时改动了标签与 hint（去掉"（103 个元素）"、说明改成按周期表点选）。
+  //   原键由生成器写进 `i18n-gen.js`，改文案后新串必须在**本区**重新登记
+  //   （守卫按区域算覆盖，跨区同名不互相遮盖）。
+  '逐元素配色': 'Per-element colors',
+  '按周期表点一个元素选中它，再取色即生效；「恢复默认配色」清空全部自定义':
+    'Click an element on the periodic table to select it, then pick a colour; "Reset to default colours" clears all customisations.',
 }, textGen)
 
 registerDict('crystal', { zh, en, text })

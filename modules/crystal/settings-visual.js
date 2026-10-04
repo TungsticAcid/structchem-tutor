@@ -24,6 +24,7 @@ import {
   getElementColor, setElementColor, resetElementColors, getElementColorOverrides,
 } from '../../projects/crystal/H5/src/data/settings.js'
 import elementsData from '../../projects/crystal/H5/src/data/elements.js'
+import { PERIODIC_POS, PERIODIC_COLS, PERIODIC_ROWS, PERIODIC_GAP_ROW, PERIODIC_ROW_LABELS } from './periodic-layout.js'
 
 /**
  * 8 项视觉颜色。键名与 `data/settings.js` 的 `DEFAULT_VISUAL_COLORS` 一一对应
@@ -47,7 +48,13 @@ export const VISUAL_COLOR_KEYS = [
  *   而不是"把颜色设成黑色"。`getElementColor()` 的实现正是
  *   「用户覆盖 > 默认」，所以取消覆盖只需删掉那一项。
  *
- * @returns {{key:string,label:string,color:string}[]} 按原子序数排列
+ * ★ 2026-10-05：除颜色外**多带三个字段**（`name` / `period` / `group`），
+ *   供弹层把格子摆成**元素周期表**并在格子里写元素符号：
+ *   · `name`   元素中文名（已翻译）—— 用作 tooltip 与格子内的第二行
+ *   · `period` / `group` 来自 `periodic-layout.js` 的行列；缺位置时为 undefined，
+ *     弹层会退化成原来的密集网格（不会因为位置表缺一项就画不出来）。
+ *
+ * @returns {{key:string,label:string,color:string,name:string,period:number|undefined,group:number|undefined}[]}
  */
 export function elementColorItems() {
   const overrides = getElementColorOverrides()
@@ -58,6 +65,7 @@ export function elementColorItems() {
       //   所以整串过不了字典，必须逐段走 t()/tr()：
       //   「（1号）」在英文里要写成「(No. 1)」，靠翻译一个"号）"是拼不出来的。
       const mark = overrides[sym] ? tr(' · 已自定义') : ''
+      const pos = PERIODIC_POS[sym]
       return {
         key: sym,
         label: e.atomicNumber
@@ -65,6 +73,9 @@ export function elementColorItems() {
           : (sym + ' ' + tr(e.name || '')).trim() + mark,
         color: getElementColor(sym),
         order: e.atomicNumber || 999,
+        name: tr(e.name || ''),
+        period: pos ? pos[0] : undefined,
+        group: pos ? pos[1] : undefined,
       }
     })
     .sort((a, b) => a.order - b.order)
@@ -88,12 +99,22 @@ export function visualSettings() {
 
   colors.push({
     key: 'elementColors',
-    label: '逐元素配色（103 个元素）',
+    label: '逐元素配色',
     type: 'palette',
-    hint: '点一个格子选中元素，再取色即生效；「恢复默认配色」清空全部自定义',
+    hint: '按周期表点一个元素选中它，再取色即生效；「恢复默认配色」清空全部自定义',
     items: () => elementColorItems(),
     set: (sym, color) => setElementColor(sym, color),
     reset: () => resetElementColors(),
+    /**
+     * ★ 布局提示：让弹层把格子摆成**周期表**（而不是原来的 16 列密集网格）。
+     *   原先 103 个纯色块看不出"哪格是哪个元素"，只能靠悬浮提示逐个试 ——
+     *   用户报的就是这一点。周期表自带"位置即身份"，再在格子内写上元素符号就够了。
+     */
+    layout: 'periodic',
+    layoutCols: PERIODIC_COLS,
+    layoutRows: PERIODIC_ROWS,
+    layoutGapRow: PERIODIC_GAP_ROW,
+    rowLabels: PERIODIC_ROW_LABELS,
   })
 
   return colors

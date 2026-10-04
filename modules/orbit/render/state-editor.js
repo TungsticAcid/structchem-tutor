@@ -64,7 +64,15 @@ const StateEditor = (function () {
       get note() { return t('orbit.se.preset.pure.note') },
     },
     '2ψ3dz²+3ψ3dxy': {
-      label: '2ψ₃dz² + 3ψ₃dxy',
+      /**
+       * ★ `label` 是**纯文本**通道（面板 chip、title、日志都吃它），`labelHtml` 是**按钮**通道。
+       *   两者必须分开：纯文本里塞 `<sub>` 会原样印出标签，而按钮里只用纯文本又做不出下标。
+       *   ★ 为什么不继续用 Unicode 下标：Unicode 只有 ₚ ₛ ₓ 等少数几个，**没有下标 z**
+       *   （下标字母表里没有 z），所以「ψ₂pz」这条路**结构上**写不出正确下标 ——
+       *   用户报的「ψ_{2p_z} 显示成 ψ_2pz」就是这么来的（同排的 ψ₁ₛ 恰好有 ₛ，看着像随机故障）。
+       */
+      label: '2ψ(3d_z²) + 3ψ(3d_xy)',
+      labelHtml: '2ψ<sub>3d<sub>z²</sub></sub> + 3ψ<sub>3d<sub>xy</sub></sub>',
       terms: [
         { n: 3, l: 2, m: 0, mode: 'real', c: { re: 2 / Math.sqrt(13), im: 0 } },
         { n: 3, l: 2, m: 2, mode: 'real', c: { re: 3 / Math.sqrt(13), im: 0 } },
@@ -72,7 +80,8 @@ const StateEditor = (function () {
       get note() { return t('orbit.se.preset.degenerate.note') },
     },
     'ψ1s+ψ2s': {
-      label: 'ψ₁ₛ + ψ₂ₛ',
+      label: 'ψ(1s) + ψ(2s)',
+      labelHtml: 'ψ<sub>1s</sub> + ψ<sub>2s</sub>',
       terms: [
         { n: 1, l: 0, m: 0, mode: 'real', c: { re: S, im: 0 } },
         { n: 2, l: 0, m: 0, mode: 'real', c: { re: S, im: 0 } },
@@ -80,7 +89,8 @@ const StateEditor = (function () {
       get note() { return t('orbit.se.preset.nonStationary.note') },
     },
     'ψ2pz+ψ2px': {
-      label: 'ψ₂pz + ψ₂px',
+      label: 'ψ(2p_z) + ψ(2p_x)',
+      labelHtml: 'ψ<sub>2p<sub>z</sub></sub> + ψ<sub>2p<sub>x</sub></sub>',
       terms: [
         { n: 2, l: 1, m: 0, mode: 'real', c: { re: S, im: 0 } },
         { n: 2, l: 1, m: 1, mode: 'real', c: { re: S, im: 0 } },
@@ -310,7 +320,13 @@ const StateEditor = (function () {
     visibleKeys().forEach(function (k) {
       const p = PRESETS[k];
       const wrap = el('span', { class: 'se-chipwrap' });
-      const b = el('button', {
+      // ★ 有 `labelHtml` 就走 innerHTML（真下标），否则退回纯文本。
+      //   `title` 一律用纯文本 `label` —— 提示框不解析 HTML。
+      const b = el('button', p.labelHtml ? {
+        class: 'se-chip' + (state.preset === k ? ' on' : '') + (p.custom ? ' custom' : ''),
+        html: p.labelHtml,
+        title: p.label,
+      } : {
         class: 'se-chip' + (state.preset === k ? ' on' : '') + (p.custom ? ' custom' : ''),
         text: p.label,
         title: p.custom ? '自定义预设（点右侧 ✕ 可删除）' : '',
