@@ -38,6 +38,25 @@ export const zh = {
   'shell.home.enter': '进入{title}',
   'shell.home.locked': '{title}：尚未接入本应用',
   'shell.lib.count': '{n} 种',
+  /**
+   * ★ 练习改由模型出题（用户报「练习功能应由 LLM 出题」）。
+   *   这条是替用户**发出**的请求原文，走的正是普通对话通路 —— 所以它在 zh/en 表里，
+   *   不在 text 表里（text 表是"DOM 上的中文原文→英文"的扫描替换表，塞错了地方会静默失效）。
+   *   ★ 明确要求"用工具取题与答案、不要口算"：本仓库的硬约定是数值一律程序算。
+   */
+  'shell.practice.askLlm': '给我出一道关于「{kp}」的练习题。'
+    + '请用工具取题与答案（不要自己口算），只把题干与选项给我，先不要公布答案。',
+  /**
+   * ★ 面板开场白：**统一身份**（用户报「三个板块的智能体没有综合成为一个总智能体」）。
+   *   由宿主（main.js 的 greeting）统一给出，模块只接自己的示例问题。
+   *   同 `shell.practice.askLlm`：这是 `t()` 的键，不在 text 表里。
+   */
+  'shell.panel.greetHead': '我是结构化学教学智能体',
+  'shell.panel.greetScope': '我覆盖三个板块：轨道视界 · 点群观鉴 · 晶典在线 —— '
+    + '问到哪个就切到哪个，不用你操心现在该找谁。',
+  'shell.panel.greetInModule': '我是**一个**智能体，覆盖三个板块；当前在「{title}」这一块。',
+  // 保存图片：失败时拼了错误信息，只能走 t()（见 shell/save-image.js 的说明）
+  'shell.save.failed': '保存失败：{msg}',
 }
 
 /** 键 → 英文 */
@@ -58,6 +77,14 @@ export const en = {
   'shell.home.enter': 'Open {title}',
   'shell.home.locked': '{title}: not available in this app yet',
   'shell.lib.count': '{n} items',
+  'shell.practice.askLlm': 'Give me a practice question about “{kp}”. '
+    + 'Use the tools to build the question and the answer (do not compute it yourself); '
+    + 'show me only the question and the options, and do not reveal the answer yet.',
+  'shell.panel.greetHead': "I'm the structural chemistry teaching agent",
+  'shell.panel.greetScope': 'I cover all three modules — Orbital Horizon · Point Group Explorer · '
+    + 'Crystal Atlas. Ask about any of them and I switch to the right one.',
+  'shell.panel.greetInModule': "I'm one agent covering all three modules; right now I'm on “{title}”.",
+  'shell.save.failed': 'Save failed: {msg}',
 }
 
 /**
@@ -93,6 +120,18 @@ export const text = {
   '直接问就行——我能查数据、也能把结论演示到画面上。':
     'Just ask — I can look data up and demonstrate the conclusion on screen.',
   '选择要练习的知识点：': 'Choose a knowledge point to practice:',
+  // ---- 保存图片（shell/save-image.js）----
+  '把当前视图保存成图片': 'Save the current view as an image',
+  '图片': 'Image',
+  '隐藏文字内容': 'Hide text content',
+  '保存图片': 'Save image',
+  '另存为…': 'Save as…',
+  '抓图失败：画布还没画好，稍等一下再试': 'Capture failed: the canvas is not ready yet — try again in a moment',
+  '已保存到浏览器的下载目录': 'Saved to the browser download folder',
+  '本浏览器不支持选保存位置，已放到下载目录':
+    'This browser cannot choose a save location; the file went to the download folder',
+  'PNG 图片': 'PNG image',
+  '已保存': 'Saved',
   '主动提示': 'Proactive hint',
   '应用': 'Apply',
   '不用了': 'Not now',
@@ -106,16 +145,19 @@ export const text = {
   '(无 hash)': '(no hash)',
 
   // ---- 门户首页 ----
-  // ★ 下面这几条取自参赛配图（`比赛配图-1.pptx` 第 1 页）：
-  //   模块副标题 + 三句"学生得到什么"、以及整页的定位语。
-  '类氢原子轨道三维可视化': 'Hydrogen-like atomic orbitals in 3D',
-  '分子对称性与分子点群': 'Molecular symmetry and molecular point groups',
-  '晶体结构与点阵型式': 'Crystal structures and lattice types',
-  '微观世界可观察': 'The microscopic world, made visible',
-  '结构规律易剖析': 'Structural rules, easy to dissect',
-  '构效关系得贯通': 'Structure–property links, made clear',
+  // ★ 副标题与三句标语取自参赛配图（`比赛配图-1.pptx` 第 1 页）。
+  // ★★ 2026-10-05：英文版**刻意比中文短**（用户报"英文模式下首页三个标题字太多"）。
+  //   中文一个词 2–4 字，英文同样的意思往往要 4–8 个词 —— 直译过来每一行都要折成
+  //   两三行，门户从"三行清单"变成"一屏文字"。所以英文侧按"一行放得下"来写，
+  //   不追求与中文逐词对应。
+  '类氢原子轨道三维可视化': 'Hydrogen-like orbitals in 3D',
+  '分子对称性与分子点群': 'Symmetry and point groups',
+  '晶体结构与点阵型式': 'Crystal structures and lattices',
+  '微观世界可观察': 'The microscopic world, visible',
+  '结构规律易剖析': 'Structural rules, dissected',
+  '构效关系得贯通': 'Structure–property links',
   '场景感知式 AI 教学智能体 —— 揭秘微观结构 · 启发深度思考 · 引导自主学习':
-    'A context-aware AI teaching agent — reveal the microscopic structure · inspire deep thinking · guide self-directed learning',
+    'A context-aware teaching agent — reveal · inspire · guide',
   '径向分布 · 角度分布 · 节面': 'Radial distribution · angular distribution · nodal surfaces',
   '对称元素 · 点群 · 特征标表': 'Symmetry elements · point groups · character tables',
   '晶体库 · 配位环境 · 空隙分布': 'Crystal library · coordination environment · void distribution',

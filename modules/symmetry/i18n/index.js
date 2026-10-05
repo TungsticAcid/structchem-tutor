@@ -71,7 +71,7 @@ export const MESSAGES = {
     'elem.i': '反演中心', 'elem.E': '恒等元素'
   },
   en: {
-    brand: 'Point Group Viewer',
+    brand: 'Point Group Explorer',
     hint: 'Drag to rotate · Right-drag to pan · Wheel to zoom · Double-click to reset',
     'tool.symmetry': 'Symmetry elements',
     'tool.labels': 'Labels',
@@ -263,8 +263,8 @@ export const text = Object.assign(
 
     // ---- 感知/痕迹里给模型的字段标签与状态串 ----
     // ★ 模块名与页面品牌名统一为「点群观鉴」（取自参赛配图；此前两处叫法不同）
-    '点群观鉴': 'Point Group Viewer',
-    '打开点群观鉴页面': 'Open the Point Group Viewer page',
+    '点群观鉴': 'Point Group Explorer',
+    '打开点群观鉴页面': 'Open the Point Group Explorer page',
     '点群变化': 'Point group changed',
     '对称元素开关': 'Symmetry element switch',
     '对称元素标签': 'Symmetry element labels',
@@ -289,14 +289,14 @@ export const text = Object.assign(
     '（无）': '(none)',
 
     // ---- 模块入口（greeting 进 DOM；roleHint 进模型上下文）----
-    '我是结构化学教学智能体 · 点群观鉴': "I'm the structural chemistry teaching agent · Point Group Viewer",
+    '我是结构化学教学智能体 · 点群观鉴': "I'm the structural chemistry teaching agent · Point Group Explorer",
     '我能识别分子与晶体的点群、列出对称元素，也能把对称操作演出来。':
       'I can identify the point group of molecules and crystals, list their symmetry elements, and act out symmetry operations.',
     '试试：': 'Try:',
     '· 「水分子是什么点群，有哪些对称元素」': '· "What point group is water, and which symmetry elements does it have?"',
     '· 「只显示主轴，然后播放这个对称操作」': '· "Show only the principal axis, then play that symmetry operation"',
     '· 「苯的 C₂′ 与 C₂″ 有什么区别」': '· "What is the difference between the C₂′ and C₂″ axes of benzene?"',
-    '你正在使用**点群观鉴**模块。': 'You are working in the **Point Group Viewer** module.',
+    '你正在使用**点群观鉴**模块。': 'You are working in the **Point Group Explorer** module.',
     '★ 点群符号与对称元素清单**一律用 queryPointGroup 取得**，不要凭记忆判断——':
       '★ Always obtain point-group symbols and symmetry-element lists with queryPointGroup; never decide from memory —',
     '"水是 C2v"你当然记得，但"联苯是 D2h 还是 D2d"这类正是本模块要解决的问题，':
@@ -506,6 +506,34 @@ export function formatIrrepLabel(label) {
   const m = String(label).match(/^([A-Za-z])(.*)$/)
   if (!m) return label
   return `<i>${m[1]}</i><sub>${m[2]}</sub>`
+}
+
+/**
+ * 基函数 / 对称元素里的**坐标变量斜体**（用户报：「部分该斜体的字母没有斜体，比如 z」）。
+ *
+ * 排版惯例（与教材一致）：
+ *   · 坐标变量 **x / y / z 斜体**；旋转记号 **R 斜体**（其下标也是变量，同样斜体）
+ *   · 数字、上标、括号、逗号、正负号**正体** —— `x²−y²` 里只有 x、y 斜体，`2` 与 `−` 正体
+ *   · **不动**轨道符号（`s` / `d 轨道` / `p, f…（奇）`）：它们是轨道名不是坐标变量，
+ *     是否斜体属学派差异，本页明确保持正体
+ *
+ * ★ 为什么要一个函数而不是各处手写 `<i>`：基函数串有 40 多个群、上百种组合
+ *   （`z` / `x, Ry` / `(x²-y²,xy)` / `2z²-x²-y²` …），手写必漏。这里按字符类别统一处理，
+ *   并且**同一页**里基函数列与对称元素框（`σᵥ(xz)`、`C₂(x)`）走同一条规则，
+ *   不会再出现"同一个 x 一处斜体、一处正体"。
+ *
+ * ★ 返回的是 HTML：调用方必须用 `innerHTML`（原先用 textContent，所以怎么改都不生效）。
+ *   输入串来自内置点群数据（字符集只有 `" ()+,-2Rdfgpsxyz²…偶奇轨道（）"`，无 `<>&`），
+ *   转义只是保险。
+ */
+export function formatBasisFunctions(s) {
+  if (s == null || s === '') return ''
+  const esc = String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+  // 先把 Rx/Ry/Rz 摘出来（否则 R 后面的 x/y/z 会被下面的规则单独包起来）
+  const subs = []
+  let t = esc.replace(/R([xyz])/g, (_, c) => { subs.push(c); return '\u0000' + (subs.length - 1) + '\u0000' })
+  t = t.replace(/([xyz])/g, '<i>$1</i>')
+  return t.replace(/\u0000(\d+)\u0000/g, (_, i) => '<i>R</i><sub><i>' + subs[+i] + '</i></sub>')
 }
 
 const SUB_DIGITS = { 0: '₀', 1: '₁', 2: '₂', 3: '₃', 4: '₄', 5: '₅', 6: '₆', 7: '₇', 8: '₈', 9: '₉' }

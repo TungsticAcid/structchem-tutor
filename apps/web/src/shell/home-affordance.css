@@ -26,9 +26,12 @@
   padding: 0 11px;
   border-radius: 14px;
 
-  background: rgba(28, 32, 48, .74);
-  color: #eef2fb;
-  border: 1px solid rgba(255, 255, 255, .2);
+  /* ★ 2026-10-05：底色/字色改走令牌，跟随主题。
+     原先写死 `rgba(28,32,48,.74)` + 浅字 —— 浅色主题下它是页面上**唯一**还深着的块
+     （实测：浅色模式下扫全页，只剩它一个暗块）。*/
+  background: var(--shell-home-bg, rgba(28, 32, 48, .74));
+  color: var(--shell-home-fg, #eef2fb);
+  border: 1px solid var(--shell-home-line, rgba(255, 255, 255, .2));
   backdrop-filter: blur(6px);
 
   font: inherit;
@@ -41,8 +44,16 @@
   transition: opacity .15s ease, background .15s ease, transform .1s ease;
 }
 
-.shell-home:hover { opacity: 1; background: rgba(28, 32, 48, .9); }
+.shell-home:hover { opacity: 1; background: var(--shell-home-bg-hover, rgba(28, 32, 48, .9)); }
 .shell-home:active { transform: scale(.96); }
+
+/* ★ 浅色主题：白底 + 深字，与壳其余部分一致（见上面 .shell-home 的说明） */
+[data-theme="light"] {
+  --shell-home-bg: rgba(255, 255, 255, .88);
+  --shell-home-bg-hover: rgba(255, 255, 255, .98);
+  --shell-home-fg: #2a3350;
+  --shell-home-line: rgba(0, 0, 0, .16);
+}
 .shell-home:focus-visible { outline: 2px solid #7ab7ff; outline-offset: 2px; }
 
 .shell-home__arrow { font-size: 14px; line-height: 1; }

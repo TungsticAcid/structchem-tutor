@@ -43,8 +43,11 @@ export const zh = {
   'pages.orbit.realOrbNoName': '该支壳层没有公认的惯用名，这里用角度部分的直角坐标多项式标记',
   'pages.orbit.multiAddFull': '额外的同屏轨道最多 {max} 条（现在 {n} 条）。'
     + '每一条都要真跑一遍等值面，一张十几秒，再多会把页面锁死几分钟',
+  // ★ 这里原先写着「数量不限」——**假话**：界面与动作层都卡在 MAX_MULTI_ORBITALS 上。
+  //   同一条功能里两种说法（按钮说"不限"、提示条说"最多 12 条"）比不写还糟。
+  //   现在统一：上限只在"已满"的提示里说一次（见 multiAddFull）。
   'pages.orbit.multiAddHint': '把当前这个轨道（含叠加态）加进同屏；'
-    + '加完再改量子数，就能加下一个 —— 数量不限',
+    + '加完再改量子数，就能加下一个',
   'pages.orbit.vertexCount': '{n} 顶点',
   'pages.orbit.colorPickTitle': '改这个轨道的颜色（只重涂，不重建）',
   'pages.orbit.psiHint.psi2': '阈值＝占 |<i>ψ</i>|² 峰值的比例'
@@ -103,7 +106,7 @@ export const en = {
     + 'Each one really runs the isosurface pipeline, about ten seconds apiece — '
     + 'more than that would freeze the page for minutes',
   'pages.orbit.multiAddHint': 'Add the current orbital (superpositions included) to the on-screen set; '
-    + 'then change the quantum numbers and add the next one — no limit on the number',
+    + 'then change the quantum numbers and add the next one',
   'pages.orbit.vertexCount': '{n} vertices',
   'pages.orbit.colorPickTitle': 'Change the color of this orbital (repaint only, no rebuild)',
   'pages.orbit.psiHint.psi2': 'Threshold = fraction of the |<i>ψ</i>|² peak '
@@ -398,18 +401,17 @@ export const text = {
   '两个等价': 'Two equivalent',
   '：成': ' orbitals forming a',
   '直线型': 'straight line',
-  '自定义同屏：点「＋ 加入当前轨道」把此刻这个轨道（':
-    'Custom set: click “＋ Add current orbital” to pin this very orbital (',
-  '纯态或叠加态都行': 'an eigenstate or a superposition, either is fine',
-  // ★ 这两条是同一个句子：守卫看到的是去掉行首"）"的半句，DOM 里是带"）"的整节点
-  '钉进画面，再改量子数继续加 ——': 'into the view, then change the quantum numbers and keep adding —',
-  '）钉进画面，再改量子数继续加 ——': 'into the view, then change the quantum numbers and keep adding —',
-  '数量不限': 'no limit on the number',
-  '，每行都能单独改色与显隐': ', and each row can be recolored and hidden independently',
+  // ★ 这一条是**整串**：源码里提示条已改成单个字面量（不再用 `<b>` 切节点），
+  //   所以字典键必须与 DOM 文本节点逐字一致。原先拆成五条（含"（"与"）"的边界），
+  //   键对不上节点边界，英文模式下就留下半中半英。
+  '自定义同屏：点「＋ 加入当前轨道」把此刻这个轨道（纯态或叠加态都行）钉进画面，再改量子数继续加，每行都能单独改色与显隐':
+    'Custom set: click “＋ Add current orbital” to pin this very orbital (an eigenstate or a '
+    + 'superposition) into the view; then change the quantum numbers to add the next one. '
+    + 'Each row can be recolored and hidden independently',
   // 氢型下 sp³ 的提示条
   '氢型下四个瓣会叠成球状 ——': 'In the hydrogenic model the four lobes overlap into a ball —',
   '切到 Slater 型': 'switch to the Slater type',
-  '形状最干净。': 'for the cleanest shape.',
+  '形状最干净。': ' for the cleanest shape.',
   // 同屏清单的行内文案
   '生成中…': 'Building…',
   '点一下：显示 / 隐藏这个轨道': 'Click to show / hide this orbital',
@@ -444,7 +446,7 @@ export const text = {
   //   是给守卫看的（守卫按"登记过"算覆盖）；英文刻意与那一套**逐字一致**，
   //   免得同一个词出现两种说法。
   // ==========================================================================
-  '点群观鉴': 'Point Group Viewer',
+  '点群观鉴': 'Point Group Explorer',
   '选择示例': 'Choose example',
   // 下面两条在被 HTML 注释掉的"导入文件"块里（功能已注释，元素不存在于 DOM）。
   // 仍然登记：万一将来恢复该功能，译文已经就位；登记本身对运行时没有任何影响。

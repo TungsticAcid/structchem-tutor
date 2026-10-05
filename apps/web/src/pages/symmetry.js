@@ -62,6 +62,13 @@ let viewer = null
 let currentExampleId = null
 /** boot 返回的接口 */
 let api = null
+/**
+ * 「保存图片 → 隐藏文字内容」：页面自己的画布内标签开关。
+ * ★ 挂 window 上、且**每次挂载前先摘掉旧的**：这个页面可以随路由反复挂载，
+ *   不摘就会累积多个监听器 —— 一次抓图把标签来回切 N 遍（不报错，但状态会乱）。
+ */
+let hideTextHandler = null
+let hideTextSaved = null
 
 /**
  * 启动页面逻辑（上游 main.js 的正文）。
@@ -383,9 +390,19 @@ export function bootSymmetryPage(deps = {}) {
     const body = document.getElementById('orbit-body')
     if (!wrap || !body || !atoms) return
     const lab = i => `${atoms[i].element}(${atomOrdinal(atoms, i)})`
+    /**
+     * ★ 无限群（C∞v / D∞h）单独一条显示路径。
+     *   原来一律写「群阶 N」+ 把群元名字列举出来 —— 而无限群的群元集是**不可穷举**的，
+     *   列举出来的只是被截断的有限代表（`E, σᵥ`），看着像 Cs，是**错的**：
+     *   线性分子里每个原子的稳定化子都是整个 C∞v（中心原子在 D∞h 下是整个 D∞h）。
+     *   现在直接给群符号 + 阶 ∞。
+     */
+    const infinite = stab && stab.infinite
+    const orderText = infinite ? '∞' : String((stab && stab.count != null) ? stab.count : (stab ? stab.length : 0))
+    const nameText = infinite ? (stab.symbol || 'C∞v') : ((stab && stab.names) || []).join(', ')
     body.innerHTML =
       `<div class="orb-row"><span class="orb-label">${t('orb.orbit')}</span><span>${orb.map(lab).join(', ')}</span></div>` +
-      `<div class="orb-row"><span class="orb-label">${t('orb.stabilizer')}（${t('orb.order')} ${stab.length}）</span><span>${stab.join(', ')}</span></div>`
+      `<div class="orb-row"><span class="orb-label">${t('orb.stabilizer')}（${t('orb.order')} ${orderText}）</span><span>${nameText}</span></div>`
     wrap.hidden = false
   }
 
@@ -399,7 +416,13 @@ export function bootSymmetryPage(deps = {}) {
     const orb = orbit(atoms, ops, index, 0.15)
     const stab = stabilizer(atoms, ops, index, currentSymmetryElements, 0.15)
     setAtomHighlight(index, orb, stab.indexSet)
-    fillOrbitInfo(atoms, index, orb, stab.names)
+    /**
+     * ★ 传**整个 stab 对象**，不是 `stab.names`。
+     *   原先这里传的是名字数组，而 `fillOrbitInfo` 要按 `infinite/count/symbol`
+     *   区分无限群 —— 只传数组的话这三个字段全丢，无限群就只能退化成"数名字个数"：
+     *   HCN 的 C∞v 在界面上显示成「群阶 1 C∞v」（实机实测）。
+     */
+    fillOrbitInfo(atoms, index, orb, stab)
   }
 
   // 每帧校正 σ 反映面标签朝向：位置不变（面内角），但朝向按观察者自适应（翻转/镜像，保持正读）
@@ -734,6 +757,32 @@ export function bootSymmetryPage(deps = {}) {
   document.getElementById('atom-label-toggle').addEventListener('change', (e) => {
     dispatchDisplay('setAtomLabelsVisible', { visible: e.target.checked }, e.target)
   })
+
+  /**
+   * ★ 「保存图片 → 隐藏文字内容」：**画在画布里的**文字 CSS 管不到
+   *   （对称元素标签是三维里的贴图精灵），只能请页面自己关。
+   *   走的是与用户点开关**同一条通路**（改 checked + 派发 change），
+   *   所以模块状态、快照、渲染都不会与界面脱节——这正是本页"渲染模块状态"的设计。
+   *   ★ 记下抓图前的状态，抓完**原样还原**：用户只是想存一张干净图，
+   *   不该因此丢掉他正在看的标签。
+   */
+  if (hideTextHandler) window.removeEventListener('chem-agent:hide-text', hideTextHandler)
+  hideTextHandler = (e) => {
+    const hide = !!(e.detail && e.detail.hide)
+    const lb = document.getElementById('labels-toggle')
+    const ab = document.getElementById('atom-label-toggle')
+    if (!lb || !ab) return
+    if (hide) {
+      hideTextSaved = { sym: lb.checked, atom: ab.checked }
+      if (lb.checked) { lb.checked = false; lb.dispatchEvent(new Event('change')) }
+      if (ab.checked) { ab.checked = false; ab.dispatchEvent(new Event('change')) }
+    } else if (hideTextSaved) {
+      lb.checked = hideTextSaved.sym; lb.dispatchEvent(new Event('change'))
+      ab.checked = hideTextSaved.atom; ab.dispatchEvent(new Event('change'))
+      hideTextSaved = null
+    }
+  }
+  window.addEventListener('chem-agent:hide-text', hideTextHandler)
 
   // ==================== 设置面板 ====================
 

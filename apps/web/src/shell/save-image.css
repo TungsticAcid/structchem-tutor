@@ -1,0 +1,97 @@
+/**
+ * 保存图片按钮的样式。
+ *
+ * ★ 与 home-affordance.css 同一套令牌（`--shell-home-*` 旁边新增 `--shell-save-*`），
+ *   浅色/深色都跟着主题走。
+ * ★ `.export-hide-text` 那一组是"隐藏文字内容"的**浮层**部分：
+ *   画在画布里的文字（标签精灵、图表坐标）CSS 管不到，由页面的 CustomEvent 处理。
+ */
+
+.shell-save-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin-right: 8px;
+}
+
+.shell-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 14px;
+  background: var(--shell-save-bg, rgba(28, 32, 48, .74));
+  color: var(--shell-save-fg, #eef2fb);
+  border: 1px solid var(--shell-save-line, rgba(255, 255, 255, .2));
+  backdrop-filter: blur(6px);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1;
+  letter-spacing: .02em;
+  cursor: pointer;
+  opacity: .82;
+  transition: opacity .15s ease, background .15s ease;
+}
+.shell-save:hover { opacity: 1; background: var(--shell-save-bg-hover, rgba(28, 32, 48, .9)); }
+
+.shell-save-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 1200;
+  min-width: 210px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--card, #151c33);
+  color: var(--text, #e8ecf7);
+  border: 1px solid var(--line, #2a3558);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .38);
+  font-size: 12.5px;
+}
+.shell-save-row { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.shell-save-acts { display: flex; gap: 6px; margin-top: 9px; }
+.shell-save-acts button {
+  flex: 1 1 auto;
+  padding: 6px 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line, #2a3558);
+  background: var(--bg-2, #1a2340);
+  color: var(--text, #e8ecf7);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.shell-save-acts button:hover { border-color: var(--accent, #55c2ff); color: var(--accent, #55c2ff); }
+.shell-save-tip { margin-top: 7px; min-height: 14px; font-size: 11.5px; color: var(--text-dim, #9aa7c6); }
+
+/* 没有可命中顶栏时的兜底（与 .shell-home--float 同款思路） */
+.shell-save-wrap--float { position: fixed; top: 12px; right: 62px; z-index: 900; }
+
+[data-theme="light"] {
+  --shell-save-bg: rgba(255, 255, 255, .88);
+  --shell-save-bg-hover: rgba(255, 255, 255, .98);
+  --shell-save-fg: #2a3350;
+  --shell-save-line: rgba(0, 0, 0, .16);
+}
+
+/**
+ * 「隐藏文字内容」：把浮层全部藏起来 —— 顶栏、徽标、提示条、悬浮球、加载遮罩。
+ * 用 `visibility` 而不是 `display:none`：不改变布局，抓图前后画面不会跳。
+ */
+.export-hide-text .shell-home,
+.export-hide-text .shell-save,
+.export-hide-text .shell-save-menu,
+.export-hide-text .agent-fab,
+.export-hide-text .agent-drawer,
+.export-hide-text .page-nav,
+.export-hide-text #toolbar,
+.export-hide-text .topbar,
+.export-hide-text .top-bar,
+.export-hide-text .cp-top-bar,
+.export-hide-text .settings-entry,
+.export-hide-text .viewer-chips,
+.export-hide-text .orbit-topbar,
+.export-hide-text .hint,
+.export-hide-text .badge,
+.export-hide-text .loading-mask { visibility: hidden !important; }

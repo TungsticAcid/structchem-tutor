@@ -783,8 +783,8 @@ export const en = {
 export const text = {
   // ★ 三个模块名取自参赛配图（`比赛配图-1.pptx` 第 1 页）：
   //   轨道视界 / 点群观鉴 / 晶典在线。它们会作为**文本节点**渲染在门户首页的模块卡上。
-  '轨道视界': 'Orbital Viewer',
-  '点群观鉴': 'Point Group Viewer',
+  '轨道视界': 'Orbital Horizon',
+  '点群观鉴': 'Point Group Explorer',
   '晶典在线': 'Crystal Atlas',
   '晶体场理论': 'Crystal field theory',
   // ★ 与 shell 区的同名条目重复是**刻意**的：会话默认标题以中文原文存盘，面板把它

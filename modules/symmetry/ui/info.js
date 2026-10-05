@@ -4,7 +4,7 @@
  */
 import { getSymmetryElementColor } from '../data/settings.js'
 import { singleElementName, typeRank, findPrincipal } from '../engine/elementNaming.js'
-import { t, formatGroupSymbol, formatIrrepLabel, formatFormulaU } from '../i18n/index.js'
+import { t, formatGroupSymbol, formatIrrepLabel, formatFormulaU, formatBasisFunctions } from '../i18n/index.js'
 
 /** 对称元素类型 → 教学说明（组头 tooltip；i18n 提供中英） */
 function typeHint(type) {
@@ -53,7 +53,7 @@ export function renderInfo(info, callbacks = {}) {
     dot.style.background = getSymmetryElementColor(el.type)
     const lab = document.createElement('span')
     lab.className = 'elem-label'
-    lab.textContent = el.label || singleElementName(el.type)
+    lab.innerHTML = formatBasisFunctions(el.label || singleElementName(el.type))
     item.append(dot, lab)
     listEl.appendChild(item)
   }
@@ -92,7 +92,8 @@ export function renderInfo(info, callbacks = {}) {
     dot.className = 'elem-dot'
     dot.style.background = color
     const nameSpan = document.createElement('span')
-    nameSpan.textContent = className
+    // ★ innerHTML：坐标变量要斜体（σᵥ(yz) → σᵥ(<i>y</i><i>z</i>)）
+    nameSpan.innerHTML = formatBasisFunctions(className)
     const count = document.createElement('span')
     count.className = 'elem-count'
     count.textContent = `×${g.count}`
@@ -113,7 +114,7 @@ export function renderInfo(info, callbacks = {}) {
       cb.checked = el.defaultVisible !== false
       const lab = document.createElement('span')
       lab.className = 'elem-label'
-      lab.textContent = el.label || singleElementName(el.type)
+      lab.innerHTML = formatBasisFunctions(el.label || singleElementName(el.type))
       // 播放按钮：仅当前可见（勾选）的行显示，隐藏行预留同尺寸占位
       const play = document.createElement('button')
       play.className = 'elem-play'
@@ -208,11 +209,12 @@ function renderCharacterTable(ct, callbacks = {}) {
     }
     const tdLinear = document.createElement('td')
     tdLinear.className = 'ct-basis'
-    tdLinear.textContent = irrep.linear || ''
+    // ★ 基函数列：x/y/z 与 R 要斜体（原先 textContent，怎么改都不生效）
+  tdLinear.innerHTML = formatBasisFunctions(irrep.linear || '')
     tr.appendChild(tdLinear)
     const tdQuad = document.createElement('td')
     tdQuad.className = 'ct-basis'
-    tdQuad.textContent = irrep.quadratic || ''
+    tdQuad.innerHTML = formatBasisFunctions(irrep.quadratic || '')
     tr.appendChild(tdQuad)
     tbody.appendChild(tr)
   }

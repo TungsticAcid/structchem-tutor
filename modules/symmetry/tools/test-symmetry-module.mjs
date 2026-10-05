@@ -412,6 +412,44 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
   }
 }
 
+// ---------------------------------------------------------------------------
+// 稳定化子：无限群（C∞v / D∞h）必须走封闭形式
+//
+// ★ 用户报「C∞v 群原子的稳定化子是否应包含 C∞v」——应该，而原先算成了 Cs：
+//   `generateGroupOperations` 对 order===Infinity 的 C∞ 轴一个群元都不产生，
+//   而 ∞σᵥ 只给一个代表面 ⇒ 只能在被截断的有限集合里筛，HCN 三个原子都得到 {E, σᵥ}。
+//   这几条就是钉住正确答案的回归断言（同时锁住有限群别被改坏）。
+// ---------------------------------------------------------------------------
+{
+  const { generateSymmetryElements } = await import('../engine/symmetryElementGenerator.js')
+  const { generateGroupOperations, stabilizer } = await import('../engine/groupOperations.js')
+  const stabOf = (id, index) => {
+    const ex = EXAMPLES.find((e) => e.id === id)
+    if (!ex) return null
+    const atoms = ex.structure.atoms
+    const els = generateSymmetryElements(ex.structure).elements
+    const ops = generateGroupOperations(atoms, els)
+    return stabilizer(atoms, ops, index, els)
+  }
+  const h0 = stabOf('hcn', 0)
+  check('HCN（C∞v）轴上原子的稳定化子是整个 C∞v（阶 ∞）',
+    !!h0 && h0.symbol === 'C∞v' && h0.count === Infinity, h0 && (h0.symbol + '/' + h0.count))
+  const h1 = stabOf('hcn', 1)
+  check('HCN 的末端原子同样是 C∞v（不是 Cs）',
+    !!h1 && h1.symbol === 'C∞v' && h1.infinite === true, h1 && h1.symbol)
+  const c0 = stabOf('co2', 0)
+  check('CO₂（D∞h）中心原子的稳定化子是 D∞h',
+    !!c0 && c0.symbol === 'D∞h', c0 && c0.symbol)
+  const c1 = stabOf('co2', 1)
+  check('CO₂ 末端原子的稳定化子是 C∞v（σh/i 把它映到另一个原子上）',
+    !!c1 && c1.symbol === 'C∞v', c1 && c1.symbol)
+  // 有限群回归：别被无限群那条分支带坏
+  const w0 = stabOf('water', 0)
+  const w1 = stabOf('water', 1)
+  check('H₂O 的 O 仍是 C2v（4 个操作）', !!w0 && w0.names.length === 4 && !w0.infinite, w0 && String(w0.count))
+  check('H₂O 的 H 仍是 Cs（2 个操作）', !!w1 && w1.names.length === 2 && !w1.infinite, w1 && String(w1.count))
+}
+
 console.log(`\n通过 ${pass}/${pass + fail}`)
 if (BREAK && fail === 0) {
   console.error('⚠ 造红模式下竟然全过——说明断言没有真的在检查')

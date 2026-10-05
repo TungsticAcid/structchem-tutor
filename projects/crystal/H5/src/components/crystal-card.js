@@ -223,7 +223,7 @@ export class CrystalCard extends BaseComponent {
     </div>
     <style>
       .crystal-card {
-        background: #fff; border-radius: 8px; overflow: hidden;
+        background: var(--card, #fff); border-radius: 8px; overflow: hidden;
         box-shadow: 0 1px 6px rgba(0,0,0,0.08); transition: transform 0.15s; cursor: pointer;
       }
       .crystal-card:active { transform: scale(0.97); }
@@ -236,13 +236,13 @@ export class CrystalCard extends BaseComponent {
       .thumb-icon { font-size: 32px; color: rgba(255,255,255,0.6); }
       .card-body { padding: 10px 12px 4px; }
       .card-name {
-        display: block; font-size: 14px; font-weight: 600; color: #333;
+        display: block; font-size: 14px; font-weight: 600; color: var(--text, #333);
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
-      .card-formula { display: block; font-size: 12px; color: #888; margin-top: 2px; }
+      .card-formula { display: block; font-size: 12px; color: var(--text-dim, #888); margin-top: 2px; }
       .card-tag {
         margin: 0 12px 8px; display: inline-block; padding: 2px 8px;
-        font-size: 10px; color: #4285F4; background: rgba(66,133,244,0.1); border-radius: 4px;
+        font-size: 10px; color: var(--accent, #4285F4); background: rgba(66,133,244,0.14); border-radius: 4px;
       }
     </style>`
   }

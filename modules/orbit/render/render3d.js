@@ -112,6 +112,13 @@ const Orbit3D = (function () {
      *   既看得见又在往复（不会一路翻到倒立不回来），实测 8 秒能看出明显变化。
      */
     const AUTO_AXIS = new THREE.Vector3(0.6, 0.8, 0).normalize();
+    /**
+     * 自动旋转的**方向**：用户反馈"方向有问题"，故取负号。
+     * 与 `setView`/拖拽的约定对齐：屏幕竖直轴上的正角速度在本相机系里表现为
+     * **顺时针俯视**，而"自动旋转"在同类三维查看器里的惯例是另一个方向
+     * （用户直觉来自拖拽：往左拖、物体往左转）。
+     */
+    const AUTO_ROTATE_SIGN = -1;
     const _v = new THREE.Vector3();
     const _right = new THREE.Vector3();
     const _up = new THREE.Vector3();
@@ -238,7 +245,7 @@ const Orbit3D = (function () {
       if (autoRotate && !dragging) {
         // ★ 绕**倾斜的**相机局部轴（见 AUTO_AXIS 的说明）——不是纯竖直轴：
         //   绕竖直轴自转对"以竖直轴为对称轴"的轨道（3p_z、3d_z²、s…）是**看不见**的。
-        _qYaw.setFromAxisAngle(AUTO_AXIS, autoRotateSpeed * dt);
+        _qYaw.setFromAxisAngle(AUTO_AXIS, AUTO_ROTATE_SIGN * autoRotateSpeed * dt);
         quatTarget.multiply(_qYaw).normalize();
       }
       if (quat.angleTo(quatTarget) > 1e-5) {

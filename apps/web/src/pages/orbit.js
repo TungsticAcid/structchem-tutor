@@ -396,11 +396,19 @@ let offTheme = null;
    */
   const MULTI_HINT = {
     off: '开启后，一组等价轨道同时显示，每个一个颜色',
-    // ★ 「数量不限」是**假话**：动作层与界面都卡在 MAX_MULTI_ORBITALS（12）上
-    //   （见上面的 `full` 判断）。这里写死 12 与那个常量同值 —— 改一处要一起改；
-    //   写"不限"会让用户加到第 13 条时以为程序坏了。
-    custom: '自定义同屏：点「＋ 加入当前轨道」把此刻这个轨道（<b>纯态或叠加态都行</b>）'
-      + '钉进画面，再改量子数继续加（<b>最多 12 条</b>），每行都能单独改色与显隐',
+    /**
+     * ★ 写成**一个整串**（既不拼 `+`，也不含 `<b>`）。
+     *
+     *   提示条是 innerHTML；只要有 `<b>`，浏览器就把这段文字切成**多个文本节点**，
+     *   而 i18n 的 DOM 扫描替换是**按节点**查字典的 —— 节点边界与字典键对不上，
+     *   英文模式下就会留下半中半英（实测：
+     *   "…either is fine）钉进画面，再改量子数继续加（at most 12);…"）。
+     *   同一个坑在本次还出现过一次：`'Slater 型'` 与紧随的 `'为…'` 各自成节点，
+     *   英文里就粘成了 "Slater typefor"。
+     * ★ 上限不再在这里重复（原先这里说"数量不限"、下一条又说"最多 12 条"，
+     *   同一功能两种说法）；只说在"已满"的提示里（见 multiAddFull）。
+     */
+    custom: '自定义同屏：点「＋ 加入当前轨道」把此刻这个轨道（纯态或叠加态都行）钉进画面，再改量子数继续加，每行都能单独改色与显隐',
     sp3: '四个等价 <i>sp</i>³：指向<b>正四面体</b>，两两 109.47°',
     sp2: '三个等价 <i>sp</i>²：<b>共面</b>、互成 120°',
     sp: '两个等价 <i>sp</i>：成 <b>180°</b> 直线型',
@@ -514,7 +522,13 @@ let offTheme = null;
           + '<span class="orb-badge" title="' + roleTip + '">' + role
           + '</span>'
           + tag
-          + (i === 0 ? '' : '<button class="orb-del" data-act="del" title="从同屏里移除">×</button>')
+          // ★ 只有**自定义档**的行才有「移除」：预设集（sp³/sp²/sp）是一个整体，
+          //   行不是独立成员 —— 给它们一个 ×，点下去要么什么都不做、要么把整套关掉
+          //   （实测就是这么坏的：预设档 state.orbitals 恒空 ⇒ 过滤没删掉任何东西 ⇒
+          //   `!state.orbitals.length` 成立 ⇒ 整组被切到 off）。要减少预设里的某个，
+          //   正确做法是用左边的眼睛**隐藏**它。
+          + ((i === 0 || setId !== 'custom') ? ''
+            : '<button class="orb-del" data-act="del" title="从同屏里移除">×</button>')
           + '</div>');
       });
     }
@@ -1552,14 +1566,20 @@ let offTheme = null;
         const key = rowKey(del);
         if (!key || key === '__main__') return;
         state.orbitals = state.orbitals.filter((o) => o.key !== key);
+        multiListBuiltFor = null;
         if (!state.orbitals.length) {
-          // 额外轨道清空就回到"只看当前这一个"：留着 custom 档却挂着空清单，
-          // 是个说不清的状态（档位说自定义、清单里什么也没有）。
+          /**
+           * ★ 删掉**最后一条**额外轨道 = 关闭同屏，必须走**关闭通路**（recompute →
+           *   `setMultiOrbitals(null)`），而不是"增量移除 + 手工把 lastMultiKey 设成 'off'"。
+           *   后者只是让页面**以为**关了：渲染层从没收到关闭指令，于是
+           *   `applyMultiVisibility` / 主面重涂都不会发生 ——
+           *   实测症状是"清单空了、档位显示关闭，但主面继续顶着同屏色"。 */
           state.orbitalSet = 'off';
           setSeg('#multiSeg', 'data-s', 'off');
+          recompute();
+          return;
         }
-        multiListBuiltFor = null;
-        // ★ 移除走**增量**（渲染层只拆组里那一份）：走 recompute 会整组重建，
+        // ★ 还有剩的：走**增量**移除（渲染层只拆组里那一份）：走 recompute 会整组重建，
         //   删掉一个反而要等剩下几个各建一遍 —— 与本意相反。
         const r = Orbit3D.removeMultiOrbital ? Orbit3D.removeMultiOrbital(key) : { ok: false };
         if (r && r.ok) { lastMultiKey = multiKeyOf(multiRenderSpec()); syncMultiUI(); }
@@ -1679,9 +1699,17 @@ let offTheme = null;
   // ---------------------------------------------------------------------------
 
   /** 与渲染层同一个调色板（见 core/hybrids.js 的 PALETTE）——界面上的默认色 */
+  /**
+   * 同屏轨道的默认配色。
+   * ★ 必须**至少与 MAX_MULTI_ORBITALS 一样多**：原来只有 6 色而上限是 12，
+   *   于是第 7 条起颜色必然重复 —— 而同屏里"哪个面是哪个轨道"**唯一**的线索就是颜色
+   *   （实测：第 7 张面与上一行同色，用户根本分不清）。现在 12 色一一对应。
+   */
   const ORB_PALETTE = [
     [0.878, 0.627, 0.251], [0.357, 0.608, 0.835], [0.498, 0.690, 0.412],
     [0.639, 0.475, 0.839], [0.850, 0.450, 0.450], [0.450, 0.750, 0.750],
+    [0.900, 0.780, 0.350], [0.300, 0.450, 0.900], [0.350, 0.800, 0.450],
+    [0.800, 0.350, 0.750], [0.350, 0.800, 0.850], [0.750, 0.550, 0.300],
   ];
 
   /** [0..1]×3 → '#rrggbb'（快照里用十六进制：可读、可解析、也便于人眼核对） */
@@ -1800,7 +1828,17 @@ let offTheme = null;
         });
       }
     }
-    return { items: items };
+    /**
+     * ★ `setId: 'custom'` 这一笔**必须带上**（原来只给了 `items`）。
+     *
+     *   渲染层把"自定义列表"记成 `spec.setId || null`，而 `multiInfo().setId` 又原样报出来；
+     *   页面判断"能不能走增量追加"用的正是 `info.setId === 'custom'`
+     *   （见 actAddCurrentOrbital）。不带这一笔 ⇒ 那个判断**恒假** ⇒
+     *   「＋ 加入当前轨道」每次都退化成**全量重建**：已建好的额外轨道被整组拆掉重跑。
+     *   实测加到第 5 个轨道要 10.5 分钟，而且每加一条前面所有行都回到"生成中"。
+     *   —— 渲染层的增量接口（addMultiOrbital / removeMultiOrbital）一直都在，只是没人唤醒它。
+     */
+    return { items: items, setId: (state.orbitalSet === 'custom') ? 'custom' : state.orbitalSet };
   }
 
   /**
@@ -1944,6 +1982,14 @@ let offTheme = null;
    */
   function actAddCurrentOrbital(opt) {
     const o = (opt && typeof opt === 'object') ? opt : {};
+    /**
+     * ★ 上限必须在**这里**也挡一道（用户报的多轨道混乱之一）。
+     *   界面那条路只是把按钮 disabled —— 模型走动作通路，按钮状态与它无关；
+     *   实测模型连加 4 次全部 ok，轨道数一路涨到 17，而按钮上写着"最多 12 条"。
+     *   上限是**功能约束**（每张面十几秒、再多会把页面锁死几分钟），不是外观偏好，
+     *   所以必须在唯一改状态的地方裁决。
+     */
+    if (state.orbitals.length >= MAX_MULTI_ORBITALS) return false;
     const color = Array.isArray(o.color) ? o.color.slice() : nextOrbitalColor();
     const wasCustom = (state.orbitalSet === 'custom');
     const info = (Orbit3D.multiInfo ? Orbit3D.multiInfo() : null) || {};
@@ -1988,6 +2034,8 @@ let offTheme = null;
   function actSetOrbitalItems(items) {
     const list = items.filter(function (it) { return it && typeof it === 'object'; });
     if (!list.length) return false;
+    // ★ 同 actAddCurrentOrbital：上限在**改状态的地方**挡，不指望界面按钮。
+    if (list.length > MAX_MULTI_ORBITALS) return false;
     state.orbitalSet = 'custom';
     setSeg('#multiSeg', 'data-s', 'custom');
     if (!state.orbitalMainColor) state.orbitalMainColor = ORB_PALETTE[0].slice();

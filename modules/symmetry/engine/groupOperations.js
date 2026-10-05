@@ -148,10 +148,62 @@ function professionalOpName(op, elements) {
 /**
  * 求某原子的稳定化子（保持不动的操作子群）
  * @param {Array} elements - 对称元素数组（含 refine 后的 name，用于 σᵥ/σd 专业名）
- * @returns {{ indexSet: Set<number>, names: string[] }} 保持该原子的对称元素索引集合 + 专业群元名列表
+ * @returns {{ indexSet: Set<number>, names: string[], symbol?: string, count?: number, infinite?: boolean }}
+ *          保持该原子的对称元素索引集合 + 专业群元名列表（+ 无限群时的群符号）
  */
 export function stabilizer(atoms, ops, index, elements = [], tol = 0.15) {
   const cAtoms = centroidAtoms(atoms)
+  const p0 = cAtoms[index].xyz
+
+  /**
+   * ★★ 无限群（C∞v / D∞h）必须**走封闭形式**，不能用有限代表元穷举。
+   *
+   *   用户报「C∞v 群原子的稳定化子是否应包含 C∞v」——答案是**应该**，而原先算错了：
+   *   `generateGroupOperations` 对 `order === Infinity` 的 C∞ 轴**一个群元都不产生**
+   *   （见本文件下方那条 `el.order !== Infinity` 的守卫），而 ∞σᵥ 只给一个代表面。
+   *   于是这里只能在一个被截断的有限集合里筛，HCN 的三个原子都被算成 `{E, σᵥ}`（= Cs）。
+   *
+   *   正确的群论结论（线性分子）：
+   *   · C∞v 的分子必为线性，**所有核都在 C∞ 轴上**（非平凡旋转的固定点集就是它的轴，
+   *     每个核都要被所有 C∞ 旋转固定）⇒ 绕轴任意角度的旋转、任一含轴的 σᵥ
+   *     都固定轴上每一点 ⇒ **每个原子的稳定化子都是整个 C∞v（阶 ∞）**。
+   *     这就是教科书里的"位置对称性 = C∞v"。
+   *   · D∞h 的**中心原子**（在 σh 面上）→ 整个 D∞h；**末端原子** → C∞v
+   *     （σh / i / ∞C₂′ / S∞ 把末端原子映到**另一个**原子上，不属于它的稳定化子）。
+   *   ★ 判据只认"原子是否在轴上"：轴外原子在 C∞v 下不可实现，所以只有这两支。
+   */
+  const cInf = elements.find((el) => el && el.type === 'C∞' && el.axis)
+  if (cInf) {
+    const ax = normalize(cInf.axis)
+    // 原子到"过原点的轴"的距离
+    const d = p0[0] * ax[0] + p0[1] * ax[1] + p0[2] * ax[2]
+    const off = Math.hypot(p0[0] - d * ax[0], p0[1] - d * ax[1], p0[2] - d * ax[2])
+    if (off < tol) {
+      const hasInversion = elements.some((el) => el && el.type === 'i')
+      const onSigmaH = Math.abs(d) < tol
+      const infinite = hasInversion && onSigmaH
+      const indexSet = new Set()
+      for (let i = 0; i < elements.length; i++) {
+        const el = elements[i]
+        if (!el) continue
+        const ty = el.type || ''
+        // C∞ 与任一 σᵥ（含轴的平面）都固定**轴上每一点** ⇒ 无条件属于稳定化子
+        if (ty === 'C∞' || ty === 'sigma_v') { indexSet.add(i); continue }
+        // σh / i / S∞ / ∞C₂′ 只固定**中心原子**（落在 σh 面上的那个）：
+        // 末端原子会被它们映到"另一个原子"上，不属于它的稳定化子。
+        // （infinite 就是"有 i 且在 σh 面上"⇒ 中心原子）
+        if (infinite) indexSet.add(i)
+      }
+      return {
+        indexSet,
+        names: [infinite ? 'D∞h' : 'C∞v'],
+        symbol: infinite ? 'D∞h' : 'C∞v',
+        count: Infinity,
+        infinite: true,
+      }
+    }
+  }
+
   const indexSet = new Set()
   const names = []
   for (const op of ops) {
@@ -161,5 +213,5 @@ export function stabilizer(atoms, ops, index, elements = [], tol = 0.15) {
       if (op.elementIndex !== undefined && op.elementIndex >= 0) indexSet.add(op.elementIndex)
     }
   }
-  return { indexSet, names }
+  return { indexSet, names, count: names.length }
 }

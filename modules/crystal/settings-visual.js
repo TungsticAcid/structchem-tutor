@@ -101,9 +101,17 @@ export function visualSettings() {
     key: 'elementColors',
     label: '逐元素配色',
     type: 'palette',
-    hint: '按周期表点一个元素选中它，再取色即生效；「恢复默认配色」清空全部自定义',
+    hint: '按周期表点一个元素选中它，再取色即生效；可只恢复选中的那一个，也可清空全部自定义',
     items: () => elementColorItems(),
     set: (sym, color) => setElementColor(sym, color),
+    /**
+     * ★ 单元素恢复默认（用户要求「元素配色可单独恢复某一个元素的配色」）。
+     *   语义与整体重置**同源**：把覆盖置空即"取消覆盖" —— `getElementColor()` 是
+     *   「用户覆盖 > 默认」且用 `||` 取值，空字符串本来就等于没覆盖。
+     *   所以不必改上游那份逐字文件 `data/settings.js`（加导出会引入分叉）；
+     *   存储里留一个 `''` 键无害：读取侧与"已自定义"标记都按"没覆盖"处理。
+     */
+    resetOne: (sym) => setElementColor(sym, ''),
     reset: () => resetElementColors(),
     /**
      * ★ 布局提示：让弹层把格子摆成**周期表**（而不是原来的 16 列密集网格）。

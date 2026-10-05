@@ -1010,7 +1010,7 @@ export const zh = {
 
 /** 键 → 英文 */
 export const en = {
-  'orbit.title': 'Orbital Viewer',
+  'orbit.title': 'Orbital Horizon',
 
   'orbit.roleHint': [
     'You are working in the **Atomic orbitals** module.',

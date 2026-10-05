@@ -77,6 +77,8 @@ export const text = {
   '先点一个格子选中元素': 'Click a cell first to select an element',
   '恢复默认配色': 'Restore default colors',
   '已恢复默认配色': 'Default colors restored',
+  // 单元素恢复（只还原当前选中的那个元素）
+  '恢复本元素默认': 'Reset this element',
 
   // ---- 弹层标题与操作 ----
   '设置': 'Settings',

@@ -68,6 +68,9 @@ import { registerAll, listModules as listDeclaredModules, collectProactiveRules,
 import { router } from './shell/router.js'
 import { installHomeButton } from './shell/home-affordance.js'
 import './shell/home-affordance.css'
+// ★ 「保存图片」：同一个理由装在壳里（对每条带画布的路由都给一个出口）
+import { installSaveImage } from './shell/save-image.js'
+import './shell/save-image.css'
 // i18n：先 import 字典（模块顶层自注册），再拿运行时。
 // ★ 字典文件必须是**纯数据 + 相对路径**（守卫在 Node 里 import 它，`@i18n` 别名 Node 不认）。
 import './i18n/shell.js'
@@ -445,15 +448,38 @@ setUiLang(getUiLang())
  *   （这个信号由设置弹层提供：`settingsPopup.touchedExternal()` 告诉宿主
  *     本次保存里用户手改过哪些外挂字段。）
  */
-const THEME_CANVAS_BG = { light: '#ffffff', dark: '#0b1020' }
+/**
+ * 「没被用户自定义过就跟随主题」的视觉颜色。
+ *
+ * ★ 品红色源：`projects/crystal/H5/src/lib/scene-builder.js:1267-1273` 的晶胞线框用
+ *   `getVisualColor('wireframeColor')`，而默认值是 **#000000** —— 浅色主题下没问题
+ *   （黑线叠白底，对比度 5.74:1），**深色主题下等于看不见**（黑线叠 #0b1020 = 1.07:1，
+ *   远低于非文本的 3:1 底线）。所以它必须与画布底色一样"按主题自动取白/黑"。
+ * ★ 深色线框色取 `#e8ecf7`（就是 tokens.css 深色的 `--text`）：@0.6 透明度叠 #0b1020
+ *   的实测对比度是 **6.25:1**（换成 #8fa3c8 只有 3.39:1，太弱）。
+ */
+const THEME_VISUAL_COLORS = {
+  light: { bgColor: '#ffffff', wireframeColor: '#000000' },
+  dark: { bgColor: '#0b1020', wireframeColor: '#e8ecf7' },
+}
 
-/** 深色主题下的画布底色：用与页面底色同一个值，避免"画布比页面更深/更浅"的割裂感 */
-function applyThemeCanvasBg(resolved) {
-  if (settings.get().bgColorOverridden) return   // 用户选过 → 不碰
-  const want = THEME_CANVAS_BG[resolved] || THEME_CANVAS_BG.light
-  if (getVisualColor('bgColor') === want) return
-  setVisualColor('bgColor', want)
-  crystal.facade.refreshScene && crystal.facade.refreshScene()
+/**
+ * 按当前主题写回"用户没表达过"的视觉颜色。
+ *
+ * ★ 判据是 `settings.get()[key + 'Overridden']` —— 那是"用户在设置里**真的改过**
+ *   这个颜色"的标记（由弹层的 `touchedExternal()` 提供）。用户表达过就一尊重重，
+ *   我们不再替他改（这正是 main.js 里那句"没自定义过就跟随主题，表达过就尊重"）。
+ */
+function applyThemeVisualColors(resolved) {
+  const want = THEME_VISUAL_COLORS[resolved] || THEME_VISUAL_COLORS.light
+  let changed = false
+  for (const key of Object.keys(want)) {
+    if (settings.get()[key + 'Overridden']) continue   // 用户选过 → 不碰
+    if (getVisualColor(key) === want[key]) continue
+    setVisualColor(key, want[key])
+    changed = true
+  }
+  if (changed) crystal.facade.refreshScene && crystal.facade.refreshScene()
 }
 
 // ---------------------------------------------------------------------------
@@ -568,7 +594,14 @@ const settingsPopup = createSettingsPopup({
      */
     try {
       const touched = typeof settingsPopup.touchedExternal === 'function' ? settingsPopup.touchedExternal() : []
-      if (touched.includes('vc_bgColor')) settings.set({ bgColorOverridden: true })
+      // ★ 通用化：**任何一个** `vc_*` 视觉色被用户亲手改过，就为它立一个
+      //   `<key>Overridden` 标记（原来只处理 bgColor）。线框色也要靠这个标记
+      //   才能既"跟随主题"又"尊重用户"。
+      const flags = {}
+      for (const k of touched) {
+        if (k && k.indexOf('vc_') === 0) flags[k.slice(3) + 'Overridden'] = true
+      }
+      if (Object.keys(flags).length) settings.set(flags)
     } catch (e) { /* 拿不到改动清单时保守起见不动——保持现状不会出错 */ }
 
     /**
@@ -587,8 +620,8 @@ settings.set({ theme: getTheme() })
 // ★ 订阅而不是只调一次：切主题时画布不重绘就会留下"页面变了、画布没变"的错位。
 //   ★ 这里只处理**画布底色**；页面其余部分的颜色由 CSS 变量自己随 data-theme 变，
 //     不需要 JS 参与（能交给 CSS 的就不要用 JS 转发，否则又是一个双真源）。
-applyThemeCanvasBg(resolvedTheme())
-onThemeChange((_theme, resolved) => applyThemeCanvasBg(resolved))
+applyThemeVisualColors(resolvedTheme())
+onThemeChange((_theme, resolved) => applyThemeVisualColors(resolved))
 
 // ---------------------------------------------------------------------------
 // 7. 智能体（中枢 + 模块）
@@ -807,8 +840,23 @@ panel = createPanel({
   greeting: () => {
     const id = (app && app.activeModule) || null
     const m = MODULES_BY_ID[id]
-    return (m && m.greeting)
-      || '<b>我是结构化学教学智能体</b><br>直接问就行——我能查数据、也能把结论演示到画面上。'
+    const title = m && m.title
+    /**
+     * ★ 统一身份（用户报：「三个板块的智能体没有综合成为一个总智能体，
+     *   没有起到 1+1>2 的效果」）。
+     *   原先开场白是**逐模块**的「我是结构化学教学智能体 · 晶体结构」——
+     *   从首页问一句、或在轨道页里问一句，看到的都像"这是另一个智能体"；
+     *   切回首页时它还停在最后进过的模块上（见 '/' 路由那处 setActiveModule(null)）。
+     *   现在头两行由**宿主**统一给出：一个智能体覆盖三个板块，再补一句"当前在哪块"；
+     *   模块自己的示例问题照旧接在后面（那部分确实该模块自己说）。
+     */
+    const lines = ['<b>' + t('shell.panel.greetHead') + '</b>']
+    // ★ `title` 是**模块注册表里的中文标题**（'点群观鉴'），不是译文 —— 必须过一遍
+    //   `t()`：它带"原文即键"回退，会去 text 表取 'Point Group Explorer'。
+    //   少这一层，英文模式下面板里就留着一个中文模块名（实机实测：symmetry 路由残留 1 条）。
+    lines.push(title ? t('shell.panel.greetInModule', { title: t(title) }) : t('shell.panel.greetScope'))
+    if (m && m.greeting) lines.push(m.greeting)
+    return lines.join('<br>')
   },
   /**
    * 动作气泡的短标签。
@@ -882,8 +930,28 @@ function startPractice() {
       if (!KNOWLEDGE_POINTS[kp]) return
       // 选完后禁用全部按钮，避免重复点击开出两套练习
       el.querySelectorAll('.agent-pick-btn').forEach((b) => { b.disabled = true })
-      // 本地立即出题：不需要模型，所以**不需要密钥**（练习在未配置 API Key 时也可用）
-      quizUI.startPractice(kp)
+      /**
+       * ★★ 出题交给**模型**（用户报：「练习功能有问题，应由 LLM 出题」）。
+       *
+       *   原先这里是 `quizUI.startPractice(kp)` —— 从**本地题库**里挑一道模板题渲染成卡片。
+       *   那是死的：同一个知识点每次都拿到同一道题，题干不会随学生的问法/上下文变化，
+       *   也读不到视图里正在看的东西。
+       *
+       *   现在改成**让智能体出题**：把请求送进对话，由 quiz 节点调用 `generateQuiz`
+       *   （模块工具，答案由程序算好并冻结）再讲给学生。
+       *   ★ 为什么不是"让模型自己编一道题"：本仓库的硬约定是**数值一律程序算**
+       *     （模型口算的答案错得看不出来，而且解析会为错答案编一套自洽的理由）。
+       *     `generateQuiz` 就是那条通路 —— 出题的是模型，**算答案的是程序**。
+       *   ★ 没配密钥时不能把练习变成不可用：回退到本地题库并**明说**这是离线题，
+       *     免得学生以为模型只会这一道（面板的 doSend 在缺 Key 时会自己弹设置，所以
+       *     这里必须先判断，不能盲发）。
+       */
+      if (settings.hasKey()) {
+        panel.setInput(t('shell.practice.askLlm', { kp }))
+        panel.send()
+      } else {
+        quizUI.startPractice(kp)
+      }
     })
   })
 }
@@ -996,6 +1064,16 @@ router.setContainer($('#app')).setFallback('/')
 router.onAfterMount(() => {
   // 首页自己不需要出口
   if (router.currentPath !== '/') installHomeButton($('#app'))
+  /**
+   * ★ 「保存图片」也装在壳这一层（用户要求「增加保存图片功能，支持对各个可视化窗口截图」）。
+   *   与「回门户」同理：逐页去加必然漏。它自己会判断这一页**有没有画布**，
+   *   没有画布的路由（首页、晶体库列表）不给按钮 —— 免得点了什么都不发生。
+   *   ★ 画布可能比路由挂载晚一点出现（三维视图是异步初始化的），所以这里补一次延迟重试。
+   */
+  if (router.currentPath !== '/') {
+    installSaveImage($('#app'))
+    setTimeout(() => { if (router.currentPath !== '/') installSaveImage($('#app')) }, 1200)
+  }
   // ★ 每次换页都重新裁决"这一页能不能整页滚动"。
   //   量的是**内容有没有超出视口**（见 shell/doc-scroll.js），所以不依赖各页面自觉声明。
   //   这里再 schedule 一次是因为有些页面的内容要等异步渲染才长出来
@@ -1014,6 +1092,15 @@ router.onAfterMount(() => {
 router
   // 首页：模块入口（编号列表 · 极简学术风）
   .on('/', () => {
+    /**
+     * ★ 回到首页要**清掉模块归属**（用户报：「打开晶典在线后切回首页，
+     *   智能体仍显示"我是…· 晶体结构"」）。
+     *   原先这里什么都不做，`activeModule` 就一直停在最后进过的那个模块 ——
+     *   面板的开场白、工具集、权限都还按那个模块算，首页看着像"总入口"、
+     *   实际仍是某个模块的分身。这正是用户说的"三个板块没有综合成一个总智能体"。
+     *   清掉之后首页回到**总智能体**身份，按文本自动路由（shouldAutoRoute）也才有意义。
+     */
+    app.setActiveModule(null)
     const p = new HomePage({
       // 全部模块（descriptor 声明的，含尚未接入的）——按 teachingOrder 排
       modules: listDeclaredModules(),

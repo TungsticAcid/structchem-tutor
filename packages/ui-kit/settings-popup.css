@@ -32,7 +32,8 @@
      放宽后每格约 36px；顺带让长 hint 少折几行。 */
   width: min(720px, 94vw);
   max-height: 88vh;
-  background: linear-gradient(180deg, #151c33, #111830);
+  /* ★ 2026-10-05：底色渐变改走令牌，随主题（原先写死深色） */
+  background: linear-gradient(180deg, var(--card, #151c33), var(--bg-2, #111830));
   border: 1px solid var(--line, #2a3558);
   border-radius: 14px;
   display: flex;
@@ -62,18 +63,35 @@
 .agent-sec-head {
   width: 100%;
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 12px 2px;
+  padding: 12px 8px;
   background: none; border: 0; cursor: pointer;
   color: var(--text, #e8ecf7);
   font-family: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: .02em;
   text-align: left;
+  /* ★ 展开态与收起态**必须一眼分得开**（用户报"展开的和没展开的标题样式应有所区分"）：
+     原先两者只差一个会转 90° 的小三角 + 正文有没有铺开 —— 一屏里七个分区全都长一样，
+     扫一眼看不出"我现在在哪一组里"。现在收起态整体弱化（暗色、细字、无底色），
+     展开态提亮 + 左侧一条强调竖条 + 轻微底色。 */
+  border-left: 2px solid transparent;
+  border-radius: 6px;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
 }
-.agent-sec-head:hover { color: var(--accent, #55c2ff); }
+.agent-sec-head:hover { color: var(--accent, #55c2ff); background: rgba(127, 150, 220, .08); }
 .agent-sec-head:focus-visible { outline: 1px solid var(--accent, #55c2ff); outline-offset: 2px; }
 .agent-sec-chev { color: var(--text-dim, #9aa7c6); font-size: 11px; transition: transform .18s ease; }
-.agent-sec.open .agent-sec-chev { transform: rotate(90deg); }
+.agent-sec.open .agent-sec-chev { transform: rotate(90deg); color: var(--accent, #55c2ff); }
 .agent-sec-body { display: none; padding: 2px 2px 14px; }
 .agent-sec.open .agent-sec-body { display: flex; flex-direction: column; gap: 10px; }
+
+/* 收起态：弱化 */
+.agent-sec:not(.open) .agent-sec-head { color: var(--text-dim, #9aa7c6); font-weight: 500; }
+.agent-sec:not(.open) .agent-sec-head:hover { color: var(--text, #e8ecf7); }
+/* 展开态：提亮 + 左侧强调竖条 + 轻微底色（与"收起"形成明确的层级差） */
+.agent-sec.open .agent-sec-head {
+  color: var(--accent, #55c2ff);
+  background: rgba(127, 150, 220, .10);
+  border-left-color: var(--accent, #55c2ff);
+}
 
 .agent-sgroup-title {
   font-size: 12px;
@@ -122,24 +140,13 @@
 .agent-overlay {
   /**
    * ★ 必须显式声明 color——弹层与 `.agent-settings-box` 都**没有** color 声明，
-   *   未指定颜色的文字会一路继承 `body` 的 `#333`（浅色主题），
-   *   而弹层底色是写死的深色渐变：深灰字压在深色上就是看不清。
+   *   未指定颜色的文字会一路继承 `body` 的 `#333`。
    *   （实测同 panel.css 的 `.agent-drawer`：只绑变量不声明 color 是不够的，
    *     "令牌生效"不等于"结果正确"。）
+   * ★★ 2026-10-05：与面板同步 —— 不再绑到 `--chrome-*`（恒深色），
+   *   改为继承全局主题令牌；底色渐变也跟着用令牌（见 `.agent-settings-box`）。
    */
   color: var(--text);
-  --bg: var(--chrome-bg);
-  --bg-2: var(--chrome-bg-2);
-  --card: var(--chrome-card);
-  --card-2: var(--chrome-card-2);
-  --line: var(--chrome-line);
-  --line-soft: var(--chrome-line-soft);
-  --text: var(--chrome-text);
-  --text-dim: var(--chrome-text-dim);
-  --accent: var(--chrome-accent);
-  --accent-2: var(--chrome-accent-2);
-  --active: var(--chrome-active);
-  --on-accent: var(--chrome-on-accent);
 }
 
 /* ------------------------------------------------------------------

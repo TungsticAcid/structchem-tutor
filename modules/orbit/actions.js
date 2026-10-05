@@ -40,8 +40,12 @@ export const ENUMS = {
   formulaPart: ['R', 'Y', 'L', 'P', 'N', null], // 公式按项高亮
   // 轨道模型：氢型（真实类氢，2s 有径向节点）| Slater 型（STO，无径向节点）
   orbitalModel: ['hydrogenic', 'slater'],
-  // 多轨道同屏：要同屏的等价轨道集合。'off' 关闭；其余取自 core/hybrids.js
-  orbitalSet: ['off'].concat(Hybrids.setIds()),
+  // 多轨道同屏：要同屏的等价轨道集合。'off' 关闭；其余取自 core/hybrids.js。
+  // ★ 必须**含 'custom'**：页面早就实现了这个档（`setId === 'custom'` 分支，进自定义清单
+  //   再从「＋ 加入当前轨道」逐个加），而枚举里没有它 —— 于是"模型要求进自定义档"会被
+  //   validate 判为非法值。页面能做的事、动作层说做不到，这种不一致迟早会被踩到
+  //   （快照里 `orbitalSet` 本来就会是 'custom'，撤销/回放也要能把它设回去）。
+  orbitalSet: ['off', 'custom'].concat(Hybrids.setIds()),
 }
 
 /**

@@ -183,6 +183,21 @@ export function createSettingsPopup(cfg = {}) {
    */
   function buildInput(def, s) {
     const v = def.get ? def.get() : s[def.key]
+    const built = buildInputBody(def, s, v)
+    /**
+     * ★ 记下**渲染那一刻的原值**，供 `collect()` 判断"用户到底改没改"。
+     *
+     *   外挂字段（`def.set`，如配色/主题背景）写进模块存储后与"我们替用户写的"
+     *   长得一模一样 —— 宿主靠 `touchedExternal()` 区分两者。原先那里是**无条件**
+     *   加进去的：用户一个控件都没碰、只点了一次「保存」，8 个视觉颜色就全被写进
+     *   模块存储、`bgColorOverridden` 被置 true，此后深色主题下画布**永远白着**
+     *   （实测端到端复现）。有了 `initial` 才谈得上"改过才算"。
+     */
+    if (built && !('initial' in built)) built.initial = v
+    return built
+  }
+
+  function buildInputBody(def, s, v) {
     switch (def.type) {
       case 'checkbox': {
         const input = el('input', { type: 'checkbox' }, undefined, doc)
@@ -332,6 +347,7 @@ export function createSettingsPopup(cfg = {}) {
             picker.value = it.color
             for (const n of grid.querySelectorAll('.agent-swatch')) n.classList.remove('active')
             b.classList.add('active')
+            if (resetOneBtn) resetOneBtn.disabled = false   // 选中了才有"恢复这一个"可言
             caption.textContent = t('uikit.picked', { label: it.label })
           }
           grid.appendChild(b)
@@ -347,6 +363,29 @@ export function createSettingsPopup(cfg = {}) {
           if (typeof def.set === 'function') def.set(target.key, picker.value)
           caption.textContent = target.label + ' → ' + picker.value
         })
+        /**
+         * ★ 单元素恢复默认（用户要求「元素配色可单独恢复某一个元素的配色」）。
+         *   原来只有整组「恢复默认配色」—— 103 个里改坏了**一个**也只能全清，
+         *   把其余 102 个自定义一起丢掉。所以给**当前选中**的那个元素一个单独入口。
+         *   ★ 只在模块提供了 `def.resetOne` 时才出现：没有就别给一个点了没反应的按钮
+         *   （那正是本仓库反复记为缺陷的形态）。
+         */
+        let resetOneBtn = null
+        if (typeof def.resetOne === 'function') {
+          resetOneBtn = el('button', { class: 'agent-btn', type: 'button', text: '恢复本元素默认' }, undefined, doc)
+          resetOneBtn.disabled = true
+          resetOneBtn.onclick = () => {
+            if (!target) return
+            def.resetOne(target.key)
+            const fresh = (typeof def.items === 'function' ? def.items() : []).find((x) => x.key === target.key)
+            const n = swatchOf(target.key)
+            if (fresh && n) {
+              n.style.background = fresh.color
+              if (periodic) n.style.color = readableOn(fresh.color)
+            }
+            caption.textContent = target.label + ' → ' + ((fresh && fresh.color) || '')
+          }
+        }
         const resetBtn = el('button', { class: 'agent-btn', type: 'button', text: '恢复默认配色' }, undefined, doc)
         resetBtn.onclick = () => {
           if (typeof def.reset === 'function') def.reset()
@@ -359,10 +398,15 @@ export function createSettingsPopup(cfg = {}) {
             }
           }
           target = null
+          if (resetOneBtn) resetOneBtn.disabled = true
           caption.textContent = '已恢复默认配色'
         }
         return {
-          node: el('div', {}, [grid, el('div', { class: 'agent-colorrow' }, [picker, caption], doc), resetBtn], doc),
+          node: el('div', {}, [
+            grid,
+            el('div', { class: 'agent-colorrow' }, [picker, caption], doc),
+            el('div', { class: 'agent-row' }, resetOneBtn ? [resetOneBtn, resetBtn] : [resetBtn], doc),
+          ], doc),
           read: () => null,
           noStore: true,
         }
@@ -543,8 +587,20 @@ export function createSettingsPopup(cfg = {}) {
        * ★ 值的**真源在模块那边**（`def.set`）时，写进去、且**不**塞进本 store。
        *   塞了就等于同一份数据两个真源——"改了一处、另一处没变"是最难查的那类
        *   缺陷（本仓库已记过多次）。这里的 `patch` 只承载本 store 自己管的字段。
+       *
+       * ★★ 但**只有用户真的改过**才写回、才算 touched。
+       *   原先这两步是无条件的 —— 后果（实测）：打开设置、一个控件都不碰、点一次
+       *   「保存」，8 个视觉颜色就被写进模块存储，`bgColorOverridden` 置 true；
+       *   此后切到深色主题，三维画布**永远是白的**（`applyThemeCanvasBg` 见到
+       *   "用户表达过"就再不介入），而且从存储里**分不出**这是"用户真的选了白"还是
+       *   "我们误写的"（main.js 的注释专门警告过这一点）。同一笔还会把滑块中点
+       *   写进存储 —— 另一处已在 buildInput 的 range 分支修过，根因就是这里。
        */
-      if (typeof def.set === 'function') { def.set(v); externalTouched.add(def.key); continue }
+      if (typeof def.set === 'function') {
+        const dirty = !('initial' in built) || String(v) !== String(built.initial)
+        if (dirty) { def.set(v); externalTouched.add(def.key) }
+        continue
+      }
       patch[def.key] = v
     }
     return store.set(patch)

@@ -41,7 +41,14 @@ html, body {
   --color-text-light: var(--text-dim);
   --color-text-muted: var(--text-dim);
   --color-border: var(--line);
-  --color-white: var(--surface, #fff);      /* 卡片底色：浅色主题下是白，暗色下是面板色 */
+  /**
+   * ★ `--surface` 这个令牌**全仓不存在**（tokens.css 里只有 --bg/--bg-2/--card/--card-2/…）。
+   *   原先写的是 `var(--surface, #fff)`，于是这条映射**恒等于 #fff** ——
+   *   注释说"暗色下是面板色"，实际是**空操作**：上游凡是用 `var(--color-white)`
+   *   的地方（卡片、面板）在深色主题下全是白的。注释与实现不一致的典型：
+   *   看着挺有道理，跑起来什么都没做。直接映射到 `--card`。
+   */
+  --color-white: var(--card);              /* 卡片底色：随主题（浅色=白，深色=面板色） */
   --color-primary: var(--accent);
 }
 

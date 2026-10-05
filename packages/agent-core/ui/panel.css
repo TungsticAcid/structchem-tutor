@@ -116,7 +116,9 @@ body.agent-open .compare-page {
      晶体视图的宽度、抽屉本身纹丝不动，中间露出白缝或相互重叠（实测反馈）。 */
   width: min(var(--agent-w, 440px), 94vw);
   height: 100%;
-  background: linear-gradient(180deg, #101629, #0d1324);
+  /* ★ 2026-10-05：底色不再写死深色 —— 用户要求「智能体窗口的底色也应随界面风格切换」。
+     走主题令牌（:root 暗色 / [data-theme=light] 浅色），与壳的其余部分一致。 */
+  background: linear-gradient(180deg, var(--bg-2, #101629), var(--bg, #0d1324));
   border-left: 1px solid var(--line, #2a3558);
   box-shadow: -12px 0 42px rgba(0, 0, 0, .5);
   display: flex;
@@ -565,7 +567,7 @@ body.agent-resizing .compare-page {
   left: 50%; transform: translateX(-50%) translateY(120%);
   bottom: 16px;
   display: flex; align-items: center; gap: 10px;
-  background: linear-gradient(135deg, #1c2544, #16203c);
+  background: linear-gradient(135deg, var(--card-2, #1c2544), var(--card, #16203c));
   border: 1px solid var(--line, #2a3558);
   border-radius: 12px;
   padding: 9px 14px;
@@ -936,7 +938,9 @@ body.agent-resizing .compare-page {
 .agent-conv-page {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, #101629, #0d1324);
+  /* ★ 2026-10-05：底色不再写死深色 —— 用户要求「智能体窗口的底色也应随界面风格切换」。
+     走主题令牌（:root 暗色 / [data-theme=light] 浅色），与壳的其余部分一致。 */
+  background: linear-gradient(180deg, var(--bg-2, #101629), var(--bg, #0d1324));
   display: flex;
   flex-direction: column;
   transform: translateX(100%);
@@ -997,20 +1001,15 @@ body.agent-resizing .compare-page {
    *   教训值得单列：**令牌生效 ≠ 结果正确**。绑了变量只说明"变量取对了值"，
    *   还要有人**用它**。所以下面每个容器都必须显式声明自己的前景色，
    *   而不是指望"我把变量绑对了，颜色自然就对"。
+   *
+   * ★★ 2026-10-05：**这里不再把令牌绑到 --chrome-\*（恒深色）**。
+   *   用户明确要求「智能体窗口的底色也应随界面风格的切换而切换」——
+   *   原先面板与抽屉是"恒深色表面"（理由是浅色主题下对比度只有 1.46:1），
+   *   但那是因为**底色写死深、文字却用浅色令牌**。现在底色与文字**一起**随主题翻，
+   *   两者始终同侧，对比度问题不再存在。
+   *   `color: var(--text)` 仍然保留：未指定颜色的文字会继承 body，这点与主题无关。
    */
   color: var(--text);
-  --bg: var(--chrome-bg);
-  --bg-2: var(--chrome-bg-2);
-  --card: var(--chrome-card);
-  --card-2: var(--chrome-card-2);
-  --line: var(--chrome-line);
-  --line-soft: var(--chrome-line-soft);
-  --text: var(--chrome-text);
-  --text-dim: var(--chrome-text-dim);
-  --accent: var(--chrome-accent);
-  --accent-2: var(--chrome-accent-2);
-  --active: var(--chrome-active);
-  --on-accent: var(--chrome-on-accent);
 }
 
 /* ------------------------------------------------------------------

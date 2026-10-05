@@ -121,8 +121,8 @@ export const text = Object.assign({
   //   原键由生成器写进 `i18n-gen.js`，改文案后新串必须在**本区**重新登记
   //   （守卫按区域算覆盖，跨区同名不互相遮盖）。
   '逐元素配色': 'Per-element colors',
-  '按周期表点一个元素选中它，再取色即生效；「恢复默认配色」清空全部自定义':
-    'Click an element on the periodic table to select it, then pick a colour; "Reset to default colours" clears all customisations.',
+  '按周期表点一个元素选中它，再取色即生效；可只恢复选中的那一个，也可清空全部自定义':
+    'Click an element on the periodic table to select it, then pick a colour; you can reset just the selected element, or clear all customisations.',
 }, textGen)
 
 registerDict('crystal', { zh, en, text })

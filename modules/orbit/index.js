@@ -110,7 +110,7 @@ export function createModule(opts = {}) {
      */
     get greeting() {
       return [
-        '<b>我是结构化学教学智能体 · 原子轨道</b><br>',
+        // ★ 身份由**宿主**统一给出（见 main.js 的 greeting）；模块只报自己的示例问题
         '我能读出当前的量子数与画法，也能把轨道摆到你面前。<br><br>',
         '试试：<br>',
         '· 「4p 有几个径向节面，各在多少 a₀」<br>',

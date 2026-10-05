@@ -60,7 +60,7 @@ const MESSAGES = {
     'elem.i': '反演中心', 'elem.E': '恒等元素'
   },
   en: {
-    brand: 'Point Group Viewer',
+    brand: 'Point Group Explorer',
     hint: 'Drag to rotate · Right-drag to pan · Wheel to zoom · Double-click to reset',
     'tool.symmetry': 'Symmetry elements',
     'tool.labels': 'Labels',
