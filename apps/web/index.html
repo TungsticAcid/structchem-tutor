@@ -29,14 +29,34 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>结构化学教学智能体</title>
     <!--
+      ★ 首帧前定主题（避免"先按深色画一帧、再跳成浅色"的闪一下）。
+
+      § 与 @ui-kit/theme.js 是**同一套判据**：显式选的直接写，'system' 交给
+        matchMedia 解析 —— 解析结果同样写进 `data-theme`。属性是**唯一**真源，
+        CSS 里不再有 prefers-color-scheme 那一份"第二套浅色调色板"
+        （那正是"跟随系统"看起来跟浅色/深色都不一样的根因）。
+      § 必须是**行内**脚本：模块脚本是 defer 的，等到那时第一帧已经画完了。
+    -->
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('chem-agent.theme') || 'system'
+          var resolved = (t === 'dark' || t === 'light')
+            ? t
+            : ((window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark')
+          document.documentElement.setAttribute('data-theme', resolved)
+        } catch (e) { /* 隐私模式等：交给运行时，最多闪一下 */ }
+      })()
+    </script>
+  </head>
+  <body>
+    <!--
       ★ 页面结构极简：只有 #app 一个容器。
         上一版把顶栏、侧栏（视角/图层/晶胞）、页脚全写在这里，是"壳自己画界面"的思路；
         本版改为**壳只提供容器与路由，界面由各模块的页面负责**——
         这样可以整份复用 crystal 应用那套为教学设计过的页面，而不是手搓一份仿制品。
         智能体面板挂在 document.body（不在这里），所以切页不会把它清掉。
     -->
-  </head>
-  <body>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>

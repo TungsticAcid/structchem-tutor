@@ -340,10 +340,71 @@ function captureOnce(canvas) {
     try { window.dispatchEvent(new CustomEvent('chem-agent:before-capture')) } catch (e) { /* 忽略 */ }
     requestAnimationFrame(() => {
       let url = ''
-      try { url = canvas.toDataURL('image/png') } catch (e) { url = '' }
+      try { url = flattenOnBackground(canvas) } catch (e) {
+        try { url = canvas.toDataURL('image/png') } catch (e2) { url = '' }
+      }
       resolve(url)
     })
   })
+}
+
+/**
+ * 把画布**合成到页面底色**上再导出。
+ *
+ * ★ 用户问：「为什么点群观鉴和轨道视界保存的图片无背景色，而晶典在线保存的图片有背景色」。
+ *   答案在三维渲染器的构造参数上：
+ *     · 轨道视界 `new THREE.WebGLRenderer({ alpha: true })` ⇒ 画布**真透明**，
+ *       `toDataURL()` 出来就是一张没有底色的图；
+ *     · 点群观鉴的渲染器虽然不透明，但它的 clearColor 是模块自己的 `bgColor`
+ *       （浅色档是纯白），而页面底色是一条渐变 —— 存下来是一片死白，看着也像"没背景"；
+ *     · 晶典在线用 `alpha: false` + `setClearColor(bgColor)`，底色是跟着主题走的，
+ *       所以它的图看着"有背景色"。
+ *   ⇒ 与其去改三个渲染器（那会牵动它们在屏幕上的观感），不如在**导出这一步**统一：
+ *     取画布背后那一层的实际底色（最近的、足够不透明的祖先背景，或渐变端点），
+ *     先铺底再把画布画上去。这样"存下来的 = 屏幕上看到的"。
+ *
+ * ★ 必须在**同一帧内**做（见 captureWith）：`drawImage` 读的正是那块
+ *   `preserveDrawingBuffer:false` 的缓冲，跨帧就空了。
+ */
+export function flattenOnBackground(canvas) {
+  const w = canvas.width, h = canvas.height
+  const off = document.createElement('canvas')
+  off.width = w; off.height = h
+  const ctx = off.getContext('2d')
+  ctx.fillStyle = effectiveBackground(canvas)
+  ctx.fillRect(0, 0, w, h)
+  ctx.drawImage(canvas, 0, 0)
+  return off.toDataURL('image/png')
+}
+
+/** 画布背后那一层的实际底色（够不透明的祖先背景 > 渐变端点 > 壳的 --bg > 白） */
+function effectiveBackground(el) {
+  let n = el && el.parentElement
+  while (n && n.nodeType === 1) {
+    const cs = getComputedStyle(n)
+    const c = parseColor(cs.backgroundColor)
+    if (c && c.a >= 0.9) return 'rgb(' + c.rgb.join(',') + ')'
+    // 渐变：取**最后一个**颜色端点（径向渐变的外圈就是页面底色）
+    const bi = cs.backgroundImage
+    if (bi && bi.indexOf('gradient') >= 0) {
+      const all = bi.match(/rgba?\([^)]+\)/g)
+      if (all && all.length) {
+        const last = parseColor(all[all.length - 1])
+        if (last) return 'rgb(' + last.rgb.join(',') + ')'
+      }
+    }
+    n = n.parentElement
+  }
+  const root = getComputedStyle(document.documentElement)
+  const bg = (root.getPropertyValue('--bg') || '').trim()
+  return bg || '#ffffff'
+}
+
+function parseColor(s) {
+  const m = /rgba?\(([^)]+)\)/.exec(s || '')
+  if (!m) return null
+  const p = m[1].split(',').map(parseFloat)
+  return { rgb: [p[0], p[1], p[2]].map((v) => Math.round(v || 0)), a: p.length > 3 ? p[3] : 1 }
 }
 
 /**

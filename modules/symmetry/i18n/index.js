@@ -50,6 +50,9 @@ export const MESSAGES = {
     'set.symColorSec': '对称元素颜色',
     'set.reset': '恢复默认设置',
     'set.emptyHint': '（加载分子后可设置）',
+  // ★ 与上一条分开：分子**已经**加载、只是这个点群里除 E 之外没有别的对称元素时用这句
+  //   （用户报：C1 点群下显示"加载分子后可设置"不合理 —— 分子明明已经打开了）
+  'set.noSymElementHint': '这个点群里除恒等操作 E 之外没有其他对称元素，没有可着色的对象',
     'anim.playTitle': '播放对称操作动画',
     'anim.toggle': '播放/暂停',
     'anim.reset': '重置变换',
@@ -99,6 +102,7 @@ export const MESSAGES = {
     'set.symColorSec': 'Symmetry element colors',
     'set.reset': 'Restore defaults',
     'set.emptyHint': '(load a molecule to customize)',
+  'set.noSymElementHint': 'This point group has no symmetry elements other than the identity E, so there is nothing to colour',
     'anim.playTitle': 'Play symmetry operation animation',
     'anim.toggle': 'Play/Pause',
     'anim.reset': 'Reset transform',

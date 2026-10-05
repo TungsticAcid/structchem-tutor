@@ -465,6 +465,28 @@ section('令牌与样式文件：结构约定')
     /--fs-xs:\s*12px/.test(tokens))
   check('含触摸目标下限令牌', /--tap-min:\s*44px/.test(tokens))
 
+  // ---------------------------------------------------------------------
+  // 棘轮：浅色调色板**只允许一处**
+  //
+  // ★ 用户报「跟随系统的颜色为什么跟浅色或深色都不一样」。根因：tokens.css 里
+  //   另有一块 @media (prefers-color-scheme: light){ :root:not([data-theme]){…} }，
+  //   它**只列了 13 个令牌**，而 [data-theme="light"] 有 68 个 —— 于是"系统浅色"
+  //   拿到的是浅底 + 深色主题的状态色与学科语义色，成了第三套配色。
+  //   判据不是"把那 13 个补齐"（补齐了还会再漂），而是：系统主题只决定**解析成哪个**，
+  //   颜色一律归 data-theme。所以本文件不得再出现 prefers-color-scheme。
+  // ---------------------------------------------------------------------
+  // ★ 先**剥掉注释**再断言：这条规则的说明文字里就写着 prefers-color-scheme,
+  //   不剥注释会把"解释为什么删掉它"本身判成违规（本仓库在 autoRotateSpeed 那条
+  //   棘轮上踩过同一个坑）。
+  const stripCssComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '')
+  check('tokens.css 不再有 prefers-color-scheme 的第二套调色板',
+    !/prefers-color-scheme/.test(stripCssComments(tokens)))
+  check('theme.js：system 也把解析后的主题写进 data-theme',
+    /setAttribute\('data-theme'/.test(readFileSync(repo('packages/ui-kit/theme.js'), 'utf-8')))
+  check('index.html：首帧前就有行内脚本定主题（否则会闪一下深色）',
+    /chem-agent\.theme/.test(readFileSync(repo('apps/web/index.html'), 'utf-8'))
+    && /setAttribute\('data-theme'/.test(readFileSync(repo('apps/web/index.html'), 'utf-8')))
+
   check('components.css 的三维视口用变量且带兜底', /height:\s*var\(--viewer-h,\s*44vh\)/.test(comps))
   check('components.css 给三维 canvas 设了 touch-action:none', /canvas\s*\{[^}]*touch-action:\s*none/.test(comps))
   check('components.css 保留了栅格项 min-width:0 的修复', /\.grid-charts > \*\s*\{\s*min-width:\s*0/.test(comps))

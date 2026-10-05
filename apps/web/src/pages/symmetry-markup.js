@@ -28,9 +28,18 @@ export const SYMMETRY_CSS = `    .sym-page {
        *   那会当场把字符串截断、整个页面白屏（本轮又踩了一次，已是第五次）。
        *   判据：改完这里立刻跑 apps/web/tools/test-shell.mjs（它会解析每个前端源文件）。
        */
-      --panel-bg: var(--card, #1b2237);
+      --panel-bg: var(--card-2, #1b2237);
       --panel-fg: var(--text, #e8eaf0);
       --border: var(--line, rgba(255, 255, 255, 0.12));
+      /**
+       * ★★ 深色主题下"浮动 UI 没有浅色下清晰"（用户报）—— **不是对比度问题**
+       *   （实测两套主题的文字对比度扫描都是 0 处低于 3.5:1），而是**面板与背景分不开**：
+       *   面板底色与三维视口底色都是深色、明度接近，边界糊成一片；浅色主题下白面板
+       *   压在浅灰画布上天然有分界，所以看着更清楚。
+       *   修法不是把面板调亮（那会破坏主题），而是给它**边界**：深色用重投影 + 略亮一档底色，
+       *   浅色用轻投影（见文件末尾的 [data-theme="light"] 覆盖）。
+       */
+      --panel-shadow: 0 10px 30px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
       /* 面板内部控件（下拉/输入）的底：深色主题下是"比面板略亮一点"，
          浅色主题下是"比面板略暗一点" —— 两套都由 --bg-2 给出 */
       --panel-item-bg: var(--bg-2, rgba(255, 255, 255, 0.08));
@@ -64,6 +73,8 @@ export const SYMMETRY_CSS = `    .sym-page {
       border-radius: 10px;
       border: 1px solid var(--border);
       backdrop-filter: blur(8px);
+      /* ★ 浮起感（见 --panel-shadow 的说明）：深色主题下这条是**能不能看清面板边界**的关键 */
+      box-shadow: var(--panel-shadow);
       z-index: 30; /* 需高于 info/settings/transform 面板，使展开的下拉不被遮挡 */
     }
     #toolbar .brand { font-weight: 700; font-size: 15px; letter-spacing: 1px; }
@@ -131,6 +142,7 @@ export const SYMMETRY_CSS = `    .sym-page {
       border-radius: 10px;
       border: 1px solid var(--border);
       backdrop-filter: blur(8px);
+      box-shadow: var(--panel-shadow);
       padding: 14px;
       z-index: 10;
     }
@@ -169,6 +181,7 @@ export const SYMMETRY_CSS = `    .sym-page {
       border-radius: 10px;
       border: 1px solid var(--border);
       backdrop-filter: blur(8px);
+      box-shadow: var(--panel-shadow);
       z-index: 20;
       overflow: hidden;
     }
@@ -265,6 +278,14 @@ export const SYMMETRY_CSS = `    .sym-page {
     #anim-progress-wrap input[type="range"] { flex: 1 1 120px; min-width: 80px; accent-color: var(--accent); }
     #anim-progress-wrap button {
       background: none; border: none; color: var(--panel-fg); cursor: pointer; font-size: 14px; padding: 0 2px;
+    }
+
+    /**
+     * 浅色主题：面板用**轻**投影。
+     * ★ 深色那套（0.55 黑）是为了"深底上把面板托起来"；同一套放到白底上会像一道黑边。
+     */
+    [data-theme="light"] .sym-page {
+      --panel-shadow: 0 6px 20px rgba(0, 0, 0, 0.10);
     }
   `
 

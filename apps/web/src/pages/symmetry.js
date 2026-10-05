@@ -813,7 +813,17 @@ export function bootSymmetryPage(deps = {}) {
     wrap.innerHTML = ''
     const types = collectSymmetryTypes(currentStructure)
     if (types.length === 0) {
-      wrap.innerHTML = '<div style="font-size:12px;color:#9aa3b5">' + t('set.emptyHint') + '</div>'
+      /**
+       * ★★ 两种"没有可着色的元素"要说不同的话（用户报：C1 点群下显示
+       *   「对称元素颜色（加载分子后可设置）」不合理 —— 分子已经加载了）。
+       *   · 分子还没加载（或加载失败）→ 说"加载后可设置"
+       *   · 分子已加载，但它的点群里只有恒等操作 E（C1/Cs 之外的 C1、Ci 亦然）
+       *     → 说"这个点群只有 E，没有别的对称元素可着色"
+       *   ★ 原先只有一句话，于是 C1 的学生会以为是自己没打开分子。
+       */
+      const loaded = !!currentStructure
+      wrap.innerHTML = '<div class="set-empty-hint" style="font-size:12px;color:var(--panel-dim, #9aa3b5)">'
+        + t(loaded ? 'set.noSymElementHint' : 'set.emptyHint') + '</div>'
       return
     }
     // 按点群判断规则排序（主轴在前）

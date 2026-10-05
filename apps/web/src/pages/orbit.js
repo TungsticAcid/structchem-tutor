@@ -525,9 +525,15 @@ let offTheme = null;
         if (pending) anyUnresolved = true;
         const label = it.label || '';
         const tag = hasVerts
-          // ★ 「N 顶点」是**一个**文本节点：数字与"顶点"拼在一起，扫描替换匹配不到 →
-          //   必须走 t()（中文"顶点"在英文里是复数形式，也不能只换半边）。
-          ? '<span class="orb-state">' + hostT('pages.orbit.vertexCount', { n: state0.verts || 0 }) + '</span>'
+          /**
+           * ★★ 建好的行**不再显示顶点数**（用户要求「去掉顶点数」）。
+           *
+           *   那是开发期的诊断读数（判断"这张面到底建出来没有"），我上一轮顺手留在了
+           *   界面上 —— 对教学没有任何用处，还让清单多了一列与学习无关的数字。
+           *   真正有意义的是**另外两态**：正在建（生成中…）与建不出来（未生成…）。
+           *   数字仍然可取：放在这一行的 title 里，加 `?debug` 之类需要时看得见。
+           */
+          ? ''
           : (pending
             ? '<span class="orb-state is-building">生成中…</span>'
             // ★ 第三态：没人建、也没顶点 ⇒ 这个阈值下真的抽不出曲面。
@@ -542,7 +548,9 @@ let offTheme = null;
             ? '旋转副本：由主面整体旋转得到，几乎瞬间完成'
             : '独立面：单独算出来的一张等值面');
         rows.push('<div class="orb-row' + (it.visible === false ? ' is-off' : '') + '" data-key="'
-          + it.key + '">'
+          + it.key + '"'
+          // 顶点数从界面上撤掉之后，仍放在 title 里（需要排查时悬停即见）
+          + (hasVerts ? ' title="' + hostT('pages.orbit.vertexCount', { n: state0.verts || 0 }) + '"' : '') + '>'
           + '<label class="orb-eye" title="点一下：显示 / 隐藏这个轨道">'
           + '<input type="checkbox" data-act="vis"' + (it.visible === false ? '' : ' checked')
           + '></label>'

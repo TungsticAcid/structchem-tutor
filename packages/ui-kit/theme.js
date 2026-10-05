@@ -47,14 +47,23 @@ function loadTheme() {
 
 /**
  * 把取值落到 DOM 上。
- * ★ 'system' 时**删除**属性（而不是设成 "system"）——CSS 的
- *   `:root:not([data-theme])` 正是靠"属性不存在"来生效的。
+ *
+ * ★★ 2026-10-05 改：**'system' 也写 data-theme**（写解析后的 'dark'/'light'）。
+ *
+ *   原先 'system' 是"删掉属性、交给 CSS 的 `@media (prefers-color-scheme: light)`
+ *   决定"，而 tokens.css 里那块媒体查询**只定义了 13 个令牌**、
+ *   `[data-theme="light"]` 却定义了 **68 个** —— 于是"跟随系统 + 系统浅色"得到的是
+ *   **第三套配色**：浅底配的却是深色主题的 `--danger/--warn/--ok/--violet` 与
+ *   学科语义色（用户报「跟随系统的颜色为什么跟浅色或深色都不一样」）。
+ *   两处各写一份浅色调色板，漂开是迟早的事 —— 现在**只有一处**
+ *   （`[data-theme="light"]`）：系统主题只决定"解析成哪一个"，不再自己定义颜色。
+ *
+ *   ★ 首帧之前那一小段由 index.html 的行内脚本处理，否则会闪一下深色。
  */
 function applyToDom(theme) {
   if (typeof document === 'undefined') return
   const el = document.documentElement
-  if (theme === 'system') el.removeAttribute('data-theme')
-  else el.setAttribute('data-theme', theme)
+  el.setAttribute('data-theme', theme === 'system' ? resolvedTheme() : theme)
 }
 
 /** 实际生效的颜色模式（把 'system' 解析成 'dark' 或 'light'）——诊断与 canvas 重绘要用 */
@@ -132,7 +141,13 @@ export function initTheme() {
   applyToDom(current)
   if (typeof window !== 'undefined' && window.matchMedia) {
     const mq = window.matchMedia('(prefers-color-scheme: light)')
-    const onSys = () => { if (current === 'system') emit() }
+    const onSys = () => {
+      if (current !== 'system') return
+      // ★ 系统主题变了要把**属性也换成新的解析值**（原先只 emit，属性不动 ——
+      //   因为那时颜色归媒体查询管；现在颜色归属性管，不换属性就换不了颜色）
+      applyToDom(current)
+      emit()
+    }
     // addEventListener 在旧 Safari 上不存在，退回 addListener
     if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onSys)
     else if (typeof mq.addListener === 'function') mq.addListener(onSys)

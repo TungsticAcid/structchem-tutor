@@ -26,7 +26,7 @@ export const ORBIT_HTML = `<div class="orbit-page">
           <div class="card-head-right">
 <button id="nodeBtn" class="btn btn-ghost" title="把节面画出来：径向节面（球壳）+ 角度节面（锥面 / 平面）">◇ 节面</button>
             <button id="resetView" class="btn btn-ghost" title="重置视角">⟳ 复位</button>
-            <label class="chk"><input type="checkbox" id="autoRotate" checked /> 自动旋转</label>
+            <label class="chk" title="绕竖直轴（z 轴）旋转。s、p_z、d_z² 这类以 z 为对称轴的轨道转起来看不出变化 —— 那正说明绕 z 旋转是它的对称操作"><input type="checkbox" id="autoRotate" checked /> 自动旋转</label>
             <label class="chk" title="坐标轴与赤道参考圆环：读方位角、对照节面方向用；想看清曲面时可以关掉"><input type="checkbox" id="showDecor" checked /> 参考线</label>
           </div>
         </div>
@@ -228,10 +228,12 @@ export const ORBIT_HTML = `<div class="orbit-page">
           <select class="chart-term" id="sectionTermSel"></select>
         </div>
 <div class="seg small" id="phaseSeg" style="margin:2px 0 6px">
+          <!-- ★ ψ 用 <i>：它是**数学变量**，与上面 #psiSeg 的 |<i>ψ</i>|² 保持一致。
+               同一页里同一个符号一处斜体一处正体，是确定的不一致（用户问到的就是这一处）。 -->
           <button class="seg-btn active" data-mode="intensity"
-                  title="按该点 |ψ|² 的大小填色：越亮 = 密度越大 = 越可能在这里找到电子">|ψ|²</button>
+                  title="按该点 |ψ|² 的大小填色：越亮 = 密度越大 = 越可能在这里找到电子">|<i>ψ</i>|²</button>
           <button class="seg-btn" data-mode="phase"
-                  title="按该点 ψ 的相位填色：实数解只有 0 与 π 两种色（即正负），复数解绕原点一周走完整圈">ψ</button>
+                  title="按该点 ψ 的相位填色：实数解只有 0 与 π 两种色（即正负），复数解绕原点一周走完整圈"><i>ψ</i></button>
           <button class="seg-btn" data-mode="contour"
                   title="|ψ|² 的等高线，白线标出节面（ψ = 0）—— 最适合用来数节面">等高线</button>
         </div>

@@ -172,6 +172,10 @@ export const en = {
  *   本表登记它们是因为守卫按"登记过"算覆盖（详见回报里"两套 i18n"一节）。
  */
 export const text = {
+  // 自动旋转的 title：绕竖直轴；以 z 为对称轴的轨道看起来不变，那正是"z 是它的对称轴"
+  '绕竖直轴（z 轴）旋转。s、p_z、d_z² 这类以 z 为对称轴的轨道转起来看不出变化 —— 那正说明绕 z 旋转是它的对称操作':
+    'Rotates about the vertical (z) axis. Orbitals whose symmetry axis is z — s, p_z, d_z² — look unchanged: '
+  + 'that is exactly what "rotation about z is a symmetry operation" means',
   // ★ 三维视图的参考线开关（orbit-markup.js 的 <label>）：DOM 文本走**这张表**。
   //   上一版误放进了 zh **键表** —— 静态守卫照样绿，而运行时扫描替换查不到它，
   //   英文模式留下中文（实机检查抓到的，正是"守卫看不见"的那一类）。
