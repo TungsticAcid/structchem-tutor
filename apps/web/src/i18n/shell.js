@@ -180,7 +180,7 @@ export const text = {
   '结构规律易剖析': 'Structural rules, dissected',
   '构效关系得贯通': 'Structure–property links',
   '场景感知式 AI 教学智能体 —— 揭秘微观结构 · 启发深度思考 · 引导自主学习':
-    'A context-aware teaching agent — reveal · inspire · guide',
+    'A context-aware AI teaching agent — reveal · inspire · guide',
   '径向分布 · 角度分布 · 节面': 'Radial distribution · angular distribution · nodal surfaces',
   '对称元素 · 点群 · 特征标表': 'Symmetry elements · point groups · character tables',
   '晶体库 · 配位环境 · 空隙分布': 'Crystal library · coordination environment · void distribution',
