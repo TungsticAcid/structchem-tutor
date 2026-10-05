@@ -1152,6 +1152,18 @@ const Orbit3D = (function () {
     return true;
   }
 
+  /**
+   * 一条额外轨道的**态指纹**（供 setMultiOrbitals 判断"这一条有没有变"）。
+   * ★ 只比 terms / (n,l,m,mode)：颜色与显隐不进指纹 —— 那两者只需要重涂，
+   *   把颜色算进来会让"改个颜色"也走整组重建（正是本仓库反复记过的那类浪费）。
+   */
+  function multiTermsSig(terms) {
+    if (!terms || !terms.length) return '';
+    return terms.map(function (x) {
+      return [x.n, x.l, x.m, x.mode || 'real'].join('.');
+    }).join(',');
+  }
+
   /** 条目规范化（setMultiOrbitals 与 addMultiOrbital 共用一份，免得两处规则漂移） */
   function normalizeMultiItem(r, i) {
     return {
@@ -1314,6 +1326,10 @@ const Orbit3D = (function () {
    */
   function multiAfterRebuild() {
     if (!multiSpec) return;
+    if (window.__ORBIT_DEBUG__) {
+      (window.__MULTI_DBG__ = window.__MULTI_DBG__ || { swapSaved: 0, swapScene: 0, capture: 0, restore: 0 });
+      window.__MULTI_DBG__.capture += 1;
+    }
     if (multiBuilding) { captureCurrent(multiBuilding); multiBuilding = null; }
     if (multiQueue.length) { schedulePump(); return; }
     // 队列空 → 把暂存的主面搬回来（它一次都没重建过），再据它重建克隆。
@@ -1421,6 +1437,33 @@ const Orbit3D = (function () {
     //   surfaceObj 位上，并把 surfaceParams 一并还原 —— 在它之前读，读到的是
     //   **上一张额外轨道**的参数（队列跑到一半时就是这种情况），
     //   于是新一轮的基线全错，而且不报错。
+    /**
+     * ★★ 增量：**只有主面变了**（额外轨道逐条未变）时，不要整组重建。
+     *
+     *   额外轨道的 `terms` 是「加进来那一刻固化」的 —— 它们各自是一个独立的态，
+     *   与主面当前是什么无关。所以用户在主面上改量子数时，它们**不需要重算**。
+     *   而原实现无条件走 `disposeMulti()`：把已建好的额外轨道全部拆掉、重新排队，
+     *   于是"改一下量子数"要等几分钟，而且队列期间主面自己被暂存着、新的主面
+     *   落不下来 —— 用户看到的正是"标签写着 4f_xz2、形状还是 3p_z、顶点数一动不动"。
+     *
+     *   判据：新列表与旧列表**长度相同**、且第 1..n 项的 key 与 terms 逐条一致。
+     *   第 0 项（主面）随便变 —— 它的几何由 `updateSurface` 那条路重建，
+     *   重建完由 `swapSurfaceMesh` 换进暂存位（见那里的说明）。
+     */
+    const prevItems = multiSpec ? multiSpec.items : null;
+    const sameExtra = !!(prevItems && prevItems.length === items.length && items.length > 1
+      && items.every(function (it, i) {
+        if (i === 0) return true;
+        const o = prevItems[i];
+        return !!o && o.key === it.key && multiTermsSig(o.terms) === multiTermsSig(it.terms);
+      }));
+    if (sameExtra) {
+      multiSpec = { items, setId };
+      paintMulti();            // 颜色/标签可能变了：只重涂，不重建
+      applyMultiVisibility();
+      return { ok: true, count: items.length, setId };
+    }
+
     disposeMulti();
     const mainParams = surfaceParams;
     multiSpec = { items, setId };
@@ -2057,6 +2100,50 @@ const Orbit3D = (function () {
     //   几何，与主面无关。调用 disposeMulti() 会把它们一起抹掉 ——
     //   症状是四个轨道永远只剩刚建完的那一个，而且不报错。
     disposeClones();
+    /**
+     * ★★ 主面**正被暂存**时（多轨道档），新算出来的主面要**换进暂存位**。
+     *
+     *   多轨道档一开工就把主面整块挪进了 `multiMainSaved.holder`（见 saveMainSurface），
+     *   而那个 holder 挂在 `multiGroup` 里、**照样在场上显示**。于是当用户在队列跑着的时候
+     *   改量子数，新主面走 `scene.add(mesh)` 加进场景 ⇒ 画面上同时挂着**两张主面**：
+     *   暂存里那张旧形状的（3p_z）与新算出来的（4f_xz2）叠在一起。
+     *   用户看到的正是"标签写着 4f_xz2、形状还是 3p_z"，而且交叠处是深度打架的麻点。
+     *
+     *   正确做法：把暂存位里的旧网格**换掉**（拆掉旧的、把新的放进同一个 holder），
+     *   始终保证"场上只有一张主面，且它就是当前状态那一个"。
+     *   ★ 这一支只在多轨道档生效（`multiMainSaved` 非空），普通路径一个字节没动。
+     *   ★ 这一支**只在"这次重建的是主面"时生效**（`!multiBuilding`）：额外轨道的构建走
+     *     的正是"committed → 停在场景里 → 收尾时 `captureCurrent` 把它搬进那一行的
+     *     holder"这套舞步，而 `captureCurrent` **必须**能从 `surfaceObj` 取到面。
+     *     少了 `!multiBuilding` 这个条件，额外轨道建好的面会被塞进暂存位、
+     *     `surfaceObj` 变回 null ⇒ `captureCurrent` 直接返回 false ⇒
+     *     那一行永远停在"未生成（当前阈值下抽不出曲面）"（实测踩到过）。
+     */
+    if (multiMainSaved && !multiBuilding) {
+      if (window.__ORBIT_DEBUG__) {
+        (window.__MULTI_DBG__ = window.__MULTI_DBG__ || { swapSaved: 0, swapScene: 0, capture: 0, restore: 0 });
+        window.__MULTI_DBG__.swapSaved += 1;
+      }
+      const holder = multiMainSaved.holder;
+      const oldMesh = multiMainSaved.mesh;
+      const oldFine = multiMainSaved.fine;
+      if (oldMesh && oldMesh !== mesh) {
+        holder.remove(oldMesh);
+        if (oldMesh.geometry) oldMesh.geometry.dispose();
+        if (oldMesh.material) oldMesh.material.dispose();
+      }
+      if (oldFine) {
+        holder.remove(oldFine);
+        if (oldFine.geometry) oldFine.geometry.dispose();
+        if (oldFine.material) oldFine.material.dispose();
+      }
+      multiMainSaved.mesh = mesh || null;
+      multiMainSaved.fine = null;
+      if (mesh) holder.add(mesh);
+      surfaceObj = null;
+      surfaceGeoRef = null;
+      return;
+    }
     if (mesh) scene.add(mesh);
     if (surfaceObj) {
       scene.remove(surfaceObj);
@@ -2081,7 +2168,13 @@ const Orbit3D = (function () {
     st.tSwap = performance.now();        // 真正上屏的时刻
     swapSurfaceMesh(st.coarseMesh);      // 加新粗面、拆旧粗面与旧补片
     st.coarseMesh = null;
-    if (fineMesh) { fineObj = fineMesh; scene.add(fineObj); }
+    if (fineMesh) {
+      // ★ 与上面 swapSurfaceMesh 同一件事：主面在暂存位时，细颈补片也得进**同一个 holder**
+      //   （它是同一张面的一部分；加到场景里就会在"主面不在场景里"的状态下单独飘着）。
+      //   条件同样要 `!multiBuilding`（额外轨道的补片必须留在场景里等 captureCurrent）。
+      if (multiMainSaved && !multiBuilding) { multiMainSaved.fine = fineMesh; multiMainSaved.holder.add(fineMesh); }
+      else { fineObj = fineMesh; scene.add(fineObj); }
+    }
     // ★ 提交后**必须按当前档位重新同步一次显隐**（不是可选的美化）。
     //   重建是切片跑的、可能跨几十帧才提交；若用户在提交之前切到了球谐档，
     //   那次 setVisibility 关掉的是**旧**那一张，而这两张新网格是 THREE 新建的、
@@ -2285,6 +2378,20 @@ const Orbit3D = (function () {
   let lastRes = 68;                    // 上次使用的网格分辨率
 
   function updateSurface(n, l, m, mode, res, levelFraction, colorMode, psiCrit, terms, relPhase, Z) {
+    /**
+     * ★★ 主面重建会**占用同一条流水线**：多轨道队列里正在建的那一张必须**退回队列**。
+     *
+     *   否则它的 `rebuildHandle` 会被这次主面重建 cancel 掉，而收尾的
+     *   `multiAfterRebuild()` 仍会 `captureCurrent(multiBuilding)` —— 把一张**没建完**
+     *   的面收进那一行的 holder。用户看到的是：改了量子数之后，那张额外轨道变成
+     *   「未生成（当前阈值下抽不出曲面）」，而它先前明明是好的（实测复现）。
+     *   退回队列后它会重新排一次，建出来的才是完整的。
+     */
+    if (multiBuilding) {
+      multiQueue.unshift(multiBuilding);
+      multiBuilding = null;
+      multiPumpTries = 0;
+    }
     currentL = l;
     currentColorMode = colorMode || 'phase';
     lastRes = res;
@@ -2987,6 +3094,16 @@ const Orbit3D = (function () {
           const m = surfaceObj || (multiMainSaved && multiMainSaved.mesh);
           if (m && m.geometry && m.geometry.getAttribute('position')) {
             verts = m.geometry.getAttribute('position').count;
+          }
+          /**
+           * ★ 细颈补片算**同一张面**。原先主面只数粗网格、而额外轨道是 traverse 整个
+           *   holder（粗 + 细颈），于是同一张面在清单里一边报 25488、一边报 153500 ——
+           *   用户看到的结论是"旋转副本比主面精细 6 倍"，而它们本来是同一个东西。
+           *   判据：两边都数"这张面在场景里的全部顶点"。
+           */
+          const fine = fineObj || (multiMainSaved && multiMainSaved.fine);
+          if (fine && fine.geometry && fine.geometry.getAttribute('position')) {
+            verts += fine.geometry.getAttribute('position').count;
           }
         } else {
           const holder = multiGroup

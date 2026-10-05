@@ -421,6 +421,13 @@ let offTheme = null;
   const MULTI_POLL_MAX = 300;
   /** 超过这么多轮还没顶点，就不再假称"生成中"，改说"未生成"（50 轮 ≈ 30 秒） */
   const MULTI_POLL_GIVEUP = 50;
+  /**
+   * 「主面刚重建过」之后还要对几次账（600ms 一轮）。
+   * ★ 主面重建完不会触发 recompute，而顶点数是渲染层算的 —— 不补这一段，
+   *   行里的顶点数会一直停在旧值（见 syncMultiUI 里那一段的说明）。
+   *   有限预算，不是常开定时器。
+   */
+  let multiRefreshBudget = 0;
 
   /**
    * 渲染"同屏轨道"清单：每一行 = 一个轨道（色块 / 名字 / 显隐 / 移除）。
@@ -458,6 +465,19 @@ let offTheme = null;
         html += '　<span class="multi-tip">氢型下四个瓣会叠成球状 —— '
           + '<a href="#" data-model="slater">切到 Slater 型</a>形状最干净。</span>';
       }
+      /**
+       * ★★ 球谐档要说实话（用户实测的"清单说谎"）。
+       *
+       *   「球谐函数」档下渲染层只画**角度部分**，同屏的那几张等值面会被**整组隐藏**
+       *   （`render3d.setVisibility('surface')` 的既定行为）；而清单是按 state 生成的，
+       *   完全不看 `viewTarget` ⇒ 画面上只有一张 Y 曲面，清单却仍列着三行、
+       *   全打着勾、还写着"N 顶点"。用户看到的是"清单说有 3 张、画面里一张都没有"。
+       *
+       *   不去改隐藏行为（那是该档的正确语义），而是把**为什么看不见**说出来。
+       */
+      if ((def || custom) && state.viewTarget === 'spherical') {
+        html += '　<span class="multi-tip is-warn">' + hostT('pages.orbit.multiHiddenInSpherical') + '</span>';
+      }
       els.multiHint.innerHTML = html;
       const tipLink = els.multiHint.querySelector('a[data-model]');
       if (tipLink) {
@@ -473,7 +493,18 @@ let offTheme = null;
       return o.key + o.visible + rgbToHex(o.color) + o.label;
     }).join(',')) + '|' + state.orbitalVisible.join(',')
       + '|' + state.orbitalMainVisible + '|' + rgbToHex(state.orbitalMainColor || ORB_PALETTE[0])
-      + '|' + pendingCount();
+      + '|' + pendingCount()
+      /**
+       * ★ 顶点数也要进签名（用户实测的"改了量子数、顶点数一动不动"）。
+       *
+       *   顶点数是**渲染层**给的，而它的变化不一定伴随 state 变化 ——
+       *   典型场景：同屏时改主面的量子数，主面重建完、顶点数变了，
+       *   而 state 的每一项都没变 ⇒ 签名不变 ⇒ 清单**不重渲染** ⇒
+       *   行里那个数字一直停在旧值上，看起来像"画面没更新"。
+       *   （实测：`__SURF_TIMING__.verts` 已是 48792，而行里还写 30114。）
+       */
+      + '|V' + ((Orbit3D.multiInfo ? Orbit3D.multiInfo() : null) || { items: [] }).items
+        .map(function (x) { return (x.verts || 0); }).join(',');
     if (multiListBuiltFor === sig) return;
     multiListBuiltFor = sig;
 
@@ -548,6 +579,21 @@ let offTheme = null;
     if (multiListTimer) { clearTimeout(multiListTimer); multiListTimer = 0; }
     if (anyUnresolved && multiPollRounds < MULTI_POLL_MAX) {
       multiPollRounds += 1;
+      multiListTimer = setTimeout(function () {
+        multiListTimer = 0;
+        multiListBuiltFor = null;
+        syncMultiUI();
+      }, 600);
+    } else if (multiRefreshBudget > 0) {
+      /**
+       * ★★ 主面刚重建过 → 还要再对几次账（见 updateViewer 里置预算那一行）。
+       *
+       *   顶点数是**渲染层**算出来的，而主面重建完**不会**触发一次 recompute ——
+       *   于是"同屏时改量子数"之后，行里的顶点数一直停在旧值，看起来像画面没更新
+       *   （实测：`__SURF_TIMING__.verts` 已经变了，行里还写着旧数）。
+       *   预算有限（不是常开定时器）：改一次状态最多对 60 次 ≈ 36 秒，够一张面建完。
+       */
+      multiRefreshBudget -= 1;
       multiListTimer = setTimeout(function () {
         multiListTimer = 0;
         multiListBuiltFor = null;
@@ -951,6 +997,16 @@ let offTheme = null;
         Orbit3D.updateSurface(state.n, state.l, state.m, state.mode, currentGridRes(), state.level,
           cm, state.psiCrit, state.terms, state.relPhase, state.Z);
         lastFieldKey = key;
+        // ★ 同屏开着时，这次重建完要把清单里的顶点数**再对一次账**（见 syncMultiUI）。
+        //   ★★ 必须**顺手先刷一次**：`recompute()` 的顺序是 readFromControls（里面已经
+        //   调过一次 syncMultiUI）→ updateViewer（这里才置预算），所以置完预算若不
+        //   自己调一次，就再也没有人调 syncMultiUI 了（轮询是由 syncMultiUI **内部**
+        //   排下一次的）—— 表现是标签与顶点数一直停在旧值，而画面其实已经变了（实测）。
+        if (state.orbitalSet !== 'off') {
+          multiRefreshBudget = 60;
+          multiListBuiltFor = null;
+          syncMultiUI();
+        }
       } else {
         // 仅阈值/着色变化：复用已缓存的标量场与网格。
         // ★ 判据变化会走上面那条重建路径（currentFieldKey 含 psiCrit），而判据一变
@@ -973,7 +1029,23 @@ let offTheme = null;
     //   ★ 自定义档**没有**这个前提（下面那一句只在预设档跑，见 multiRenderSpec）。
     if (state.orbitalSet !== 'off' && state.orbitalSet !== 'custom') {
       const set0 = Hybrids.terms(state.orbitalSet, 0);
-      if (set0 && !sameTerms(state.terms, set0)) ACTIONS.setOrbitals({ set: 'off' });
+      if (set0 && !sameTerms(state.terms, set0)) {
+        ACTIONS.setOrbitals({ set: 'off' });
+        /**
+         * ★★ 顺手把清单刷掉（用户实测的"幽灵清单"）。
+         *
+         *   这一段跑在 `recompute()` 的**下半段**（updateViewer），而 `readFromControls`
+         *   在它之前已经调过一次 `syncMultiUI()` —— 于是这一次"关档"发生在清单渲染
+         *   **之后**：state 变成了 off、`#multiSeg` 也切到关闭，而清单里那四行 sp³
+         *   与 sp³ 提示条**照旧挂着**（实测持续 ≥14 秒），要等下一次别的交互触发
+         *   recompute 才收起来。
+         *
+         *   它是"档位说关闭、清单说 sp³"的自相矛盾状态，而快照那边早就是 off 了 ——
+         *   用户看到的与快照说的不是一回事。
+         */
+        multiListBuiltFor = null;
+        syncMultiUI();
+      }
     }
     // ★ 只在**规格指纹**变了才下发：setMultiOrbitals 会重建几何（克隆复制顶点、
     //   额外轨道重跑等值面），逐帧调用等于每帧重跑十几秒的流水线。
@@ -1525,7 +1597,19 @@ let offTheme = null;
     //   否则下一次重算会以为规格变了、把整组面重建一遍。
     if (els.multiAddBtn) {
       els.multiAddBtn.addEventListener('click', () => {
-        ACTIONS.setOrbitals({ add: true });
+        /**
+         * ★ 加不进去要**说一声**（判重时 `setOrbitals({add})` 返回 false）。
+         *   原先无论成败都只 `recompute()`，于是"这个轨道已经在同屏里了"
+         *   表现为"点了没反应"—— 用户只会以为按钮坏了。
+         */
+        const res = ACTIONS.setOrbitals({ add: true });
+        if (res && (res === false || res.ok === false) && els.multiHint) {
+          const note = document.createElement('span');
+          note.className = 'multi-tip is-warn';
+          note.textContent = hostT('pages.orbit.multiDup');
+          els.multiHint.appendChild(note);
+          setTimeout(() => { if (note.parentNode) note.parentNode.removeChild(note); }, 3500);
+        }
         recompute();
       });
     }
@@ -1779,6 +1863,25 @@ let offTheme = null;
     };
   }
 
+  /**
+   * 一条同屏轨道项的**态指纹**（用来判重）。
+   *
+   * ★ 刻意**不含** key 与颜色：key 是自增的 `orb-N`、颜色是调色板轮着给的，
+   *   两者都会让"同一条轨道"看起来不同 —— 而用户实测的正是这个：
+   *   连点两次「＋」得到两条一模一样的 3p_z（两个颜色、两张重叠的面），
+   *   画面上就是一片彩色麻点，且**没有任何提示**。
+   *   判据是"画出来是不是同一个函数"：叠加态比 terms，纯态比 (n,l,m,mode)。
+   */
+  function orbitalStateSig(it) {
+    if (!it) return '';
+    if (it.terms && it.terms.length) {
+      return 'T:' + it.terms.map(function (t) {
+        return [t.n, t.l, t.m, t.mode || 'real', t.c ? ((t.c.re || 0).toFixed(6) + ',' + (t.c.im || 0).toFixed(6)) : ''].join('.');
+      }).join('+');
+    }
+    return 'S:' + [it.n, it.l, it.m, it.mode || 'real'].join('.');
+  }
+
   /** 还没被占用的调色板色（都用过就循环取） */
   function nextOrbitalColor() {
     const used = state.orbitals.map(function (o) { return rgbToHex(o.color); });
@@ -1805,6 +1908,17 @@ let offTheme = null;
         label: orbitalLabel(state.n, state.l, state.m, state.terms, state.mode),
         color: (state.orbitalMainColor || ORB_PALETTE[0]).slice(),
         visible: state.orbitalMainVisible !== false,
+        /**
+         * ★ 主面也要带 `terms`（用户实测：快照里主面**永远**写"纯态"）。
+         *
+         *   这一项原先完全不挂 terms，于是 `orbitalItems` 里主面那一段恒为
+         *   `__main__|2p_z+2p_x|显示|#e0a040|纯态` —— 而它明明是叠加态。
+         *   模型读快照会得到"主面是单一本征态"的错误结论（它据此解释画面就会讲错）。
+         *   ★ 渲染层对第 0 项**照样会丢掉 terms**（`kind='main'`，几何由当前主面提供）——
+         *     那一行是刻意的，与这里不冲突：这里要的是"给人和模型看的那份描述"准确。
+         */
+        terms: (state.terms && state.terms.length) ? state.terms : null,
+        n: state.n, l: state.l, m: state.m, mode: state.mode,
       });
       state.orbitals.forEach(function (o) {
         items.push({
@@ -2010,6 +2124,27 @@ let offTheme = null;
     const item = currentOrbitalCopy('orb-' + state.orbitalSeq, color);
     if (o.label) item.label = o.label;
     if (o.visible === false) item.visible = false;
+    /**
+     * ★ 判重（用户实测："同一个轨道可以重复加入"）。
+     *   连点两次「＋」会得到两条一模一样的轨道 —— 两个颜色、两张完全重叠的面，
+     *   画面上是一片 z-fighting 麻点，而**没有任何提示**说"你已经加过了"。
+     *   ★★ 最常踩的其实是**主面**那一条：进「自定义」档时清单第 0 行就是当前轨道，
+     *     此时点「＋」等于把它再加一遍（重复的是**主面**，不是已有额外轨道）。
+     *     所以两处都要比：主面 + 已有的每一条。
+     *   ★ 返回 false 而不是"悄悄跳过"：界面那侧会据此提示一句（见 ＋ 按钮的处理器），
+     *     否则用户看到的是"点了没反应"，那比乱画更难自查。
+     */
+    const sigNew = orbitalStateSig(item);
+    const sigMain = orbitalStateSig({
+      terms: (state.terms && state.terms.length) ? state.terms : null,
+      n: state.n, l: state.l, m: state.m, mode: state.mode,
+    });
+    if (sigNew === sigMain
+      || state.orbitals.some(function (x) { return orbitalStateSig(x) === sigNew; })) {
+      state.orbitalSeq -= 1;   // 没加进去就把序号退回去，免得 key 出现空洞
+      // ★ 给**具体原因**：界面据此提示一句，模型读到的也不再是"参数无效"
+      return { ok: false, error: hostT('pages.orbit.multiDup') };
+    }
     state.orbitals.push(item);
     multiListBuiltFor = null;
     // ★ 已经在自定义档、且渲染层的清单**正是加之前的那一份**时，走**增量**
@@ -2130,7 +2265,22 @@ let offTheme = null;
       //   那会丢掉本条动作明确指定的 visible（例如明确要求只显示 [0]）。
       state.orbitalSet = setId;
       const def = (setId === 'off') ? null : Hybrids.set(setId);
-      if (!def) { state.orbitalVisible = []; return true; }
+      if (!def) {
+        /**
+         * ★ 关闭档必须**真的把状态清干净**（用户实测：关掉再进「自定义」，
+         *   先前那 3 条额外轨道会**复活**并全部重新入队重跑，而提示条写着
+         *   "点进来是空清单"）。
+         *   原先这里只把 `orbitalVisible` 清空就 return，`state.orbitals` 原样留着；
+         *   而 `readFromControls` 那处清空是**以"档位变了"为前提**的 —— 动作已经
+         *   抢先改过 state，它就不再认为变了，于是谁也没清。
+         */
+        state.orbitalVisible = [];
+        state.orbitals = [];
+        state.orbitalColorOverride = {};
+        multiListBuiltFor = null;
+        syncMultiUI();
+        return true;
+      }
       state.orbitalVisible = Array.isArray(p && p.visible)
         ? p.visible.slice()
         : def.labels.map((_, i) => i);
@@ -2521,8 +2671,19 @@ let offTheme = null;
       const fn = ACTIONS[action.action];
       if (!fn) return { ok: false, error: hostT('pages.orbit.err.unknownAction', { action: action.action }) };
       let ok = true;
-      try { ok = fn(action.params || {}) !== false; }
+      let res;
+      try { res = fn(action.params || {}); ok = res !== false; }
       catch (e) { return { ok: false, error: hostT('pages.orbit.err.threw', { message: (e && e.message) }) }; }
+      /**
+       * ★ 处理函数可以返回 `{ ok:false, error }` 来**给出具体原因**。
+       *
+       *   原先只有两种结果：`false` → 一律"动作参数无效或目标不存在"。而有些失败
+       *   与参数无关（例如"这个轨道已经在同屏里了"），通用文案会把用户/模型引到
+       *   错误的方向去查参数。具体原因由**知道原因的那一层**给出来。
+       */
+      if (res && typeof res === 'object' && res.ok === false) {
+        return { ok: false, error: res.error || hostT('pages.orbit.err.invalidParams') };
+      }
       if (!ok) return { ok: false, error: hostT('pages.orbit.err.invalidParams') };
       recompute();
       // 通知订阅者（量子态编辑器据此同步 UI；主动服务也可用）
@@ -2720,7 +2881,63 @@ let offTheme = null;
     try { if (typeof deps.onDispose === 'function') deps.onDispose(); } catch (e) { /* 忽略 */ }
   }
 
-  return { facade, dispose, refreshI18n };
+  /**
+   * ★★ 路由级视图状态：切走再回来要**原样**。
+   *
+   *   用户实测：「同屏时切到别的页面再切回来，同屏**全部丢失**，而且没有任何提示」。
+   *   根因是结构性：orbit 的页面状态住在 `bootOrbitPage` 的闭包里（`state`），
+   *   路由一卸载就整份归零 —— 而门面**没有** `setViewState`/持久化通路
+   *   （晶体模块有 `setViewState`，所以那边没这个问题）。
+   *
+   *   做法：卸载前把状态**抓一份**（复用 `facade.getState()`，它已经是"这一屏长什么样"
+   *   的完整描述），重新挂载后喂回 `ACTIONS.restoreState`。
+   *   ★ 只在**同一次会话**里保持（模块级变量），不写 localStorage：
+   *     这是"切走再回来别丢"，不是"下次打开还要这样"——后者该是显式的收藏/分享功能。
+   *   ★ 额外轨道要**另抓一份完整 terms**：快照里的 `orbitalItems` 是给人看的标量串
+   *     （写着"叠加2项"而没有那两项是什么），拿它恢复会把叠加态退化成纯态。
+   */
+  function captureViewState() {
+    const base = facade.getState();
+    base.orbitalsFull = state.orbitals.map(function (o) {
+      return {
+        key: o.key, label: o.label, color: o.color.slice(), visible: o.visible !== false,
+        terms: o.terms ? o.terms.map(function (t) {
+          return { n: t.n, l: t.l, m: t.m, mode: t.mode || 'real', c: { re: t.c.re, im: t.c.im } };
+        }) : null,
+      };
+    });
+    base.orbitalMainColor = state.orbitalMainColor ? state.orbitalMainColor.slice() : null;
+    base.orbitalMainVisible = state.orbitalMainVisible !== false;
+    base.orbitalSeq = state.orbitalSeq;
+    return base;
+  }
+
+  function restoreViewState(s) {
+    if (!s || typeof s !== 'object') return false;
+    try { ACTIONS.restoreState({ state: s }); } catch (e) { return false; }
+    if (Array.isArray(s.orbitalsFull)) {
+      state.orbitals = s.orbitalsFull.map(function (o) {
+        return {
+          key: o.key, label: o.label, color: (o.color || [0.5, 0.5, 0.5]).slice(),
+          visible: o.visible !== false,
+          terms: o.terms ? o.terms.map(function (t) {
+            return { n: t.n, l: t.l, m: t.m, mode: t.mode || 'real', c: { re: t.c.re, im: t.c.im } };
+          }) : null,
+          n: s.n, l: s.l, m: s.m, mode: s.wavefunction,
+        };
+      });
+      state.orbitalMainColor = s.orbitalMainColor ? s.orbitalMainColor.slice() : null;
+      state.orbitalMainVisible = s.orbitalMainVisible !== false;
+      state.orbitalSeq = s.orbitalSeq || state.orbitals.length;
+    }
+    multiListBuiltFor = null;
+    // ★ 必须真的重算一次：restoreState 只改控件与 state（它由 applyAction 统一重算），
+    //   这里没有人替它做那一步，不调就是"控件对了、画面还是上一屏的"。
+    recompute();
+    return true;
+  }
+
+  return { facade, dispose, refreshI18n, captureViewState, restoreViewState };
 }
 
 
@@ -2735,6 +2952,12 @@ let offTheme = null;
  *   否则门面会握着一个已经销毁的 DOM，动作全部打在空气上——
  *   而那种失败**不报错**，只表现为"智能体说它调了，画面没动"。
  */
+/**
+ * 「切走再回来」用的视图状态暂存（见 OrbitPage 的 captureViewState 说明）。
+ * ★ 模块级变量 = 随**会话**活着，随页面刷新消失 —— 这正是想要的语义。
+ */
+let LAST_VIEW_STATE = null
+
 export class OrbitPage {
   /**
    * @param {Object} ctx
@@ -2764,6 +2987,19 @@ export class OrbitPage {
         if (this._module && typeof this._module.attach === 'function') this._module.attach(runtime)
       },
     })
+
+    /**
+     * ★ 切走再回来：把上一屏的状态喂回去（见 captureViewState 的说明）。
+     *
+     * ★★ 必须放在 `bootOrbitPage(...)` **返回之后**，不能塞进 `onReady`：
+     *   那个回调是在 bootOrbitPage **内部同步**触发的，此刻 `this._api` 还没被赋值
+     *   （`this._api = bootOrbitPage(...)` 的赋值语句尚未完成）⇒ 守卫里的
+     *   `this._api &&` 恒假 ⇒ **一次都不会恢复**，而且不报错（实测就是这么静默失效的）。
+     */
+    if (LAST_VIEW_STATE && this._api && typeof this._api.restoreViewState === 'function') {
+      try { this._api.restoreViewState(LAST_VIEW_STATE) }
+      catch (e) { console.warn('[orbit] 恢复上一次的视图状态失败：', e) }
+    }
   }
 
   /**
@@ -2780,6 +3016,12 @@ export class OrbitPage {
   }
 
   unmount() {
+    // ★ 先把"这一屏长什么样"抓下来（见 captureViewState）：路由卸载会把闭包里的
+    //   `state` 整份丢掉，不抓就等于"切走一次回到出厂设置"。
+    if (this._api && typeof this._api.captureViewState === 'function') {
+      try { LAST_VIEW_STATE = this._api.captureViewState() }
+      catch (e) { LAST_VIEW_STATE = null }
+    }
     // ★ 顺序：先解除模块对运行时的引用，再释放页面本身——
     //   反过来的话，dispose 过程中若触发一次动作通知，门面会去读已经拆了一半的 DOM。
     if (this._module && typeof this._module.detach === 'function') {

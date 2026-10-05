@@ -43,6 +43,12 @@ export const zh = {
   'pages.orbit.realOrbNoName': '该支壳层没有公认的惯用名，这里用角度部分的直角坐标多项式标记',
   'pages.orbit.multiAddFull': '额外的同屏轨道最多 {max} 条（现在 {n} 条）。'
     + '每一条都要真跑一遍等值面，一张十几秒，再多会把页面锁死几分钟',
+  // ★ 球谐档下同屏面会被整组隐藏（该档只画角度部分）—— 清单必须说出来，
+  //   否则就是"清单说有三张、画面里一张都没有"（用户实测）
+  'pages.orbit.multiHiddenInSpherical': '「球谐函数」档只画角度部分，这几张等值面当前不显示；'
+    + '切回「空间波函数」即可看到',
+  // 判重提示：同一条轨道已经在同屏里了
+  'pages.orbit.multiDup': '这个轨道已经在同屏里了（重复加只会让两张面重叠打架）',
   // ★ 这里原先写着「数量不限」——**假话**：界面与动作层都卡在 MAX_MULTI_ORBITALS 上。
   //   同一条功能里两种说法（按钮说"不限"、提示条说"最多 12 条"）比不写还糟。
   //   现在统一：上限只在"已满"的提示里说一次（见 multiAddFull）。
@@ -107,6 +113,9 @@ export const en = {
     + 'more than that would freeze the page for minutes',
   'pages.orbit.multiAddHint': 'Add the current orbital (superpositions included) to the on-screen set; '
     + 'then change the quantum numbers and add the next one',
+  'pages.orbit.multiHiddenInSpherical': 'The “spherical harmonic” view draws the angular part only, '
+    + 'so these isosurfaces are hidden right now — switch back to “space wavefunction” to see them',
+  'pages.orbit.multiDup': 'That orbital is already on screen (adding it again only makes two surfaces overlap)',
   'pages.orbit.vertexCount': '{n} vertices',
   'pages.orbit.colorPickTitle': 'Change the color of this orbital (repaint only, no rebuild)',
   'pages.orbit.psiHint.psi2': 'Threshold = fraction of the |<i>ψ</i>|² peak '
@@ -428,8 +437,11 @@ export const text = {
   '独立面：单独算出来的一张等值面': 'Separate face: an isosurface computed on its own',
   '未生成（当前阈值下抽不出曲面）': 'Not generated (no surface at this isovalue)',
   // 「自定义」档的按钮与提示（2026-10-05 把该档位从隐藏改为可见）
+  // ★ 措辞要对得上事实：进「自定义」档时清单**不是空的** —— 第 0 行是主面
+  //   （正在编辑的那一个）。原先写"点进来是空清单"，用户会以为自己看错了。
   '自定义同屏：点进来是空清单，再逐个「＋ 加入当前轨道」':
-    'Custom side-by-side: you start with an empty list; add orbitals one by one with "+ Add current orbital"',
+    'Custom side-by-side: row 1 is the **main face** (the orbital you are editing); '
+    + 'use “＋ Add current orbital” to add extras one by one — each row can be recoloured and hidden',
   '钉进画面，再改量子数继续加（': 'into the scene, then change the quantum numbers and keep adding (',
   '最多 12 条': 'at most 12',
   '），每行都能单独改色与显隐': '); each row can have its own colour and visibility',
