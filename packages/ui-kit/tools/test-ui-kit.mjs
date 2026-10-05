@@ -286,26 +286,27 @@ section('settings-popup：声明式表单与密钥安全')
     dom.collectAll(box, 'span').some((d) => /模型服务/.test(d.textContent)))
   const secs = dom.collectAll(box, 'section')
   check('设置项分组成可折叠分区', secs.length >= 4, `分区数 ${secs.length}`)
-  check('第一组默认展开、其余默认收起',
-    secs.length > 0 && secs[0].classList.contains('open')
-    && secs.slice(1).every((s) => !s.classList.contains('open')))
+  // ★ 2026-10-05 改：默认**不展开任何分组**（用户报「打开设置后，无需默认展开『界面』」）。
+  //   想默认展开的分组要自己声明 `open: true`；"因缺 Key 自动弹"走 open({expand})。
+  check('默认不展开任何分组',
+    secs.length > 0 && secs.every((s) => !s.classList.contains('open')))
   {
     // ★ 用**子 span 的 textContent** 找头部按钮：桩的 textContent 是普通属性，
     //   不会像真实 DOM 那样从子节点拼出来（所以不能直接 /模型服务/.test(b.textContent)）。
     const head = dom.collectAll(box, 'button')
       .find((b) => b.children.some((c) => /模型服务/.test(c.textContent)))
     check('分区头部是可点按钮且带 aria-expanded',
-      !!head && head.attrs['aria-expanded'] === 'true')
-    // 点一次 → 收起；再点一次 → 展开（可逆，且 aria 跟着变）
+      !!head && head.attrs['aria-expanded'] === 'false')
+    // 默认收起 ⇒ 点一次是**展开**、再点一次是**收起**（可逆，且 aria 跟着变）
     if (head && typeof head.onclick === 'function') {
       head.onclick()
-      const closed = !secs[0].classList.contains('open') && head.attrs['aria-expanded'] === 'false'
+      const opened = secs[0].classList.contains('open') && head.attrs['aria-expanded'] === 'true'
       head.onclick()
-      const reopened = secs[0].classList.contains('open') && head.attrs['aria-expanded'] === 'true'
-      check('点分区头部可收起、再点可展开（可逆）', closed && reopened,
-        `closed=${closed} reopened=${reopened}`)
+      const closed = !secs[0].classList.contains('open') && head.attrs['aria-expanded'] === 'false'
+      check('点分区头部可展开、再点可收起（可逆）', opened && closed,
+        `opened=${opened} closed=${closed}`)
     } else {
-      check('点分区头部可收起、再点可展开（可逆）', false, '没有 onclick')
+      check('点分区头部可展开、再点可收起（可逆）', false, '没有 onclick')
     }
   }
 
@@ -323,8 +324,8 @@ section('settings-popup：声明式表单与密钥安全')
       && secs.filter((s) => s !== modelSec).every((s) => !s.classList.contains('open'))
   })())
   check('展开态每次 open 都重置（不残留上一次的展开）', (() => {
-    popup.open()   // 无参 → 回到"第一组展开"
-    return secs[0].classList.contains('open') && secs.slice(1).every((s) => !s.classList.contains('open'))
+    popup.open()   // 无参 → 回到"全部收起"
+    return secs.every((s) => !s.classList.contains('open'))
   })())
   check('未知 id 时不误展开任何一组（全收起，而不是悄悄展开第一组）', (() => {
     popup.open({ expand: 'no-such-section' })

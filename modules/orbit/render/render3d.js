@@ -281,6 +281,12 @@ const Orbit3D = (function () {
   let axesObj = null;
   let gridObj = null;
   let decorGroup = null;        // 坐标轴 + 赤道环（随轨道尺度整体缩放）
+  /**
+   * 参考线（坐标轴 + 赤道环）**用户是否想看**。
+   * ★ 与"档位"是两个独立的判据：球谐档下参考线本就必须收起（那是语义），
+   *   而这里记的是用户的显隐选择 —— 两者是**与**的关系（见 setVisibility）。
+   */
+  let decorWanted = true;
 
   // 球谐曲面（现为主场景内的可切换对象，见 updateAngular）
   const ANG_RES = 30;           // θ 方向网格数
@@ -2443,7 +2449,8 @@ const Orbit3D = (function () {
       fineObj.visible = (mode === 'surface')
         && (!multiSpec || !multiSpec.items[0] || multiSpec.items[0].visible !== false);
     }
-    if (decorGroup) decorGroup.visible = !sph;
+    // ★ 用户开关（`#showDecor`）：坐标轴与赤道环默认显示，可关掉看清曲面
+    if (decorGroup) decorGroup.visible = !sph && decorWanted;
     // ★ 辅助几何也要跟着档位走（第 18 条补漏）：径向节面球只对 ψ 有意义，
     //   切到球谐档必须收起，否则 ψ 档画下的"套娃"会一直留在画面上。
     syncAuxVisibility(mode);
@@ -2527,6 +2534,15 @@ const Orbit3D = (function () {
    */
   function setAutoRotate(v) {
     if (viewCtl) viewCtl.setAutoRotate(v);
+  }
+  /**
+   * 参考线（坐标轴 + 赤道环）显隐（用户要求：黑色辅助线也要能关）。
+   * ★ 复用 `setVisibility` 而不是直接改 `decorGroup.visible`：那里还管着
+   *   "球谐档必须收起"这条语义 —— 两处各写一份就会出现"球谐档里参考线又冒出来"。
+   */
+  function setDecorVisible(v) {
+    decorWanted = (v !== false);
+    setVisibility(lastVisMode);
   }
   function resetView() {
     if (!viewCtl) return;
@@ -3072,7 +3088,7 @@ const Orbit3D = (function () {
 
   const api = {
     configure,
-    init, render, resize, setAutoRotate, resetView,
+    init, render, resize, setAutoRotate, resetView, setDecorVisible,
     updateCloud, updateSurface, setSurfaceLevel, setVisibility,
     setMultiOrbitals, setMultiVisible, setMultiColor,
     addMultiOrbital, removeMultiOrbital,

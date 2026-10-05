@@ -54,9 +54,21 @@ export const zh = {
   'shell.panel.greetHead': '我是结构化学教学智能体',
   'shell.panel.greetScope': '我覆盖三个板块：轨道视界 · 点群观鉴 · 晶典在线 —— '
     + '问到哪个就切到哪个，不用你操心现在该找谁。',
-  'shell.panel.greetInModule': '我是**一个**智能体，覆盖三个板块；当前在「{title}」这一块。',
+  // ★ 强调用 <b>，**不**用 Markdown 的 `**`：这段是 innerHTML，`**` 会**原样显示**
+  //   （用户报「『我是**一个**智能体』去掉 **」）。凡是进 innerHTML 的文案都适用这一条。
+  'shell.panel.greetInModule': '我是<b>同一个</b>智能体，覆盖三个板块；当前在「{title}」这一块。',
   // 保存图片：失败时拼了错误信息，只能走 t()（见 shell/save-image.js 的说明）
   'shell.save.failed': '保存失败：{msg}',
+  'shell.save.failedCapture': '抓图失败：画布还没画好，稍等一下再试',
+  'shell.save.savedTo': '已保存到「{dir}」',
+  'shell.save.dirDenied': '没有写入该文件夹的权限，已改为放到下载目录',
+  'shell.save.downloaded': '已放到浏览器下载目录（可在菜单里设置保存位置）',
+  'shell.save.saved': '已保存',
+  'shell.save.dirSet': '保存位置已设为「{dir}」',
+  'shell.save.noDirApi': '本浏览器不支持选文件夹，已放到下载目录',
+  'shell.save.noDirApiHint': '本浏览器不支持选择保存位置，图片会放到下载目录',
+  'shell.save.currentDir': '保存位置：{dir}',
+  'shell.save.pickFirst': '还没设置保存位置 —— 点「保存图片」时会先让你选一个文件夹',
 }
 
 /** 键 → 英文 */
@@ -83,8 +95,18 @@ export const en = {
   'shell.panel.greetHead': "I'm the structural chemistry teaching agent",
   'shell.panel.greetScope': 'I cover all three modules — Orbital Horizon · Point Group Explorer · '
     + 'Crystal Atlas. Ask about any of them and I switch to the right one.',
-  'shell.panel.greetInModule': "I'm one agent covering all three modules; right now I'm on “{title}”.",
+  'shell.panel.greetInModule': "I'm <b>one and the same</b> agent across all three modules; right now on “{title}”.",
   'shell.save.failed': 'Save failed: {msg}',
+  'shell.save.failedCapture': 'Capture failed: the canvas is not ready yet — try again in a moment',
+  'shell.save.savedTo': 'Saved to “{dir}”',
+  'shell.save.dirDenied': 'No write permission for that folder — saved to the download folder instead',
+  'shell.save.downloaded': 'Saved to the browser download folder (you can set a location in this menu)',
+  'shell.save.saved': 'Saved',
+  'shell.save.dirSet': 'Save location set to “{dir}”',
+  'shell.save.noDirApi': 'This browser cannot pick a folder — saved to the download folder',
+  'shell.save.noDirApiHint': 'This browser cannot choose a save location; images go to the download folder',
+  'shell.save.currentDir': 'Save location: {dir}',
+  'shell.save.pickFirst': 'No save location yet — the first save will ask you to pick a folder',
 }
 
 /**
@@ -126,6 +148,7 @@ export const text = {
   '隐藏文字内容': 'Hide text content',
   '保存图片': 'Save image',
   '另存为…': 'Save as…',
+  '设置保存位置…': 'Set save location…',
   '抓图失败：画布还没画好，稍等一下再试': 'Capture failed: the canvas is not ready yet — try again in a moment',
   '已保存到浏览器的下载目录': 'Saved to the browser download folder',
   '本浏览器不支持选保存位置，已放到下载目录':

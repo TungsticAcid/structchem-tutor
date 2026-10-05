@@ -19,6 +19,10 @@
  *   见 `adapters/viewer-page-adapter.js` 里那段说明。
  */
 import { t, tr } from './i18n-live.js'
+// ★ 取当前语言（只读）。元素名是**数据**（氢 / Hydrogen 都在 elements.js 里），
+//   不是"待翻译的原文"—— 所以英文模式下直接取 `enName`，不走字典
+//   （103 个元素名逐条登记进字典既没必要，也会与数据源形成两个真源）。
+import { i18n } from '../../packages/i18n/index.js'
 import {
   getVisualColor, setVisualColor, resetVisualColors,
   getElementColor, setElementColor, resetElementColors, getElementColorOverrides,
@@ -66,14 +70,23 @@ export function elementColorItems() {
       //   「（1号）」在英文里要写成「(No. 1)」，靠翻译一个"号）"是拼不出来的。
       const mark = overrides[sym] ? tr(' · 已自定义') : ''
       const pos = PERIODIC_POS[sym]
+      /**
+       * ★★ 元素名按**当前语言**取（用户报「英文模式下，点击元素周期表某个元素，
+       *   下面的小字中仍有中文」）。
+       *   数据里两个名字都有（`name: '氢'` / `enName: 'Hydrogen'`），所以这里不是翻译问题，
+       *   而是**该选哪一个**的问题 —— 原先无条件用中文名，英文界面下那行小字自然还是中文。
+       *   ★ 顺带一个好处：英文名都超过 2 个字符，弹层那句"名字 ≤2 字才写在格子里"
+       *     就自动不再渲染小字 ⇒ 英文模式下格子里只有元素符号（格子才 36px，写不下 Hydrogen）。
+       */
+      const nm = (i18n.lang === 'en') ? (e.enName || '') : (e.name || '')
       return {
         key: sym,
         label: e.atomicNumber
-          ? t('crystal.elem.item', { sym, name: tr(e.name || ''), n: e.atomicNumber }) + mark
-          : (sym + ' ' + tr(e.name || '')).trim() + mark,
+          ? t('crystal.elem.item', { sym, name: nm, n: e.atomicNumber }) + mark
+          : (sym + ' ' + nm).trim() + mark,
         color: getElementColor(sym),
         order: e.atomicNumber || 999,
-        name: tr(e.name || ''),
+        name: nm,
         period: pos ? pos[0] : undefined,
         group: pos ? pos[1] : undefined,
       }

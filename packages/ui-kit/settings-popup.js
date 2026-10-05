@@ -480,7 +480,9 @@ export function createSettingsPopup(cfg = {}) {
 
     groups.forEach((g, gi) => {
       // 缺省：第一组展开、其余收起；`g.open` 可显式指定
-      const gEl = makeSection(g.title, g.open === true || (g.open !== false && gi === 0), g.id)
+      // ★ 默认**不展开任何分组**（用户报「打开设置后，无需默认展开『界面』」）。
+      //   想默认展开的分组自己声明 `open: true`；"因缺 Key 自动弹"那条路走 `open({expand})`。
+      const gEl = makeSection(g.title, g.open === true, g.id)
       for (const key of g.keys) {
         const def = byKey[key]
         if (!def) continue
@@ -632,7 +634,8 @@ export function createSettingsPopup(cfg = {}) {
   function open(opts) {
     buildOverlay()
     const want = opts && opts.expand
-    sections.forEach(({ id, sec }, i) => setSectionOpen(sec, want == null ? i === 0 : id === want))
+    // ★ 不传 `want` 时**全部收起**（见 buildOverlay 里的说明）；传了才展开指定的那一组。
+    sections.forEach(({ id, sec }) => setSectionOpen(sec, want != null && id === want))
     overlay.classList.add('show')
     // 命中的分区可能在滚动区下方（弹层体是 overflow-y:auto），滚进视野才算"贴心"
     if (want) {

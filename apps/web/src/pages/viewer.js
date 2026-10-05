@@ -154,6 +154,21 @@ export class ViewerPage {
       this._canvasComponent.mount()
     }
 
+    /**
+     * ★ 「保存图片」抓图前请它**先渲染一帧**。
+     *
+     *   这个画布是 `preserveDrawingBuffer: false` + **按需重绘**（改了才画，另有 1 Hz 兜底）。
+     *   抓图正好落在"这一帧什么都没画"的时刻时，缓冲里是空的 ——
+     *   存下来的就是一张**空白图**（用户报的「晶典在线保存的图片是空的」）。
+     *   壳在抓图前派发 `chem-agent:before-capture`，这里调 `invalidate()` 排一帧渲染，
+     *   壳再等两层 rAF 才读，于是拿到的必定是刚画好的那一帧。
+     */
+    this._onBeforeCapture = () => {
+      try { if (this._canvasComponent && typeof this._canvasComponent.invalidate === 'function') this._canvasComponent.invalidate() }
+      catch (e) { /* 画布还没就绪：让壳按原样抓 */ }
+    }
+    window.addEventListener('chem-agent:before-capture', this._onBeforeCapture)
+
     // 恢复数据（viewer-canvas mount 后需要的元数据）
     this._crystalName = data?.name || this._crystalId
     const titleEl = container.querySelector('#crystalTitle')
@@ -168,6 +183,11 @@ export class ViewerPage {
   unmount() {
     // ★ 第一步就注销：晚于卸载会让智能体短暂地对着一个已销毁的页面下发动作
     unregisterViewerPage(this)
+    // ★ 抓图前渲染那一帧的监听也要摘掉：页面可反复挂载，不摘会累积
+    if (this._onBeforeCapture) {
+      window.removeEventListener('chem-agent:before-capture', this._onBeforeCapture)
+      this._onBeforeCapture = null
+    }
     if (this._canvasComponent) {
       this._canvasComponent.unmount()
       this._canvasComponent = null

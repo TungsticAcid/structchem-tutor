@@ -1060,6 +1060,8 @@ let offTheme = null;
     }
     Orbit3D.setVisibility(sph ? 'spherical' : state.renderMode);
     Orbit3D.setAutoRotate($('#autoRotate').checked);
+    // ★ 参考线（坐标轴 + 赤道环）跟着开关走：用户要的是"黑色辅助线也能关"
+    Orbit3D.setDecorVisible(!$('#showDecor') || $('#showDecor').checked);
     // 右栏参数组：按「档位 + 渲染模式」显示当下真正起作用的那一组，其余收起来。
     els.yCritSet.style.display       = sph ? '' : 'none';
     // ★ 第 2 条：「三维渲染」（电子云 / 等值面）只在判据取 |ψ|² 时出现。
@@ -1731,6 +1733,11 @@ let offTheme = null;
       });
     }
     $('#autoRotate').addEventListener('change', () => Orbit3D.setAutoRotate($('#autoRotate').checked));
+    // ★ 参考线显隐（用户要求）。挂在 change 上而不进 recompute：它只改显隐、不动几何，
+    //   走 recompute 会重跑十几秒的等值面 —— 那是这类"轻开关"最容易被当成卡死的地方。
+    if ($('#showDecor')) {
+      $('#showDecor').addEventListener('change', () => Orbit3D.setDecorVisible($('#showDecor').checked));
+    }
     $('#resetView').addEventListener('click', () => Orbit3D.resetView());
     // 窗口缩放
     window.addEventListener('resize', () => {
@@ -2478,6 +2485,18 @@ let offTheme = null;
       return true;
     },
     /**
+     * 参考线（坐标轴 + 赤道环）显隐。
+     * ★ 与 setAutoRotate 同一套写法：只改控件、由 change 监听落到渲染层 ——
+     *   两处各写一遍"改画面"就会出现"模型关了参考线、界面还打着勾"。
+     */
+    setAxesVisible(p) {
+      const cb = document.querySelector('#showDecor');
+      if (!cb) return false;
+      cb.checked = (p.visible !== false);
+      cb.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    },
+    /**
      * 径向图的特征标注（峰值 / 零点）—— 与曲线显隐是**同一套控件语义**：
      * 标线只画在"当前可见的曲线"上，关掉 R 曲线，R 的峰值线也跟着没了。
      * feature 为空表示清除标注。target='ALL' 时 R 与 D 各自用自己的颜色标。
@@ -2621,6 +2640,8 @@ let offTheme = null;
         angularWhich: state.angWhich,
         radial: state.radial.slice(),
         autoRotate: !!(document.querySelector('#autoRotate') || {}).checked,
+        // 参考线是否显示（坐标轴 + 赤道环）—— 用户可关，模型也该读得到
+        axesVisible: !!(document.querySelector('#showDecor') || { checked: true }).checked,
         terms: state.terms.map(function (t) { return { n: t.n, l: t.l, m: t.m, mode: t.mode || 'real', c: { re: t.c.re, im: t.c.im } }; }),
         relPhase: state.relPhase,
         chartTerm: state.chartTerm,

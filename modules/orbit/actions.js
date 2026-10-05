@@ -211,6 +211,8 @@ export const LABELS = {
   setSectionMode: '截面显示',
   showRadial: '径向曲线',
   setAutoRotate: '自动旋转',
+  // 三维里的参考线（坐标轴 + 赤道参考圆环）显隐
+  setAxesVisible: '参考线',
   setRadialMarks: '径向标注',
   resetCamera: '复位视角',
   resetSectionView: '复位截面',
@@ -336,6 +338,16 @@ export const VOCAB = {
     label: '自动旋转', group: lazyT('orbit.group.threeD'), animated: false,
     desc: lazyT('orbit.act.setAutoRotate.desc'),
     params: { on: 'true|false' },
+  },
+  /**
+   * 参考线显隐（坐标轴 + 赤道参考圆环）。
+   * ★ 对照"哪个方向是 x、方位角多少"时要用它；想看清曲面本身时又要能关掉 ——
+   *   原先这两条线**没有开关**（用户报「黑色辅助线也可以设置显示/隐藏」）。
+   */
+  setAxesVisible: {
+    label: '参考线', group: lazyT('orbit.group.threeD'), animated: false,
+    desc: lazyT('orbit.act.setAxesVisible.desc'),
+    params: { visible: 'true|false' },
   },
   resetCamera: {
     label: '复位视角', group: lazyT('orbit.group.threeD'), animated: true,
@@ -597,6 +609,10 @@ export function validate(name, params) {
 
     case 'setAutoRotate':
       return { params: { on: !!p.on } }
+
+    // 参考线显隐：**默认显示**，所以缺参时按"显示"处理（而不是当非法参数拒掉）
+    case 'setAxesVisible':
+      return { params: { visible: p.visible !== false } }
 
     case 'setFormulaHighlight': {
       const v = p.part == null ? null : p.part

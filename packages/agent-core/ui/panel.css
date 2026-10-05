@@ -216,11 +216,11 @@ body.agent-resizing .compare-page {
   border: 1px solid rgba(85, 194, 255, .35);
   color: var(--accent, #55c2ff);
 }
-.agent-chip.warn { background: rgba(255, 170, 90, .14); border-color: rgba(255, 170, 90, .4); color: #ffaa5a; }
-.agent-err { color: #ff8f8f; }
+.agent-chip.warn { background: rgba(255, 170, 90, .14); border-color: rgba(255, 170, 90, .4); color: var(--warn, #ffaa5a); }
+.agent-err { color: var(--danger, #ff8f8f); }
 /* 非错误、但必须说一声的情况（如输出被长度上限截断）——不能留给用户一个空白气泡 */
 .agent-warn {
-  color: #ffd79a;
+  color: var(--warn, #ffd79a);
   background: rgba(255, 190, 90, .1);
   border: 1px solid rgba(255, 190, 90, .35);
   border-radius: 8px;
@@ -293,7 +293,7 @@ body.agent-resizing .compare-page {
   vertical-align: top;
 }
 .md-table th { background: rgba(85, 194, 255, .1); color: var(--accent, #55c2ff); font-weight: 700; }
-.md-table td { color: #d8e2f5; }
+.md-table td { color: var(--text, #d8e2f5); }
 
 /* 思考折叠 */
 .agent-think { margin-bottom: 6px; }
@@ -328,7 +328,7 @@ body.agent-resizing .compare-page {
   font-size: 12px;
 }
 .agent-action.bad { background: rgba(255, 120, 120, .08); border-color: rgba(255, 120, 120, .3); }
-.agent-action summary { cursor: pointer; color: #bcd4f5; list-style: none; }
+.agent-action summary { cursor: pointer; color: var(--text-dim, #bcd4f5); list-style: none; }
 .agent-action summary::-webkit-details-marker { display: none; }
 .agent-act-dot {
   display: inline-block;
@@ -340,7 +340,7 @@ body.agent-resizing .compare-page {
 }
 .agent-action.bad .agent-act-dot { background: #ff8f8f; }
 .agent-act-more { color: var(--text-dim, #9aa7c6); font-size: 11px; margin-left: 6px; }
-.agent-act-err { color: #ff8f8f; font-size: 11px; margin-left: 6px; }
+.agent-act-err { color: var(--danger, #ff8f8f); font-size: 11px; margin-left: 6px; }
 .agent-act-body {
   margin-top: 6px;
   padding-top: 6px;
@@ -364,12 +364,12 @@ body.agent-resizing .compare-page {
 .agent-act-txt { flex: 1 1 auto; }
 /* 校验未通过的那一步：划掉并标出原因，与"已执行"区分开 */
 .agent-act-row.skipped .agent-act-txt { opacity: .55; text-decoration: line-through; }
-.agent-act-skip { color: #ffb27a; flex: 0 0 auto; }
+.agent-act-skip { color: var(--warn, #ffb27a); flex: 0 0 auto; }
 .agent-act-btn {
   flex: 0 0 auto;
   background: rgba(85, 194, 255, .1);
   border: 1px solid rgba(85, 194, 255, .28);
-  color: #9ad6ff;
+  color: var(--accent, #9ad6ff);
   border-radius: 5px;
   padding: 0 6px;
   font-size: 10px;
@@ -429,13 +429,16 @@ body.agent-resizing .compare-page {
 .agent-btn:hover { border-color: var(--accent, #55c2ff); }
 .agent-btn.primary {
   background: linear-gradient(135deg, var(--accent, #55c2ff), var(--accent-2, #7a9bff));
-  color: #0b1224;
+  /* ★ 原先写死 #0b1224（深色主题的"强调色之上"）—— 面板改成随主题之后，
+     浅色主题下深字压在新强调色上只有 3.4:1（用户报"部分字看不清"）。
+     走令牌：浅色主题给的是白字，压在同一底色上 5.5:1。 */
+  color: var(--on-accent, #0b1224);
   border: none;
   font-weight: 700;
 }
 .agent-btn.primary:disabled { opacity: .5; cursor: default; }
-.agent-btn.stop { background: rgba(255, 120, 120, .18); border-color: rgba(255, 120, 120, .45); color: #ffb0b0; }
-.agent-btn.danger { border-color: rgba(255, 120, 120, .5); color: #ff9b9b; margin-top: 6px; }
+.agent-btn.stop { background: rgba(255, 120, 120, .18); border-color: rgba(255, 120, 120, .45); color: var(--danger, #ffb0b0); }
+.agent-btn.danger { border-color: rgba(255, 120, 120, .5); color: var(--danger, #ff9b9b); margin-top: 6px; }
 .hidden { display: none !important; }
 
 
@@ -466,7 +469,7 @@ body.agent-resizing .compare-page {
 .agent-pick-btn:disabled { opacity: .45; cursor: default; }
 .agent-pick-tag {
   float: right; font-size: 11px; padding: 1px 7px; border-radius: 999px;
-  background: rgba(255,170,90,.16); color: #ffaa5a; border: 1px solid rgba(255,170,90,.35);
+  background: rgba(255,170,90,.16); color: var(--warn, #ffaa5a); border: 1px solid rgba(255,170,90,.35);
 }
 
 /* ------------------------------------------------------------------ */
@@ -484,7 +487,7 @@ body.agent-resizing .compare-page {
   color: var(--text-dim, #9aa7c6); font-family: inherit; font-size: 11.5px;
   padding: 3px 9px; border-radius: 7px; cursor: pointer; transition: all .15s ease;
 }
-.agent-practice-exit:hover { border-color: rgba(255,120,120,.5); color: #ff9b9b; }
+.agent-practice-exit:hover { border-color: rgba(255,120,120,.5); color: var(--danger, #ff9b9b); }
 .agent-practice-kind {
   font-size: 10.5px; margin-left: 6px; padding: 1px 7px; border-radius: 999px;
   background: rgba(85,194,255,.14); color: var(--accent, #55c2ff);
@@ -525,7 +528,7 @@ body.agent-resizing .compare-page {
 .agent-practice-next-row { display: flex; justify-content: flex-end; margin-top: 8px; }
 .agent-next {
   background: linear-gradient(135deg, var(--accent, #55c2ff), var(--accent-2, #7a9bff));
-  color: #0b1224; border: none; font-family: inherit; font-weight: 700; font-size: 12.5px;
+  color: var(--on-accent, #0b1224); border: none; font-family: inherit; font-weight: 700; font-size: 12.5px;
   padding: 7px 16px; border-radius: 9px; cursor: pointer;
 }
 .agent-next:disabled { opacity: .5; cursor: default; }
@@ -549,14 +552,14 @@ body.agent-resizing .compare-page {
 }
 .agent-opt:hover:not(:disabled) { border-color: var(--accent, #55c2ff); }
 .agent-opt:disabled { cursor: default; }
-.agent-opt.right { border-color: #6ee08a; background: rgba(110,224,138,.14); }
-.agent-opt.wrong { border-color: #ff8f8f; background: rgba(255,143,143,.14); }
+.agent-opt.right { border-color: var(--ok, #6ee08a); background: rgba(110,224,138,.14); }
+.agent-opt.wrong { border-color: var(--danger, #ff8f8f); background: rgba(255,143,143,.14); }
 
 /* 反馈卡 */
 .agent-fb { border-radius: 10px; padding: 10px 12px; border: 1px solid var(--line, #2a3558); }
 .agent-fb.ok { background: rgba(110,224,138,.10); border-color: rgba(110,224,138,.4); }
 .agent-fb.bad { background: rgba(255,143,143,.10); border-color: rgba(255,143,143,.4); }
-.agent-fb-exp { margin-top: 7px; font-size: 13px; line-height: 1.7; color: #d8e2f5; }
+.agent-fb-exp { margin-top: 7px; font-size: 13px; line-height: 1.7; color: var(--text, #d8e2f5); }
 .agent-goto { margin-top: 9px; }
 
 /* ------------------------------------------------------------------ */
@@ -589,7 +592,7 @@ body.agent-resizing .compare-page {
   transition: opacity .18s ease, transform .18s ease;
 }
 .agent-proactive.dismissed { opacity: 0; transform: translateX(20px); }
-.agent-pro-head { font-size: 12px; font-weight: 700; color: #ffc85a; margin-bottom: 5px; }
+.agent-pro-head { font-size: 12px; font-weight: 700; color: var(--warn, #ffc85a); margin-bottom: 5px; }
 .agent-pro-body { font-size: 13px; line-height: 1.7; }
 /* 主动提示的按钮区。
    ★ 原先这里只有一行 `.agent-pro-act { display:flex; gap:8px; … }` —— 那其实是
@@ -603,7 +606,7 @@ body.agent-resizing .compare-page {
   cursor: pointer;
   background: rgba(85, 194, 255, .16);
   border: 1px solid rgba(85, 194, 255, .4);
-  color: #cfe8ff;
+  color: var(--accent, #cfe8ff);
 }
 .agent-pro-act:hover { background: rgba(85, 194, 255, .28); }
 .agent-pro-act:disabled { opacity: .6; cursor: default; }
@@ -654,14 +657,14 @@ body.agent-resizing .compare-page {
 
 /* 自定义预设：与内置预设区分开，并带一个删除按钮 */
 .se-chipwrap { position: relative; display: inline-flex; align-items: center; }
-.se-chip.custom { border-style: dashed; border-color: rgba(160, 140, 255, .55); color: #c9bcff; }
-.se-chip.custom.on { background: rgba(160, 140, 255, .18); border-color: rgba(160, 140, 255, .8); color: #d9d0ff; }
+.se-chip.custom { border-style: dashed; border-color: rgba(160, 140, 255, .55); color: var(--violet, #c9bcff); }
+.se-chip.custom.on { background: rgba(160, 140, 255, .18); border-color: rgba(160, 140, 255, .8); color: var(--violet, #d9d0ff); }
 .se-chipdel {
   background: none; border: none; cursor: pointer;
-  color: #ff9b9b; font-size: 10px; line-height: 1;
+  color: var(--danger, #ff9b9b); font-size: 10px; line-height: 1;
   padding: 2px 3px; margin-left: -7px; opacity: .65;
 }
-.se-chipdel:hover { opacity: 1; color: #ff6b6b; }
+.se-chipdel:hover { opacity: 1; color: var(--danger, #ff6b6b); }
 .se-addchip { border-style: dashed; color: var(--text-dim, #9aa7c6); }
 .se-savename { width: 120px; text-align: left; }
 /* 系数归一化的说明：解释"我填 0.35 为什么显示 0.37" */
@@ -675,7 +678,7 @@ body.agent-resizing .compare-page {
   padding: 5px 8px;
   margin: 6px 0 2px;
 }
-.se-hint b { color: #cfe0ff; }
+.se-hint b { color: var(--accent, #cfe0ff); }
 .se-empty { font-size: 11.5px; color: var(--text-dim, #9aa7c6); line-height: 1.6; }
 
 .se-list { display: flex; flex-direction: column; gap: 5px; }
@@ -714,7 +717,7 @@ body.agent-resizing .compare-page {
 .se-mode.cx { border-color: rgba(85,194,255,.5); color: var(--accent, #55c2ff); }
 .se-mode:focus-visible, .se-pick:focus-visible { border-color: var(--accent, #55c2ff); }
 .se-del {
-  margin-left: auto; background: none; border: none; color: #ff8f8f;
+  margin-left: auto; background: none; border: none; color: var(--danger, #ff8f8f);
   cursor: pointer; font-size: 12px; padding: 2px 6px;
 }
 .se-addrow { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
@@ -748,7 +751,7 @@ body.agent-resizing .compare-page {
 .se-obs-row { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; padding: 2px 0; }
 .se-obs-k { color: var(--text-dim, #9aa7c6); width: 58px; flex: none; }
 .se-obs-v { color: var(--text, #e8ecf7); font-variant-numeric: tabular-nums; }
-.se-obs-tag { font-size: 10px; color: #7ce38b; margin-left: auto; }
+.se-obs-tag { font-size: 10px; color: var(--ok, #7ce38b); margin-left: auto; }
 .se-foot { margin-top: 10px; }
 
 /* ------------------------------------------------------------------ */
@@ -783,7 +786,7 @@ body.agent-resizing .compare-page {
   border: 1px solid rgba(255, 190, 90, .3);
 }
 .reftable-fallback.hidden { display: none; }
-.reftable-fb-title { font-size: 12.5px; font-weight: 700; color: #ffd79a; margin-bottom: 6px; }
+.reftable-fb-title { font-size: 12.5px; font-weight: 700; color: var(--warn, #ffd79a); margin-bottom: 6px; }
 .reftable-fb-body { font-size: 11.5px; line-height: 1.7; color: var(--text-dim, #9aa7c6); }
 .reftable-fb-body b { color: var(--text, #e8ecf7); }
 .reftable-zoom {
@@ -911,7 +914,7 @@ body.agent-resizing .compare-page {
 .agent-branch-chip {
   background: rgba(85, 194, 255, .1);
   border: 1px solid rgba(85, 194, 255, .28);
-  color: #9ad6ff;
+  color: var(--accent, #9ad6ff);
   border-radius: 999px;
   padding: 2px 10px;
   font-size: 11px;
@@ -919,7 +922,7 @@ body.agent-resizing .compare-page {
 }
 .agent-branch-chip.active {
   background: rgba(85, 194, 255, .28);
-  color: #eaf6ff;
+  color: var(--text, #eaf6ff);
   cursor: default;
 }
 .agent-branch-chip:disabled { opacity: .9; }

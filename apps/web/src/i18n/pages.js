@@ -172,6 +172,12 @@ export const en = {
  *   本表登记它们是因为守卫按"登记过"算覆盖（详见回报里"两套 i18n"一节）。
  */
 export const text = {
+  // ★ 三维视图的参考线开关（orbit-markup.js 的 <label>）：DOM 文本走**这张表**。
+  //   上一版误放进了 zh **键表** —— 静态守卫照样绿，而运行时扫描替换查不到它，
+  //   英文模式留下中文（实机检查抓到的，正是"守卫看不见"的那一类）。
+  '参考线': 'Reference lines',
+  '坐标轴与赤道参考圆环：读方位角、对照节面方向用；想看清曲面时可以关掉':
+    'Coordinate axes and the equatorial reference ring — for reading azimuths and nodal-plane directions; turn them off to see the surface itself',
   // ==========================================================================
   // index.js —— 晶体库列表页
   // ==========================================================================

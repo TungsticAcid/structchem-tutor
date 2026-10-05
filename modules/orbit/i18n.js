@@ -474,6 +474,11 @@ export const zh = {
     + '传 null 表示清除标注。标的线**只画在当前可见的曲线**上。',
   'orbit.act.setAutoRotate.desc':
     '三维视图是否自动旋转。讲"这个轨道长什么样"时开着，方便学生看清整体形状。',
+  // 动作标签（原文即键，走 t() 的 text 回退）：参考线显隐
+  '参考线': '参考线',
+  'orbit.act.setAxesVisible.desc':
+    '三维视图里那三条坐标轴与赤道参考圆环是否显示。讲方位角、讲节面朝向时开着；'
+    + '只想看清曲面本身时可以关掉。默认显示。',
   'orbit.act.resetCamera.desc': '相机回到初始朝向与距离。',
   'orbit.act.resetSectionView.desc':
     '截面图的缩放与平移回到初始（等同图表角上那个「复位缩放」小控件）。',
@@ -1179,6 +1184,11 @@ export const en = {
   'orbit.act.setAutoRotate.desc':
     'Whether the 3D view auto-rotates. Turn it on when discussing "what does this orbital look like" '
     + 'so students can see the overall shape.',
+  '参考线': 'Reference lines',
+  'orbit.act.setAxesVisible.desc':
+    'Whether the three coordinate axes and the equatorial reference ring are shown in the 3D view. '
+    + 'Keep them on when talking about azimuth or nodal-plane orientation; turn them off to see the '
+    + 'surface itself. Shown by default.',
   'orbit.act.resetCamera.desc': 'Return the camera to its initial orientation and distance.',
   'orbit.act.resetSectionView.desc':
     'Return the section plot\'s zoom and pan to the initial state (same as the "reset zoom" control in '

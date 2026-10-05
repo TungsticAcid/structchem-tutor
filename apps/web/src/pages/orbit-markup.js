@@ -27,6 +27,7 @@ export const ORBIT_HTML = `<div class="orbit-page">
 <button id="nodeBtn" class="btn btn-ghost" title="把节面画出来：径向节面（球壳）+ 角度节面（锥面 / 平面）">◇ 节面</button>
             <button id="resetView" class="btn btn-ghost" title="重置视角">⟳ 复位</button>
             <label class="chk"><input type="checkbox" id="autoRotate" checked /> 自动旋转</label>
+            <label class="chk" title="坐标轴与赤道参考圆环：读方位角、对照节面方向用；想看清曲面时可以关掉"><input type="checkbox" id="showDecor" checked /> 参考线</label>
           </div>
         </div>
         <div id="viewer" class="viewer"></div>

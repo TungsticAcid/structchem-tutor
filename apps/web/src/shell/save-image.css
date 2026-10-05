@@ -1,11 +1,42 @@
 /**
- * 保存图片按钮的样式。
+ * 保存图片按钮与菜单的样式。
  *
- * ★ 与 home-affordance.css 同一套令牌（`--shell-home-*` 旁边新增 `--shell-save-*`），
- *   浅色/深色都跟着主题走。
+ * ★★ 令牌用**壳自己的名字**（`--shell-ui-*`），**不**用 `--card` / `--text`。
+ *
+ *   页面会在 `:root` 或自己的容器上重绑 `--text` / `--card`（点群观鉴页就是
+ *   把一整套上游深色令牌搬进 `.sym-page`），而这些浮动 UI 是**挂在页面容器里面**的
+ *   —— 于是"浅色主题下菜单的字看不清"（用户实测：点群观鉴页里下载图片的对话框
+ *   字与底色同深）。用一组页面绝不会碰的名字，是结构上避免这类串色的唯一办法。
+ *
  * ★ `.export-hide-text` 那一组是"隐藏文字内容"的**浮层**部分：
  *   画在画布里的文字（标签精灵、图表坐标）CSS 管不到，由页面的 CustomEvent 处理。
  */
+
+:root {
+  --shell-ui-bg: rgba(28, 32, 48, .88);
+  --shell-ui-bg-hover: rgba(28, 32, 48, .96);
+  --shell-ui-fg: #eef2fb;
+  --shell-ui-line: rgba(255, 255, 255, .2);
+  --shell-ui-menu-bg: #151c33;
+  --shell-ui-menu-fg: #e8ecf7;
+  --shell-ui-menu-dim: #9aa7c6;
+  --shell-ui-menu-line: #2a3558;
+  --shell-ui-item-bg: #1a2340;
+  --shell-ui-accent: #55c2ff;
+}
+
+[data-theme="light"] {
+  --shell-ui-bg: rgba(255, 255, 255, .9);
+  --shell-ui-bg-hover: rgba(255, 255, 255, .99);
+  --shell-ui-fg: #2a3350;
+  --shell-ui-line: rgba(0, 0, 0, .16);
+  --shell-ui-menu-bg: #ffffff;
+  --shell-ui-menu-fg: #23293c;
+  --shell-ui-menu-dim: #5d6678;
+  --shell-ui-menu-line: #d8dee9;
+  --shell-ui-item-bg: #f2f4f8;
+  --shell-ui-accent: #1a5fd0;
+}
 
 .shell-save-wrap {
   position: relative;
@@ -21,59 +52,55 @@
   height: 28px;
   padding: 0 11px;
   border-radius: 14px;
-  background: var(--shell-save-bg, rgba(28, 32, 48, .74));
-  color: var(--shell-save-fg, #eef2fb);
-  border: 1px solid var(--shell-save-line, rgba(255, 255, 255, .2));
+  background: var(--shell-ui-bg);
+  color: var(--shell-ui-fg);
+  border: 1px solid var(--shell-ui-line);
   backdrop-filter: blur(6px);
   font: inherit;
   font-size: 12.5px;
   line-height: 1;
   letter-spacing: .02em;
   cursor: pointer;
-  opacity: .82;
+  opacity: .85;
   transition: opacity .15s ease, background .15s ease;
 }
-.shell-save:hover { opacity: 1; background: var(--shell-save-bg-hover, rgba(28, 32, 48, .9)); }
+.shell-save:hover { opacity: 1; background: var(--shell-ui-bg-hover); }
+.shell-save:focus-visible { outline: 2px solid var(--shell-ui-accent); outline-offset: 2px; }
 
 .shell-save-menu {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  z-index: 1200;
-  min-width: 210px;
+  z-index: 1400;
+  min-width: 240px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: var(--card, #151c33);
-  color: var(--text, #e8ecf7);
-  border: 1px solid var(--line, #2a3558);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, .38);
+  background: var(--shell-ui-menu-bg);
+  color: var(--shell-ui-menu-fg);
+  border: 1px solid var(--shell-ui-menu-line);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .28);
   font-size: 12.5px;
 }
-.shell-save-row { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+/* 菜单在页面容器里：页面若给容器设了字体/颜色，这里显式覆盖掉 */
+.shell-save-menu * { font-family: inherit; }
+.shell-save-row { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--shell-ui-menu-fg); }
 .shell-save-acts { display: flex; gap: 6px; margin-top: 9px; }
 .shell-save-acts button {
   flex: 1 1 auto;
   padding: 6px 8px;
   border-radius: 7px;
-  border: 1px solid var(--line, #2a3558);
-  background: var(--bg-2, #1a2340);
-  color: var(--text, #e8ecf7);
+  border: 1px solid var(--shell-ui-menu-line);
+  background: var(--shell-ui-item-bg);
+  color: var(--shell-ui-menu-fg);
   font: inherit;
   font-size: 12px;
   cursor: pointer;
 }
-.shell-save-acts button:hover { border-color: var(--accent, #55c2ff); color: var(--accent, #55c2ff); }
-.shell-save-tip { margin-top: 7px; min-height: 14px; font-size: 11.5px; color: var(--text-dim, #9aa7c6); }
+.shell-save-acts button:hover { border-color: var(--shell-ui-accent); color: var(--shell-ui-accent); }
+.shell-save-tip { margin-top: 7px; min-height: 14px; font-size: 11.5px; color: var(--shell-ui-menu-dim); }
 
 /* 没有可命中顶栏时的兜底（与 .shell-home--float 同款思路） */
 .shell-save-wrap--float { position: fixed; top: 12px; right: 62px; z-index: 900; }
-
-[data-theme="light"] {
-  --shell-save-bg: rgba(255, 255, 255, .88);
-  --shell-save-bg-hover: rgba(255, 255, 255, .98);
-  --shell-save-fg: #2a3350;
-  --shell-save-line: rgba(0, 0, 0, .16);
-}
 
 /**
  * 「隐藏文字内容」：把浮层全部藏起来 —— 顶栏、徽标、提示条、悬浮球、加载遮罩。

@@ -12,10 +12,30 @@
 
 /** 页面的样式（原 `index.html` 的 `<style>` 块） */
 export const SYMMETRY_CSS = `    .sym-page {
-      --panel-bg: rgba(30, 34, 48, 0.88);
-      --panel-fg: #e8eaf0;
-      --accent: #7c9cf5;
-      --border: rgba(255, 255, 255, 0.12);
+      /**
+       * ★★ 2026-10-05：面板底色/前景色改为**跟随全局主题**。
+       *
+       *   原先这里写死深色（rgba(30,34,48,.88) + 浅字）—— 那是上游单页应用的做法，
+       *   而它进了统一壳之后，浅色主题下顶栏与信息面板**仍是两块黑的**
+       *   （用户报「浅色模式下，点群观鉴中，部分背景仍为黑色」）。
+       *   改用壳的令牌：深浅两套自动生效，本文件下面几十处 var(--panel-bg) 一处都不用改。
+       *
+       * ★ 但**不要**在这里重绑 --accent：--accent 取 var(--accent) 是**自引用**，
+       *   整条声明会被判无效（不只是"没生效"，是 CSS 解析层面的循环）。
+       *   删掉那一行，让壳的强调色透下来即可 —— 它本来就是随主题取的。
+       *
+       * ★★ 本文件整段是一个**模板字符串**：注释里**不能出现反引号**，
+       *   那会当场把字符串截断、整个页面白屏（本轮又踩了一次，已是第五次）。
+       *   判据：改完这里立刻跑 apps/web/tools/test-shell.mjs（它会解析每个前端源文件）。
+       */
+      --panel-bg: var(--card, #1b2237);
+      --panel-fg: var(--text, #e8eaf0);
+      --border: var(--line, rgba(255, 255, 255, 0.12));
+      /* 面板内部控件（下拉/输入）的底：深色主题下是"比面板略亮一点"，
+         浅色主题下是"比面板略暗一点" —— 两套都由 --bg-2 给出 */
+      --panel-item-bg: var(--bg-2, rgba(255, 255, 255, 0.08));
+      /* 次级文字：原先写死的 #9aa3b5（浅字配深底），随主题取 text-dim */
+      --panel-dim: var(--text-dim, #9aa3b5);
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     /* ★ 原本是 html/body/#app —— 收进页面根：壳的 body 不能被某个页面锁死滚动 */
@@ -67,13 +87,13 @@ export const SYMMETRY_CSS = `    .sym-page {
     .example-select { position: relative; min-width: 230px; }
     .example-select .es-current {
       display: flex; justify-content: space-between; align-items: center;
-      background: rgba(255,255,255,0.08); color: var(--panel-fg);
+      background: var(--panel-item-bg); color: var(--panel-fg);
       border: 1px solid var(--border); border-radius: 6px;
       padding: 6px 10px; font-size: 13px; cursor: pointer;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .example-select .es-cur-sym { color: var(--accent); font-weight: 600; font-size: 12px; font-family: "Segoe UI", "PingFang SC", sans-serif; }
-    .example-select .es-current::after { content: '▾'; color: #9aa3b5; font-size: 11px; margin-left: 8px; }
+    .example-select .es-current::after { content: '▾'; color: var(--panel-dim, #9aa3b5); font-size: 11px; margin-left: 8px; }
     .example-select .es-current.open::after { content: '▴'; }
     .example-select .es-list {
       position: absolute; top: calc(100% + 4px); left: 0; right: 0;
@@ -83,14 +103,14 @@ export const SYMMETRY_CSS = `    .sym-page {
       backdrop-filter: blur(8px); z-index: 30; padding: 4px 0;
     }
     .example-select .es-group-label {
-      font-size: 11px; color: #9aa3b5; padding: 8px 10px 4px;
+      font-size: 11px; color: var(--panel-dim, #9aa3b5); padding: 8px 10px 4px;
       text-transform: uppercase; letter-spacing: 1px;
     }
     .example-select .es-item {
       display: flex; align-items: center; gap: 8px;
       padding: 5px 10px; font-size: 13px; cursor: pointer;
     }
-    .example-select .es-item:hover { background: rgba(255,255,255,0.08); }
+    .example-select .es-item:hover { background: var(--panel-item-bg); }
     .example-select .es-item.selected { background: rgba(124,156,245,0.18); }
     .example-select .es-sym {
       width: 66px; flex-shrink: 0; text-align: center;
@@ -115,15 +135,15 @@ export const SYMMETRY_CSS = `    .sym-page {
       z-index: 10;
     }
     #info-panel .struct-title { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
-    #info-panel .struct-formula { font-size: 12px; color: #9aa3b5; margin-bottom: 10px; }
+    #info-panel .struct-formula { font-size: 12px; color: var(--panel-dim, #9aa3b5); margin-bottom: 10px; }
     #info-panel .group-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
     #info-panel .group-symbol {
       font-size: 26px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;
     }
-    #info-panel .group-name { font-size: 13px; color: #c2c9d8; }
-    #info-panel .meta { font-size: 12px; color: #9aa3b5; margin: 4px 0 10px; }
+    #info-panel .group-name { font-size: 13px; color: var(--panel-fg, #c2c9d8); }
+    #info-panel .meta { font-size: 12px; color: var(--panel-dim, #9aa3b5); margin: 4px 0 10px; }
     #info-panel h4 {
-      font-size: 12px; color: #9aa3b5; font-weight: 600;
+      font-size: 12px; color: var(--panel-dim, #9aa3b5); font-weight: 600;
       margin: 12px 0 6px; text-transform: uppercase; letter-spacing: 1px;
     }
     #info-panel .elem-item {
@@ -131,11 +151,11 @@ export const SYMMETRY_CSS = `    .sym-page {
       padding: 4px 6px; font-size: 13px;
       border-radius: 5px; cursor: default;
     }
-    #info-panel .elem-item:hover { background: rgba(255,255,255,0.06); }
+    #info-panel .elem-item:hover { background: var(--panel-item-bg); }
     #info-panel .elem-dot {
       width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
     }
-    #info-panel .elem-count { margin-left: auto; color: #9aa3b5; font-size: 12px; }
+    #info-panel .elem-count { margin-left: auto; color: var(--panel-dim, #9aa3b5); font-size: 12px; }
 
     /* 设置面板 */
     #settings-panel {
@@ -170,7 +190,7 @@ export const SYMMETRY_CSS = `    .sym-page {
       width: 40px; height: 26px; border: 1px solid var(--border); border-radius: 4px; background: none; cursor: pointer;
     }
     #settings-panel h4 {
-      font-size: 12px; color: #9aa3b5; margin: 10px 0 6px; text-transform: uppercase; letter-spacing: 1px;
+      font-size: 12px; color: var(--panel-dim, #9aa3b5); margin: 10px 0 6px; text-transform: uppercase; letter-spacing: 1px;
     }
     #settings-panel .color-row {
       display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px;
@@ -178,7 +198,7 @@ export const SYMMETRY_CSS = `    .sym-page {
     #settings-panel .color-row label { flex: 1; }
     #settings-panel .danger {
       width: 100%; margin-top: 12px; padding: 8px;
-      background: rgba(239,83,80,0.15); color: #ef5350;
+      background: rgba(239,83,80,0.15); color: var(--danger, #ef5350);
       border: 1px solid rgba(239,83,80,0.4); border-radius: 6px; cursor: pointer; font-size: 13px;
     }
 
@@ -188,8 +208,8 @@ export const SYMMETRY_CSS = `    .sym-page {
       padding: 4px 6px; font-size: 13px;
       border-radius: 5px; cursor: pointer; user-select: none;
     }
-    #info-panel .elem-group-header:hover { background: rgba(255,255,255,0.06); }
-    #info-panel .elem-arrow { margin-left: auto; color: #9aa3b5; font-size: 11px; }
+    #info-panel .elem-group-header:hover { background: var(--panel-item-bg); }
+    #info-panel .elem-arrow { margin-left: auto; color: var(--panel-dim, #9aa3b5); font-size: 11px; }
     #info-panel .elem-group-body { padding-left: 14px; margin-bottom: 2px; }
     #info-panel .elem-group-body .elem-item { display: flex; align-items: center; gap: 8px; padding: 3px 6px; font-size: 12px; }
     #info-panel .elem-group-body input[type="checkbox"] { accent-color: var(--accent); }
@@ -202,11 +222,11 @@ export const SYMMETRY_CSS = `    .sym-page {
     }
     #info-panel .elem-play:hover { background: rgba(124,156,245,0.35); }
     #info-panel .orb-row { display: flex; gap: 8px; padding: 3px 6px; font-size: 12px; word-break: break-word; }
-    #info-panel .orb-row .orb-label { color: #9aa3b5; flex-shrink: 0; }
+    #info-panel .orb-row .orb-label { color: var(--panel-dim, #9aa3b5); flex-shrink: 0; }
 
     /* 特征标表 */
     #character-table-wrap .ct-header {
-      font-size: 12px; color: #9aa3b5; font-weight: 600;
+      font-size: 12px; color: var(--panel-dim, #9aa3b5); font-weight: 600;
       padding: 8px 6px; cursor: pointer; user-select: none;
       border-top: 1px solid var(--border); margin-top: 12px;
     }
@@ -214,13 +234,13 @@ export const SYMMETRY_CSS = `    .sym-page {
     #character-table-wrap .ct-table th, #character-table-wrap .ct-table td {
       border: 1px solid var(--border); padding: 3px 4px; text-align: center;
     }
-    #character-table-wrap .ct-table th { color: #9aa3b5; font-weight: 600; }
+    #character-table-wrap .ct-table th { color: var(--panel-dim, #9aa3b5); font-weight: 600; }
     #character-table-wrap .ct-irrep { font-weight: 600; color: var(--accent); }
-    #character-table-wrap .ct-basis { text-align: left; font-size: 10px; color: #9aa3b5; }
+    #character-table-wrap .ct-basis { text-align: left; font-size: 10px; color: var(--panel-dim, #9aa3b5); }
 
     #hint {
       position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
-      font-size: 12px; color: #7a8090; background: rgba(255,255,255,0.7);
+      font-size: 12px; color: var(--panel-dim, #7a8090); background: var(--card, rgba(255,255,255,0.7));
       padding: 5px 14px; border-radius: 20px; z-index: 10; pointer-events: none;
     }
 
@@ -240,7 +260,7 @@ export const SYMMETRY_CSS = `    .sym-page {
       width: min(440px, 88vw);
     }
     #anim-progress-wrap[hidden] { display: none; }
-    #anim-progress-wrap .anim-label { font-size: 12px; color: #9aa3b5; white-space: nowrap; flex-shrink: 0; }
+    #anim-progress-wrap .anim-label { font-size: 12px; color: var(--panel-dim, #9aa3b5); white-space: nowrap; flex-shrink: 0; }
     #anim-progress-wrap button { flex-shrink: 0; }
     #anim-progress-wrap input[type="range"] { flex: 1 1 120px; min-width: 80px; accent-color: var(--accent); }
     #anim-progress-wrap button {

@@ -57,7 +57,23 @@ export function renderInfo(info, callbacks = {}) {
     item.append(dot, lab)
     listEl.appendChild(item)
   }
-  // 参与分组/交互的仅非恒等元素；index 保留原始下标，与 3D items / onToggle / onPlay 对齐
+/**
+ * 该元素类型是否属于**无限族**（同一类有无数个）。
+ *
+ * ★ C∞ / S∞ 本身就带 `order: Infinity`；σᵥ 不带，但**在线性分子里**（清单含 C∞）
+ *   它的同伴是无穷多个 —— 只写一个代表面是生成器的表达限制，不是分子的事实。
+ *   ∞C₂′ 同理（D∞h 里类型也是 'C2'，同样要靠"清单里有没有 C∞"来判断）。
+ */
+function isInfiniteElement(type, elements) {
+  if (type === 'C∞' || type === 'S∞') return true
+  const linear = elements.some((e) => e && e.type === 'C∞')
+  if (!linear) return false
+  // ★ 只到这三类为止：σh（垂直镜面）与 i（对称中心）在 D∞h 里**各只有一个**，
+  //   把它们也算成无限是另一种内容错误。
+  return type === 'sigma_v' || type === 'C2'
+}
+
+/** 参与分组/交互的仅非恒等元素；index 保留原始下标，与 3D items / onToggle / onPlay 对齐 */
   const interactive = []
   elements.forEach((el, i) => { if (el.type !== 'E') interactive.push({ el, index: i }) })
 
@@ -93,10 +109,25 @@ export function renderInfo(info, callbacks = {}) {
     dot.style.background = color
     const nameSpan = document.createElement('span')
     // ★ innerHTML：坐标变量要斜体（σᵥ(yz) → σᵥ(<i>y</i><i>z</i>)）
-    nameSpan.innerHTML = formatBasisFunctions(className)
+    // ★ 无限族加前缀 ∞（∞σᵥ / ∞C₂ / ∞C∞）：与特征标表表头的写法一致，
+    //   也把"这一族有无数个"直接写进名字里 —— 光靠 `×∞` 那个角标容易被看漏。
+    nameSpan.innerHTML = formatBasisFunctions(
+      // ★ 只给"名字里看不出无限"的那两类加前缀：σᵥ 与 C₂′（D∞h 里是 ∞C₂′）。
+      //   C∞ / S∞ 的名字本身已经写着 ∞ 了，再加一遍是"∞C∞"这种叠字。
+      (g.type === 'sigma_v' || (g.type === 'C2' && isInfiniteElement(g.type, elements)))
+        ? ('∞' + className) : className)
     const count = document.createElement('span')
     count.className = 'elem-count'
-    count.textContent = `×${g.count}`
+    /**
+     * ★★ 无限族的计数不能写 `×1`（用户报「C∞v 群……还是有问题」）。
+     *
+     *   C∞v 里的 σᵥ 有**无穷多个**（任一含轴的平面都是），C∞ 是**任意角度**的旋转；
+     *   D∞h 还多 ∞C₂′ 与 S∞。而生成器只能给出**一个代表**（有限代表集，见
+     *   `linearSymmetryElements`），于是清单显示成「σᵥ ×1」 ——
+     *   学生会据此以为 C∞v 只有一个镜面，那是**内容错误**，不是排版问题。
+     *   判据：元素类型属于无限族时，计数写 `∞`。
+     */
+    count.textContent = isInfiniteElement(g.type, elements) ? '×∞' : `×${g.count}`
     const arrow = document.createElement('span')
     arrow.className = 'elem-arrow'
     arrow.textContent = '▸'
