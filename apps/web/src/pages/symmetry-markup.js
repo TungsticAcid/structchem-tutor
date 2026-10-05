@@ -39,7 +39,7 @@ export const SYMMETRY_CSS = `    .sym-page {
        *   修法不是把面板调亮（那会破坏主题），而是给它**边界**：深色用重投影 + 略亮一档底色，
        *   浅色用轻投影（见文件末尾的 [data-theme="light"] 覆盖）。
        */
-      --panel-shadow: 0 10px 30px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+      --panel-shadow: var(--elevation-1, 0 10px 30px rgba(0, 0, 0, 0.55));
       /* 面板内部控件（下拉/输入）的底：深色主题下是"比面板略亮一点"，
          浅色主题下是"比面板略暗一点" —— 两套都由 --bg-2 给出 */
       --panel-item-bg: var(--bg-2, rgba(255, 255, 255, 0.08));
@@ -281,12 +281,9 @@ export const SYMMETRY_CSS = `    .sym-page {
     }
 
     /**
-     * 浅色主题：面板用**轻**投影。
-     * ★ 深色那套（0.55 黑）是为了"深底上把面板托起来"；同一套放到白底上会像一道黑边。
+     * 浅色/深色的投影差异由 --elevation-1 令牌自己带（见 tokens.css），
+     * 这里不再各写一套 —— 原先那份"浅色覆盖"已经没有存在的必要。
      */
-    [data-theme="light"] .sym-page {
-      --panel-shadow: 0 6px 20px rgba(0, 0, 0, 0.10);
-    }
   `
 
 /** 页面的结构（原 `index.html` 的 `<body>`，去掉 <script> 一行） */

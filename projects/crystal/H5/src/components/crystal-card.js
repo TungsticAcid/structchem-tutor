@@ -224,7 +224,9 @@ export class CrystalCard extends BaseComponent {
     <style>
       .crystal-card {
         background: var(--card, #fff); border-radius: 8px; overflow: hidden;
-        box-shadow: 0 1px 6px rgba(0,0,0,0.08); transition: transform 0.15s; cursor: pointer;
+        /* ★ 2026-10-06：卡片也要"浮起"——深色主题下纯黑小投影落在近黑底上等于没有，
+           卡片与页面底糊成一片（用户报「深色下浮动 UI 不清晰」）。统一用 elevation 令牌。 */
+        box-shadow: var(--elevation-1, 0 1px 6px rgba(0,0,0,0.08)); transition: transform 0.15s; cursor: pointer;
       }
       .crystal-card:active { transform: scale(0.97); }
       .card-thumb {

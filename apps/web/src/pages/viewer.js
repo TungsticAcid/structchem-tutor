@@ -163,11 +163,28 @@ export class ViewerPage {
      *   壳在抓图前派发 `chem-agent:before-capture`，这里调 `invalidate()` 排一帧渲染，
      *   壳再等两层 rAF 才读，于是拿到的必定是刚画好的那一帧。
      */
-    this._onBeforeCapture = () => {
+    this._onBeforeCapture = (ev) => {
+      // ★ 导出「无底色」时，把渲染器的清屏 alpha 临时设成 0（画布已在构造时开了 alpha 通道）。
+      //   不这么做，画布的底色是**画进像素里**的，抓出来必然带一层底。
+      const r = this._canvasComponent && this._canvasComponent._state && this._canvasComponent._state.renderer
+      if (r && ev && ev.detail && ev.detail.transparent) {
+        this._savedClearAlpha = r.getClearAlpha()
+        r.setClearAlpha(0)
+      }
       try { if (this._canvasComponent && typeof this._canvasComponent.invalidate === 'function') this._canvasComponent.invalidate() }
       catch (e) { /* 画布还没就绪：让壳按原样抓 */ }
     }
+    /** 抓完恢复清屏 alpha 并重画一帧 —— 否则屏幕上那张图就一直透明着（露出页面底色） */
+    this._onAfterCapture = () => {
+      const r = this._canvasComponent && this._canvasComponent._state && this._canvasComponent._state.renderer
+      if (r && this._savedClearAlpha != null) {
+        r.setClearAlpha(this._savedClearAlpha)
+        this._savedClearAlpha = null
+        try { this._canvasComponent.invalidate() } catch (e) { /* 忽略 */ }
+      }
+    }
     window.addEventListener('chem-agent:before-capture', this._onBeforeCapture)
+    window.addEventListener('chem-agent:after-capture', this._onAfterCapture)
 
     // 恢复数据（viewer-canvas mount 后需要的元数据）
     this._crystalName = data?.name || this._crystalId
@@ -187,6 +204,10 @@ export class ViewerPage {
     if (this._onBeforeCapture) {
       window.removeEventListener('chem-agent:before-capture', this._onBeforeCapture)
       this._onBeforeCapture = null
+    }
+    if (this._onAfterCapture) {
+      window.removeEventListener('chem-agent:after-capture', this._onAfterCapture)
+      this._onAfterCapture = null
     }
     if (this._canvasComponent) {
       this._canvasComponent.unmount()

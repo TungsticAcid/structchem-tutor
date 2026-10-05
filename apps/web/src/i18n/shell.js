@@ -146,6 +146,10 @@ export const text = {
   '把当前视图保存成图片': 'Save the current view as an image',
   '图片': 'Image',
   '隐藏文字内容': 'Hide text content',
+  '透明背景': 'Transparent background',
+  '勾上 = 图片没有底色（透明的，可直接贴到课件任意背景上）；取消 = 用当前页面的底色铺一层':
+    'Checked = no background colour (transparent, ready to paste onto any slide); '
+    + 'unchecked = fill with the page background',
   '保存图片': 'Save image',
   '另存为…': 'Save as…',
   '设置保存位置…': 'Set save location…',

@@ -239,7 +239,14 @@ export class ViewerCanvas {
     }
 
     // 渲染器
-    const renderer = new THREE.WebGLRenderer({ canvas, alpha: false, antialias: true })
+    /**
+     * ★ 2026-10-06：`alpha: false` → `true`，只为**导出透明背景的图片**。
+     *   原先画布没有 alpha 通道 ⇒ 抓图永远带一层底色，`setClearAlpha(0)` 也没用
+     *   （用户报「晶典在线导出的图片仍然有底色」）。
+     *   ★ 屏幕上观感不变：下一行 `setClearColor(bgColor, 1)` 的 alpha 仍是 1；
+     *     只有抓图那一刻才临时设成 0（见 apps/web/src/pages/viewer.js 的 before-capture）。
+     */
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true })
     renderer.setPixelRatio(this._renderDpr())
     const bgColor = getVisualColor('bgColor')
     renderer.setClearColor(bgColor, 1)

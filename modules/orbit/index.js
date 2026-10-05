@@ -28,6 +28,10 @@ import { t } from '../../packages/i18n/index.js'
 // 装配期校验「宿主有没有给够」——本模块全是可选项（降级是设计好的），理由见该文件
 import { enforceHostRequirements } from '../../packages/module-contract/index.js'
 import { HOST_REQUIREMENTS } from './host-requirements.js'
+// ★ 必须有这一行**普通 import**：下面那个 `export { … } from './actions.js'` 只是
+//   转发导出，**不会**在本模块里建立绑定 —— 少这一行，本文件里的
+//   filterDisabledActions 会 ReferenceError（本轮实测踩到）。
+import { isActionDisabled } from './actions.js'
 
 export { createOrbitFacade } from './facade.js'
 export { createOrbitTools } from './tools.js'
@@ -38,7 +42,23 @@ export { ErrorDiagnosis } from './core/error-diagnosis.js'
 export { Perception } from './core/perception-snapshot.js'
 export {
   VOCAB, ENUMS, RANGES, LABELS, validate, listActions, labels as actionLabels,
+  isActionDisabled, DISABLED_DEMOS,
 } from './actions.js'
+
+/**
+ * 从"模型看得见"的映射里剔除已停用的动作（`DISABLED_ACTIONS`）。
+ *
+ * ★ 只动**导出**这一层：VOCAB 本身、validate 的 case、渲染层通路全部保留 ——
+ *   重新启用时把名字从 DISABLED_ACTIONS 删掉即可，一行。
+ * ★ 取值器/对象两种输入都支持：`actionLabels` 是普通对象，VOCAB 也是。
+ */
+function filterDisabledActions(map) {
+  const out = {}
+  for (const [k, v] of Object.entries(map || {})) {
+    if (!isActionDisabled(k)) out[k] = v
+  }
+  return out
+}
 
 /**
  * 装配本模块，交给统一壳使用。
@@ -97,10 +117,15 @@ export function createModule(opts = {}) {
     },
     /** 动作校验（壳的分镜引擎逐调用它）—— 取值域由 actions.js 把关 */
     validate: (name, params) => facade.validate(name, params),
-    /** 动作词汇表（壳用它标注 animated/concept，并按需 listSceneActions 暴露给模型） */
-    vocabulary: VOCAB,
+    /**
+     * 动作词汇表（壳用它标注 animated/concept，并按需 listSceneActions 暴露给模型）。
+     * ★ 已停用的动作在这里**过滤掉**：模型看不到就无从下发（见 actions.js 的
+     *   DISABLED_ACTIONS）。过滤放在**导出层**而不是删 VOCAB —— 后者会连带打断
+     *   "vocabulary 里每个动作在 validate 里都有 case"那条守卫，也会让重新启用变复杂。
+     */
+    vocabulary: filterDisabledActions(VOCAB),
     /** 动作名 → 短标签（面板的动作气泡用） */
-    actionLabels: actionLabels(),
+    actionLabels: filterDisabledActions(actionLabels()),
     /** 模块的提示词片段（人格 + 领域约定） */
     /**
      * 面板空态的开场白（模块自己提供，理由见 crystal 模块里那段说明）。

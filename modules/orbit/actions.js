@@ -49,6 +49,27 @@ export const ENUMS = {
 }
 
 /**
+ * **临时停用的动作**（2026-10-06：用户要求「先隐藏多轨道同屏功能，对智能体也隐藏此功能」）。
+ *
+ * ★ 停用的语义要说清：不是删实现，而是**从模型看得见的地方撤下来** ——
+ *   `modules/orbit/index.js` 导出 vocabulary / actionLabels 时按这张表过滤，
+ *   于是 `listSceneActions` 里没有它们、模型也无从"看见即调用"。
+ *   实现、取值域校验、渲染层通路**全部保留**：重新启用只需把名字从这张表里删掉。
+ *
+ * ★ 为什么界面藏了、模型也必须藏：只藏界面而让模型照旧下发，会出现
+ *   "界面里根本没有这个面板、画面却自己在变"的鬼状态 —— 那是最难自查的一类。
+ */
+export const DISABLED_ACTIONS = ['setOrbitals', 'setOrbitalStyle']
+
+/** 某个动作是否已停用（导出层与守卫共用一处判据） */
+export function isActionDisabled(name) {
+  return DISABLED_ACTIONS.indexOf(name) >= 0
+}
+
+/** 同一套判据，作用于演示脚本：整段依赖停用动作的脚本也一并撤下 */
+export const DISABLED_DEMOS = ['sp3Tetrahedron']
+
+/**
  * 同屏轨道条数的上限。
  *
  * ★ 为什么要有上限：每多一条就要**真跑一遍等值面流水线**（本环境一张 10–15 秒），

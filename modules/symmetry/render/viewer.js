@@ -51,7 +51,14 @@ export class SymmetryViewer {
     const height = this.container.clientHeight || window.innerHeight
 
     // 渲染器
-    const renderer = new THREE.WebGLRenderer({ antialias: true })
+    /**
+     * ★ 2026-10-06：加 `alpha: true`，只为**导出透明背景的图片**。
+     *   原先 `alpha` 缺省为 false ⇒ 画布没有 alpha 通道，`setClearAlpha(0)` 也不会透明，
+     *   存下来的 PNG 永远带着一层底色（用户要的是"和轨道视界一样没有底色"）。
+     *   ★ 屏幕上观感不变：下面 `setClearColor(bgColor, 1)` 的 alpha 仍是 1（不透明），
+     *     只有抓图那一刻才临时把它设成 0（见 apps/web/src/pages/symmetry.js 的监听）。
+     */
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     // ★ 上限 1.5、缺值取 1：原写法 `window.devicePixelRatio || 2` 有两处毛病——
     //   ① 无上限：3x 屏上渲染缓冲是逻辑尺寸的 3 倍，拖慢且让细线发糊；
     //   ② `|| 2` 在 devicePixelRatio 为 0/undefined 时**反而放大两倍**（本该是 1）。

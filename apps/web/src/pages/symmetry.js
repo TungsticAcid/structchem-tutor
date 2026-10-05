@@ -69,6 +69,10 @@ let api = null
  */
 let hideTextHandler = null
 let hideTextSaved = null
+/** 抓图去底色用的两个监听与暂存（页面可反复挂载，先摘旧的再加） */
+let symCaptureBefore = null
+let symCaptureAfter = null
+let symSavedClearAlpha = null
 
 /**
  * 启动页面逻辑（上游 main.js 的正文）。
@@ -399,7 +403,17 @@ export function bootSymmetryPage(deps = {}) {
      */
     const infinite = stab && stab.infinite
     const orderText = infinite ? '∞' : String((stab && stab.count != null) ? stab.count : (stab ? stab.length : 0))
-    const nameText = infinite ? (stab.symbol || 'C∞v') : ((stab && stab.names) || []).join(', ')
+    /**
+     * ★★ 无限群要把**操作族**也写出来（用户报：「C∞v 的原子的稳定化子里没有 σ」）。
+     *   原先只写群符号 `C∞v` —— 那在群论上没错（稳定化子就是整个群），但学生看不到
+     *   σᵥ 在不在里面，而"σᵥ 在里面"正是 C∞v 与 Cs 的分水岭。
+     *   无限群无法逐元列举，所以列**族**：E、∞C∞、∞σᵥ（中心原子再加 σh/i/∞C₂′/S∞）。
+     */
+    const nameText = infinite
+      ? ((stab.symbol || 'C∞v')
+        + (Array.isArray(stab.families) && stab.families.length
+          ? '（' + stab.families.join('、') + '）' : ''))
+      : ((stab && stab.names) || []).join(', ')
     body.innerHTML =
       `<div class="orb-row"><span class="orb-label">${t('orb.orbit')}</span><span>${orb.map(lab).join(', ')}</span></div>` +
       `<div class="orb-row"><span class="orb-label">${t('orb.stabilizer')}（${t('orb.order')} ${orderText}）</span><span>${nameText}</span></div>`
@@ -783,6 +797,32 @@ export function bootSymmetryPage(deps = {}) {
     }
   }
   window.addEventListener('chem-agent:hide-text', hideTextHandler)
+
+  /**
+   * ★ 「保存图片 → 去底色」：把渲染器的清屏 alpha 临时设成 0。
+   *   画布的底色是**画进像素里**的（`setClearColor(bgColor, 1)`），不改它，
+   *   抓出来的 PNG 必然带一层底（用户要的是和轨道视界一样"没有底色"）。
+   *   渲染器已在构造时开了 `alpha: true`，所以这一招才有效。
+   *   ★ 抓完必须**恢复**并重画一帧：否则屏幕上那张图就一直透明着，露出页面底色。
+   */
+  if (symCaptureBefore) window.removeEventListener('chem-agent:before-capture', symCaptureBefore)
+  if (symCaptureAfter) window.removeEventListener('chem-agent:after-capture', symCaptureAfter)
+  symCaptureBefore = (ev) => {
+    const r = viewer && viewer._state && viewer._state.renderer
+    if (r && ev && ev.detail && ev.detail.transparent) {
+      symSavedClearAlpha = r.getClearAlpha()
+      r.setClearAlpha(0)
+    }
+  }
+  symCaptureAfter = () => {
+    const r = viewer && viewer._state && viewer._state.renderer
+    if (r && symSavedClearAlpha != null) {
+      r.setClearAlpha(symSavedClearAlpha)
+      symSavedClearAlpha = null
+    }
+  }
+  window.addEventListener('chem-agent:before-capture', symCaptureBefore)
+  window.addEventListener('chem-agent:after-capture', symCaptureAfter)
 
   // ==================== 设置面板 ====================
 

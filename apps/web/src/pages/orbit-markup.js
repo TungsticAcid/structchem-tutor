@@ -104,6 +104,14 @@ export const ORBIT_HTML = `<div class="orbit-page">
         </div>
         <div class="hint" id="orbModelHint">氢型：真实类氢，2s 在 <i>r</i> = 2<i>a</i>₀ 处有径向节点</div>
 
+        <!--  ★★ 2026-10-06：**多轨道同屏整体隐藏**（用户要求「先隐藏多轨道同屏功能」）。
+              · 用 hidden 属性包裹而不是删代码：它的实现（动作 setOrbitals / 渲染层的
+                multiSpec 通路 / 演示脚本）都还在，重新启用只需去掉这一个属性。
+              · 模型那侧同时用 DISABLED_ACTIONS 屏蔽（见 modules/orbit/actions.js）——
+                只藏界面但让模型照旧下发动作，会得到"界面看不见、画面却在变"的鬼状态。
+              · 演示 sp3Tetrahedron 也一并从清单里撤下（它整段都在驱动这个功能）。
+            注意本文件整体是一个模板字符串，注释里**不能出现反引号**。 -->
+        <div id="multiFeature" hidden>
         <div class="divider"><span>多轨道同屏</span></div>
         <div class="seg center" id="multiSeg">
           <button class="seg-btn active" data-s="off"
@@ -136,6 +144,7 @@ export const ORBIT_HTML = `<div class="orbit-page">
           <div class="orb-list" id="multiList"></div>
         </div>
         <div class="hint" id="multiHint">开启后，一组等价轨道同时显示，每个一个颜色</div>
+        </div><!-- /#multiFeature（多轨道同屏：暂时隐藏，见上面的说明） -->
 <div id="renderGroup">
           <div class="divider"><span>三维渲染</span></div>
           <div class="seg center" id="renderSeg">

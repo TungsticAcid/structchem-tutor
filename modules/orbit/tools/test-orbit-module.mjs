@@ -17,7 +17,7 @@ import { createModule } from '../index.js'
 import { readFileSync } from 'node:fs'
 import { createOrbitFacade } from '../facade.js'
 import { DEMO_SCRIPTS, demoById, demoManifest } from '../demo/scripts.js'
-import { VOCAB, validate, listActions } from '../actions.js'
+import { VOCAB, validate, listActions, DISABLED_ACTIONS, DISABLED_DEMOS } from '../actions.js'
 import { assertModuleContract } from '../../../packages/module-contract/index.js'
 
 let pass = 0
@@ -158,6 +158,29 @@ console.log('【③ 工具定义与实现同源】')
   }
 }
 
+// ---------------------------------------------------------------- ⑦ 停用项不外泄
+console.log('【⑦ 停用的动作/演示不得泄回模型那一侧】')
+{
+  const m = createModule({})
+  /**
+   * ★ 用户要求「先隐藏多轨道同屏功能，对智能体也隐藏此功能」。
+   *   藏界面很容易，容易漏的是**模型那一侧**：`vocabulary` 与 `actionLabels` 是模型
+   *   看到动作清单的通路，`defs`/`handlers` 里的 listSceneActions 也读它。
+   *   只藏界面而模型还能下发，就会出现"界面里没有这个面板、画面却自己在变"的鬼状态。
+   */
+  const vKeys = Object.keys(m.vocabulary || {})
+  const lKeys = Object.keys(m.actionLabels || {})
+  for (const name of DISABLED_ACTIONS) {
+    ok(vKeys.indexOf(name) < 0, `停用的动作不在 vocabulary 里：${name}`)
+    ok(lKeys.indexOf(name) < 0, `停用的动作不在 actionLabels 里：${name}`)
+    // 实现与取值域**必须还在** —— 重新启用只需把它从 DISABLED_ACTIONS 删掉
+    ok(!!VOCAB[name], `停用动作的词汇表条目仍保留（便于一行恢复）：${name}`)
+  }
+  const bareKeys = Object.keys(VOCAB).filter((k) => DISABLED_ACTIONS.indexOf(k) < 0)
+  ok(vKeys.length === bareKeys.length,
+    `vocabulary 只少了停用项（${vKeys.length} / ${Object.keys(VOCAB).length}）`)
+}
+
 // ---------------------------------------------------------------- ④ 演示可执行
 console.log('【④ 演示脚本每一步都可执行】')
 {
@@ -167,10 +190,23 @@ console.log('【④ 演示脚本每一步都可执行】')
   //   "manifest 与脚本表一致"，不是"永远只有四段"。
   //   改写成"两处数出来必须相同"，加脚本时它仍然是绿的，而对不上时照样会红。
   const scriptIds = Object.keys(DEMO_SCRIPTS)
-  ok(man.length === scriptIds.length && man.length > 0,
-    `manifest 与脚本表一致（${man.length} 段）`, `脚本表里有 ${scriptIds.length} 段`)
-  ok(man.some((d) => d.id === 'sp3Tetrahedron'),
-    '杂化那段演示在清单里（它曾整块缺失：原有四段一段都没用到杂化）')
+  /**
+   * ★ 2026-10-06：这里原先断言 manifest 与脚本表**一样长**，而 sp3Tetrahedron 已随
+   *   「多轨道同屏」一起停用（见 actions.js 的 DISABLED_DEMOS）——
+   *   **模型看到的那份清单**是过滤后的，所以判据改成"清单 = 脚本表 − 停用项"。
+   *   ★ 注意要读 **facade 的那份**（过滤在门面这一层）：直接读 demoManifest() 拿到的是
+   *     数据层原表，它当然还是 5 段 —— 那正是这一条要守的东西没被守住的写法。
+   */
+  const manVisible = createOrbitFacade({}).demos.manifest()
+  const disabled = DISABLED_DEMOS
+  const expected = scriptIds.filter((id) => disabled.indexOf(id) < 0)
+  ok(manVisible.length === expected.length && manVisible.length > 0,
+    `模型可见的清单 = 脚本表 − 停用项（${manVisible.length} 段 / 脚本表 ${scriptIds.length} 段）`,
+    `期望 ${expected.length} 段，实际 ${manVisible.length}`)
+  ok(manVisible.every((d) => disabled.indexOf(d.id) < 0),
+    '停用的演示脚本不出现在清单里（多轨道同屏已隐藏）')
+  ok(scriptIds.indexOf('sp3Tetrahedron') >= 0 && disabled.indexOf('sp3Tetrahedron') >= 0,
+    '杂化那段脚本**还在文件里**（只是停用：重新启用只需把它从 DISABLED_DEMOS 删掉）')
   let totalSteps = 0
   const problems = []
   for (const id of Object.keys(DEMO_SCRIPTS)) {

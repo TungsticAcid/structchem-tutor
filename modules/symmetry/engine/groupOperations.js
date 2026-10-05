@@ -183,6 +183,7 @@ export function stabilizer(atoms, ops, index, elements = [], tol = 0.15) {
       const onSigmaH = Math.abs(d) < tol
       const infinite = hasInversion && onSigmaH
       const indexSet = new Set()
+      const families = ['E', '∞C∞', '∞σᵥ']
       for (let i = 0; i < elements.length; i++) {
         const el = elements[i]
         if (!el) continue
@@ -192,11 +193,24 @@ export function stabilizer(atoms, ops, index, elements = [], tol = 0.15) {
         // σh / i / S∞ / ∞C₂′ 只固定**中心原子**（落在 σh 面上的那个）：
         // 末端原子会被它们映到"另一个原子"上，不属于它的稳定化子。
         // （infinite 就是"有 i 且在 σh 面上"⇒ 中心原子）
-        if (infinite) indexSet.add(i)
+        if (infinite) {
+          indexSet.add(i)
+          if (ty === 'sigma_h') families.push('σh')
+          else if (ty === 'i') families.push('i')
+          else if (ty === 'S∞') families.push('S∞')
+          else if (ty === 'C2') families.push('∞C₂′')
+        }
       }
       return {
         indexSet,
         names: [infinite ? 'D∞h' : 'C∞v'],
+        /**
+         * ★ 稳定化子里到底有**哪些操作**（用户报：「C∞v 的原子的稳定化子里没有 σ」）。
+         *   无限群的群元无法逐个列举，但**族**可以列：∞C∞（任意角度旋转）与 ∞σᵥ
+         *   （任意含轴镜面）。只给一个群符号时，学生看不出 σᵥ 在不在里面 ——
+         *   而"它在里面"恰恰是这里的关键（轴外原子在别的点群里通常只剩 Cs）。
+         */
+        families,
         symbol: infinite ? 'D∞h' : 'C∞v',
         count: Infinity,
         infinite: true,

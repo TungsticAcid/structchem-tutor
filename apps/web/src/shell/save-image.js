@@ -167,6 +167,7 @@ export function installSaveButton(root) {
   menu.hidden = true
   menu.innerHTML = ''
     + '<label class="shell-save-row"><input type="checkbox" data-role="hide-text"> 隐藏文字内容</label>'
+    + '<label class="shell-save-row" title="勾上 = 图片没有底色（透明的，可直接贴到课件任意背景上）；取消 = 用当前页面的底色铺一层"><input type="checkbox" data-role="transparent" checked> 透明背景</label>'
     + '<div class="shell-save-acts">'
     + '<button type="button" class="shell-save-go" data-role="save">保存图片</button>'
     + '<button type="button" class="shell-save-as" data-role="saveas">另存为…</button>'
@@ -319,13 +320,20 @@ export function setTextHidden(hide) {
  * @returns {Promise<string>} dataURL（失败返回空串）
  */
 export async function captureWith(canvas, root, menu) {
-  const box = menu && menu.querySelector('[data-role="hide-text"]')
-  const hide = !!(box && box.checked)
+  const hideBox = menu && menu.querySelector('[data-role="hide-text"]')
+  const hide = !!(hideBox && hideBox.checked)
+  /**
+   * ★ 「透明背景」默认**开**（用户报「晶典在线导出的图片仍然有底色」）：
+   *   默认给的就是一张没有底色的图 —— 贴到课件、试卷、任意背景上都合用。
+   *   取消勾选才铺一层页面底色（少数场景需要"所见即所得"）。
+   */
+  const alphaBox = menu && menu.querySelector('[data-role="transparent"]')
+  const transparent = alphaBox ? !!alphaBox.checked : true
   setTextHidden(hide)
   try {
     let last = ''
     for (let attempt = 0; attempt < 3; attempt++) {
-      last = await captureOnce(canvas)
+      last = await captureOnce(canvas, transparent)
       if (last && !(await looksBlank(last))) return last
     }
     return last
@@ -335,14 +343,21 @@ export async function captureWith(canvas, root, menu) {
 }
 
 /** 排一层 rAF 后读（见 captureWith 的长注释） */
-function captureOnce(canvas) {
+function captureOnce(canvas, transparent) {
   return new Promise((resolve) => {
-    try { window.dispatchEvent(new CustomEvent('chem-agent:before-capture')) } catch (e) { /* 忽略 */ }
+    // detail 里带上打算：页面据此决定要不要把清屏 alpha 设成 0（晶典/点群）
+    try {
+      window.dispatchEvent(new CustomEvent('chem-agent:before-capture', { detail: { transparent: !!transparent } }))
+    } catch (e) { /* 忽略 */ }
     requestAnimationFrame(() => {
       let url = ''
-      try { url = flattenOnBackground(canvas) } catch (e) {
+      try {
+        url = transparent ? canvas.toDataURL('image/png') : flattenOnBackground(canvas)
+      } catch (e) {
         try { url = canvas.toDataURL('image/png') } catch (e2) { url = '' }
       }
+      // ★ 抓完立刻请页面**恢复**清屏 alpha（否则屏幕上那张图一直透明着，露出页面底色）
+      try { window.dispatchEvent(new CustomEvent('chem-agent:after-capture')) } catch (e) { /* 忽略 */ }
       resolve(url)
     })
   })
@@ -425,9 +440,11 @@ function looksBlank(url) {
           const ctx = c.getContext('2d', { willReadFrequently: true })
           ctx.drawImage(img, 0, 0, 32, 32)
           const d = ctx.getImageData(0, 0, 32, 32).data
-          const first = d[0] + ',' + d[1] + ',' + d[2]
+          // ★ 连 **alpha** 一起比：透明背景模式下"整幅全透明"才是空白，
+          //   只看 RGB 会把"透明底 + 白色分子"误判成单色。
+          const first = d[0] + ',' + d[1] + ',' + d[2] + ',' + d[3]
           for (let i = 4; i < d.length; i += 4) {
-            if (d[i] + ',' + d[i + 1] + ',' + d[i + 2] !== first) { resolve(false); return }
+            if (d[i] + ',' + d[i + 1] + ',' + d[i + 2] + ',' + d[i + 3] !== first) { resolve(false); return }
           }
           resolve(true)
         } catch (e) { resolve(false) }   // 判不了就当它不是空白，别把好图丢掉

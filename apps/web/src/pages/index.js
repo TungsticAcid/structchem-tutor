@@ -105,9 +105,15 @@ export class IndexPage {
       .page-nav__title { font-size: 18px; font-weight: 600; color: var(--text, #333); }
       .settings-entry {
         position: fixed; top: 12px; right: 16px; z-index: 200;
-        width: 36px; height: 36px; border-radius: 50%; background: var(--card, rgba(255,255,255,0.95));
+        /* ★★ 2026-10-06：深色下"浮动 UI 不清晰"（用户报）。
+           实测不是对比度问题，而是**按钮与页面底分不开**：深色主题里 --card 与 --bg
+           明度接近，而原来那条 0.12 的黑投影落在近黑底上等于没有。
+           改用 --elevation-1（深色侧 = 重外投影 + 内侧一条极淡亮线）并补一条描边。 */
+        width: 36px; height: 36px; border-radius: 50%;
+        background: var(--card-2, rgba(255,255,255,0.95));
+        border: 1px solid var(--line, rgba(0,0,0,0.06));
         display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.12); cursor: pointer;
+        box-shadow: var(--elevation-1, 0 2px 8px rgba(0,0,0,0.12)); cursor: pointer;
         margin-top: env(safe-area-inset-top);
       }
       .settings-icon { font-size: 20px; }

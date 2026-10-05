@@ -16,7 +16,7 @@
  *   返回 true 只会让模型下发一堆注定失败的动作，然后收到一串错误。
  *   等 P7 把 state 从 DOM 搬进模块之后，这里才能真正恒真。
  */
-import { VOCAB, validate as rawValidate, listActions, labels as actionLabels } from './actions.js'
+import { VOCAB, validate as rawValidate, listActions, labels as actionLabels, DISABLED_DEMOS } from './actions.js'
 // 预置演示脚本是**模块自己的内容**（零 token 的分镜脚本）。
 // 播放能力（队列、逐步闸门、回放、整改）在中枢——脚本属模块、播放属中枢。
 import { DEMO_SCRIPTS, demoById, demoManifest } from './demo/scripts.js'
@@ -223,10 +223,16 @@ export function createOrbitFacade(opts = {}) {
      *   里做，理由也写在那边。
      */
     demos: {
-      list: () => DEMO_SCRIPTS,
-      byId: (id) => demoById(id),
+      /**
+       * ★ 已停用的**演示脚本**也不给出去（`DISABLED_DEMOS`）。
+       *   sp3Tetrahedron 整段都在驱动「多轨道同屏」—— 那个功能已从界面与模型两侧撤下，
+       *   留着这个脚本就是"藏了面板、却给一条会把它打开的路径"。
+       *   仿照动作那侧的做法：只在这一层过滤，脚本本身原样保留，重新启用删一个名字即可。
+       */
+      list: () => DEMO_SCRIPTS.filter((d) => DISABLED_DEMOS.indexOf(d && d.id) < 0),
+      byId: (id) => (DISABLED_DEMOS.indexOf(id) >= 0 ? null : demoById(id)),
       /** 清单（给模型看的：只有 id/标题/知识点/步数，**不含每步动作**——渐进式披露） */
-      manifest: () => demoManifest(),
+      manifest: () => demoManifest().filter((d) => DISABLED_DEMOS.indexOf(d && d.id) < 0),
     },
     /**
      * 感知层的模块配置。
