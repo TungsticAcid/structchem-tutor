@@ -227,7 +227,11 @@ export function createConversation(opts = {}) {
         const asstMsg = { role: 'assistant', content: out.content || '' }
         // ★ 思考内容只**存档、不上行**（projection 会剥掉它）：存下来是为了刷新之后
         //   「思考」折叠区与"没有正文"的诊断说明能一字不差地重现——原先它随刷新丢失。
-        if (streamedReasoning) asstMsg.reasoning = streamedReasoning
+        // ★★ 2026-10-08：**空串也要存**（`reasoning: ''`）。区别很重要：
+        //   "没有这个字段" = 老数据/没记录过；"空串" = 这一轮**确实没有思考内容**。
+        //   界面据此如实说明"本轮没有思考内容"，而不是默默什么都不显示
+        //   （用户报"设置了显示思考中，实际却不显示"，根因正是这里没记录 + 重渲染丢块）。
+        asstMsg.reasoning = streamedReasoning || ''
         if (out.toolCalls.length) {
           asstMsg.tool_calls = out.toolCalls.map((t) => ({
             id: t.id, type: 'function',

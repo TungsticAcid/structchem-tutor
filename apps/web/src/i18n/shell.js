@@ -50,6 +50,16 @@ export const zh = {
      */
     + '★ 学生问"这样想对吗 / 我理解得对不对"时，**第一句必须是明确判定**（对 / 不对 / 部分对），'
     + '紧接着指出"对在哪、错在哪"；不要只摆数据让他自己下结论。'
+    /**
+     * ★★ 2026-10-08（用户问："3p_z 与水的对称性有关吗"，动作却只涉及水分子，这对吗？）：
+     *   一次只能有一个板块在台上（模块切换是路由级的），两板块的画面**不可能同屏**。
+     *   原先模型只演示了对称性一侧，正文也没说"3p_z 在轨道视界、要不要切过去看"——
+     *   学生看着水分子的动画读 3p_z 的哑铃，两边对不上。
+     */
+    + '★ 跨板块的问题（同时涉及两个板块，例如"3p_z 与水的对称性有关吗"）：'
+    + '两个板块的画面**不能同屏**，所以正文里必须说清**本次演示的是哪一侧**、'
+    + '另一侧的关键结论用文字给出，并**主动提出**可以切到另一个板块再演示一遍；'
+    + '不要只演示一侧就当作两件事都演示过了。'
     + '★ 演示步数按问题复杂度给：单纯的"是什么 / 有哪些"类问题 2–4 步就够，不要一律排满 8 步。',
   'shell.prompt.roleCrystal': '涉及配位数、空隙数、晶胞参数、密度等一切数值，必须用 queryCrystal 取得，不要口算。',
   'shell.prompt.roleOrbit': '节面数、径向峰位、能级、简并度等一切数值必须用 queryOrbital 取得，不要凭记忆或口算。',
@@ -67,8 +77,11 @@ export const zh = {
    *   不在 text 表里（text 表是"DOM 上的中文原文→英文"的扫描替换表，塞错了地方会静默失效）。
    *   ★ 明确要求"用工具取题与答案、不要口算"：本仓库的硬约定是数值一律程序算。
    */
-  'shell.practice.askLlm': '给我出一道关于「{kp}」的练习题。'
-    + '请用工具取题与答案（不要自己口算），只把题干与选项给我，先不要公布答案。',
+  'shell.practice.askLlm': '我要练「{kp}」这个知识点。'
+    + '请**调用 generateQuiz 工具**出一道题（不要自己写题干或选项、不要口算答案）——'
+    + '题目卡会自动出现，你只需用一句话说明这道题考什么。',
+  /** ★ 2026-10-08：模型没走工具时，宿主直接函数调用出题引擎兜底，并如实告诉学生 */
+  'shell.practice.toolFallback': '模型这一轮没有调用出题工具，已直接调用 generateQuiz 生成题目',
   /**
    * ★ 面板开场白：**统一身份**（用户报「三个板块的智能体没有综合成为一个总智能体」）。
    *   由宿主（main.js 的 greeting）统一给出，模块只接自己的示例问题。
@@ -105,6 +118,10 @@ export const en = {
     + 'the tools) and only then queue the demo. A demo is a means of deepening understanding, NOT a substitute '
     + 'for the answer — a demo without a conclusion leaves the student without an answer. '
     + '★ A follow-up question must never be harder than the question asked: if they ask "what is it", tell them first. '
+    + '★ A cross-module question (touching two modules, e.g. "is 3p_z related to the symmetry of water"): the two views '
+    + 'CANNOT be on screen at the same time, so say clearly which side you are demonstrating, give the other side\'s '
+    + 'key conclusion in words, and offer to switch to the other module and demonstrate it as well — never present one '
+    + 'side as if both had been shown. '
     + '★ When the student asks "is my reasoning right / did I get it right", the FIRST sentence must be an explicit '
     + 'verdict (right / wrong / partly right), immediately followed by what is right and what is wrong — never just '
     + 'lay out data and let them draw their own conclusion. '
@@ -121,9 +138,11 @@ export const en = {
   'shell.home.enter': 'Open {title}',
   'shell.home.locked': '{title}: not available in this app yet',
   'shell.lib.count': '{n} items',
-  'shell.practice.askLlm': 'Give me a practice question about “{kp}”. '
-    + 'Use the tools to build the question and the answer (do not compute it yourself); '
-    + 'show me only the question and the options, and do not reveal the answer yet.',
+  'shell.practice.askLlm': 'I want to practise “{kp}”. '
+    + 'Call the **generateQuiz tool** to produce one question (do not write the stem or the options yourself '
+    + 'and do not compute the answer) — the question card appears automatically; '
+    + 'just say in one sentence what this question tests.',
+  'shell.practice.toolFallback': 'The model did not call the quiz tool this turn, so generateQuiz was called directly',
   'shell.panel.greetHead': "I'm the structural chemistry teaching agent",
   'shell.panel.greetScope': 'I cover all three modules — Orbital Horizon · Point Group Explorer · '
     + 'Crystal Atlas. Ask about any of them and I switch to the right one.',

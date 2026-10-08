@@ -82,6 +82,12 @@ export const zh = {
   // ---- 动作气泡：一次多动作的摘要 / 回执 / 校验失败 ----
   '等 {n} 个动作': '等 {n} 个动作',
   '返回：{v}': '返回：{v}',
+  /**
+   * ★ 2026-10-08：题目类工具的返回**不打在界面上**（返回体里带冻结的答案，
+   *   用户报「练习…还直接暴露了答案」）。这里只说明"它做了什么"。
+   */
+  '（题目已生成，答案已冻结——在下面的题目卡里作答即可，这里不显示答案）':
+    '（题目已生成，答案已冻结——在下面的题目卡里作答即可，这里不显示答案）',
   '未执行：{reason}': '未执行：{reason}',
   '参数不合法': '参数不合法',
   '{n} 个动作未执行': '{n} 个动作未执行',
@@ -150,6 +156,8 @@ export const en = {
   // ---- 动作气泡 ----
   '等 {n} 个动作': '{n} actions',
   '返回：{v}': 'Result: {v}',
+  '（题目已生成，答案已冻结——在下面的题目卡里作答即可，这里不显示答案）':
+    '(the question is generated and the answer is frozen — answer on the question card below; it is not shown here)',
   '未执行：{reason}': 'Not executed: {reason}',
   '参数不合法': 'invalid parameters',
   '{n} 个动作未执行': '{n} actions were not executed',
@@ -232,6 +240,14 @@ export const text = {
   // ---- 助手消息 ----
   '思考中…': 'Thinking…',
   '已思考（点击展开）': 'Thought (click to expand)',
+  /**
+   * ★ 2026-10-08：设置了"显示思考过程"、而这一轮模型没返回思考内容时，
+   *   **如实说明**而不是默默把整块藏掉（用户报"选了显示却不显示"）。
+   */
+  '本轮没有思考内容': 'No reasoning content this turn',
+  '思考过程（点击收起）': 'Reasoning (click to collapse)',
+  '（该模型或这一轮没有返回思考内容——换一个会输出思考的模型，或再问一次，就可能有了）':
+    '(this model, or this turn, returned no reasoning content — another model or another try may produce some)',
   '模型实际输出的思考内容（点击展开）': "The model's actual reasoning output (click to expand)",
   '输出触发长度上限，正在接着写…': 'Output hit the length limit; continuing…',
   '输出仍被截断，已停止续写；可在「设置 → 输出上限」调大后重试':

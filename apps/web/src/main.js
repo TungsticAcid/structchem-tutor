@@ -952,6 +952,13 @@ panel = createPanel({
   storyboard: app.storyboard,
   // ★ 包装 send：拦截工具结果，把「出题」「判分」的结果渲染成卡片。
   send: (text, handlers) => app.send(text, wrapHandlers(handlers)),
+  /**
+   * ★ 哪些工具的**返回体不能打在界面上**（用户报：练习时"直接暴露了答案"）。
+   *   `generateQuiz` 的返回里带冻结的正确答案 —— 题目卡要用它判分，但绝不能贴出来。
+   *   判据是"这个返回里有没有标准答案"，不是"这个工具叫不叫 quiz"：判卷类工具
+   *   （gradeAnswer 一类）的返回本来就该看到，故不入此列。
+   */
+  isSensitiveTool: (name) => name === 'generateQuiz',
   onStop: () => app.stop(),
   hasKey: () => settings.hasKey(),
   // ★ 这条是**唯一**的"因缺 Key 自动弹设置"通路（面板发送时 / 收到 no_key 时都走它）。
@@ -1019,7 +1026,25 @@ function startPractice() {
        */
       if (settings.hasKey()) {
         panel.setInput(t('shell.practice.askLlm', { kp }))
-        panel.send()
+        /**
+         * ★★ 2026-10-08（用户报「练习时没有选项按钮，还直接暴露了答案；出练习应 Function Calling」）：
+         *
+         *   单靠提示词不够 —— 实测模型有时**不调 generateQuiz**，而是自己把题干与选项写成一段文字：
+         *   题目卡（A/B/C/D 按钮、作答与判分）根本不出现，答案还可能被顺手写进正文。
+         *   所以这里加一道**结构性兜底**：这一轮结束后若没有渲染出题卡，就由宿主
+         *   **直接函数调用** `generateQuiz` 并渲染卡片（`startPractice` 走的就是模块的 handler）。
+         *   ★ 不是"模型不行就退回本地题库"：`generateQuiz` 本身就是**同一套**出题引擎，
+         *     每次调用带自增种子（`(++seq)*7919`），所以题目仍然每次都不同。
+         */
+        const before = quizUI.renderedCards ? quizUI.renderedCards() : 0
+        Promise.resolve(panel.send()).then(() => {
+          try {
+            const after = quizUI.renderedCards ? quizUI.renderedCards() : 0
+            if (after > before) return
+            quizUI.startPractice(kp)
+            panel.addChip(t('shell.practice.toolFallback'), 'info')
+          } catch (e) { /* 兜底失败不该影响这一轮对话 */ }
+        })
       } else {
         quizUI.startPractice(kp)
       }
@@ -1284,6 +1309,11 @@ window.__chemAgent = {
    */
   ensureModuleReady: (id) => ensureModuleReady(id),
   lastSceneModule: () => lastSceneModuleId,
+  /**
+   * ★ 实机验证用：练习入口（先出知识点选择器，选中后走"模型出题 → 兜底直接调工具"那条路）。
+   *   这条路径**只能在真实浏览器里验**（要渲染题目卡、要看有没有泄答案）。
+   */
+  startPractice: () => startPractice(),
   /** 当前快照（门面读的实时状态） */
   snapshot: () => crystal.facade.getSnapshot(),
   /** 当前节点的工具白名单（验证"约束靠白名单"时的直接证据） */

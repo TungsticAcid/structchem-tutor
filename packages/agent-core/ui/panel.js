@@ -479,7 +479,16 @@ export function createPanel(cfg = {}) {
     think.appendChild(E('summary', { text: '思考中…' }))
     const thinkBody = E('div', { class: 'agent-think-body' })
     think.appendChild(thinkBody)
-    if (!getShowReasoning()) think.classList.add('hidden')
+    /**
+     * ★★ 2026-10-08：设置里选「显示思考中过程」时，思考块**默认展开**。
+     *
+     *   用户报「设置中选了显示思考中，但实际使用时并不显示」——原先只控制**是否渲染**这个
+     *   `<details>`，而它默认是**收起**的：屏幕上只有一个「▸ 思考中…」，思考内容一个字都看不到。
+     *   设置的名字是"显示…过程"，那就该真的看得见；不想看的人把它关掉即可（关 = 整块不渲染）。
+     */
+    const showReasoning = getShowReasoning()
+    if (!showReasoning) think.classList.add('hidden')
+    else think.open = true
     const body = E('div', { class: 'agent-text' })
     wrap.appendChild(think)
     wrap.appendChild(body)
@@ -542,12 +551,30 @@ export function createPanel(cfg = {}) {
           }
           body.innerHTML = '<div class="agent-warn">' + escapeHtml(why) + tail + '</div>'
         }
+        /**
+         * ★★ 2026-10-08 修（用户报「设置里选了显示思考中，实际却不显示」）：
+         *
+         *   原先这里**无条件**收起思考块，且"这一轮没有思考内容"时**整块藏掉**。
+         *   于是：模型（或某一轮）没返回 reasoning 时，用户选了"显示"也一个字都看不到 ——
+         *   界面上没有任何解释，看起来就是"设置没生效"。
+         *   现在分三种情况，且**都以设置为准**：
+         *     · 关 → 收起或藏掉（用户明确不想看）
+         *     · 开 + 有思考 → 保持展开（"显示过程"就该看得见过程）
+         *     · 开 + 没思考 → **如实说明**这一轮没有思考内容，而不是默默藏掉
+         */
         think.removeAttribute('open')
-        if (!hasThink) { think.classList.add('hidden') }
-        else {
-          sum.textContent = o.hasContent ? '已思考（点击展开）' : '模型实际输出的思考内容（点击展开）'
-          // 没正文时把思考展开，让用户至少还能看到模型干了什么
-          if (!o.hasContent) think.setAttribute('open', '')
+        if (!hasThink) {
+          if (showReasoning) {
+            think.classList.remove('hidden')
+            sum.textContent = T('本轮没有思考内容')
+            thinkBody.textContent = T('（该模型或这一轮没有返回思考内容——换一个会输出思考的模型，或再问一次，就可能有了）')
+          } else {
+            think.classList.add('hidden')
+          }
+        } else {
+          sum.textContent = o.hasContent ? T('已思考（点击展开）') : T('模型实际输出的思考内容（点击展开）')
+          // 没正文时把思考展开，让用户至少还能看到模型干了什么；设置了"显示过程"时也保持展开
+          if (!o.hasContent || showReasoning) think.setAttribute('open', '')
         }
       },
       setError(text) { body.innerHTML = '<span class="agent-err">' + escapeHtml(text) + '</span>' },
@@ -585,9 +612,20 @@ export function createPanel(cfg = {}) {
       ]))
     })
     if (result) {
+      /**
+       * ★★ 2026-10-08：**题目类工具的返回不能原样打出来**（用户报「练习…还直接暴露了答案」）。
+       *
+       *   `generateQuiz` 的返回里**带着冻结的正确答案**（题目卡上「看答案」按钮用的就是它）。
+       *   而这一行原先把整个 JSON 截 400 字贴在界面上 —— 题目还没做，答案已经摊在眼前。
+       *   判据：返回体里有"标准答案/判分依据"的工具，界面只报**它做了什么**，不报内容。
+       *   哪些算敏感由宿主注入（`cfg.isSensitiveTool`），面板不硬编码业务工具名。
+       */
+      const sensitive = typeof cfg.isSensitiveTool === 'function' && cfg.isSensitiveTool(name)
       body.appendChild(E('div', {
         class: 'agent-act-ret',
-        text: T('返回：{v}', { v: JSON.stringify(result).slice(0, 400) }),
+        text: sensitive
+          ? T('返回：{v}', { v: T('（题目已生成，答案已冻结——在下面的题目卡里作答即可，这里不显示答案）') })
+          : T('返回：{v}', { v: JSON.stringify(result).slice(0, 400) }),
       }))
     }
     d.appendChild(body)
@@ -935,6 +973,27 @@ export function createPanel(cfg = {}) {
    *
    * @param {Object} [tree] 省略则从 store 现取
    */
+  /**
+   * 造一个"思考"折叠块（重渲染路径与流式路径共用同一套外壳与文案）。
+   * @param {string} text 思考正文；空串 = 这一轮**确实没有**思考内容（见下）
+   */
+  function thinkBlock(text) {
+    const d = E('details', { class: 'agent-think' })
+    const body = E('div', { class: 'agent-think-body' })
+    if (text) {
+      d.setAttribute('open', '')       // 设置了"显示过程" ⇒ 默认展开（想看的人才点得开是不合预期的）
+      d.appendChild(E('summary', { text: T('思考过程（点击收起）') }))
+      body.textContent = text
+    } else {
+      // 空串是**有意义的**：conversation.js 现在连空思考也存（老数据则是没有这个字段）
+      d.setAttribute('open', '')
+      d.appendChild(E('summary', { text: T('本轮没有思考内容') }))
+      body.textContent = T('（该模型或这一轮没有返回思考内容——换一个会输出思考的模型，或再问一次，就可能有了）')
+    }
+    d.appendChild(body)
+    return d
+  }
+
   function renderPath(tree) {
     if (!store && !tree) return
     const t = tree || { path: store.path(), forks: store.forkPoints() }
@@ -967,7 +1026,31 @@ export function createPanel(cfg = {}) {
         if (n.origin === 'continuation' || n.origin === 'internal') continue
         attachActs(addUser(n.content, n.id), n.id, 'user', n.content)
       } else if (n.role === 'assistant') {
-        if (n.content) attachActs(addMsg(renderRich(n.content), 'assistant', n.id), n.id, 'assistant', n.content)
+        if (n.content) {
+          /**
+           * ★★ 注意 `attachActs` **没有返回值**（它只往气泡里挂按钮条）。
+           *   本轮实测：写成 `const el = attachActs(...)` 得到 undefined，
+           *   随后 `el.insertBefore` 抛 TypeError —— 异常被上层吞掉，界面看起来一切正常，
+           *   只有思考块永远不出现（"改了但没生效"的典型）。所以要**先拿元素、再挂按钮**。
+           */
+          const el = addMsg(renderRich(n.content), 'assistant', n.id)
+          attachActs(el, n.id, 'assistant', n.content)
+          /**
+           * ★★ 2026-10-08：**重渲染路径也要还原思考块**。
+           *
+           *   原先这条路径只渲染正文 —— 于是一轮结束后（会话落盘 → renderPath 重建列表）
+           *   思考块**当场消失**：流式时能看到、回答一完成就没了。用户报的
+           *   「设置了显示思考中，实际却不显示」就是这个（不是设置没生效，是块被重建掉了）。
+           *   · 有思考内容 + 设置为显示 → 展开的折叠块
+           *   · 没有思考内容（`reasoning === ''`，见 conversation.js 的说明）+ 设置为显示
+           *     → 只在**最后一条**助手消息上如实说明，免得整段历史每轮都挂一句废话
+           *   · 设置为不显示 → 一律不加
+           */
+          if (getShowReasoning() && el) {
+            if (n.reasoning) el.insertBefore(thinkBlock(n.reasoning), el.firstChild)
+            else if (n === path[path.length - 1]) el.insertBefore(thinkBlock(''), el.firstChild)
+          }
+        }
       } else if (n.role === 'tool') {
         const c = calls.get(n.tool_call_id)
         if (!c) continue

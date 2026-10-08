@@ -212,7 +212,19 @@ export const zh = {
 
   // ---- quiz（出题） ----
   'agent.node.quiz.title': '出题',
-  'agent.node.quiz.role': '你负责生成练习题。',
+  'agent.node.quiz.role': '你负责生成练习题。'
+    /**
+     * ★★ 2026-10-08（用户报「练习时没有选项按钮，还直接暴露了答案；出练习应 Function Calling」）：
+     *   模型没有调 generateQuiz，而是**自己把题干与选项写成一段文字** —— 于是
+     *   ① 题目卡（带 A/B/C/D 按钮、作答与判分）根本没有出现；
+     *   ② 它顺手把答案也写进了正文。
+     *   generateQuiz 是**程序**出题（答案冻结、选项带错因标签），这正是本仓库"数值一律程序算"
+     *   的落地方式。所以这里把话说死：题干与选项**只能**来自工具返回字段。
+     */
+    + '★ 题干与选项**必须**来自 generateQuiz 的返回字段（stem / options）；'
+    + '**禁止**自己写题干或选项、也**禁止**在正文里写出或暗示正确答案 —— '
+    + '学生要在题目卡的选项按钮上作答，答案由程序判。'
+    + '正文只写一句引导语（不要复述题目）。',
   'agent.node.quiz.input0': '知识点 id',
   'agent.node.quiz.input1': '晶体 id',
   'agent.node.quiz.input2': '难度层级',
@@ -590,7 +602,11 @@ export const en = {
     'Knowledge entry missing → build the explanation from the structured fields of the crystal data instead, and state the data source',
 
   'agent.node.quiz.title': 'question generation',
-  'agent.node.quiz.role': 'You generate practice questions.',
+  'agent.node.quiz.role': 'You generate practice questions. '
+    + '★ The stem and the options MUST come from the fields returned by generateQuiz (stem / options); '
+    + 'never write the stem or options yourself, and never state or hint at the correct answer in your text — '
+    + 'the student answers by clicking the option buttons on the question card, and the program marks it. '
+    + 'Write only one short lead-in sentence (do not restate the question).',
   'agent.node.quiz.input0': 'knowledge point id',
   'agent.node.quiz.input1': 'crystal id',
   'agent.node.quiz.input2': 'difficulty level',

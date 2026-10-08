@@ -47,6 +47,8 @@ export function createQuizUI(deps = {}) {
 
   /** 尚未作答的题：questionId → 模型视图（题干、选项、presetView） */
   const pending = new Map()
+  /** 已渲染的题目卡数量（练习入口用它判断"这一轮模型有没有真的出题"） */
+  let renderedCards = 0
   /** 已渲染过反馈卡、避免重复渲染 */
   const answered = new Set()
 
@@ -60,6 +62,13 @@ export function createQuizUI(deps = {}) {
     if (result.error) return
 
     if (name === 'generateQuiz' && result.id && Array.isArray(result.options)) {
+      /**
+       * ★ 计数：练习入口靠它判断"这一轮到底出没出题卡"。
+       *   模型有时不调 generateQuiz（实测：它自己把题干与选项写成一段文字），
+       *   于是卡片不出现、答案还可能被写进正文 —— 宿主需要在那一轮结束后**直接调工具兜底**
+       *   （用户要求"出练习应 Function Calling"）。
+       */
+      renderedCards += 1
       renderQuestion(result)
     } else if (name === 'checkAnswer' && result.answerText !== undefined) {
       renderFeedback(result)
@@ -448,6 +457,8 @@ export function createQuizUI(deps = {}) {
 
   return {
     handleToolResult, renderQuestion, renderFeedback, gotoStructure,
+  /** 已渲染的题目卡数量（练习入口的"兜底"判据：这一轮没出卡就直接调工具） */
+  renderedCards: () => renderedCards,
     // 练习模式
     startPractice, endPractice, nextPracticeQuestion,
     _pending: pending,

@@ -197,8 +197,13 @@ body.agent-resizing .compare-page {
 }
 .agent-msg.user {
   align-self: flex-end;
+  /* ★★ 2026-10-08：气泡底色是**写死的深蓝**（用户消息的固定视觉语言，不随主题翻），
+     但字色原先靠**继承容器** —— 深色主题下容器字色是浅色，看着正常；浅色主题下容器字色
+     是深色（--text #333），于是**深字压深蓝**，用户报「浅色模式下，发的内容看不清」。
+     判据：底色不随主题翻的元素，字色必须**自己钉死**（同 tokens.css 里 --chrome-* 那条）。 */
   background: linear-gradient(135deg, #2b3d6b, #34406b);
   border: 1px solid #46579a;
+  color: #eaf1ff;
   white-space: pre-wrap;
 }
 .agent-msg.assistant {
