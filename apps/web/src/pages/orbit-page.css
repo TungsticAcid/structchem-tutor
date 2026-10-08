@@ -397,6 +397,31 @@
 }
 .chart-overlay.show { display: flex; }
 body.agent-open .chart-overlay { justify-content: flex-start; }
+
+/* ------------------------------------------------------------------
+ * 打开智能体时**主布局向左让位**（用户报：整合体里的轨道板块不缩、
+ * 被抽屉压住，而独立版当年会自动调整）
+ *
+ * ★ 做法照抄**独立版** `projects/orbit/H5/css/agent.css` 的那两条：
+ *   给 `.topbar` 与 `.layout` 加 `padding-right = 抽屉宽 + 22px`。
+ *   为什么不用晶体那套 `width: calc(100vw - var(--agent-w))`：
+ *   轨道页是**文档流**页面（`.layout` 有 max-width 且居中），改 padding 既能让
+ *   内容列变窄、又能保留那 22px 的惯用页边距，与独立版观感一致。
+ * ★ 窄屏（≤900px）抽屉改从**底部**弹出，此时不该左右压缩（独立版同样不压）。
+ * ------------------------------------------------------------------ */
+.orbit-page .topbar,
+.orbit-page .layout {
+  transition: padding-right .24s cubic-bezier(.4, 0, .2, 1);
+}
+body.agent-open .orbit-page .topbar,
+body.agent-open .orbit-page .layout {
+  padding-right: calc(var(--agent-w, 440px) + 22px);
+}
+@media (max-width: 900px) {
+  body.agent-open .orbit-page .topbar,
+  body.agent-open .orbit-page .layout { padding-right: 22px; }
+}
+
 .chart-overlay-box.mini { height: auto; }
 .chart-overlay-box.mini .chart-overlay-canvas { display: none; }
 .chart-overlay-head { cursor: grab; touch-action: none; user-select: none; }

@@ -137,6 +137,23 @@ export class IndexPage {
       .crystal-list {
         flex: 1; overflow-y: auto; padding: 12px;
       }
+      /**
+       * 打开智能体时让出右侧一条（与轨道/点群保持一致）。
+       * ★ 这一页是 flex 纵列 + 内部滚动（.crystal-list），所以给**导航条与滚动区**
+       *   加 padding-right，而不是给整页设 width —— 后者会把固定顶栏的底色也切掉。
+       * ★ 窄屏（≤900px）抽屉从底部弹出，不左右压缩。
+       */
+      .page-nav, .category-bar, .crystal-list { transition: padding-right .24s cubic-bezier(.4, 0, .2, 1); }
+      body.agent-open .page-nav,
+      body.agent-open .category-bar,
+      body.agent-open .crystal-list {
+        padding-right: calc(var(--agent-w, 440px) + 16px);
+      }
+      @media (max-width: 900px) {
+        body.agent-open .page-nav,
+        body.agent-open .category-bar,
+        body.agent-open .crystal-list { padding-right: 16px; }
+      }
       .card-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

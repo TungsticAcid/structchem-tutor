@@ -284,6 +284,33 @@ export const SYMMETRY_CSS = `    .sym-page {
      * 浅色/深色的投影差异由 --elevation-1 令牌自己带（见 tokens.css），
      * 这里不再各写一套 —— 原先那份"浅色覆盖"已经没有存在的必要。
      */
+
+    /* ------------------------------------------------------------------
+     * 打开智能体时给抽屉让出右侧一条（用户报：整合体里的板块不缩，
+     * 顶栏与设置面板被压住）
+     *
+     * ★ 本页是"整屏舞台 + 绝对定位浮层"，而且 —— 关键 —— .sym-page
+     *   这个根节点**没有 position**，所以那些浮层锚的是**视口**：给根节点加 padding 推不动它们。
+     *   因此逐个改锚点：三维舞台、顶栏、设置面板让出抽屉宽，
+     *   居中提示与播放条的中点也跟着左移。
+     * ★ 不要为了"省事"给 .sym-page 加 position:relative —— 那个根节点没有确定高度，
+     *   一旦成为包含块，inset:0 的一串绝对定位子元素会当场塌成 0 高。
+     * ------------------------------------------------------------------ */
+    body.agent-open #viewer-container { right: var(--agent-w, 440px); }
+    body.agent-open #toolbar { right: calc(var(--agent-w, 440px) + 12px); }
+    body.agent-open #settings-panel { right: calc(var(--agent-w, 440px) + 12px); }
+    body.agent-open #hint,
+    body.agent-open #anim-progress-wrap {
+      left: calc((100vw - var(--agent-w, 440px)) / 2);
+    }
+    /* 窄屏：抽屉从底部弹出，不左右压缩 */
+    @media (max-width: 900px) {
+      body.agent-open #viewer-container { right: 0; }
+      body.agent-open #toolbar,
+      body.agent-open #settings-panel { right: 12px; }
+      body.agent-open #hint,
+      body.agent-open #anim-progress-wrap { left: 50%; }
+    }
   `
 
 /** 页面的结构（原 `index.html` 的 `<body>`，去掉 <script> 一行） */
