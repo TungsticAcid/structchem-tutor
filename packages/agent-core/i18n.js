@@ -84,8 +84,18 @@ export const zh = {
   'agent.sb.overflow': '超出单条演示的步数上限（{max}），未入队',
   'agent.sb.queued': '已入队 {queued} 步（共 {total} 步）。',
   'agent.sb.queuedManual':
-    '正在等用户点「下一步」逐步确认——请不要重复下发同样的动作，'
-    + '并在回复里告诉学生可以用「下一步 / 连续播放 / 停止」控制节奏。',
+    /**
+     * ★★ 2026-10-08 改：**先给答案**是铁律，"操作提示"只能垫在末尾。
+     *
+     *   十问实测（Q4/Q5/Q8/Q10）：原先这句写着「并在回复里告诉学生可以用
+     *   「下一步 / 连续播放 / 停止」控制节奏」——模型于是**每轮都用这句开场**，
+     *   把回答挤到后面；问"水是什么点群""比较 NaCl 和 CsCl"这种直接问题时，
+     *   整篇回复就只剩操作说明 + 反问，**一个答案都没有**（394 字，群里没有一个结论）。
+     *   改成"若需要可在末尾提一句"，并显式禁止用它开场。
+     */
+    '正在等用户点「下一步」逐步确认——请不要重复下发同样的动作。'
+    + '（若需要，可在回复**末尾**补一句可用「下一步 / 连续播放 / 停止」控制节奏；'
+    + '★ 不要用它开场，更不要用它占掉回答本身。）',
   'agent.sb.queuedAuto': '正在连续播放。',
   'agent.sb.execFailed': '执行失败',
   'agent.sb.noSteps': '这段演示没有可执行的步骤',
@@ -183,7 +193,17 @@ export const zh = {
     + '讲解必须落到画面上——只用文字描述结构，等于没讲。',
   'agent.node.explain.input0': '知识点 id',
   'agent.node.explain.input1': '学情画像（决定讲解深度）',
-  'agent.node.explain.output': '讲解文本 + 动作序列（每步含 speech 旁白），单次 4–8 个动作',
+  /**
+   * ★★ 2026-10-08：原来这条把步数写成"单次 4–8 个动作"，**下限也写死了** ——
+   *   于是"水是什么点群"这种一句话就能答完的问题也被排成 8 步（十问实测 8/10 问
+   *   都是 7–9 步）。模型是在**照规范执行**，不是它啰嗦，所以改规范。
+   *   ★ 这条经 constraints.js 的 `get output()` 原样进入节点说明，所以直接改这里即可
+   *     （曾想另加一个 outputNote 键——那个键没有任何消费者，等于没写）。
+   */
+  'agent.node.explain.output':
+    '讲解文本 + 动作序列（每步含 speech 旁白）。'
+    + '★ 步数按问题复杂度给：单纯的"是什么 / 有哪些"类问题 2–4 步足够；'
+    + '需要建立多个新概念、或要学生自己看见"矛盾"时再用 4–8 步，不要把简单问题排满。',
   'agent.node.explain.forbid0': '★ 一切数值必须来自 queryCrystal 或知识条目，禁止口算',
   'agent.node.explain.forbid1': '引用知识条目时不得改写其中的数值',
   'agent.node.explain.forbid2': '超纲内容须明确说明「不在本课程知识库范围内」',
@@ -223,12 +243,20 @@ export const zh = {
 
   // ---- demo（演示编排） ----
   'agent.node.demo.title': '演示编排',
-  'agent.node.demo.role': '你负责把一句教学意图编排成完整的分镜序列，让学生逐步看清。',
+  'agent.node.demo.role': '你负责把一句教学意图编排成完整的分镜序列，让学生逐步看清。'
+    /**
+     * ★★ 2026-10-08 十问实测补：本节点最容易犯的错是**把"排了演示"当成"回答了"**。
+     *   实测：「帮我比较一下 NaCl 和 CsCl」→ 只回了"演示已排好 6 步，看第 4–5 步"，
+     *   对照结论一个都没写；「水是什么点群」→ 394 字全是操作说明与反问。
+     *   学生看完演示仍然不知道答案。所以这里写明：正文先给要点，演示是**补充**。
+     */
+    + '★ 排演示**不等于**回答：编排序列之前，正文先用一两句话把学生问的那件事说清楚'
+    + '（结论、关键数值、对照点），再排分镜；不要用"看演示"替代答案。',
   'agent.node.demo.input0': '自然语言教学意图',
   'agent.node.demo.output': '分镜队列，每步含 action + params + speech（旁白必填）',
   'agent.node.demo.forbid0': '★ 每步必须写旁白——没写旁白的那一步，学生只会看到画面莫名跳了一下',
   'agent.node.demo.forbid1': '旁白不得写成"点击下一步继续"这类操作指令（按钮本身已经说明了）',
-  'agent.node.demo.forbid2': '单次 4–8 步；长流程分次下发，后续动作自动接在队尾',
+  'agent.node.demo.forbid2': '★ 单次 2–8 步：简单问题 2–4 步，长流程分次下发，后续动作自动接在队尾',
   'agent.node.demo.fallback': '意图无法编排为动作序列 → 降级为 explain 节点',
 
   // ---- teach（教学法执行） ----
@@ -460,7 +488,8 @@ export const en = {
   //   **续句**的首字符上（两句都拼在 storyboard 的同一条 note 里）。
   'agent.sb.queuedManual':
     ' Waiting for the user to confirm each step with "Next step" — do not send the same actions '
-    + 'again, and tell the student they can control the pace with "Next step / Continuous play / Stop".',
+    + 'again. (If useful, add one closing line mentioning "Next step / Continuous play / Stop"; '
+    + '★ never open with it, and never let it take the place of the answer itself.)',
   'agent.sb.queuedAuto': ' Continuous playback is running.',
   'agent.sb.execFailed': 'Execution failed',
   'agent.sb.noSteps': 'This demonstration has no executable steps',
@@ -551,7 +580,9 @@ export const en = {
     + 'in words alone is not teaching it.',
   'agent.node.explain.input0': 'knowledge point id',
   'agent.node.explain.input1': 'learning profile (decides the depth of the explanation)',
-  'agent.node.explain.output': 'explanatory text + an action sequence (each step with a speech narration), 4–8 actions per turn',
+  'agent.node.explain.output': 'explanatory text + an action sequence (each step with a speech narration). '
+    + '★ Size the sequence to the question: a plain what/which question needs 2–4 steps; use 4–8 only when '
+    + 'several new concepts must be built or the student must see a contradiction. Do not fill simple questions.',
   'agent.node.explain.forbid0': '★ Every number must come from queryCrystal or from a knowledge entry; never work it out in your head',
   'agent.node.explain.forbid1': 'When quoting a knowledge entry, do not alter the numbers in it',
   'agent.node.explain.forbid2': 'For content beyond the course, state explicitly that it is outside the knowledge base of this course',
@@ -589,12 +620,15 @@ export const en = {
   'agent.node.grade.fallback': 'Misconception cannot be classified → use generic diagnosis (show the relevant structure + ask an open question)',
 
   'agent.node.demo.title': 'demonstration authoring',
-  'agent.node.demo.role': 'You turn one teaching intention into a complete storyboard sequence so the student can see it step by step.',
+  'agent.node.demo.role': 'You turn one teaching intention into a complete storyboard sequence so the student can see it step by step. '
+    + '★ Queueing a demo is NOT the same as answering: before arranging the sequence, state in one or two sentences '
+    + 'what the student actually asked (the conclusion, the key numbers, the points of contrast); '
+    + 'never let "watch the demo" take the place of the answer.',
   'agent.node.demo.input0': 'the teaching intention in natural language',
   'agent.node.demo.output': 'a storyboard queue, each step with action + params + speech (narration is required)',
   'agent.node.demo.forbid0': '★ Every step must carry narration — without it the student just sees the picture jump for no reason',
   'agent.node.demo.forbid1': 'Narration must not be an instruction such as "click Next to continue" (the button already says that)',
-  'agent.node.demo.forbid2': '4–8 steps per turn; split long flows into several turns, later actions are appended to the queue automatically',
+  'agent.node.demo.forbid2': '★ 2–8 steps per turn: 2–4 for a simple question; split long flows into several turns, later actions are appended to the queue automatically',
   'agent.node.demo.fallback': 'The intention cannot be arranged into an action sequence → fall back to the explain node',
 
   'agent.node.teach.title': 'teaching-method execution',

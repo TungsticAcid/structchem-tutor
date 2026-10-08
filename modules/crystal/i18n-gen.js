@@ -98,6 +98,15 @@ export const text = {
   '最近邻同种原子间距': 'nearest distance between like atoms',
   '字段为数据原文；数值（原子数/体积/密度/最近邻）由程序计算。': 'The fields are the data verbatim; the numbers (atom count / volume / density / nearest neighbour) are computed in code.',
   '若需并排观察，可用 openCompareView 动作打开对比视图。': 'To view them side by side, open the comparison view with the openCompareView action.',
+  /**
+   * ★ 2026-10-08：对照表回执里新增的一句"把表写进正文"。
+   *   放在**回执**里而不是只放在节点说明里，是因为回执是模型写回复前看到的最后一段话
+   *   （实测节点说明改完仍然只回"演示已排好"）。
+   */
+  '★ 请把上面的 rows 与 differences 组织成一张对照表放进回复正文（左边字段、右边 A/B 两列，并点明哪几项不同），演示只作为补充；不要只回一句"演示已排好"。':
+    '★ Put the rows and differences above into a comparison table **in the reply body** '
+    + '(fields on the left, columns A and B on the right, and say which fields differ); '
+    + 'the demo is only a supplement — do not answer with just "the demo is ready".',
   'NaCl 为什么是 6 配位': 'Why NaCl is six-coordinate',
   '从球棍到八面体配位的完整演示（对应演示脚本场景 A）': 'A complete demonstration from ball-and-stick to octahedral coordination (demo scenario A)',
   '我们来看 NaCl 型。先把它调出来。': 'Let us look at the NaCl type. First, bring it up.',
