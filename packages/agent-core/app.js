@@ -189,10 +189,37 @@ export function createShellTools(ctx) {
   /** 取当前激活模块；没有则返回一个信息明确的错误结果 */
   function active() {
     const a = typeof ctx.getActive === 'function' ? ctx.getActive() : null
-    if (!a || !a.facade) return null
-    return a
+    if (a && a.facade) return a
+    /**
+     * ★★ 2026-10-08：当前没有活跃模块时（用户在门户页），回落到宿主记的
+     *   **最近一个场景模块**。
+     *
+     *   为什么需要：用户在轨道页组好一组动作、思考期间点了「回门户」，
+     *   此刻 activeId 已是 null —— 只按"此刻的模块"办，模型拿到的是
+     *   "没有活跃模块"，那一轮的动作全部作废（用户报的就是这个）。
+     *   而"他刚刚在哪个板块"宿主一直知道（离开该模块时记下来）。
+     *   ★ 只读工具与动作都走这一条：模型说"当前在轨道视界"时，看到的就该是
+     *     轨道的快照，而不是"什么都没打开"。
+     */
+    const fb = typeof ctx.getSceneModule === 'function' ? ctx.getSceneModule() : null
+    return fb && fb.facade ? fb : null
   }
   const noModule = { error: t('agent.tool.noModule') }
+
+  /**
+   * 「这个动作/快照该属于哪个模块」：当前模块优先，其次宿主记的最近一个场景模块。
+   * ★ 由 createAgentApp 注入（它才知道 activeId 与宿主回落值）；缺省时退回 getActive。
+   */
+  function sceneModuleId() {
+    try {
+      if (typeof ctx.sceneModuleId === 'function') {
+        const id = ctx.sceneModuleId()
+        if (id) return id
+      }
+    } catch (e) { /* 宿主回调异常：按"没有"处理，不要因此炸掉整轮 */ }
+    const a = typeof ctx.getActive === 'function' ? ctx.getActive() : null
+    return (a && a.id) || null
+  }
 
   const handlers = {
     getSnapshot() {
@@ -219,7 +246,14 @@ export function createShellTools(ctx) {
       // 校验由模块自己负责（它才知道参数取值范围），队列由分镜引擎负责。
       // 工具层**只做转发**——否则回退/快照/闸门都要再实现一遍。
       const actions = (p && p.actions) || []
-      const r = await ctx.storyboard.applySequence(actions)
+      /**
+       * ★★ 整批绑定到**下发时所在的模块**（用户报：思考中切回门户 ⇒ 动作请求失败）。
+       *   以前步骤不带模块，播放时只能拿"此刻的模块"去套 —— 用户一切板块就套错，
+       *   或者因为模块页面卸载而回一句"不在页面上"，整轮以失败收场。
+       *   ★ 用 sceneModuleId() 而不是 activeId：用户在门户页时 activeId 为 null，
+       *     但动作仍然属于他刚离开的那个模块（宿主记着"最近一个场景模块"）。
+       */
+      const r = await ctx.storyboard.applySequence(actions, { module: sceneModuleId() })
       return {
         queued: r.queued || 0,
         accepted: r.accepted || 0,
@@ -266,12 +300,16 @@ export function createShellTools(ctx) {
       //   不查的话模型会以为演示已开始，而画面上什么都没动。
       //   判据用契约的 canApplyActions()，**不是**猜快照里的某个字段——
       //   后者正是"中枢退化成晶体中枢"的根源（见契约里该方法的 why）。
+      // ★ 演示脚本属于**当前活跃的模块**：模块页面没挂时先请宿主把它叫回来
+      //   （与 applyStep 同一条通路），否则会直接回一句"没有三维视图"。
       if (typeof a.facade.canApplyActions === 'function' && !a.facade.canApplyActions()) {
-        return { error: t('agent.tool.playDemo.noView') }
+        if (typeof ctx.ensureModuleReady !== 'function' || !(await ctx.ensureModuleReady(sceneModuleId()))) {
+          return { error: t('agent.tool.playDemo.noView') }
+        }
       }
       // origin='script'：让演示记录能区分"预置脚本回放"与"智能体现场编排"
       const r = await ctx.storyboard.applySequence(
-        script.steps.map((s) => Object.assign({}, s)), { origin: 'script' },
+        script.steps.map((s) => Object.assign({}, s)), { origin: 'script', module: sceneModuleId() },
       )
       return {
         ok: true,
@@ -495,14 +533,37 @@ export function createAgentApp(opts = {}) {
   // ---------------------------------------------------------------------------
   const storyboard = createStoryboard({
     vocabulary: {},                       // 由 setActiveModule 换成当前模块的词汇表
-    validate: (name, params) => {
-      const m = modules.get(activeId)
+    /**
+     * ★★ 2026-10-08：校验按**步骤自己的模块**来（第三个参数）。
+     *
+     *   以前只按"此刻的 activeId"校验，于是"在轨道页组好的动作、切到晶体页再回放"
+     *   会拿晶体的词汇表去套轨道的动作 → 报"不支持的动作"，甚至同名动作**悄悄落到
+     *   另一个模块**上。现在步骤自带 module（见 storyboard.js 的 toStep/applySequence）。
+     */
+    validate: (name, params, moduleId) => {
+      const m = modules.get(moduleId || sceneModuleId())
       if (!m || !m.validate) return { err: t('agent.storyboard.unsupportedAction', { name }) }
       return m.validate(name, params)
     },
-    applyStep: async (name, params) => {
-      const m = modules.get(activeId)
+    /**
+     * 执行一步。
+     *
+     * ★★ 这里修的是用户报的「在思考中时返回主界面，会导致动作请求失败」：
+     *   动作属于模块 X，而用户已经切走（甚至回到门户），X 的页面卸载后
+     *   `facade.canApplyActions()` 为假，`applyActions` 只会回一句"不在页面上"。
+     *   现在先请宿主 `ensureModuleReady(id)` **把那个模块的页面叫回来**（切路由 + 等运行时挂上），
+     *   再执行 —— 学生看到的才是"智能体说要改的那个画面"。
+     *   宿主没提供这个能力时保持原样（如实失败，不假装成功）。
+     */
+    applyStep: async (name, params, step) => {
+      const targetId = (step && step.module) || sceneModuleId()
+      let m = modules.get(targetId)
       if (!m) return { ok: false, error: t('agent.storyboard.noModule') }
+      const notReady = () => !!(m.facade && typeof m.facade.canApplyActions === 'function' && !m.facade.canApplyActions())
+      if (notReady() && typeof opts.ensureModuleReady === 'function') {
+        try { await opts.ensureModuleReady(targetId) } catch (e) { /* 宿主失败：按原样继续，下面会如实报错 */ }
+        m = modules.get(targetId) || m
+      }
       const r = m.facade.applyActions([{ action: name, params }])
       return r.ok ? { ok: true } : { ok: false, error: (r.failed[0] || {}).error || t('agent.sb.execFailed') }
     },
@@ -534,6 +595,28 @@ export function createAgentApp(opts = {}) {
     },
     getDefaultPlayback: () => (settings.get().playback === 'auto' ? 'auto' : 'manual'),
   })
+
+  /**
+   * 「这个动作/快照该属于哪个模块」：
+   *   当前模块优先；没有时用宿主记的**最近一个场景模块**（用户切回门户也还能继续改画面）。
+   * ★ 函数声明（会提升）：上面的 active() 在定义处就引用它，而 `modules`/`activeId`
+   *   要到下面才初始化 —— 只要**调用**发生在装配之后就没问题（都是运行时调用）。
+   */
+  function sceneModuleId() {
+    if (activeId) return activeId
+    try {
+      if (typeof ctx.sceneModuleFallback === 'function') {
+        const id = ctx.sceneModuleFallback()
+        return (id && modules.has(id)) ? id : null
+      }
+    } catch (e) { /* 宿主没提供或抛错：当作没有 */ }
+    return null
+  }
+
+  function sceneModule() {
+    const id = sceneModuleId()
+    return id ? (modules.get(id) || null) : null
+  }
 
   // ---------------------------------------------------------------------------
   // 感知：轮询当前模块的快照做差分（零侵入：模块不必改自己的事件处理）
@@ -613,12 +696,22 @@ export function createAgentApp(opts = {}) {
     const m = modules.get(activeId)
     return createShellTools({
       getActive: () => modules.get(activeId),
+      /**
+       * ★ 2026-10-08：**没有活跃模块时**该把动作/快照算到哪个模块头上。
+       *   `sceneModuleId()` 会用宿主记的"最近一个场景模块"（用户切回门户后仍然有效）。
+       *   getActive 仍然只报"此刻真正活跃的模块"——两者的区别要保留：
+       *   提示词/工具集该按前者，而"继续改画面"该按后者。
+       */
+      sceneModuleId: () => sceneModuleId(),
+      getSceneModule: () => sceneModule(),
       // 导航要**所有模块**的路由（跨模块跳转本来就是跨模块的事），
       // 而 applySceneActions 只作用于当前模块——两者的边界不能混。
       getModules: () => [...modules.values()],
       storyboard, knowledge, skills,
       demos: (m && m.facade && m.facade.demos) || null,
       onIntent: handleIntent,
+      // ★ 播放动作前"把目标模块的页面叫回来"的能力由宿主提供（见 ensureModuleReady 的注释）
+      ensureModuleReady: typeof opts.ensureModuleReady === 'function' ? opts.ensureModuleReady : null,
     })
   }
   let shell = makeShell()
@@ -696,10 +789,24 @@ export function createAgentApp(opts = {}) {
   function setActiveModule(id) {
     if (id != null && !modules.has(id)) throw new Error(`未注册的模块：${id}`)
     if (activeId === id) return activeId
-    storyboard.stop()                       // 换模块时中止在播的演示，避免跨模块串台
+    /**
+     * ★★ 2026-10-08：**只在"真的换到另一个模块"时中止在播演示**。
+     *
+     *   原先无条件 `stop()`，而它在下面这条路上是错的：
+     *     用户在轨道页组好动作 → 思考期间点「回门户」（activeId=null）
+     *     → 动作播放时宿主把轨道页**叫回来** → 路由挂载会再调 setActiveModule('orbit')
+     *     → 这里的 stop() 把**正要播的那条队列清空**（generation 也推进），
+     *       结果只剩第一步能执行，其余全没了，而界面上看不出原因。
+     *   `id == null`（回门户）同样不清：队列属于轨道，用户回来时接着播才对。
+     *   真的是"轨道→晶体"这种换板块时，该停 —— 那正是这句注释原本的意图。
+     */
+    const queueModule = typeof storyboard.currentModule === 'function' ? storyboard.currentModule() : null
+    if (id != null && id !== queueModule) storyboard.stop()
     activeId = id
     const m = modules.get(id)
-    storyboard.setVocabulary ? storyboard.setVocabulary((m && m.vocabulary) || {}) : null
+    // ★ 把模块归属一并传下去：setVocabulary 内部也只在"真换了板块"时停队列
+    //   （否则"把页面叫回来"这一步会清空正要播的队列，见那边的说明）。
+    storyboard.setVocabulary ? storyboard.setVocabulary((m && m.vocabulary) || {}, id) : null
     // ★ 感知层**随模块重建**（配置是模块自己的，见 makePerception 的说明）。
     //   先停旧的再建新的——否则旧实例的轮询定时器会继续跑，
     //   把上一个模块的状态写进一个已经没人读的对象里。

@@ -34,6 +34,29 @@
 **每个知识库的"该写什么"都写在作业现场**：`packages/knowledge/<模块>/README.md`
 （crystal 的 C1–C8、symmetry 的 P1–P5 骨架与素材来源表都在那里，条目已写完）。
 
+### 已完成（2026-10-08 第八轮：动作/演示的**模块归属** —— 思考中切板块不再失败）
+
+`npm test` 全绿（14 套件）· `check-i18n` 0 未覆盖 · `check-i18n-live` 四路由残留中文 0 / 控制台 error 0。
+
+用户报 ①「在思考中时返回主界面，会导致动作请求失败」，并预感 ②「收藏的演示 / 会话里的历史演示，
+切换板块后行为如何」。**两条是同一个根因**：动作与演示**没有记录"属于哪个模块"**。
+
+| # | 症状 | 真因与改法 |
+|---|---|---|
+| ① | 思考中返回主界面 ⇒ 动作请求失败 | 动作是在轨道页组好的；用户回门户后 `setActiveModule(null)`、页面卸载 ⇒ `facade.canApplyActions()` 为假，`applyActions` 只回一句「不在页面上」；而 `applyStep` 用的是**此刻的** `activeId`（已是 null）⇒ `noModule`。改：<br>· **每批/每步都带 `module`**（`applySequence({module})`、`toStep` 从 `s.module` 取、记录也记 `rec.module`）<br>· 中枢播放前先请宿主 `ensureModuleReady(id)` —— **把那个模块的页面叫回来**（切路由 + 轮询等运行时挂上，上限 8 秒），再执行<br>· 宿主记 **`lastSceneModuleId`**（模块变活跃时记，回门户**不清**）：门户页上 `activeId` 为 null 时，动作与快照回落到它 ⇒ 模型在门户页仍能"接着改刚才那个画面"<br>实测：回门户后下发 2 步 ⇒ `hash` 自动回到 `#/orbit`、`canApply=true`、快照 `m=1`、队列 **1/2 且 waiting**，点「下一步」走到 2/2 |
+| ② | 收藏/历史演示切板块后的行为 | **原先会串台**：收藏只存 `action/params/speech`，回放时拿"此刻的模块"去套 ⇒ 要么报「不支持的动作」，要么**同名动作悄悄落到另一个板块**。改：<br>· `demo-favorites` 的**条目与每一步**都存 `module`（store 的 schema 变了）<br>· 面板回放前先 `cfg.ensureSceneModule(module)` 切回该板块（`loadDemo` 与 `replay` 两条路都做）<br>· 收藏列表每行显示它属于哪个板块（标题由宿主注入 `cfg.moduleTitle`）<br>实测：在晶体板块回放轨道收藏 ⇒ `hash=#/orbit`、`canOrbit=true`、`loadOk=true`，点下一步 `m` 落到轨道模块 |
+
+**这一轮踩到并修掉的两个"静默"坑（都不报错）**
+
+1. **`listDeclaredModules()` 给的是描述符，没有 `facade`** —— 第一版 `ensureModuleReady` 用它取模块，
+   于是"就绪"判据 `!(undefined && …)` **恒真** ⇒ 直接返回 `ok:true`、一次都不导航，
+   表现与没修一模一样。**判据：要用"活模块"就从 `createXxxModule` 那张表取（`MODULES_BY_ID`）；
+   描述符只够回答"有哪些模块"。**
+2. **"把页面叫回来"这一步会把正要播的队列清掉** —— `setActiveModule(同一模块)` 与
+   `setVocabulary()` 都是**无条件** `stop()`，而导航回该模块恰好会再触发它们：
+   表现是"只执行了第一步、其余消失"，界面上看不出原因。改：两处都按 `currentModule()` 判断 ——
+   **只有真的换到另一个模块才停**；回门户（`id == null`）也不清（用户回来接着播）。
+
 ### 已完成（2026-10-06 第七轮：多轨道同屏停用 · 导出透明 · 深色浮起 · C∞v 稳定化子列操作族）
 
 `npm test` 全绿（14 套件）· `check-i18n` 0 未覆盖 · `check-i18n-live` 四路由残留中文 0 / 控制台 error 0。

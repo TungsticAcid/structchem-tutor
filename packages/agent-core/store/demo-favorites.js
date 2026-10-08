@@ -97,8 +97,19 @@ export function createDemoFavorites(opts = {}) {
       origin: (meta && meta.origin) || 'agent',
       kp: (meta && meta.kp) || null,
       crystalId: (meta && meta.crystalId) || null,
+      /**
+       * ★★ 2026-10-08：**必须存模块归属**（用户预感的那个"潜在问题"正出在这里）。
+       *
+       *   收藏是跨会话、跨板块的清单。以前只存 action/params/speech，于是
+       *   "在轨道板块收藏 → 切到晶体板块点播放"会把轨道的动作拿去套晶体的词汇表：
+       *   要么报"不支持的动作"，要么**同名动作悄悄落到另一个板块**。
+       *   现在记录里带 `module`，回放前宿主会先把该板块的页面叫回来（见 panel.js）。
+       *   ★ 步骤级也存一份：整条记录与单个步骤的归属要一致，缺哪一个都会退化成猜。
+       */
+      module: (meta && meta.module) || null,
       steps: steps.map((s) => ({
         action: s.action, params: s.params, speech: s.speech,
+        module: (s && s.module) || (meta && meta.module) || null,
       })),
     }
     list.unshift(entry)

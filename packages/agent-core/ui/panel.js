@@ -636,7 +636,21 @@ export function createPanel(cfg = {}) {
     if (!demoId) return
     const foot = E('div', { class: 'agent-act-foot' })
     const rb = E('button', { class: 'agent-act-btn', text: '↻ 重播这个演示', type: 'button' })
-    rb.onclick = () => { const SB = cfg.storyboard; if (SB && SB.replay) SB.replay(demoId) }
+    rb.onclick = async () => {
+      const SB = cfg.storyboard
+      if (!SB || !SB.replay) return
+      /**
+       * ★ 与收藏同一条规矩：重播前先把**这条记录所属的板块**叫回来。
+       *   历史记录是跨板块的（在轨道页放过的演示，切到晶体页仍列在会话历史里），
+       *   不先切回去，动作会被拿去套此刻模块的词汇表。
+       */
+      const rec = SB.getDemo ? SB.getDemo(demoId) : null
+      const mod = (rec && rec.module) || null
+      if (mod && typeof cfg.ensureSceneModule === 'function') {
+        try { await cfg.ensureSceneModule(mod) } catch (e) { /* 宿主失败：继续按原样播 */ }
+      }
+      SB.replay(demoId)
+    }
     foot.appendChild(rb)
     // ★ 「收藏」是**人的判断**——哪条演示值得反复看，程序猜不出来（见 store/demo-favorites.js）。
     //   存的是**步骤清单**而不是画面截图，所以以后回放仍然是对的（截图会过时）。
@@ -649,9 +663,18 @@ export function createPanel(cfg = {}) {
         const SB = cfg.storyboard
         const rec = SB && SB.getDemo ? SB.getDemo(demoId) : null
         if (!rec || !rec.steps || !rec.steps.length) { fb.textContent = '演示已失效'; return }
+        /**
+         * ★★ 2026-10-08：收藏**必须连模块归属一起存**。
+         *
+         *   只存 action/params/speech 的后果（用户预感到的那个"潜在问题"）：
+         *   在轨道板块收藏的演示，切到晶体板块再点播放 —— 步骤被拿去套**晶体**的
+         *   词汇表，于是要么报"不支持的动作"，要么同名动作**静默落到另一个板块**。
+         *   现在每步带 `module`（记录里也有），播放前宿主会把该板块的页面叫回来。
+         */
         const r = favorites.save('', rec.steps.map((s) => ({
           action: s.name || s.action, params: s.params, speech: s.speech,
-        })), { origin: rec.origin })
+          module: s.module || rec.module || null,
+        })), { origin: rec.origin, module: rec.module || null })
         fb.textContent = r.ok ? '★ 已收藏' : '（收藏失败）'
         fb.disabled = true
       }
@@ -1110,16 +1133,42 @@ export function createPanel(cfg = {}) {
     }
     for (const f of list) {
       const row = E('div', { class: 'agent-conv-row' })
+      /**
+       * ★ 行里显示**它属于哪个板块**：收藏是跨会话、跨板块的清单，
+       *   不标出来学生点了才发现"播不出来/播到别处"（用户问的正是这个行为）。
+       *   标题由宿主注入（`cfg.moduleTitle(id)`）——面板不认识模块注册表。
+       * ★ 归属存在**条目顶层** `f.module`（store 的 schema）；`f.meta.module` 与
+       *   `f.steps[0].module` 是兼容旧数据的兜底（旧条目没有这个字段）。
+       */
+      const favMod = f.module || (f.meta && f.meta.module) || (f.steps[0] && f.steps[0].module) || null
+      const favModTitle = (favMod && typeof cfg.moduleTitle === 'function') ? (cfg.moduleTitle(favMod) || '') : ''
       const left = E('div', { class: 'agent-conv-left' }, [
         E('div', { class: 'agent-conv-t', text: '★ ' + f.label }),
-        E('div', { class: 'agent-conv-meta', text: T('{n} 步 · {at}', { n: f.steps.length, at: fmtTime(f.at) }) }),
+        E('div', {
+          class: 'agent-conv-meta',
+          text: T('{n} 步 · {at}', { n: f.steps.length, at: fmtTime(f.at) })
+            + (favModTitle ? ' · ' + favModTitle : ''),
+        }),
       ])
-      left.onclick = () => {
+      left.onclick = async () => {
         const SB = cfg.storyboard
         if (!SB || typeof SB.loadDemo !== 'function') return
         stopRunning()
         leaveConvPage()                 // 收起会话页，让学生看见画面
-        const r = SB.loadDemo(f.steps, { origin: 'favorite', reason: 'favorite' })
+        /**
+         * ★★ 2026-10-08：**回放前先把这条收藏所属的板块叫回来**。
+         *
+         *   收藏是跨会话、跨板块的清单：在轨道板块收藏的演示，切到晶体板块再点播放，
+         *   原先会把轨道的动作拿去套晶体的词汇表 —— 要么报"不支持的动作"，
+         *   要么同名动作**悄悄落到另一个板块**（用户问的正是这个行为）。
+         *   现在先切回它自己的板块，再装载；画面与旁白同屏，才不会"听着讲解、看着别处"。
+         *   ★ 宿主没提供该能力时按原样播放（不假装成功）。
+         */
+        const mod = f.module || (f.meta && f.meta.module) || (f.steps[0] && f.steps[0].module) || null
+        if (mod && typeof cfg.ensureSceneModule === 'function') {
+          try { await cfg.ensureSceneModule(mod) } catch (e) { /* 宿主失败：继续按原样播 */ }
+        }
+        const r = SB.loadDemo(f.steps, { origin: 'favorite', reason: 'favorite', module: mod })
         if (!r || !r.ok) addChip(T('无法播放这条收藏：{error}', { error: (r && r.error) || '' }), 'warn')
       }
       row.appendChild(left)

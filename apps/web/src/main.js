@@ -634,6 +634,50 @@ onThemeChange((_theme, resolved) => applyThemeVisualColors(resolved))
  */
 const MODULE_HOME_ROUTE = { crystal: '#/crystal', orbit: '#/orbit', symmetry: '#/symmetry' }
 
+/**
+ * ★★ 2026-10-08：**最近一个场景模块**（"用户刚刚在哪个板块"）。
+ *
+ * 为什么要有它：用户在轨道页让智能体改轨道、思考期间点了「回门户」，
+ * 此时中枢的 activeId 已经是 null（首页刻意不带模块归属）——只按"此刻的模块"办，
+ * 那一轮的动作会以"没有活跃模块"收场（用户报的「思考中返回主界面会导致动作请求失败」）。
+ * 而"他刚在哪儿"宿主一直知道：模块**变成活跃**时记一笔，回门户时**不清**。
+ */
+let lastSceneModuleId = null
+
+/**
+ * 把某个模块的页面**叫回来**（切路由 + 等它的运行时挂上），返回是否就绪。
+ *
+ * ★ 动作属于模块 X 而 X 的页面已卸载时，`facade.canApplyActions()` 为假，
+ *   `applyActions` 只会回一句"不在页面上"。中枢因此在这一步前先调用本函数：
+ *   学生看到的画面才会与智能体正在讲的东西对上。
+ */
+async function ensureModuleReady(id) {
+  /**
+   * ★★ 这里必须用 **MODULES_BY_ID**（main.js 里 createXxxModule 造出来的**活模块**），
+   *   而不是 `listDeclaredModules()` —— 后者给的是**描述符**（id/title/工具清单），
+   *   它**没有 facade**。用描述符会让"就绪"判据恒真（`!(undefined && …)` === true），
+   *   于是直接返回"已就绪"、一次都不导航 —— 表现与没修一模一样，
+   *   而且不报错（本轮实测就是这么撞上的：ok:true、hash 还是 #/）。
+   */
+  const mod = MODULES_BY_ID[id]
+  if (!mod) return false
+  const ready = () => !(mod.facade && typeof mod.facade.canApplyActions === 'function') || !!mod.facade.canApplyActions()
+  if (ready()) return true
+  const route = MODULE_HOME_ROUTE[id]
+  if (route) {
+    const path = route.replace(/^#/, '')
+    if (router.currentPath !== path) location.hash = route
+  }
+  // 路由是异步挂载的：hash 变化 → router 回调 → 模块页面 mount → attach 运行时。
+  // 轮询到就绪为止（上限 8 秒：实机首张等值面要十几秒，但**运行时挂载**很快）。
+  const t0 = Date.now()
+  while (Date.now() - t0 < 8000) {
+    await new Promise((r) => { setTimeout(r, 120) })
+    if (ready()) return true
+  }
+  return false
+}
+
 const app = createAgentApp({
   modules: [crystal, symmetry, orbit],
   settings,
@@ -687,6 +731,9 @@ const app = createAgentApp({
   // （panel 在本行之后才创建，故用闭包延迟取，与 getPanel 那几处同一手法。）
   onActiveChange: (id) => {
     if (!id) return
+    // ★ 记下"最近一个场景模块"：回门户后中枢仍要能把动作落回这个板块（见文件上方
+    //   lastSceneModuleId 的说明）。模块**变成活跃**时记，回门户时不清。
+    lastSceneModuleId = id
     try {
       const mod = listDeclaredModules().find((m) => m.id === id)
       // ★ 原文里带变量 ⇒ **必须走键**：扫描替换做不到（"已切到「晶体」模块"与
@@ -700,6 +747,17 @@ const app = createAgentApp({
     const route = MODULE_HOME_ROUTE[id]
     if (route && router.currentPath === '/') location.hash = route
   },
+  /**
+   * ★★ 中枢在**播放动作/演示之前**用它把目标模块的页面叫回来
+   *   （见上方 ensureModuleReady 的说明）。没有这条通路时，
+   *   "用户在模块外"就只能以"不在页面上"失败收场。
+   */
+  ensureModuleReady: (id) => ensureModuleReady(id),
+  /**
+   * ★ 中枢在"当前没有活跃模块"时用它回落到最近一个场景模块
+   *   （门户页上继续改画面：`sceneModuleId()` 拿不到 activeId 就用它）。
+   */
+  sceneModuleFallback: () => lastSceneModuleId,
 })
 
 // ---------------------------------------------------------------------------
@@ -790,6 +848,19 @@ panel = createPanel({
   store: convStore,
   // 演示收藏夹：动作气泡上的「☆ 收藏」与会话页里的收藏列表
   demoFavorites,
+  /**
+   * ★ 收藏列表要标出"这条属于哪个板块"（面板不认识模块注册表，标题由宿主注入）。
+   *   不标的话，学生在晶体板块点开一条轨道板块的收藏，得先"播不出来"才知道跑错了地方。
+   */
+  moduleTitle: (id) => {
+    const m = listDeclaredModules().find((x) => x.id === id)
+    return (m && tsrc(m.title)) || (m && m.title) || (id || '')
+  },
+  /**
+   * ★ 面板在**回放收藏/历史演示之前**用它把该演示所属的板块叫回来
+   *   （收藏与历史都是跨板块的清单，见 panel.js 里那两处的说明）。
+   */
+  ensureSceneModule: (id) => ensureModuleReady(id),
   /**
    * 悬浮球图标（apps/web/public/agent-icon.png）。
    * ★ 路径用 BASE_URL 拼，而不是写 `./agent-icon.png`：后者**相对当前页面 URL**
@@ -1207,6 +1278,12 @@ window.__chemAgent = {
   quiz, quizUI, mastery, proactive,
   store: convStore,
   favorites: demoFavorites,
+  /**
+   * ★ 实机验证用：把"把模块页面叫回来"与"最近一个场景模块"暴露出来。
+   *   它们的行为**只能**在真实浏览器里验（要跨路由挂载），Node 侧测不了。
+   */
+  ensureModuleReady: (id) => ensureModuleReady(id),
+  lastSceneModule: () => lastSceneModuleId,
   /** 当前快照（门面读的实时状态） */
   snapshot: () => crystal.facade.getSnapshot(),
   /** 当前节点的工具白名单（验证"约束靠白名单"时的直接证据） */

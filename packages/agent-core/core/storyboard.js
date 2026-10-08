@@ -381,10 +381,21 @@ export function createStoryboard(opts = {}) {
     const okSteps = []
     const failed = []
     const perAction = []
+    /**
+     * ★★ 2026-10-08：整批动作**绑定到"下发时所在的模块"**。
+     *
+     *   用户报「在思考中时返回主界面，会导致动作请求失败」：动作是在轨道模块下组好的，
+     *   但用户切回门户后模块页面卸载，播放时 `applyActions` 只会回一句
+     *   「不在页面上」——于是整轮以失败收场。
+     *   根因是步骤里**没有模块归属**，播放时只能拿"此刻的模块"去套，切了板块就套错。
+     *   现在每步都带 `module`，播放前据此把目标模块就位（见 app.js 的 applyStep）。
+     */
+    const batchModule = o.module || null
     for (let i = 0; i < raw.length; i++) {
       const a = raw[i]
       const name = a && a.action
-      const v = validate(name, (a && a.params) || {})
+      const stepModule = batchModule || (a && a.module) || null
+      const v = validate(name, (a && a.params) || {}, stepModule)
       if (v.err) {
         failed.push({ action: name, error: v.err, i })
         perAction.push({ i, action: name, ok: false, error: v.err })
@@ -398,6 +409,7 @@ export function createStoryboard(opts = {}) {
         speech: a && a.speech,
         holdMs: clampNum(a && a.holdMs, cfg.minDwellMs, cfg.maxDwellMs),
         animated: !!(vocabulary[name] && vocabulary[name].animated),
+        module: stepModule,
       })
     }
     /**
@@ -546,6 +558,11 @@ export function createStoryboard(opts = {}) {
       curDemoId = id
     }
     for (const s of steps) rec.steps.push(Object.assign({}, s))
+  // ★ 记录级的模块归属（见 loadDemo 那段说明）：本批第一步属于哪个模块就记哪个。
+  if (!rec.module) {
+    const withMod = steps.find((s) => s && s.module)
+    if (withMod) rec.module = withMod.module
+  }
     if (!rec.label) {
       if (label) rec.label = String(label).slice(0, 28)
       else {
@@ -624,7 +641,7 @@ export function createStoryboard(opts = {}) {
       //   快进段**同样要存**——否则整改后从快进点往回退会退到错的状态。
       if (typeof capture === 'function') snapshots[qIndex] = capture()
 
-      const r = await applyStep(st.name, st.params, { isDead: dead })
+      const r = await applyStep(st.name, st.params, Object.assign({}, st, { isDead: dead }))
       if (dead()) return { executed, failed, aborted: true }
       const one = r && r.ok ? { action: st.name } : { action: st.name, error: (r && r.error) || t('agent.sb.execFailed') }
       ;(r && r.ok ? executed : failed).push(one)
@@ -660,12 +677,16 @@ export function createStoryboard(opts = {}) {
     //   表现为"点重播什么也没发生"，且不报错（这一条被 test-agent-core 的
     //   "stop() 之后仍能回放"断言抓住过）。
     const name = s && (s.action || s.name)
-    const v = validate(name, (s && s.params) || {})
+    // ★ 模块归属跟着步骤走：收藏/历史回放时才把该模块的页面叫起来（以前只有 name/params，
+    //   切了板块再回放，动作就被拿去套**另一个模块**的词汇表 —— 报"不支持的动作"）。
+    const mod = (s && s.module) || null
+    const v = validate(name, (s && s.params) || {}, mod)
     if (v.err) return { err: v.err }
     return {
       id: ++stepSeq,
       name,
       params: v.params,
+      module: mod,
       speech: s && s.speech,
       // ★ `!= null` 不能省：`clampNum(null)` 会返回**下限**（Number(null)===0 是有限数），
       //   于是"没指定停留时长"会被静默改成 350ms；只有 undefined 才走 null 分支。
@@ -703,6 +724,11 @@ export function createStoryboard(opts = {}) {
     const rec = demos.get(demoId) || { id: demoId, origin: o.origin || 'agent', label: '', live: true, mode: 'manual', ts: 0, steps: [] }
     rec.origin = o.origin || rec.origin || 'agent'
     rec.live = true
+    /**
+     * ★ 记录级的模块归属：`重播这个演示` / 收藏 都靠它知道该把哪个模块的页面叫起来。
+     *   优先取显式传入的，其次取第一步自带的（从收藏/历史重建时就是这条路径）。
+     */
+    rec.module = o.module || rec.module || (valid[0] && valid[0].module) || null
     rec.steps = valid.map((s) => Object.assign({}, s))
     rec.ts = Date.now()
     demos.set(demoId, rec)
@@ -738,7 +764,10 @@ export function createStoryboard(opts = {}) {
     if (!rec || !rec.steps || !rec.steps.length) {
       return { ok: false, error: t('agent.sb.noReplay') }
     }
-    const r = loadDemo(rec.steps, { demoId: rec.id, origin: rec.origin, reason: 'replay' })
+    // ★ 把记录的**模块归属**一并传下去：切了板块再点「重播这个演示」时，
+    //   宿主据此把该板块的页面叫回来，而不是把动作套到此刻的模块上
+    //   （用户预感的那个"潜在问题"就是这个）。
+    const r = loadDemo(rec.steps, { demoId: rec.id, origin: rec.origin, reason: 'replay', module: rec.module || null })
     return r.ok ? Object.assign(r, { title: rec.label || '' }) : r
   }
 
@@ -846,7 +875,7 @@ export function createStoryboard(opts = {}) {
     } else {
       return { ok: false, error: t('agent.sb.unknownOp', { op }) }
     }
-    const r = loadDemo(steps, { demoId: rec.id, origin: rec.origin, reason: 'revise', fastForwardTo: target })
+    const r = loadDemo(steps, { demoId: rec.id, origin: rec.origin, reason: 'revise', fastForwardTo: target, module: rec.module || null })
     if (!r.ok) return r
     return {
       ok: true, op, demoId: rec.id, index: i, mode: 'reload',
@@ -906,12 +935,28 @@ export function createStoryboard(opts = {}) {
     return demos.get(String(id)) || null
   }
 
+  /**
+   * 当前队列/记录**属于哪个模块**（没有队列时为 null）。
+   *
+   * ★ 2026-10-08：切模块时用它判断"要不要中止在播的演示"。
+   *   只在**真的换到另一个模块**时中止：把页面叫回来（宿主为播放动作而导航）
+   *   会再次触发 setActiveModule(同一模块)，若无条件 stop() 会把正要播的队列清空，
+   *   表现为"只播了第一步，其余没了"，且界面上没有任何提示。
+   */
+  function currentModule() {
+    if (queue.length && queue[0] && queue[0].module) return queue[0].module
+    const rec = curDemoId ? demos.get(curDemoId) : null
+    return (rec && rec.module) || null
+  }
+
   /** 列出全部演示记录（最近的在前） */
   function listRecords() {
     return [...demos.values()]
       .sort((a, b) => b.ts - a.ts)
       .map((r) => ({
         id: r.id, title: r.label || '', label: r.label || '', origin: r.origin,
+        // ★ 带上模块归属：模型/面板据此知道这条演示属于哪个板块（跨板块回放要切回去）
+        module: r.module || null,
         live: !!r.live, mode: r.mode, steps: r.steps.length, ts: r.ts,
       }))
   }
@@ -920,9 +965,21 @@ export function createStoryboard(opts = {}) {
    * 更换动作词汇表（切模块时调用）。
    * ★ 顺带 stop()：正在播的分镜属于上一个模块，跨模块继续播没有意义，
    *   而且词汇表一换，queue 里那些动作名的 animated/concept 就查不到了。
+   *
+   * ★★ 2026-10-08：**但"同一个模块再设一次"不能停**。
+   *   宿主为了播放动作会把模块页面叫回来（ensureModuleReady），路由挂载会再调
+   *   setActiveModule(同一模块) → 再调本函数。无条件 stop() 会把**正要播的那条队列**
+   *   清空（generation 也推进），表现是"只执行了第一步、其余消失"，且界面上看不出原因。
+   *   判据与 setActiveModule 那边共用 `currentModule()`：真的换板块才停。
+   *
+   * @param {Object} v          新词汇表
+   * @param {string} [moduleId] 这份词汇表属于哪个模块（缺省时保持旧行为：无条件停）
    */
-  function setVocabulary(v) {
-    stop()
+  function setVocabulary(v, moduleId) {
+    const from = currentModule()
+    const target = moduleId || null
+    // 缺少模块归属信息时按旧行为停（宁可保守），只有"明确是同一个模块"才留队列
+    if (!(target && from && target === from)) stop()
     vocabulary = v || {}
     return vocabulary
   }
@@ -960,6 +1017,8 @@ export function createStoryboard(opts = {}) {
   return {
     onProgress, emitProgress, setVocabulary,
     applySequence, stop, next, prev, autoPlay, replay, state,
+    // ★ 当前队列/记录属于哪个模块（切模块时判断"要不要中止"，见 currentModule 的说明）
+    currentModule,
     // 演示的"可寻址"三件套：整改 / 从历史重建 / 节奏切换
     setManual, reviseDemo, syncDemosFromHistory,
     // 队列可寻址：面板与修订用
