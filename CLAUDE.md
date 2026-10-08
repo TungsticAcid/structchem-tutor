@@ -34,6 +34,40 @@
 **每个知识库的"该写什么"都写在作业现场**：`packages/knowledge/<模块>/README.md`
 （crystal 的 C1–C8、symmetry 的 P1–P5 骨架与素材来源表都在那里，条目已写完）。
 
+### 已完成（2026-10-08 第十一轮：保存图片在**慢机器**上报 NotAllowedError）
+
+用户贴出报错截图：
+`保存失败：Failed to execute 'createWritable' on 'FileSystemFileHandle': The request is not allowed by the user agent or the platform in the current context.`
+并说"我的设备能保存，别人反映不行"。
+
+**真因：Chromium 的"瞬时用户激活"（transient activation，约 5 秒）被我们自己的异步抓图耗掉了。**
+File System Access 里"要权限"的那几个调用（`showSaveFilePicker` / `showDirectoryPicker` /
+`requestPermission` / 未授权句柄上的 `createWritable`）**必须在激活期内**发起。
+而原先的顺序是 **先抓图 → 再叫选择器/写文件**，抓图是异步的：等一帧渲染 → `toDataURL()` 编码
+→ 解码做**非空白自检** → 空白还会**重试到 3 次**。于是：
+· 快机器（<5 秒，用户自己那台）→ 正常；
+· 慢机器 / 大画布 / 走了一次重试 → 激活早过期 → `createWritable` 抛 `NotAllowedError`（就是截图那句）。
+
+**改法（顺序反过来）**
+1. `保存图片`：**先** `getDirHandle` / 首次 `showDirectoryPicker` / `requestPermission` / `createWritable`
+   —— 全在用户手势里完成；**再**抓图；最后 `write` + `close`。
+2. `另存为…`：**先** `showSaveFilePicker` + `createWritable`（注意选择器本身会**消耗**激活，
+   所以后面的 `createWritable` 也必须紧跟其后），**再**抓图，最后写。
+3. 写入失败**不再甩英文异常**：`describeSaveError()` 把 `NotAllowedError` / `SecurityError` /
+   `QuotaExceededError` 翻成**能照着做的中文**，并且**一律降级为下载**（用户仍然拿得到图）；
+   取消选择（`AbortError`）仍然静默。
+4. 删掉旧的 `writeToDir`（它把"要权限"和"写"绑在一起，正是这个顺序问题的来源）。
+
+**实测（真实浏览器 + 插桩，零额度）**
+· 正常路径顺序：`picker → requestPermission → createWritable → toDataURL(抓图) → write → close` ✓
+· 伪造 `createWritable` 抛 `NotAllowedError`：提示＝「浏览器没有允许写入该位置（授权可能已过期，
+  或这个浏览器不支持该功能）——可点「设置保存位置…」重新授权 已改为放到浏览器下载目录」，
+  **不含英文异常**，且**确实触发了下载兜底** ✓
+
+**给用户的排查顺序（写在回复里，不写进代码）**：① 点一次「设置保存位置…」重新授权；
+② 换**系统浏览器**（Chrome/Edge）打开——微信/钉钉等内置浏览器的 WebView 常禁用该 API；
+③ 确认不是**明文 HTTP + 内网 IP**（File System Access 限定安全上下文，正式部署应走 HTTPS）。
+
 ### 已完成（2026-10-08 第十轮：用户贴图四条 —— 浅色气泡字色 / 思考块被重渲染吃掉 / 跨板块演示 / 练习出题）
 
 | # | 反馈 | 真因与改法 |

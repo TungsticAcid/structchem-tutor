@@ -127,14 +127,42 @@ async function ensureWritable(h) {
   } catch (e) { return false }
 }
 
-/** 写进记住的目录；成功返回 true */
-async function writeToDir(h, name, blob) {
-  if (!h || !(await ensureWritable(h))) return false
-  const fh = await h.getFileHandle(name, { create: true })
-  const w = await fh.createWritable()
-  await w.write(blob)
-  await w.close()
-  return true
+/**
+ * 把"写权限"提前到**用户手势还活着**的时候拿。
+ *
+ * ★★ 2026-10-08 修（用户报：有的机器保存图片报
+ *   「Failed to execute 'createWritable' on 'FileSystemFileHandle':
+ *    The request is not allowed by the user agent or the platform in the current context.」）：
+ *
+ *   这是 Chromium 的 `NotAllowedError` —— 它的判据是**瞬时用户激活**（transient activation，
+ *   约 5 秒），而 File System Access 的"要权限"动作（showSaveFilePicker / showDirectoryPicker /
+ *   requestPermission / 未授权句柄上的 createWritable）**必须在激活期内调用**。
+ *   原先的顺序是：**先抓图（异步：等一帧渲染 + 编码 PNG + 解码自检，慢机器上可能好几秒，
+ *   空白还会重试到 3 次）→ 再叫选择器/写文件**。于是：
+ *     · 快机器（<5 秒）→ 一切正常（用户自己那台就是这种）；
+ *     · 慢机器 / 大画布 / 走了一次重试 → 激活早已过期，`createWritable` 直接抛这个错。
+ *   现在把顺序倒过来：**先拿句柄与可写流（还在手势里）→ 再抓图 → 最后写**。
+ *
+ * @returns {Promise<FileSystemWritableFileStream|null>} 拿不到就返回 null（调用方走兜底）
+ */
+async function openWritableFor(handle, name) {
+  if (!handle) return null
+  try {
+    if (!(await ensureWritable(handle))) return null
+    const fh = await handle.getFileHandle(name, { create: true })
+    return await fh.createWritable()
+  } catch (e) {
+    return null
+  }
+}
+
+/** 把这次失败**如实**告诉用户，并给出可操作的下一步（不再甩英文异常原文） */
+function describeSaveError(err) {
+  const name = (err && err.name) || ''
+  if (name === 'NotAllowedError') return t('shell.save.notAllowed')
+  if (name === 'SecurityError') return t('shell.save.notAllowed')
+  if (name === 'QuotaExceededError') return t('shell.save.noSpace')
+  return t('shell.save.failed', { msg: (err && (err.message || err.name)) || '' })
 }
 
 // ---------------------------------------------------------------------------
@@ -188,23 +216,45 @@ export function installSaveButton(root) {
   const tip = (msg) => { menu.querySelector('[data-role="tip"]').textContent = msg || '' }
 
   menu.querySelector('[data-role="save"]').addEventListener('click', async () => {
-    const url = await captureWith(canvas, root, menu)
-    if (!url) { tip(t('shell.save.failedCapture')); return }
-    const name = fileName()
+    /**
+     * ★★ 顺序很重要（见 openWritableFor 的长注释）：**先拿可写流，再抓图**。
+     *   抓图是异步且可能好几秒的，而"要权限/开可写流"必须在瞬时用户激活期内完成。
+     */
     let dir = await getDirHandle()
     if (!dir && typeof window.showDirectoryPicker === 'function') {
       // ★ 第一次：先让用户**挑一个文件夹**（用户要求的"首次需要设置下载路径"）
       try { dir = await pickDir() } catch (e) { dir = null }   // 取消不算错
     }
-    if (dir) {
+    const name = fileName()
+    // 打开可写流（此刻还在手势里；句柄无效/被拒 → null，走兜底）
+    let writable = dir ? await openWritableFor(dir, name) : null
+
+    const url = await captureWith(canvas, root, menu)
+    if (!url) {
+      try { if (writable) await writable.abort() } catch (e) { /* 忽略 */ }
+      tip(t('shell.save.failedCapture'))
+      return
+    }
+
+    if (writable) {
       try {
         const blob = await (await fetch(url)).blob()
-        if (await writeToDir(dir, name, blob)) {
-          tip(t('shell.save.savedTo', { dir: dir.name || '' }))
-          return
-        }
-      } catch (e) { /* 落到下载兜底 */ }
-      tip(t('shell.save.dirDenied'))
+        await writable.write(blob)
+        await writable.close()
+        tip(t('shell.save.savedTo', { dir: (dir && dir.name) || '' }))
+        return
+      } catch (e) {
+        try { await writable.abort() } catch (e2) { /* 忽略 */ }
+        // ★ 写失败要**说清楚原因**，再如实降级为下载（不能只丢一句"权限不足"）
+        download(url, name)
+        tip(describeSaveError(e) + ' ' + t('shell.save.fellBackToDownload'))
+        return
+      }
+    }
+    if (dir) {
+      // 有目录却拿不到可写流：多半是浏览器把上次的授权降级了（或平台不允许）
+      download(url, name)
+      tip(t('shell.save.notAllowed') + ' ' + t('shell.save.fellBackToDownload'))
       return
     }
     // 走到这里 = 浏览器不支持该 API，或用户取消了选择
@@ -213,25 +263,51 @@ export function installSaveButton(root) {
   })
 
   menu.querySelector('[data-role="saveas"]').addEventListener('click', async () => {
-    const url = await captureWith(canvas, root, menu)
-    if (!url) { tip(t('shell.save.failedCapture')); return }
+    /**
+     * ★★ 同理：**先叫选择器并开可写流**（都在手势里），**再抓图**。
+     *   原先是"抓图 → showSaveFilePicker → fetch(dataURL) → createWritable"：
+     *   选择器本身会**消耗**用户激活，后面那次 `createWritable` 就可能在激活耗尽时抛
+     *   `NotAllowedError`——正是用户截图里那句话。
+     */
     if (typeof window.showSaveFilePicker !== 'function') {
-      download(url, fileName())
+      const url0 = await captureWith(canvas, root, menu)
+      if (!url0) { tip(t('shell.save.failedCapture')); return }
+      download(url0, fileName())
       tip(t('shell.save.noDirApi'))
       return
     }
+    let handle = null
+    let writable = null
     try {
-      const handle = await window.showSaveFilePicker({
+      handle = await window.showSaveFilePicker({
         suggestedName: fileName(),
         types: [{ description: 'PNG 图片', accept: { 'image/png': ['.png'] } }],
       })
+      writable = await handle.createWritable()
+    } catch (err) {
+      if (err && err.name === 'AbortError') return          // 用户取消：什么都不做
+      // 选择器/可写流失败 → 仍然把图给出去，并说明原因
+      const url0 = await captureWith(canvas, root, menu)
+      if (!url0) { tip(t('shell.save.failedCapture')); return }
+      download(url0, fileName())
+      tip(describeSaveError(err) + ' ' + t('shell.save.fellBackToDownload'))
+      return
+    }
+    const url = await captureWith(canvas, root, menu)
+    if (!url) {
+      try { await writable.abort() } catch (e) { /* 忽略 */ }
+      tip(t('shell.save.failedCapture'))
+      return
+    }
+    try {
       const blob = await (await fetch(url)).blob()
-      const w = await handle.createWritable()
-      await w.write(blob)
-      await w.close()
+      await writable.write(blob)
+      await writable.close()
       tip(t('shell.save.saved'))
     } catch (err) {
-      if (err && err.name !== 'AbortError') tip(t('shell.save.failed', { msg: err.message || err.name }))
+      try { await writable.abort() } catch (e) { /* 忽略 */ }
+      download(url, fileName())
+      tip(describeSaveError(err) + ' ' + t('shell.save.fellBackToDownload'))
     }
   })
 
@@ -241,7 +317,7 @@ export function installSaveButton(root) {
       const h = await pickDir()
       tip(t('shell.save.dirSet', { dir: (h && h.name) || '' }))
     } catch (err) {
-      if (err && err.name !== 'AbortError') tip(t('shell.save.failed', { msg: err.message || err.name }))
+      if (err && err.name !== 'AbortError') tip(describeSaveError(err))
     }
   })
 

@@ -98,6 +98,15 @@ export const zh = {
   'shell.save.failedCapture': '抓图失败：画布还没画好，稍等一下再试',
   'shell.save.savedTo': '已保存到「{dir}」',
   'shell.save.dirDenied': '没有写入该文件夹的权限，已改为放到下载目录',
+  /**
+   * ★★ 2026-10-08：Chromium 的 NotAllowedError（"The request is not allowed by the user agent
+   *   or the platform in the current context"）原先**原样甩给用户**（英文异常），
+   *   而它其实有明确的可操作含义：授权过期 / 平台限制 / 内置浏览器不支持。
+   *   现在换成能照着做的中文说明 + 下载兜底。
+   */
+  'shell.save.notAllowed': '浏览器没有允许写入该位置（授权可能已过期，或这个浏览器不支持该功能）——可点「设置保存位置…」重新授权',
+  'shell.save.noSpace': '磁盘空间不足，没能写入',
+  'shell.save.fellBackToDownload': '已改为放到浏览器下载目录',
   'shell.save.downloaded': '已放到浏览器下载目录（可在菜单里设置保存位置）',
   'shell.save.saved': '已保存',
   'shell.save.dirSet': '保存位置已设为「{dir}」',
@@ -151,6 +160,9 @@ export const en = {
   'shell.save.failedCapture': 'Capture failed: the canvas is not ready yet — try again in a moment',
   'shell.save.savedTo': 'Saved to “{dir}”',
   'shell.save.dirDenied': 'No write permission for that folder — saved to the download folder instead',
+  'shell.save.notAllowed': 'The browser did not allow writing to that location (the permission may have expired, or this browser does not support it) — use "Set save location…" to grant it again',
+  'shell.save.noSpace': 'Not enough disk space to write the file',
+  'shell.save.fellBackToDownload': 'saved to the browser download folder instead',
   'shell.save.downloaded': 'Saved to the browser download folder (you can set a location in this menu)',
   'shell.save.saved': 'Saved',
   'shell.save.dirSet': 'Save location set to “{dir}”',
