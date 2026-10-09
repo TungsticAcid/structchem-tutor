@@ -34,6 +34,38 @@
 **每个知识库的"该写什么"都写在作业现场**：`packages/knowledge/<模块>/README.md`
 （crystal 的 C1–C8、symmetry 的 P1–P5 骨架与素材来源表都在那里，条目已写完）。
 
+### 已完成（2026-10-10 第十三轮：**隐藏"切换 Slater 型"功能**）
+
+用户要求「隐藏切换 slater 功能」。按本仓库既有规矩（`DISABLED_ACTIONS` 那一套）：
+**隐藏必须三处同时成立**，漏一处就是"藏了一半"。
+
+| # | 落点 | 改法 |
+|---|---|---|
+| ① | 界面 | `orbit-markup.js` 把「轨道模型」（氢型 / Slater 型 + ζ 输入）整段裹进 `<div id="orbModelFeature" hidden>` —— 与上面「多轨道同屏」同一套做法：**用 hidden 包裹而不是删代码**，Slater 的实现（`core/math.js` 的 `slaterR`/`slaterZeta`、动作 `setOrbitalModel`、取值域校验）全部保留，重新启用只需去掉一个属性 |
+| ② | 模型侧 | `DISABLED_ACTIONS` 加 `setOrbitalModel` ⇒ 导出的 `vocabulary` / `actionLabels` 里没有它（实测 **29→28 / 28→27**，`listSceneActions` 里不再出现）。守卫 ⑦ 是表驱动的，自动覆盖 |
+| ③ | **状态兜底** | 老会话 / 老快照里可能留着 `orbitalModel: 'slater'`，而界面藏了以后**再也切不回来** ⇒ 学生会一直看到 STO 形状却找不到开关。改：在 `readFromControls`（**唯一同步点**）与 `restoreState` 两处都强制回 `'hydrogenic'`，并把**控件也一起折回**（否则 DOM 与 state 不一致 —— 正是本仓库反复踩的那一类） |
+
+**"一个事实只写一处"**：页面用的判据是模块导出的 `ORBITAL_MODEL_HIDDEN`
+（由 `DISABLED_ACTIONS` **推出来**），不是页面里另写的布尔量 —— 两处各写一个开关，
+迟早出现"界面藏了、状态还允许 slater"的半藏状态。
+同时把多轨道提示条里那个「切到 Slater 型」链接按同一判据撤下（`!ORBITAL_MODEL_HIDDEN`）。
+
+**实测（真实浏览器，零额度）**
+· 界面：`#orbModelFeature` 有 `hidden`、Slater 按钮与 ζ 输入框**都没有可见盒子**；截图确认右栏从「波函数形式」直接到「等值面判据」，无残留空隙
+· 模型侧：`vocabulary` 28 条、`actionLabels` 27 条，均不含 `setOrbitalModel`
+· 兜底：把控件硬设成 `slater`（模拟老会话）→ **state 回到 hydrogenic**、控件 active 也回到 hydrogenic、ζ 清空
+· 控件冒烟（确认没有留下别处后遗症）：实数/复数解、球谐/空间波函数、判据 |ψ|²/ψ 都正常联动
+· `npm test` 全绿（14 套件；orbit 模块守卫 **167 项**）· `check-i18n` 0 未覆盖 ·
+  `check-i18n-live` 四路由残留中文 0 / 控制台 error 0
+
+**这一轮踩到并当场抓到的一个"静默中断"（值得记）**
+第一版把"控件折回"写成了 `silentSeg('#orbModelSeg', …)` —— 而 **`silentSeg` 是 `restoreState`
+内部的局部箭头函数**，顶层调它会抛 `ReferenceError`。后果不是报错，而是：
+`readFromControls` 在这一行**中断**，state 停在前面刚赋的值（所以"看起来生效了"）、
+控件不回位，而它**后面**的所有控件也不再被读。
+判据：**给"唯一同步点"这类函数加逻辑时，必须验证异常不会把后半段吃掉** ——
+这次是靠"state 对、DOM 不对"这个细节发现的。修法：改用顶层的 `setSeg`。
+
 ### 已完成（2026-10-08 第十二轮：打开智能体时各板块**让位**（独立版会自动缩，整合体不会））
 
 用户报：独立版 orbit 打开智能体后主界面会自动缩，**整合体里的轨道板块不缩**（被抽屉压住）。

@@ -349,6 +349,31 @@ console.log('【⑪ orbit：词汇表与页面实现逐条对齐（"声明了却
   }
 }
 
+console.log('【⑬ 已隐藏的功能：界面与状态两侧都不能漏（"藏一半"）】')
+{
+  /**
+   * ★ 2026-10-10 用户要求「隐藏切换 slater 功能」。隐藏这件事有**三个**必须同时成立的部分，
+   *   漏掉任何一个都会得到一种"看起来做了、其实半藏"的状态：
+   *     ① markup 里确实裹了 hidden（否则面板还挂着，用户照旧能点）；
+   *     ② 模型侧从词汇表撤下（`DISABLED_ACTIONS`，由 modules/orbit 的守卫 ⑦ 守）；
+   *     ③ **状态兜底**：老会话 / 老快照里残留 `slater` 时页面强制回氢型 ——
+   *        否则学生会一直看到 STO 形状，而界面上再也找不到开关（这类"卡住了"最难自查）。
+   *
+   *   这一节只守①与③（②在模块守卫里，判据同一份 `ORBITAL_MODEL_HIDDEN`）。
+   */
+  const markup = readFileSync(resolve(REPO, 'apps/web/src/pages/orbit-markup.js'), 'utf8')
+  const orbitSrc2 = readFileSync(resolve(REPO, 'apps/web/src/pages/orbit.js'), 'utf8')
+  ok(/id="orbModelFeature"\s+hidden/.test(markup),
+    '轨道模型那一档在 markup 里被 hidden 包裹（不是只删掉按钮）')
+  // ★ 判据必须来自**模块导出的那一份**，不能在页面里另写一个布尔量（"同一个事实两处写"）
+  ok(/ORBITAL_MODEL_HIDDEN/.test(orbitSrc2) && /from '@modules\/orbit\/actions\.js'/.test(orbitSrc2),
+    '页面用的是模块导出的 ORBITAL_MODEL_HIDDEN（而不是自己再写一个开关）')
+  ok(/state\.orbitalModel = ORBITAL_MODEL_HIDDEN[\s\S]{0,120}'hydrogenic'/.test(orbitSrc2),
+    '读控件那一步（唯一同步点）在隐藏时强制回氢型')
+  ok(/silentSeg\('#orbModelSeg', 'data-model', ORBITAL_MODEL_HIDDEN \? 'hydrogenic'/.test(orbitSrc2),
+    '回退（restoreState）也落到氢型 —— 否则 DOM 与 state 会当场不一致')
+}
+
 console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
 {
   /**

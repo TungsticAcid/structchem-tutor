@@ -49,7 +49,8 @@ export const ENUMS = {
 }
 
 /**
- * **临时停用的动作**（2026-10-06：用户要求「先隐藏多轨道同屏功能，对智能体也隐藏此功能」）。
+ * **临时停用的动作**（2026-10-06：用户要求「先隐藏多轨道同屏功能，对智能体也隐藏此功能」；
+ * 2026-10-10：用户要求「隐藏切换 slater 功能」）。
  *
  * ★ 停用的语义要说清：不是删实现，而是**从模型看得见的地方撤下来** ——
  *   `modules/orbit/index.js` 导出 vocabulary / actionLabels 时按这张表过滤，
@@ -59,7 +60,17 @@ export const ENUMS = {
  * ★ 为什么界面藏了、模型也必须藏：只藏界面而让模型照旧下发，会出现
  *   "界面里根本没有这个面板、画面却自己在变"的鬼状态 —— 那是最难自查的一类。
  */
-export const DISABLED_ACTIONS = ['setOrbitals', 'setOrbitalStyle']
+export const DISABLED_ACTIONS = ['setOrbitals', 'setOrbitalStyle', 'setOrbitalModel']
+
+/**
+ * 轨道模型（氢型 / Slater 型）这一档是否已隐藏。
+ *
+ * ★ 这是**从上面那张表推出来的**，不是第二份事实：页面（`apps/web/src/pages/orbit.js`）
+ *   与动作层必须用同一个判据，否则会出现"界面藏了、状态还允许 slater"的半藏状态。
+ * ★ 页面侧还要靠它做**状态兜底**：老会话 / 老快照里可能留着 `orbitalModel: 'slater'`，
+ *   而隐藏后界面再也切不回来 —— 那种情况下学生会一直看到 STO 形状、却找不到开关。
+ */
+export const ORBITAL_MODEL_HIDDEN = DISABLED_ACTIONS.indexOf('setOrbitalModel') >= 0
 
 /** 某个动作是否已停用（导出层与守卫共用一处判据） */
 export function isActionDisabled(name) {

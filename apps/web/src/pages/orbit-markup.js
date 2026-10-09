@@ -90,6 +90,16 @@ export const ORBIT_HTML = `<div class="orbit-page">
                   title="波函数的复数解 ψ_{n,l,m}：L̂z 与 L̂² 的共同本征函数，用磁量子数 m 标记">复数解</button>
         </div>
 
+        <!--  ★★ 2026-10-10：**轨道模型（氢型/Slater）整体隐藏**（用户要求「隐藏切换 slater 功能」）。
+              · 与下面的多轨道同屏同一套做法：用 hidden 包裹而不是删代码 ——
+                Slater 的实现（core/math.js 的 slaterR/slaterZeta、动作 setOrbitalModel、
+                取值域校验）全部保留，重新启用只需去掉这一个 hidden 属性。
+              · 模型那侧同时加进 DISABLED_ACTIONS（modules/orbit/actions.js）——
+                只藏界面而让模型照旧下发，会得到"界面看不见、画面却在变"的鬼状态。
+              · 页面侧读 ORBITAL_MODEL_HIDDEN 做**状态兜底**：老会话里若是 slater，
+                会强制回到氢型，免得学生一直看着 STO 形状却找不到开关。
+             注意本文件整体是一个模板字符串，注释里**不能出现反引号**。 -->
+        <div id="orbModelFeature" hidden>
         <div class="divider"><span>轨道模型</span></div>
         <div class="seg center" id="orbModelSeg">
           <button class="seg-btn active" data-model="hydrogenic"
@@ -103,6 +113,7 @@ export const ORBIT_HTML = `<div class="orbit-page">
           <div class="hint">碳的 2s/2p 按 Slater 规则是 1.625（本页不自动算 σ，需手工填）</div>
         </div>
         <div class="hint" id="orbModelHint">氢型：真实类氢，2s 在 <i>r</i> = 2<i>a</i>₀ 处有径向节点</div>
+        </div>
 
         <!--  ★★ 2026-10-06：**多轨道同屏整体隐藏**（用户要求「先隐藏多轨道同屏功能」）。
               · 用 hidden 属性包裹而不是删代码：它的实现（动作 setOrbitals / 渲染层的

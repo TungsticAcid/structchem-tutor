@@ -43,7 +43,10 @@ import { StateEditor } from '@modules/orbit/render/state-editor.js'
 import { ReferenceTable } from '@modules/orbit/render/reference-table.js'
 // ★ 同屏轨道条数的上限**只此一份**：动作层（模型下发）与界面（「＋」按钮）共用它。
 //   两处各写一个数的必然结局是漂开，而漂开的症状是"模型加不上去、用户却能一路加到冻死"。
-import { MAX_MULTI_ORBITALS } from '@modules/orbit/actions.js'
+// ★ 2026-10-10「隐藏切换 slater 功能」：页面与动作层共用**同一份**停用判据 ——
+//   页面按它强制回氢型（老会话里残留的 slater 也要折回来），模型侧则由同一张表
+//   把 setOrbitalModel 从词汇表里撤下来。写成两个布尔量就会漂开。
+import { MAX_MULTI_ORBITALS, ORBITAL_MODEL_HIDDEN } from '@modules/orbit/actions.js'
 
 /**
  * main.js — 主控制器：绑定 UI、管理状态、节流重绘
@@ -461,7 +464,7 @@ let offTheme = null;
       //   四个叠在一起看着就是四个球 —— 用户会以为"杂化根本没画出来"。
       //   这不是 bug，是这两个模型的等值面在低阈值下本来就长这样；
       //   换成 Slater 型形状会干净得多（2s 与 2p 共用径向因子、无径向节点）。
-      if ((def || custom) && state.orbitalModel === 'hydrogenic') {
+      if ((def || custom) && state.orbitalModel === 'hydrogenic' && !ORBITAL_MODEL_HIDDEN) {
         html += '　<span class="multi-tip">氢型下四个瓣会叠成球状 —— '
           + '<a href="#" data-model="slater">切到 Slater 型</a>形状最干净。</span>';
       }
@@ -650,7 +653,31 @@ let offTheme = null;
     //   ★ 界面是**唯一真源**：动作只负责改控件（与 setPsiCriterion 同一套写法），
     //     不在动作里另调一次 OM.setRadialModel —— 否则"动作改了数学层、控件没跟上"
     //     和"控件是真源"两套语义并存，迟早分叉。
-    state.orbitalModel = activeValue('#orbModelSeg', 'data-model') || 'hydrogenic';
+    // ★★ 2026-10-10：这一档已隐藏（`ORBITAL_MODEL_HIDDEN`）⇒ **在这里强制回氢型**。
+    //   为什么不在各条入口逐个拦：本条是**唯一的同步点**，一处就够了；
+    //   老会话 / 老快照 / 老演示里残留的 'slater' 走到这里都会被折回默认档，
+    //   免得学生一直看着 STO 形状、界面上却找不到开关。
+    state.orbitalModel = ORBITAL_MODEL_HIDDEN
+      ? 'hydrogenic'
+      : (activeValue('#orbModelSeg', 'data-model') || 'hydrogenic');
+    if (ORBITAL_MODEL_HIDDEN) {
+      /**
+       * ★★ 隐藏时把**控件也一起折回默认档**（不能只折 state）。
+       *
+       *   上面已经把 state 强制成 hydrogenic；若控件还停在 slater（老会话里恢复的、
+       *   或某个仍能调到的动作路径设的），DOM 与 state 就当场不一致 —— 正是本仓库
+       *   反复踩的那一类（"回退了大部分"、不报错）。这里顺手闭环：
+       *   控件与 state 同步、ζ 输入框也清空（它在氢型下没有意义）。
+       */
+      if (activeValue('#orbModelSeg', 'data-model') !== 'hydrogenic') {
+        // ★ 必须用**顶层**的 setSeg。`silentSeg` 是 restoreState 内部的局部箭头函数
+        //   （见那一行的定义），在 readFromControls 里调它会抛 ReferenceError ——
+        //   而异常会**静默中断整段控件读取**：state 停在前面刚赋的值、控件不回位，
+        //   而且这条路径上的其它控件也一起不再被读。本轮实测正是这么抓到的。
+        setSeg('#orbModelSeg', 'data-model', 'hydrogenic');
+        if (els.orbZetaInput) els.orbZetaInput.value = '';
+      }
+    }
     {
       // ζ 只在 Slater 档有意义。氢型档把它记为 null（而不是保留旧值），
       // 否则它会被算进等值面指纹 `fieldKeyOf`，切档时凭空多出一次重算。
@@ -2373,7 +2400,9 @@ let offTheme = null;
       // ★ 轨道模型（氢型/Slater）也必须回退。它是快照字段、又决定等值面形状，
       //   漏掉这一行就会出现「上一步」按了、模型没回去 —— 画面与快照当场矛盾，
       //   而且不报错（这类"回退了大部分"最难查）。
-      silentSeg('#orbModelSeg', 'data-model', s.orbitalModel);
+      // ★★ 2026-10-10 该档已隐藏：回退时也**只落到氢型** —— 否则「上一步」会把控件
+      //   设回 slater，而 readFromControls 又会把它折回氢型，DOM 与 state 当场不一致。
+      silentSeg('#orbModelSeg', 'data-model', ORBITAL_MODEL_HIDDEN ? 'hydrogenic' : s.orbitalModel);
       // 多轨道同屏也要回退。★ 可见集合**只存在 state 里**（那一行复选框是按集合
       //   生成的，没有稳定的 DOM 可读），所以这里必须直接写 state —— 只改 DOM 的话
       //   集合回去了、可见集合还停在上一步，画面半对半错且不报错。
