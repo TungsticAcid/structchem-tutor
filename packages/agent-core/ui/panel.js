@@ -134,6 +134,7 @@ export function createPanel(cfg = {}) {
   let fab, drawer, msgBox, inputEl, sendBtn, stopBtn, dot
   let headTitleEl
   let demoBar, demoIdx, demoText, demoNextHint
+let demoFav
   let demoPrev, demoNext, demoAuto, demoManual, demoStop, demoReplay, demoRestore, demoDismiss
   let layoutRedrawTimer = null
   let demoHideTimer = null
@@ -167,6 +168,10 @@ export function createPanel(cfg = {}) {
  *   · 只有**新的**演示开始（queued/replay/step/auto/waiting）才解除。
  */
 let demoSuppressed = false
+/** 最近一步的旁白：演示完成时保留它，别让"共 N 步…"把最后一步的说明顶掉（用户报过） */
+let lastDemoSpeech = ''
+/** 最近一条演示的 id：演示条上的「☆ 收藏这次演示」要用它（由进度事件带来） */
+let lastDemoId = null
 
   // ---------------------------------------------------------------------------
   // 构建 UI
@@ -308,8 +313,25 @@ let demoSuppressed = false
       addChip(r.ok ? '已回到演示前的状态' : T('恢复失败：{error}', { error: r.error }), r.ok ? 'info' : 'warn')
       if (r.ok) hideBar()
     })
+    /**
+     * ★★ 2026-10-11（用户："演示动作无法收藏"）：
+     *   收藏原先只挂在**消息气泡**里 —— 气泡默认是折叠的，学生看完演示往往根本找不到它 ✗。
+     *   演示条就在眼前，把收藏也放上来（收藏的那条演示 = **最近一次**演示，
+     *   由分镜的进度事件带来 `demoId`）。
+     */
+    demoFav = null
+    if (favorites) {
+      demoFav = mkAct('☆ 收藏这次演示', () => {
+        // ★ 先用手上攒的 id；没有就问分镜"最近一条是谁"（进度事件并非每个阶段都带 demoId）
+        const id = lastDemoId || (SB && typeof SB.latestDemoId === 'function' ? SB.latestDemoId() : null)
+        if (!id) return
+        const ok = saveDemoToFavorites(id)
+        if (demoFav) { demoFav.textContent = ok ? '★ 已收藏' : T('（收藏失败）'); demoFav.disabled = !!ok }
+      })
+    }
     ;[demoPrev, demoNext, demoAuto, demoManual, demoStop, demoReplay, demoRestore, demoDismiss]
       .forEach((b) => demoBtns.appendChild(b))
+    if (demoFav) demoBtns.appendChild(demoFav)
     demoTop.appendChild(demoIdx)
     demoTop.appendChild(demoBtns)
     demoText = E('div', { class: 'agent-demo-text', text: '' })
@@ -641,11 +663,18 @@ let demoSuppressed = false
        *   哪些算敏感由宿主注入（`cfg.isSensitiveTool`），面板不硬编码业务工具名。
        */
       const sensitive = typeof cfg.isSensitiveTool === 'function' && cfg.isSensitiveTool(name)
+      /**
+       * ★ 场景动作（SEQ_TOOL）走**结构化摘要**，不贴 JSON ——
+       *   它的回执里带着给模型看的行为规范（见 seqSummary 的说明），贴出来学生会看到
+       *   "请不要重复下发同样的动作"这种内部指令 ✗（用户报："动作里有很多提示词"）。
+       */
       body.appendChild(E('div', {
         class: 'agent-act-ret',
-        text: sensitive
-          ? T('返回：{v}', { v: T('（题目已生成，答案已冻结——在下面的题目卡里作答即可，这里不显示答案）') })
-          : T('返回：{v}', { v: JSON.stringify(result).slice(0, 400) }),
+        text: name === SEQ_TOOL
+          ? seqSummary(result)
+          : (sensitive
+              ? T('返回：{v}', { v: T('（题目已生成，答案已冻结——在下面的题目卡里作答即可，这里不显示答案）') })
+              : T('返回：{v}', { v: JSON.stringify(result).slice(0, 400) })),
       }))
     }
     d.appendChild(body)
@@ -653,6 +682,47 @@ let demoSuppressed = false
     msgBox.appendChild(d)
     scrollDown()
     return d
+  }
+
+  /**
+   * 场景动作（SEQ_TOOL）回执在**界面上**的摘要。
+   *
+   * ★★ 2026-10-11（用户："动作里有很多提示词"）：
+   *   回执里带着**给模型看的**行为规范（"正在等用户点「下一步」…请不要重复下发同样的动作…
+   *   若需要可在回复**末尾**补一句…"）。那段话**必须留在回执里** ——
+   *   模型写回复前读到的最后一段话就是它，第 9 轮实测"把要求放进回执"才改得动模型行为 ✓。
+   *   但它**不该显示给学生** ✗：界面上看到的应该只是"智能体做了什么"。
+   *   ⇒ 这里只报：排了几步、受理几步、失败几步、逐步还是连播。
+   */
+  function seqSummary(r) {
+    const res = r || {}
+    const total = res.totalSteps || res.queued || 0
+    const failed = Array.isArray(res.failed) ? res.failed.length : 0
+    const manual = res.manual === false ? T('（自动连播）') : ''
+    return T('已排好 {n} 步演示{manual}：点「下一步」逐步确认，或「连续播放」一次看完', { n: total, manual })
+      + (failed ? ' · ' + T('{n} 个动作未执行', { n: failed }) : '')
+  }
+
+  /**
+   * 把某条演示存进收藏夹 —— 气泡里的「☆ 收藏」与演示条里的「☆ 收藏这次演示」**共用一处**。
+   *
+   * ★★ 2026-10-08：收藏**必须连模块归属一起存**。
+   *   只存 action/params/speech 的后果：在轨道板块收藏的演示，切到晶体板块再点播放 ——
+   *   步骤被拿去套**晶体**的词汇表，于是要么报"不支持的动作"，要么同名动作**静默落到另一个板块**。
+   *   现在每步带 `module`（记录里也有），播放前宿主会把该板块的页面叫回来。
+   *
+   * @param {string} demoId
+   * @returns {boolean} 是否收藏成功（演示记录已不在 ⇒ false）
+   */
+  function saveDemoToFavorites(demoId) {
+    if (!favorites || !demoId) return false
+    const rec = SB && SB.getDemo ? SB.getDemo(demoId) : null
+    if (!rec || !rec.steps || !rec.steps.length) return false
+    const r = favorites.save('', rec.steps.map((s) => ({
+      action: s.name || s.action, params: s.params, speech: s.speech,
+      module: s.module || rec.module || null,
+    })), { origin: rec.origin, module: rec.module || null })
+    return !!(r && r.ok)
   }
 
   /**
@@ -734,23 +804,9 @@ let demoSuppressed = false
         title: '把这条演示存到本机，之后随时可重播',
       })
       fb.onclick = () => {
-        const SB = cfg.storyboard
-        const rec = SB && SB.getDemo ? SB.getDemo(demoId) : null
-        if (!rec || !rec.steps || !rec.steps.length) { fb.textContent = '演示已失效'; return }
-        /**
-         * ★★ 2026-10-08：收藏**必须连模块归属一起存**。
-         *
-         *   只存 action/params/speech 的后果（用户预感到的那个"潜在问题"）：
-         *   在轨道板块收藏的演示，切到晶体板块再点播放 —— 步骤被拿去套**晶体**的
-         *   词汇表，于是要么报"不支持的动作"，要么同名动作**静默落到另一个板块**。
-         *   现在每步带 `module`（记录里也有），播放前宿主会把该板块的页面叫回来。
-         */
-        const r = favorites.save('', rec.steps.map((s) => ({
-          action: s.name || s.action, params: s.params, speech: s.speech,
-          module: s.module || rec.module || null,
-        })), { origin: rec.origin, module: rec.module || null })
-        fb.textContent = r.ok ? '★ 已收藏' : '（收藏失败）'
-        fb.disabled = true
+        const ok = saveDemoToFavorites(demoId)
+        fb.textContent = ok ? '★ 已收藏' : '演示已失效'
+        fb.disabled = ok
       }
       foot.appendChild(fb)
     }
@@ -1558,6 +1614,8 @@ let demoSuppressed = false
     demoIdx.textContent = T('第 {index}/{total} 步', { index: evt.index, total: evt.total })
       + (evt.ok === false ? T('（未执行）') : '')
     demoText.textContent = evt.speech || evt.label
+    // ★ 记下"这一步说了什么"：演示完成时要把最后一步的旁白留着（用户报过它被顶掉）
+    lastDemoSpeech = evt.speech || evt.label || ''
     demoText.classList.toggle('muted', !evt.speech)
     if (evt.ok === false) demoBar.classList.add('bad')
     if (evt.manual === false) {
@@ -1626,8 +1684,21 @@ let demoSuppressed = false
     setBarMode('done')
     demoPrev.disabled = !(evt.canPrev !== false && evt.total > 0)
     demoIdx.textContent = '演示完成'
-    demoText.textContent = T('共 {total} 步 · 可重新演示，或退回去重看某一步', { total: (evt && evt.total) || 0 })
-    demoText.classList.add('muted')
+    /**
+     * ★★ 2026-10-11（用户："到了第五步，第五步的描述文字就没了"）：
+     *   原先这里把主文字**换成**"共 N 步 · 可重新演示…" ✗ —— 学生看完演示，
+     *   最后一步到底说了什么被顶掉了（而那往往正是结论）。
+     *   ⇒ 完成时**保留最后一步的旁白**，把"共 N 步…"挪到下面那行提示里。
+     */
+    if (lastDemoSpeech) {
+      demoText.textContent = lastDemoSpeech
+      demoText.classList.remove('muted')
+      demoNextHint.classList.remove('hidden')
+      demoNextHint.textContent = T('共 {total} 步 · 可重新演示，或退回去重看某一步', { total: (evt && evt.total) || 0 })
+    } else {
+      demoText.textContent = T('共 {total} 步 · 可重新演示，或退回去重看某一步', { total: (evt && evt.total) || 0 })
+      demoText.classList.add('muted')
+    }
   }
 
   function hideBar() {
@@ -1649,6 +1720,8 @@ let demoSuppressed = false
   function applyProgress(evt, isReplay) {
     if (!evt || disposed) return
     lastProgress = evt
+    // ★ 记下最近一条演示的 id：演示条上的「☆ 收藏这次演示」用它（气泡里那条路要展开才能看到）
+    if (evt.demoId) lastDemoId = evt.demoId
     /**
      * ★ 新会话之后的"停止"事件不该把演示条叫回来（见 demoSuppressed 的说明）；
      * 任何意味着"新演示开始"的阶段都会解除抑制。

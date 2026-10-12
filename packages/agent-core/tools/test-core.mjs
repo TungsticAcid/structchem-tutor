@@ -1822,6 +1822,24 @@ console.log(`\n${'═'.repeat(60)}`)
   check('补记录只在记录确实缺失时做（不覆盖正在播的那条）',
     /!SB0\.getDemo\(demoId\)\)/.test(panelSrc))
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // 用户四条里有三条落在这里（演示条 / 完成态 / 回执显示）
+  //   ① "到了第五步，第五步的描述文字就没了" ⇒ 完成时保留最后一步旁白
+  //   ③ "演示动作无法收藏" ⇒ 演示条上也要有收藏；id 问分镜要（进度事件并非每段都带）
+  //   ④ "动作里有很多提示词" ⇒ 场景动作回执**不贴 JSON**，只报"做了什么"
+  //      （回执原文必须留给模型读 —— 第 9 轮实测"把要求放进回执"才改得动模型行为）
+  // ─────────────────────────────────────────────────────────────────────────
+  const doneFn = (panelSrc.match(/function renderDone\([\s\S]*?\n  \}/) || [''])[0]
+  check('演示完成时保留最后一步的旁白（"第 N 步说了什么"不能消失）',
+    /lastDemoSpeech/.test(panelSrc) && /demoText\.textContent = lastDemoSpeech/.test(doneFn))
+  check('演示条上有「收藏这次演示」，且 id 有兜底（问分镜最近一条）',
+    /☆ 收藏这次演示/.test(panelSrc) && /latestDemoId/.test(panelSrc))
+  check('场景动作回执走结构化摘要，不把 JSON（含给模型的提示词）贴给学生',
+    /name === SEQ_TOOL\s*\n?\s*\?\s*seqSummary\(result\)/.test(panelSrc.replace(/\r/g, ''))
+    || /seqSummary\(result\)/.test(panelSrc))
+  const sbSrc2 = readFileSync(new URL('../core/storyboard.js', import.meta.url), 'utf8')
+  check('分镜导出 latestDemoId（面板的收藏按钮要用）', /latestDemoId,/.test(sbSrc2))
+
   // ★ 运行时确认"只登记、不播放"（源码棘轮只能证明它没写 runQueue，这条证明它真的没动队列）
   const { createStoryboard } = await import('../core/storyboard.js')
   const calls = []

@@ -163,6 +163,18 @@ export function createStoryboard(opts = {}) {
   }
 
   /**
+   * 最近一条演示的 id。
+   * ★★ 2026-10-11（用户："演示动作无法收藏"）：面板的「☆ 收藏这次演示」要指认"哪一条"，
+   *   而进度事件并不每个阶段都带 `demoId`（`applySequence` 只入队时带）⇒ 面板自己攒 id 会漏 ✗。
+   *   直接问分镜"最近一条是谁"，比在事件流里攒更牢。
+   * @returns {string|null}
+   */
+  function latestDemoId() {
+    const rec = latestDemo()
+    return rec ? rec.id : null
+  }
+
+  /**
    * 注册播放进度回调：(evt) => void，返回取消订阅函数。
    * ★ 用数组而不是单个槽位：单槽位时后注册者会**静默顶掉**先注册者
    *   （面板就是先注册的那个），表现为"进度条突然不更新了"，极难排查。
@@ -1054,8 +1066,7 @@ export function createStoryboard(opts = {}) {
     // 演示的"可寻址"三件套：整改 / 从历史重建 / 节奏切换
     setManual, reviseDemo, syncDemosFromHistory,
     // 队列可寻址：面板与修订用
-    queueInfo, getStep, jumpTo, loadDemo, registerDemo,
-    getDemo, listRecords,
+    queueInfo, getStep, jumpTo, loadDemo, registerDemo, latestDemoId,    getDemo, listRecords,
     // "回到演示前"：一键还原到这一轮演示开始之前的视图与视角
     restoreBefore, beforeSnapshot,
     // 供面板/调试读取
