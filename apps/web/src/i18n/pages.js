@@ -91,6 +91,13 @@ export const zh = {
   'pages.compare.syncOff': '🔓独立',
   'pages.compare.settings': '⚙设置',
   'pages.compare.settingsCollapse': '⚙收起',
+  /**
+   * ★★ 2026-10-12（用户要求）：对比模式支持手动更换左/右晶体，并可点击标签跳到该晶体的查看页。
+   */
+  'pages.compare.pickLeft': '选择左侧晶体',
+  'pages.compare.pickRight': '选择右侧晶体',
+  'pages.compare.sameAsLeft': '与左侧相同',
+  'pages.compare.openCrystal': '点击打开这块晶体的查看页',
   'pages.compare.leftPanel': '左侧设置',
   'pages.compare.rightPanel': '右侧设置',
   'pages.compare.topPanel': '上侧设置',
@@ -149,6 +156,10 @@ export const en = {
   'pages.compare.syncOff': '🔓 Independent',
   'pages.compare.settings': '⚙ Settings',
   'pages.compare.settingsCollapse': '⚙ Collapse',
+  'pages.compare.pickLeft': 'Choose the left crystal',
+  'pages.compare.pickRight': 'Choose the right crystal',
+  'pages.compare.sameAsLeft': 'Same as the left',
+  'pages.compare.openCrystal': 'Click to open this crystal in the viewer',
   'pages.compare.leftPanel': 'Left settings',
   'pages.compare.rightPanel': 'Right settings',
   'pages.compare.topPanel': 'Top settings',

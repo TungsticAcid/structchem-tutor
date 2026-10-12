@@ -4,6 +4,8 @@
  */
 import { ViewerCanvas } from '@crystal/components/viewer-canvas.js'
 import { getCrystalData } from '@crystal/lib/crystal-loader.js'
+// ★ 两侧「换晶体」的选择器要列出全部晶体：目录本来就是数据真源，不另抄一份清单
+import crystalIndex from '@crystal/data/crystalIndex.js'
 import { router } from '../shell/router.js'
 import { globalData } from '../shell/app-state.js'
 import { registerViewerPage, unregisterViewerPage } from '../shell/agent-bridge.js'
@@ -92,40 +94,8 @@ export class ComparePage {
   mount(container) {
     this._container = container
 
-    const data = getCrystalData(this._crystalId)
-    if (data) {
-      const s = this._state
-      s.crystalData = data
-      s.crystalName = data.name || this._crystalId
-      // ★ 双晶体模式：右侧的晶体名。无第二个晶体时为空串 ⇒ 页面退回
-      //   "同一晶体 × 两种模型"的原有显示，旧链接与旧行为完全不受影响。
-      const dataB = this._crystalIdB ? getCrystalData(this._crystalIdB) : null
-      s.crystalNameB = dataB ? (dataB.name || this._crystalIdB) : ''
-      s.showIntersticeControl = ['fcc', 'hcp'].includes(this._crystalId)
-      s.isOrthogonalCell = data.lattice && data.lattice.alpha === 90 && data.lattice.beta === 90 && data.lattice.gamma === 90
-      const MOLECULAR_IDS = ['co2','ice','i2','urea']
-      s.isMolecularCrystal = MOLECULAR_IDS.includes(this._crystalId)
-      s.hasHydrogenBonds = s.isMolecularCrystal && data.hydrogenBonds && data.hydrogenBonds.length > 0
-      const METAL_IDS = ['fcc','bcc','hcp']
-      const isMetal = METAL_IDS.includes(this._crystalId)
-
-      if (s.isMolecularCrystal) {
-        s.leftShowBonds = true; s.rightShowBonds = true
-        s.leftShowHydrogenBonds = true; s.rightShowHydrogenBonds = true
-      } else if (!isMetal) {
-        s.leftShowBonds = true; s.rightShowBonds = true
-      }
-
-      s.equivalentSettings = data.equivalentSettings || []
-      const defaultShift = s.equivalentSettings.length > 0 ? (s.equivalentSettings[0].shift || [0,0,0]) : [0,0,0]
-      s.leftFractionalShift = defaultShift; s.rightFractionalShift = defaultShift
-
-      const leftVis = {}, rightVis = {}
-      if (data.atoms) {
-        for (const g of data.atoms) { leftVis[g.element] = true; rightVis[g.element] = true }
-      }
-      s.leftAtomVisibility = leftVis; s.rightAtomVisibility = rightVis
-    }
+    // 由 _crystalId / _crystalIdB 派生界面状态（换晶体时走**同一个**方法）
+    this._applyCrystalMeta()
 
     // 应用预设
     const preset = globalData.comparePreset
@@ -237,24 +207,9 @@ export class ComparePage {
    */
   onLangChange() {
     const s = this._state
-    const tEl = this._container?.querySelector('.cp-title')
-    if (tEl) {
-      tEl.textContent = s.crystalNameB
-        ? `${s.crystalName} vs ${s.crystalNameB}`
-        : t('pages.compare.titleOne', { name: s.crystalName })
-    }
-    const lL = this._container?.querySelector('#leftPane .cp-label')
-    const lR = this._container?.querySelector('#rightPane .cp-label')
-    if (lL) {
-      lL.textContent = s.crystalNameB
-        ? `${s.crystalName} · ${modelName(s.leftModelType, true)}`
-        : modelName(s.leftModelType, false)
-    }
-    if (lR) {
-      lR.textContent = s.crystalNameB
-        ? `${s.crystalNameB} · ${modelName(s.rightModelType, true)}`
-        : modelName(s.rightModelType, false)
-    }
+    // ★ 标签与标题统一走 _refreshLabels()：原先这段在 mount / onLangChange / 换晶体三处
+    //   各写一份，改一处漏两处（本仓库的老毛病）
+    this._refreshLabels()
     const btnLayout = this._container?.querySelector('#cpToggleLayout')
     if (btnLayout) {
       btnLayout.textContent = s.layoutMode === 'horizontal'
@@ -303,13 +258,13 @@ export class ComparePage {
         <div class="cp-main">
           <div class="cp-dual layout-${s.layoutMode}">
             <div class="cp-pane" id="leftPane">
-              <span class="cp-label">${s.crystalNameB
+              <span class="cp-label" data-side="left" title="${t('pages.compare.openCrystal')}">${s.crystalNameB
                 ? `${s.crystalName} · ${modelName(s.leftModelType, true)}`
                 : modelName(s.leftModelType, false)}</span>
             </div>
             <div class="cp-divider divider-${s.layoutMode}"></div>
             <div class="cp-pane" id="rightPane">
-              <span class="cp-label">${s.crystalNameB
+              <span class="cp-label" data-side="right" title="${t('pages.compare.openCrystal')}">${s.crystalNameB
                 ? `${s.crystalNameB} · ${modelName(s.rightModelType, true)}`
                 : modelName(s.rightModelType, false)}</span>
             </div>
@@ -339,13 +294,18 @@ export class ComparePage {
       .layout-horizontal { flex-direction:row; }
       .layout-vertical { flex-direction:column; }
       .cp-pane { flex:1; position:relative; overflow:hidden; min-height:0; }
-      .cp-label { position:absolute; top:8px; left:50%; transform:translateX(-50%); color:rgba(255,255,255,0.5); font-size:11px; background:rgba(0,0,0,0.4); padding:2px 8px; border-radius:8px; z-index:5; pointer-events:none; }
-      .cp-divider { flex-shrink:0; background:rgba(255,255,255,0.2); }
+      /* ★★ 2026-10-12（用户："对比模式的设置仍是黑色"）：表面与文字一律走**主题令牌**
+         （浅色主题下面板/控制条是浅的），原值留在 fallback 位 ⇒ 没有宿主题时外观逐字不变。
+         与晶体查看页的控制面板（components/layer-control.js）同一套做法。
+         ★ 本文件是模板串：注释里**不能出现反引号**。 */
+      .cp-label { position:absolute; top:8px; left:50%; transform:translateX(-50%); color:var(--text-dim, rgba(255,255,255,0.6)); font-size:11px; background:var(--card, rgba(0,0,0,0.4)); border:1px solid var(--line-soft, transparent); padding:2px 8px; border-radius:8px; z-index:5; cursor:pointer; }
+      .cp-label:hover { color:var(--text, #fff); }
+      .cp-divider { flex-shrink:0; background:var(--line, rgba(255,255,255,0.2)); }
       .divider-horizontal { width:1px; }
       .divider-vertical { height:1px; }
-      .cp-controls { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; gap:6px; background:rgba(20,20,40,0.94); border-radius:20px; padding:4px 10px; z-index:25; border:1px solid rgba(255,255,255,0.12); }
-      .cp-btn { padding:4px 8px; border-radius:10px; font-size:11px; color:rgba(255,255,255,0.7); cursor:pointer; white-space:nowrap; transition:background 0.2s; }
-      .cp-btn.active { background:rgba(66,133,244,0.3); color:#fff; }
+      .cp-controls { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; gap:6px; background:var(--card, rgba(20,20,40,0.94)); border-radius:20px; padding:4px 10px; z-index:25; border:1px solid var(--line, rgba(255,255,255,0.12)); }
+      .cp-btn { padding:4px 8px; border-radius:10px; font-size:11px; color:var(--text-dim, rgba(255,255,255,0.7)); cursor:pointer; white-space:nowrap; transition:background 0.2s; }
+      .cp-btn.active { background:rgba(66,133,244,0.28); color:var(--text, #fff); }
       /* 窄屏：设置仍是"盖在画布上"的底部抽屉（空间不够时让位反而看不清）
          ★ .cs-host 用 display:contents：它只是挂载点，真正的列由 .cs-panel 承担
            （否则多一层 div 会把 flex 布局截断，让位就不生效了）。 */
@@ -361,30 +321,34 @@ export class ComparePage {
             于是"桌面看着像左列"只是 flex 项的自然宽度，媒体查询从未生效、窄屏也跟着挤 ✗。
            教训：**样式与标记一起返回时，谁取第一个元素谁就可能把样式丢掉**。 */
       @media (min-width: 900px) {
-        .cs-panel { flex:0 0 320px; width:320px; height:100%; max-height:none; overflow-y:auto; background:rgba(18,18,35,0.97); border-right:1px solid rgba(255,255,255,0.12); z-index:30; padding-bottom:8px; }
+        .cs-panel { flex:0 0 320px; width:320px; height:100%; max-height:none; overflow-y:auto; background:var(--card, rgba(18,18,35,0.97)); border-right:1px solid var(--line, rgba(255,255,255,0.12)); z-index:30; padding-bottom:8px; }
         /* 320px 的窄列里，两侧设置改为上下排 */
         .cs-cols { flex-direction:column; }
         .cs-divider-col { width:auto; height:1px; }
       }
       @media (max-width: 899px) {
-        .cs-panel { position:absolute; bottom:0; left:0; right:0; background:rgba(18,18,35,0.97); border-top:1px solid rgba(255,255,255,0.12); z-index:30; max-height:55vh; overflow-y:auto; padding-bottom:60px; }
+        .cs-panel { position:absolute; bottom:0; left:0; right:0; background:var(--card, rgba(18,18,35,0.97)); border-top:1px solid var(--line, rgba(255,255,255,0.12)); z-index:30; max-height:55vh; overflow-y:auto; padding-bottom:60px; }
       }
       .cs-cols { display:flex; padding:8px 0; }
       .cs-col { flex:1; padding:8px; }
-      .cs-divider-col { width:1px; background:rgba(255,255,255,0.1); flex-shrink:0; }
-      .cs-col-header { display:flex; align-items:center; justify-content:center; gap:4px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:4px; }
+      .cs-divider-col { width:1px; background:var(--line, rgba(255,255,255,0.1)); flex-shrink:0; }
+      .cs-col-header { display:flex; align-items:center; justify-content:center; gap:4px; padding:4px 0; border-bottom:1px solid var(--line-soft, rgba(255,255,255,0.08)); margin-bottom:4px; }
       .cs-col-dot { width:7px; height:7px; border-radius:50%; }
-      .cs-col-title { color:#fff; font-size:13px; font-weight:500; }
+      .cs-col-title { color:var(--text, #fff); font-size:13px; font-weight:500; }
       .cs-section { margin-bottom:6px; }
-      .cs-st { color:rgba(255,255,255,0.45); font-size:10px; display:block; margin-bottom:2px; }
+      .cs-st { color:var(--text-dim, rgba(255,255,255,0.45)); font-size:10px; display:block; margin-bottom:2px; }
       .cs-sel { display:flex; gap:3px; }
-      .cs-opt { flex:1; text-align:center; padding:4px 0; font-size:10px; color:rgba(255,255,255,0.5); background:rgba(255,255,255,0.05); border-radius:4px; cursor:pointer; border:1px solid rgba(255,255,255,0.06); }
-      .cs-opt.active { color:#fff; background:rgba(66,133,244,0.3); border-color:rgba(66,133,244,0.4); }
+      .cs-opt { flex:1; text-align:center; padding:4px 0; font-size:10px; color:var(--text-dim, rgba(255,255,255,0.5)); background:var(--card-2, rgba(255,255,255,0.05)); border-radius:4px; cursor:pointer; border:1px solid var(--line-soft, rgba(255,255,255,0.06)); }
+      .cs-opt.active { color:var(--text, #fff); background:rgba(66,133,244,0.22); border-color:rgba(66,133,244,0.4); }
       .cs-toggles { display:flex; flex-wrap:wrap; gap:3px; }
-      .cs-tog { padding:3px 5px; font-size:9px; color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.05); border-radius:3px; cursor:pointer; border:1px solid rgba(255,255,255,0.06); }
-      .cs-tog.on { color:#fff; background:rgba(66,133,244,0.3); border-color:rgba(66,133,244,0.4); }
-      .cs-shared-row { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.08); }
+      .cs-tog { padding:3px 5px; font-size:9px; color:var(--text-dim, rgba(255,255,255,0.45)); background:var(--card-2, rgba(255,255,255,0.05)); border-radius:3px; cursor:pointer; border:1px solid var(--line-soft, rgba(255,255,255,0.06)); }
+      .cs-tog.on { color:var(--text, #fff); background:rgba(66,133,244,0.22); border-color:rgba(66,133,244,0.4); }
+      .cs-shared-row { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--line-soft, rgba(255,255,255,0.08)); }
       .cs-shared-label { margin:0; white-space:nowrap; }
+      /* 两侧晶体选择器（见 _renderSettings 的 cs-crystal 行） */
+      .cs-crystal { display:flex; gap:6px; padding:6px 12px 2px; }
+      .cs-crystal select { flex:1; min-width:0; padding:4px 6px; border-radius:6px; font-size:11px; background:var(--card-2, rgba(255,255,255,0.06)); color:var(--text, #fff); border:1px solid var(--line-soft, rgba(255,255,255,0.12)); }
+      .cs-crystal select:focus { outline:none; border-color:rgba(66,133,244,0.6); }
     </style>`
 
     c.querySelector('#cpBack')?.addEventListener('click', () => router.back())
@@ -393,6 +357,18 @@ export class ComparePage {
     c.querySelector('#cpAlignView')?.addEventListener('click', () => this._onAlignViews())
     c.querySelector('#cpAlignStyle')?.addEventListener('click', () => this._onAlignStyle())
     c.querySelector('#cpToggleSettings')?.addEventListener('click', () => this._onToggleSettings())
+
+    /**
+     * ★★ 2026-10-12（用户要求）：**点击两侧标签跳转到该晶体的查看页**。
+     * ★ 标签的 pointer-events 已从 none 改回可点（见 .cp-label 的样式），
+     *   否则这枚胶囊永远收不到点击。
+     */
+    c.querySelectorAll('.cp-label').forEach((el) => {
+      el.addEventListener('click', () => {
+        const id = el.dataset.side === 'right' ? (this._crystalIdB || this._crystalId) : this._crystalId
+        if (id) router.navigate('/viewer/' + id)
+      })
+    })
 
     // 如果设置面板已展开（由 _renderSettings 内联渲染），需要重新绑定事件
     if (this._settingsExpanded) {
@@ -470,8 +446,28 @@ export class ComparePage {
         <span class="cs-tog${s.partialAtoms ? ' on' : ''}" data-cp-act="partialAtoms">裁剪</span>
       </div>` : ''
 
+    /**
+     * ★★ 2026-10-12（用户要求）：**对比模式支持手动更换左/右晶体**。
+     *
+     * 选项来自晶体目录本身（`crystalIndex`），不另抄一份清单 —— 目录加了新晶体这里自动有。
+     * 右侧多一个「与左侧相同」：选它即退回"同一晶体 × 两种模型"的既有模式
+     * （`_crystalIdB = null`），不必让用户自己去猜怎么退。
+     */
+    const opts = (selectedId) => crystalIndex
+      .map((c) => `<option value="${c.id}"${c.id === selectedId ? ' selected' : ''}>${c.name}</option>`)
+      .join('')
+    const crystalHtml = `
+      <div class="cs-crystal">
+        <select data-crystal-side="left" title="${t('pages.compare.pickLeft')}">${opts(this._crystalId)}</select>
+        <select data-crystal-side="right" title="${t('pages.compare.pickRight')}">
+          <option value=""${this._crystalIdB ? '' : ' selected'}>${t('pages.compare.sameAsLeft')}</option>
+          ${opts(this._crystalIdB || this._crystalId)}
+        </select>
+      </div>`
+
     return `
     <div class="cs-panel" id="csPanel">
+      ${crystalHtml}
       ${sharedHtml}
       <div class="cs-cols">
         ${genSide('left', '#4285F4', isHoriz ? t('pages.compare.leftPanel') : t('pages.compare.topPanel'))}
@@ -479,6 +475,85 @@ export class ComparePage {
         ${genSide('right', '#EA4335', isHoriz ? t('pages.compare.rightPanel') : t('pages.compare.bottomPanel'))}
       </div>
     </div>`
+  }
+
+  /**
+   * 换某一侧的晶体。
+   *
+   * ★ 只更新**该侧画布的 props**（viewer-canvas 内部按"晶体变了"就地重建几何），
+   *   不调 `_render()` —— 那会重建整个 DOM（画布也一起被换掉）。这是本页的既有铁律。
+   * ★ 两侧选成同一块晶体时把 B 置空：退回"同一晶体 × 两种模型"，
+   *   与旧链接 / 旧行为的语义保持一致。
+   */
+  _setSideCrystal(side, id) {
+    if (side === 'left') {
+      if (id) this._crystalId = id
+    } else {
+      this._crystalIdB = id || null
+    }
+    if (this._crystalIdB === this._crystalId) this._crystalIdB = null
+    this._applyCrystalMeta()
+    this._updateCanvases()
+    this._refreshLabels()
+  }
+
+  /** 刷新两侧标签（左上角那枚胶囊）与顶栏标题 —— 换晶体后必须跟着变 */
+  _refreshLabels() {
+    const s = this._state
+    const tEl = this._container?.querySelector('.cp-title')
+    if (tEl) {
+      tEl.textContent = s.crystalNameB
+        ? `${s.crystalName} vs ${s.crystalNameB}`
+        : t('pages.compare.titleOne', { name: s.crystalName })
+    }
+    const lL = this._container?.querySelector('#leftPane .cp-label')
+    const lR = this._container?.querySelector('#rightPane .cp-label')
+    if (lL) {
+      lL.textContent = s.crystalNameB
+        ? `${s.crystalName} · ${modelName(s.leftModelType, true)}`
+        : modelName(s.leftModelType, false)
+    }
+    if (lR) {
+      lR.textContent = s.crystalNameB
+        ? `${s.crystalNameB} · ${modelName(s.rightModelType, true)}`
+        : modelName(s.rightModelType, false)
+    }
+  }
+
+  /**
+   * 把当前 `_crystalId` / `_crystalIdB` 派生成界面状态（名称、能力标志、可见性初值）。
+   * ★ 从 mount() 里抽出来：换晶体走的是**同一条**派生逻辑，两处各写一份迟早漂开
+   *   （本仓库反复记过的"同一个事实写两处"）。
+   */
+  _applyCrystalMeta() {
+    const s = this._state
+    const data = getCrystalData(this._crystalId)
+    if (!data) return
+    s.crystalData = data
+    s.crystalName = data.name || this._crystalId
+    const dataB = this._crystalIdB ? getCrystalData(this._crystalIdB) : null
+    s.crystalNameB = dataB ? (dataB.name || this._crystalIdB) : ''
+    s.showIntersticeControl = ['fcc', 'hcp'].includes(this._crystalId)
+    s.isOrthogonalCell = data.lattice && data.lattice.alpha === 90 && data.lattice.beta === 90 && data.lattice.gamma === 90
+    const MOLECULAR_IDS = ['co2', 'ice', 'i2', 'urea']
+    s.isMolecularCrystal = MOLECULAR_IDS.includes(this._crystalId)
+    s.hasHydrogenBonds = s.isMolecularCrystal && data.hydrogenBonds && data.hydrogenBonds.length > 0
+    const METAL_IDS = ['fcc', 'bcc', 'hcp']
+    const isMetal = METAL_IDS.includes(this._crystalId)
+    if (s.isMolecularCrystal) {
+      s.leftShowBonds = true; s.rightShowBonds = true
+      s.leftShowHydrogenBonds = true; s.rightShowHydrogenBonds = true
+    } else if (!isMetal) {
+      s.leftShowBonds = true; s.rightShowBonds = true
+    }
+    s.equivalentSettings = data.equivalentSettings || []
+    const defaultShift = s.equivalentSettings.length > 0 ? (s.equivalentSettings[0].shift || [0, 0, 0]) : [0, 0, 0]
+    s.leftFractionalShift = defaultShift; s.rightFractionalShift = defaultShift
+    const leftVis = {}, rightVis = {}
+    if (data.atoms) {
+      for (const g of data.atoms) { leftVis[g.element] = true; rightVis[g.element] = true }
+    }
+    s.leftAtomVisibility = leftVis; s.rightAtomVisibility = rightVis
   }
 
   /** 生成某一侧 viewer-canvas 的完整 props（增量更新与初始化共用） */
@@ -755,6 +830,16 @@ export class ComparePage {
   _bindSettingsEvents() {
     const panel = this._container.querySelector('#csPanel')
     if (!panel) return
+    /**
+     * ★★ 2026-10-12（用户要求）：设置里**手动更换左/右晶体**。
+     * ★ 用 change 而不是 click：下拉框的点击语义是"展开选项"，
+     *   选中哪一项只有 change 事件说得清（click 会在展开时就触发）。
+     * ★ 面板是每次重建的（_renderSettings + 注入），所以每建成一次就重绑一次 ——
+     *   与下面那个 click 委托同一个生命周期，不会累积。
+     */
+    panel.querySelectorAll('[data-crystal-side]').forEach((sel) => {
+      sel.addEventListener('change', () => this._setSideCrystal(sel.dataset.crystalSide, sel.value))
+    })
     panel.addEventListener('click', (e) => {
       const el = e.target.closest('[data-cp-act]')
       if (!el) return
