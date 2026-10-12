@@ -899,6 +899,25 @@ body.agent-resizing .compare-page {
   margin-top: 6px;
 }
 .agent-msg.user .agent-msg-acts { justify-content: flex-end; }
+/**
+ * ★★ 2026-10-12 用户截图：在点群观鉴板块发问后，气泡里那三个按钮成了"看不见的白框"。
+ *
+ *   真因与上一轮那条**同一类**：用户气泡的底色是**写死的深蓝渐变**（不随主题翻），
+ *   而按钮沿用了全局的 `--accent` —— 浅色主题下 `--accent` 是 #2563d6（深蓝），
+ *   压在深蓝气泡上等于没有；再乘上基础透明度 .72，就成了三个空框。
+ *   判据不变：**底色恒深的容器，里面的文字与控件都必须自带浅色**，不能沿用主题强调色。
+ */
+.agent-msg.user .agent-act-btn {
+  color: #eaf1ff;
+  background: rgba(255, 255, 255, .14);
+  border-color: rgba(255, 255, 255, .38);
+  opacity: .85;
+}
+.agent-msg.user .agent-act-btn:hover {
+  background: rgba(255, 255, 255, .26);
+  border-color: rgba(255, 255, 255, .55);
+  opacity: 1;
+}
 
 /* 分支切换片：一个分叉点处列出各条分支，点一下就切过去。
    ★ 它必须留在**它所在的那条线**上：切到另一条之后，这个分叉点就不在当前路径上了，

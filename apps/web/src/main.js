@@ -988,7 +988,100 @@ quizUI = createQuizUI({ panel, app, module: crystal, quiz })
 //     上一版是发一句"请讲解 X，讲完给我出几道题"等模型自由发挥，结果模型按
 //     explain 节点的纪律做了演示、却没出题——学生只看到画面在动，没有题干与选项
 //     （实测反馈）。练习的诉求本就是"只给学生看题目"，没有理由假手模型。
+/**
+ * 「练习」入口：**按当前板块分流**。
+ *
+ * ★★ 2026-10-12 用户截图：在「点群观鉴」里点「练习」，列出来的却是「晶典在线」的
+ *   C1–C8 晶体知识点 —— 因为这里此前**无条件**读晶体的 `KNOWLEDGE_POINTS`。
+ *
+ * ★ 三个板块的练习能力本来就不一样，所以不做"一套 UI 套所有人"：
+ *   · 晶典在线：晶体题库 C1–C8 + `generateQuiz`（答案由程序算好并冻结）
+ *   · 轨道视界：轨道**自带**练习闭环（`OrbitQuiz.startFlow()`：知识点 → 讲解 → 出题卡）
+ *   · 点群观鉴：**还没有题库**（出题要数值化判据与错因库）—— 如实说明，不假装有
+ *   · 门户（无板块）：先让学生选板块，而不是默默丢一份晶体知识点
+ */
 function startPractice() {
+  const board = currentBoardId()
+  if (board === 'orbit') return startOrbitPractice()
+  if (board === 'symmetry') return startPracticeNote()
+  if (!board) return startPracticeBoardChooser()
+  return startCrystalPractice()
+}
+
+/**
+ * 当前板块（按 URL 判定）；门户页返回 null。
+ * ★ 不能用 `lastSceneModuleId`：它回门户后**故意不清**（中枢要靠它把动作落回上个板块），
+ *   拿它判断"现在在哪儿"会把门户页认成上一个板块 —— 这两件事必须分开。
+ */
+function currentBoardId() {
+  const path = router.currentPath
+  const hit = Object.keys(MODULE_HOME_ROUTE).find((id) => MODULE_HOME_ROUTE[id] === '#' + path)
+  return hit || null
+}
+
+/** 切到某板块后接着开练习（"这个板块没有题库，去那边练"那条路） */
+function goPracticeOn(boardId) {
+  const route = MODULE_HOME_ROUTE[boardId]
+  if (!route) return
+  location.hash = route
+  // 等页面挂上再开：否则卡片会插进"还没有消息区"的面板
+  Promise.resolve(ensureModuleReady(boardId)).then(() => startPractice()).catch(() => {})
+}
+
+/** 门户页：先选板块 */
+function startPracticeBoardChooser() {
+  const el = panel.addCard(
+    '<div class="agent-picker">'
+    + '<div style="font-size:12px;color:var(--text-dim,#9aa7c6)">' + t('shell.practice.chooseBoard') + '</div>'
+    + '<button type="button" class="agent-pick-btn" data-board="crystal">' + t('shell.practice.board.crystal') + '</button>'
+    + '<button type="button" class="agent-pick-btn" data-board="orbit">' + t('shell.practice.board.orbit') + '</button>'
+    + '</div>',
+    'assistant'
+  )
+  el.querySelectorAll('.agent-pick-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      el.querySelectorAll('.agent-pick-btn').forEach((x) => { x.disabled = true })
+      goPracticeOn(b.dataset.board)
+    })
+  })
+}
+
+/** 点群观鉴：**没有题库就如实说**，并给出两条真能走的路 */
+function startPracticeNote() {
+  const el = panel.addCard(
+    '<div>' + t('shell.practice.noBank') + '</div>'
+    + '<div class="agent-picker">'
+    + '<button type="button" class="agent-pick-btn" data-board="orbit">' + t('shell.practice.board.orbit') + '</button>'
+    + '<button type="button" class="agent-pick-btn" data-board="crystal">' + t('shell.practice.board.crystal') + '</button>'
+    + '</div>',
+    'assistant'
+  )
+  el.querySelectorAll('.agent-pick-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      el.querySelectorAll('.agent-pick-btn').forEach((x) => { x.disabled = true })
+      goPracticeOn(b.dataset.board)
+    })
+  })
+}
+
+/**
+ * 轨道视界：交给轨道**自带的**练习闭环。
+ * ★ 它会把知识点选择器、讲解、出题卡都插进面板
+ *   （question-engine.js：`startFlow` → `pickKnowledgePoint` → `launch` → `askQuestion`），
+ *   所以这里**不要**再造一套 UI，也不要另发一句 LLM 请求 —— 那会绕开它的状态机。
+ */
+function startOrbitPractice() {
+  try {
+    const r = OrbitQuiz.startFlow()
+    if (r && r.ok) return
+  } catch (e) {
+    console.error('[practice] 轨道题库启动失败：', e)
+  }
+  panel.addMsg('<span class="agent-err">' + t('shell.practice.orbitFailed') + '</span>', 'assistant')
+}
+
+/** 晶典在线：晶体知识点选择器 + `generateQuiz` */
+function startCrystalPractice() {
   // 知识点选择器卡片（8 个知识点 C1–C8；复用 panel.css 里现成的 .agent-picker 样式）
   const entries = Object.entries(KNOWLEDGE_POINTS)
   const btns = entries.map(([id, meta]) =>
@@ -996,7 +1089,7 @@ function startPractice() {
   ).join('')
   const el = panel.addCard(
     '<div class="agent-picker">'
-    + '<div style="font-size:12px;color:var(--text-dim,#9aa7c6)">选择要练习的知识点：</div>'
+    + '<div style="font-size:12px;color:var(--text-dim,#9aa7c6)">' + t('shell.practice.boardCrystalTitle') + '</div>'
     + btns + '</div>',
     'assistant'
   )

@@ -29,6 +29,15 @@ export const zh = {
     + '你不是问答机器人，而是能感知用户在做什么、能动手把话演示出来的教学智能体——'
     + '凡是可以用三维视图演示的，都要用 applySceneActions 演示，而不是只用文字描述。'
     /**
+     * ★★ 2026-10-12 用户截图：设置里明明勾了"显示思考"，展开一看**思考过程是英文的**
+     *   （正文是中文）—— 学生点开思考块读到的是一段与界面语言不一致的英文推理。
+     *   界面语言由宿主的 i18n 决定（中文/English 两套），所以这里只说一件事：
+     *   **思考过程与回答用同一种语言**，别让"能看懂的正文"配"看不懂的思考"。
+     *   ★ 不改模型的思维自由，只钉语言：推理可以跳跃、可以试错，但要用学生看得懂的语言写出来。
+     */
+    + '★ 思考过程（reasoning）与正文**必须用同一种语言**：面向中文界面时，推理也用简体中文写，'
+    + '不要用英文思考——学生会点开思考块看，英文推理等于把最关键的那一段藏起来。'
+    /**
      * ★★ 2026-10-08 十问实测后补的两条铁律（用户要求"检查是否符合学生的学习规律"）。
      *
      *   「能用演示就要演示」这句话**被模型过度执行**了：问"水是什么点群""比较 NaCl 和 CsCl"
@@ -83,6 +92,17 @@ export const zh = {
   /** ★ 2026-10-08：模型没走工具时，宿主直接函数调用出题引擎兜底，并如实告诉学生 */
   'shell.practice.toolFallback': '模型这一轮没有调用出题工具，已直接调用 generateQuiz 生成题目',
   /**
+   * ★★ 2026-10-12：练习入口按板块分流（用户截图：在点群观鉴里点练习，列的是晶体知识点）。
+   *   三个板块的练习能力本来不同 ⇒ 分开说，不假装每个板块都有题库。
+   */
+  'shell.practice.chooseBoard': '选择要练习的板块：',
+  'shell.practice.board.crystal': '晶典在线 · 晶体结构',
+  'shell.practice.board.orbit': '轨道视界 · 原子轨道',
+  'shell.practice.boardCrystalTitle': '晶典在线 · 晶体结构 —— 选择要练习的知识点：',
+  'shell.practice.noBank': '「点群观鉴」还没有自己的题库（出题要有数值化的判据与错因库，这个板块的数据还在建）'
+    + '—— 你可以先直接问我，或去下面两个板块练。',
+  'shell.practice.orbitFailed': '轨道题库没能启动（出题引擎未就绪），请稍后再试。',
+  /**
    * ★ 面板开场白：**统一身份**（用户报「三个板块的智能体没有综合成为一个总智能体」）。
    *   由宿主（main.js 的 greeting）统一给出，模块只接自己的示例问题。
    *   同 `shell.practice.askLlm`：这是 `t()` 的键，不在 text 表里。
@@ -122,6 +142,9 @@ export const en = {
     + 'in a structural chemistry course. You are not a question-answering bot: you are a teaching '
     + 'agent that can perceive what the user is doing and act things out. Whenever something can be '
     + 'demonstrated in the 3D view, demonstrate it with applySceneActions instead of describing it in words only. '
+    + '★ Reasoning and the reply MUST be written in the same language: when the interface is in Chinese, '
+    + 'reason in Simplified Chinese — never in English. Students open the thinking block, so reasoning in a '
+    + 'different language hides the most important part. '
     + '★ Never invert the order: when the student asks what / which / why / whether, the reply MUST open '
     + 'with a direct answer in one or two sentences (conclusion plus the key numbers or symbols, taken from '
     + 'the tools) and only then queue the demo. A demo is a means of deepening understanding, NOT a substitute '
@@ -152,6 +175,14 @@ export const en = {
     + 'and do not compute the answer) — the question card appears automatically; '
     + 'just say in one sentence what this question tests.',
   'shell.practice.toolFallback': 'The model did not call the quiz tool this turn, so generateQuiz was called directly',
+  'shell.practice.chooseBoard': 'Choose a module to practise:',
+  'shell.practice.board.crystal': 'Crystal Online · crystal structures',
+  'shell.practice.board.orbit': 'Orbital Horizon · atomic orbitals',
+  'shell.practice.boardCrystalTitle': 'Crystal Online · crystal structures — choose a knowledge point to practise:',
+  'shell.practice.noBank': 'Point Group Explorer does not have its own question bank yet (generating questions needs '
+    + 'numeric criteria and a misconception library, and that data is still being built) — '
+    + 'ask me directly, or practise in one of the two modules below.',
+  'shell.practice.orbitFailed': 'The orbital question bank could not start (the quiz engine is not ready) — please try again later.',
   'shell.panel.greetHead': "I'm the structural chemistry teaching agent",
   'shell.panel.greetScope': 'I cover all three modules — Orbital Horizon · Point Group Explorer · '
     + 'Crystal Atlas. Ask about any of them and I switch to the right one.',
