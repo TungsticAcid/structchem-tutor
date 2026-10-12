@@ -38,27 +38,29 @@ const LAYER_LABELS = {
  *   （面板折叠态与展开态各一处）。改一处、另一处不变，就会出现
  *   "展开之前是对的、展开之后颜色跳一下"——而两边看起来都像是有意为之。
  *
- * ★ 为什么是**恒深色**、不跟主题翻转：浅色主题下页面与画布都会变白，
- *   而这一条与其上的文字若跟着变白，面板里的浅色文字会落到白底上
- *   （实测对比度 1.4:1）。所以它跟的是外壳调色板 `--chrome-*` ——
- *   与智能体面板同一族表面，那些面板也是恒深色的。
- * ★ 以前写的是私有字面量 `rgba(30,30,50,0.95)`：与 `--chrome-card` 是同一块颜色
- *   却各写一份，正是"两套视觉真源"的残留。
- * ★ 末尾保留原值作 fallback：独立页（`projects/crystal/H5` 单独跑、没有宿主题）
- *   下外观逐字不变。
+ * ★★ 2026-10-12（用户要求）：**颜色改为随界面风格变化**（浅色主题下面板是浅的）。
+ *   原先它是**恒深色**，写死在 `--chrome-*` 上；理由在当时是成立的（怕浅色文字落到白底上，
+ *   实测过 1.4:1），但那是"深底时代"的权宜之计：现在整套界面有完整主题令牌，
+ *   面板**跟随主题**才是对的一致观感（用户明确要求）。
+ *   改法：面板内所有写死的深色字面量一律换成随主题翻转的令牌（`--card` / `--card-2` /
+ *   `--text` / `--text-dim` / `--line` / `--line-soft` / `--accent`），
+ *   并把**原值留在 fallback 位**上：独立页（`projects/crystal/H5` 单独跑、
+ *   没有宿主题令牌）外观逐字不变 —— 这也是本仓库给共享组件加令牌的既定做法。
+ *   ★ 只换"表面与文字"，不动每个图层自己的颜色（开关打开时的 `--toggle-color`）——
+ *     那些是**数据语义色**（八面体空隙橙、四面体隙蓝…），不该随主题漂。
  * ★ 容器**必须显式声明 color**：只绑变量不够 —— 变量生效 ≠ 结果正确，
- *   继承来的 `color` 在深底上可能仍是深色（这条在设计令牌那轮踩过一次）。
+ *   继承来的 `color` 在新底色上可能仍是旧色（这条在设计令牌那轮踩过一次）。
  */
 const LAYER_CONTROL_BASE_CSS = `
       .layer-control {
-        background: var(--chrome-card, rgba(30,30,50,0.95));
-        border-top: 1px solid var(--chrome-line, rgba(255,255,255,0.1));
-        color: var(--chrome-text, #ffffff);
+        background: var(--card, rgba(30,30,50,0.95));
+        border-top: 1px solid var(--line, rgba(255,255,255,0.1));
+        color: var(--text, #ffffff);
         transition: all 0.3s;
       }
       .panel-toggle { display: flex; align-items: center; justify-content: center; padding: 8px; gap: 4px; cursor: pointer; }
-      .toggle-arrow { color: var(--chrome-text-dim, rgba(255,255,255,0.5)); font-size: 10px; }
-      .toggle-label-text { color: var(--chrome-text-dim, rgba(255,255,255,0.7)); font-size: 12px; }
+      .toggle-arrow { color: var(--text-dim, rgba(255,255,255,0.5)); font-size: 10px; }
+      .toggle-label-text { color: var(--text-dim, rgba(255,255,255,0.7)); font-size: 12px; }
 `
 
 export class LayerControl extends BaseComponent {
@@ -387,53 +389,53 @@ ${LAYER_CONTROL_BASE_CSS}
 ${LAYER_CONTROL_BASE_CSS}
       .panel-body { padding: 0 12px 16px; max-height: 250px; overflow-y: auto; }
       .control-section { margin-bottom: 12px; }
-      .section-title { display: block; color: rgba(255,255,255,0.5); font-size: 11px; margin-bottom: 6px; }
+      .section-title { display: block; color: var(--text-dim, rgba(255,255,255,0.5)); font-size: 11px; margin-bottom: 6px; }
       .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
 
       /* 外观滑块（原子缩放 / 原子透明度） */
       .slider-row { padding: 4px 0 8px; }
       .slider-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
-      .slider-val { color: rgba(255,255,255,0.8); font-size: 11px; font-variant-numeric: tabular-nums; }
-      .slider-hint { color: rgba(255,255,255,0.38); font-size: 10.5px; line-height: 1.5; margin-top: 3px; }
+      .slider-val { color: var(--text, rgba(255,255,255,0.8)); font-size: 11px; font-variant-numeric: tabular-nums; }
+      .slider-hint { color: var(--text-dim, rgba(255,255,255,0.38)); font-size: 10.5px; line-height: 1.5; margin-top: 3px; }
       .appearance-range {
         -webkit-appearance: none; appearance: none;
         width: 100%; height: 4px; border-radius: 2px; outline: none; cursor: pointer;
         /* --fill 由渲染时按当前值给出，左段高亮、右段灰 —— 原生 range 在深色面板上几乎看不见轨道 */
-        background: linear-gradient(to right, #4285F4 0%, #4285F4 var(--fill, 50%), rgba(255,255,255,0.15) var(--fill, 50%), rgba(255,255,255,0.15) 100%);
+        background: linear-gradient(to right, var(--accent, #4285F4) 0%, var(--accent, #4285F4) var(--fill, 50%), var(--line, rgba(255,255,255,0.15)) var(--fill, 50%), var(--line, rgba(255,255,255,0.15)) 100%);
       }
       .appearance-range::-webkit-slider-thumb {
         -webkit-appearance: none; appearance: none;
         width: 14px; height: 14px; border-radius: 50%;
-        background: #fff; border: 2px solid #4285F4; cursor: pointer;
+        background: #fff; border: 2px solid var(--accent, #4285F4); cursor: pointer;
       }
       .appearance-range::-moz-range-thumb {
         width: 12px; height: 12px; border-radius: 50%;
-        background: #fff; border: 2px solid #4285F4; cursor: pointer;
+        background: #fff; border: 2px solid var(--accent, #4285F4); cursor: pointer;
       }
       .toggle-indent { padding-left: 12px; }
-      .toggle-label { color: rgba(255,255,255,0.85); font-size: 13px; }
-      .element-section-header { padding: 5px 0; border-top: 1px solid rgba(255,255,255,0.06); margin-top: 2px; cursor: pointer; }
+      .toggle-label { color: var(--text, rgba(255,255,255,0.85)); font-size: 13px; }
+      .element-section-header { padding: 5px 0; border-top: 1px solid var(--line-soft, rgba(255,255,255,0.06)); margin-top: 2px; cursor: pointer; }
       .element-section-left { display: flex; align-items: center; gap: 4px; }
-      .element-count-text { color: rgba(255,255,255,0.35); font-size: 11px; }
-      .element-expand-arrow { color: rgba(255,255,255,0.4); font-size: 10px; }
+      .element-count-text { color: var(--text-dim, rgba(255,255,255,0.35)); font-size: 11px; }
+      .element-expand-arrow { color: var(--text-dim, rgba(255,255,255,0.4)); font-size: 10px; }
       .element-toggle-row { padding-left: 12px; padding-top: 2px; padding-bottom: 2px; }
-      .element-toggle-row .toggle-label { flex: 1; font-size: 12px; color: rgba(255,255,255,0.75); }
-      .element-color-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; border: 1px solid rgba(255,255,255,0.3); flex-shrink: 0; }
+      .element-toggle-row .toggle-label { flex: 1; font-size: 12px; color: var(--text, rgba(255,255,255,0.75)); }
+      .element-color-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; border: 1px solid var(--line, rgba(255,255,255,0.3)); flex-shrink: 0; }
       .crystal-info { padding: 4px 0; }
-      .info-line { display: block; color: rgba(255,255,255,0.7); font-size: 12px; line-height: 1.8; }
+      .info-line { display: block; color: var(--text, rgba(255,255,255,0.7)); font-size: 12px; line-height: 1.8; }
       .model-selector { display: flex; gap: 4px; }
       .model-option {
         flex: 1; text-align: center; padding: 7px 0; border-radius: 6px;
-        background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5); font-size: 12px;
+        background: var(--card-2, rgba(255,255,255,0.06)); color: var(--text-dim, rgba(255,255,255,0.5)); font-size: 12px;
         transition: all 0.2s; cursor: pointer;
       }
-      .model-option.active { background: rgba(66,133,244,0.2); color: #4285F4; font-weight: 500; }
+      .model-option.active { background: rgba(66,133,244,0.18); color: var(--accent, #4285F4); font-weight: 500; }
       /* Toggle Switch */
       .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
       .toggle-switch input { opacity: 0; width: 0; height: 0; }
       .toggle-slider {
         position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-        background: rgba(255,255,255,0.15); border-radius: 11px; transition: 0.2s;
+        background: var(--line, rgba(255,255,255,0.15)); border-radius: 11px; transition: 0.2s;
       }
       .toggle-slider::before {
         content: ''; position: absolute; height: 18px; width: 18px; left: 2px; bottom: 2px;

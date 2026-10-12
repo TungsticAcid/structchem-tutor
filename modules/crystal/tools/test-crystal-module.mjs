@@ -12,6 +12,7 @@
  *   3. 参数越界与编造 id 必须被**程序拒绝**，而不是靠提示词约束
  */
 import { createCrystalFacade } from '../facade.js'
+import { readFileSync } from 'node:fs'
 import { validate, listActions, LAYER_PROPS } from '../actions.js'
 import { assertModuleContract } from '../../../packages/module-contract/index.js'
 // ★ 模块名要**对着 descriptor 断言**，而不是在测试里再抄一份字面量：
@@ -329,6 +330,33 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
   const fYes = createCrystalFacade({ view: mkView({ showIntersticeControl: true }) })
   check('页面说有空隙层时，快照里 intersticesAvailable = true',
     fYes.getSnapshot().intersticesAvailable === true, JSON.stringify(fYes.getSnapshot().intersticesAvailable))
+}
+
+// ============================================================================
+// 控制面板的颜色必须**随主题**（用户要求），且不得再出现写死的深色字面量
+//
+// ★★ 2026-10-12（用户："控制面板颜色随界面风格变化"）：
+//   这块面板原先是**恒深色**（写死 rgba(30,30,50,.95) + 一片 rgba(255,255,255,x)），
+//   浅色主题下它是一整块黑，与界面不一致 ✗。
+//   改法：表面与文字一律走主题令牌（--card/--card-2/--text/--text-dim/--line/--line-soft/--accent），
+//   并把原值留在 fallback 位（独立 H5 页没有令牌，外观逐字不变）。
+//   本守卫钉住"不许再写死"：任何 `color:`/`background:` 的值里出现裸的
+//   rgba(255,255,255,…) 都算违约 —— 允许的形式只有 `var(--x, rgba(255,255,255,…))`。
+//   ★ 每个图层自己的语义色（--toggle-color）**不在**此列：那是数据语义，不该随主题漂。
+// ============================================================================
+{
+  const lcSrc = readFileSync(new URL('../../../projects/crystal/H5/src/components/layer-control.js', import.meta.url), 'utf8')
+  const bare = []
+  for (const line of lcSrc.split('\n')) {
+    const t = line.trim()
+    if (!/^(color|background)\s*:/.test(t)) continue
+    if (!/rgba\(255,\s*255,\s*255/.test(t)) continue
+    // 合法形式：值里先出现 var(--…, rgba(255,255,255,…))；非法：直接以 rgba 起头
+    if (!/var\(--[a-z0-9-]+,\s*rgba\(255,\s*255,\s*255/.test(t) && !/linear-gradient\([^)]*var\(--/.test(t)) bare.push(t.slice(0, 70))
+  }
+  check('控制面板没有写死的浅色字面量（必须包在主题令牌的 fallback 位里）', bare.length === 0, bare.join(' ｜ '))
+  check('面板表面走主题令牌（--card / --text）',
+    /background:\s*var\(--card,/.test(lcSrc) && /color:\s*var\(--text,/.test(lcSrc))
 }
 
 // ============================================================================
