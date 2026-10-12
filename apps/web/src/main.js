@@ -967,6 +967,9 @@ panel = createPanel({
         try {
           app.conversation.reset()
           convStore.newSession()
+          // ★ 新会话要把演示一并收掉（否则演示条还挂着上一段对话的「演示已停止」，
+          //   而且再点「重新演示」播的是上一段对话的演示 —— 用户报过这条）
+          panel.resetDemo()
           panel.renderPath()          // 路径为空 → 自动回到空态
         } catch (e) { console.warn('[agent] 新建会话失败：', e) }
       },

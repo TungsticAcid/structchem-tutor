@@ -1201,6 +1201,8 @@ export function createPanel(cfg = {}) {
     add.onclick = () => {
       stopRunning()
       store.newSession()
+      // ★ 新会话不该带着上一段对话的演示条（用户报的"新对话后仍残留演示信息"）
+      resetDemo()
       if (cfg.syncConversation) cfg.syncConversation()
       renderPath()
       renderConvList()
@@ -1756,6 +1758,23 @@ export function createPanel(cfg = {}) {
      *   而是一条**留在消息区里的消息**，不主动撤就永远挂着，看起来像"还没配好"。
      * @returns {number} 撤掉了几处
      */
+    /**
+     * 「新对话」时把演示相关的东西一并收掉。
+     *
+     * ★★ 2026-10-12（用户："进入新对话后，仍然残留演示信息"）：
+     *   新会话只换了对话上下文，演示条还挂着上一段对话的「演示已停止」✗ ——
+     *   新对话里再点「重新演示」，播的是**上一段对话**的演示，学生根本不知道它从哪来。
+     *   ⇒ 新会话就该把演示停掉并收起控制条。
+     *   ★ 这与「收起」不同：那个只藏条、**保留回放能力**（看完顺手收起还能再放）；
+     *     新会话是"换了一段对话"，上一段的演示不该跟过来。
+     * @returns {boolean} 是否真的收掉了一条在显示的演示条
+     */
+    resetDemo: () => {
+      const wasActive = !!(demoBar && !demoBar.classList.contains('hidden'))
+      try { if (SB && typeof SB.stop === 'function') SB.stop() } catch (e) { /* 忽略 */ }
+      hideBar()
+      return wasActive
+    },
     clearNoKeyNotices: () => {
       let n = 0
       doc.querySelectorAll('.agent-nokey').forEach((el) => { el.remove(); n++ })

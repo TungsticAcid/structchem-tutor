@@ -1838,6 +1838,14 @@ console.log(`\n${'═'.repeat(60)}`)
   check('registerDemo 运行时不播放、不执行动作（重画历史不会自己播一遍）',
     rr.ok === true && !!sb2.getDemo('hist-1') && sb2.state().playing !== true && calls.length === 0,
     `ok=${rr.ok} rec=${!!sb2.getDemo('hist-1')} playing=${sb2.state().playing} calls=${calls.length}`)
+
+  // ★★ 2026-10-12（用户："进入新对话后，仍然残留演示信息"）：
+  //   新会话必须把演示一并收掉（停 + 隐藏演示条），否则新对话里点「重新演示」
+  //   播的是上一段对话的演示 —— 学生根本不知道它从哪来。
+  const reset = (panelSrc.match(/resetDemo: \(\) => \{[\s\S]*?\n    \},/) || [''])[0]
+  check('面板提供 resetDemo（新对话时收掉演示条）', reset.length > 0)
+  check('resetDemo 既停演示又隐藏控制条', /SB\.stop/.test(reset) && /hideBar\(\)/.test(reset))
+  check('会话页的「＋ 新会话」也调 resetDemo', /store\.newSession\(\)[\s\S]{0,200}?resetDemo\(\)/.test(panelSrc))
 }
 
 console.log(`test-core 结果：通过 ${pass} 项，失败 ${fail} 项`)
