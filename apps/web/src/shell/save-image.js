@@ -26,6 +26,8 @@
 // ★ 样式不在这里 import：本模块要能在 Node 里被测试，而 Node 不认 .css。见 main.js。
 // ★ i18n 同理：只为"带变量的动态串"引 `t()`（静态字面量走 DOM 扫描替换）。
 import { t } from '@i18n/index.js'
+// ★ 列出目录里的图片这一步是**纯逻辑**（无别名依赖、可在 Node 里单测）：见 shell/saved-images.js
+import { listSavedImages, formatSize } from './saved-images.js'
 
 /** 可作为落点的顶栏（与 home-affordance 同一张表——两处不同步会让两个按钮分开） */
 const ANCHORS = ['[data-page-topbar]', '.page-nav', '#toolbar', '.topbar', '.top-bar', '.cp-top-bar']
@@ -200,8 +202,24 @@ export function installSaveButton(root) {
     + '<button type="button" class="shell-save-go" data-role="save">保存图片</button>'
     + '<button type="button" class="shell-save-as" data-role="saveas">另存为…</button>'
     + '</div>'
-    + '<div class="shell-save-acts"><button type="button" data-role="pick-dir">设置保存位置…</button></div>'
+    + '<div class="shell-save-acts"><button type="button" data-role="pick-dir">设置保存位置…</button>'
+    + '<button type="button" data-role="open-dir">打开保存位置</button></div>'
     + '<div class="shell-save-tip" data-role="tip"></div>'
+
+  /**
+   * 「打开保存位置」面板（应用内）。
+   *
+   * ★★ 2026-10-11（用户："可以加一个按钮'打开图片保存位置'吗"）：
+   *   先讲清限制 —— 网页**没有**"弹出系统资源管理器"的 API，也拿不到目录绝对路径
+   *   （`FileSystemDirectoryHandle` 只给 `name`）⇒ 能做到的是**应用内打开**：
+   *   读该目录里已保存的图片，列缩略图，点一下可预览/下载。
+   *   ★ 面板放在 `wrap` 里（保存按钮旁边），与菜单同属一个浮层，点外面一起收。
+   */
+  const gallery = document.createElement('div')
+  gallery.className = 'shell-save-gallery'
+  gallery.hidden = true
+  wrap.appendChild(gallery)
+  let galleryUrls = []
 
   btn.addEventListener('click', (e) => {
     e.stopPropagation()
@@ -321,6 +339,21 @@ export function installSaveButton(root) {
     }
   })
 
+  menu.querySelector('[data-role="open-dir"]').addEventListener('click', async () => {
+    if (typeof window.showDirectoryPicker !== 'function') { tip(t('shell.save.noDirApi')); return }
+    const dir = await getDirHandle()
+    if (!dir) { tip(t('shell.save.pickFirst')); return }
+    /**
+     * ★ 读权限也要在**手势里**请求（浏览器可能把上次的授权降级了）；
+     *   这里沿用 `ensureWritable` —— readwrite 能拿到，读自然也能。
+     */
+    const ok = await ensureWritable(dir)
+    if (!ok) { tip(t('shell.save.notAllowed') + ' ' + t('shell.save.reopenDir')); return }
+    menu.hidden = true
+    await refreshGallery(gallery, dir, tip, galleryUrls)
+    galleryUrls = gallery._urls || []
+  })
+
   wrap.appendChild(btn)
   wrap.appendChild(menu)
   const anchor = ANCHORS.map((s) => root.querySelector(s)).find(Boolean)
@@ -329,9 +362,75 @@ export function installSaveButton(root) {
   return true
 }
 
+/**
+ * 渲染「打开保存位置」面板：列出该目录里已保存的图片（缩略图 + 名称/大小/时间），
+ * 点名字可直接下载。★ 目录句柄只给 `name`，拿不到绝对路径 —— 所以标题显示的是文件夹名。
+ */
+async function refreshGallery(box, dir, tip, prevUrls) {
+  if (!box) return
+  for (const u of (prevUrls || [])) { try { URL.revokeObjectURL(u) } catch (e) { /* 忽略 */ } }
+  box._urls = []
+  box.hidden = false
+  box.innerHTML = ''
+  const head = document.createElement('div')
+  head.className = 'shell-save-gallery__head'
+  const title = document.createElement('span')
+  title.textContent = t('shell.save.galleryTitle', { dir: (dir && dir.name) || '' })
+  const close = document.createElement('button')
+  close.type = 'button'
+  close.className = 'shell-save-gallery__close'
+  close.textContent = '✕'
+  close.title = t('shell.save.close')
+  close.addEventListener('click', () => { box.hidden = true })
+  head.appendChild(title)
+  head.appendChild(close)
+  box.appendChild(head)
+
+  const list = document.createElement('div')
+  list.className = 'shell-save-gallery__list'
+  box.appendChild(list)
+
+  const items = await listSavedImages(dir)
+  if (!items.length) {
+    const empty = document.createElement('div')
+    empty.className = 'shell-save-gallery__empty'
+    empty.textContent = t('shell.save.galleryEmpty')
+    list.appendChild(empty)
+    return
+  }
+  for (const it of items) {
+    const url = URL.createObjectURL(it.file)
+    box._urls.push(url)
+    const card = document.createElement('figure')
+    card.className = 'shell-save-gallery__item'
+    const img = document.createElement('img')
+    img.src = url
+    img.alt = it.name
+    img.loading = 'lazy'
+    const cap = document.createElement('figcaption')
+    const nm = document.createElement('span')
+    nm.className = 'nm'
+    nm.textContent = it.name
+    const meta = document.createElement('span')
+    meta.className = 'meta'
+    meta.textContent = formatSize(it.size) + ' · ' + new Date(it.lastModified).toLocaleString()
+    const dl = document.createElement('a')
+    dl.href = url
+    dl.download = it.name
+    dl.className = 'dl'
+    dl.textContent = t('shell.save.download')
+    cap.appendChild(nm)
+    cap.appendChild(meta)
+    cap.appendChild(dl)
+    card.appendChild(img)
+    card.appendChild(cap)
+    list.appendChild(card)
+  }
+  if (tip) tip(t('shell.save.galleryCount', { n: items.length }))
+}
+
 /** 菜单里那行小字：当前保存位置 */
-async function refreshDirTip(menu) {
-  const el = menu.querySelector('[data-role="tip"]')
+async function refreshDirTip(menu) {  const el = menu.querySelector('[data-role="tip"]')
   if (!el) return
   if (typeof window.showDirectoryPicker !== 'function') {
     el.textContent = t('shell.save.noDirApiHint')

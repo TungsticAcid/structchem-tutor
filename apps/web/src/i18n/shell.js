@@ -156,6 +156,13 @@ export const zh = {
   'shell.save.noDirApiHint': '本浏览器不支持选择保存位置，图片会放到下载目录',
   'shell.save.currentDir': '保存位置：{dir}',
   'shell.save.pickFirst': '还没设置保存位置 —— 点「保存图片」时会先让你选一个文件夹',
+  // 「打开保存位置」（应用内）：网页无法弹出系统资源管理器，只能列出来给你看
+  'shell.save.galleryTitle': '保存位置「{dir}」里的图片',
+  'shell.save.galleryEmpty': '这个文件夹里还没有保存过图片',
+  'shell.save.galleryCount': '共 {n} 张',
+  'shell.save.download': '下载',
+  'shell.save.close': '关闭',
+  'shell.save.reopenDir': '或点「设置保存位置…」重新选一次',
 }
 
 /** 键 → 英文 */
@@ -232,6 +239,13 @@ export const en = {
   'shell.save.noDirApiHint': 'This browser cannot choose a save location; images go to the download folder',
   'shell.save.currentDir': 'Save location: {dir}',
   'shell.save.pickFirst': 'No save location yet — the first save will ask you to pick a folder',
+  // “Open save location” (in-app): a web page cannot open the OS file manager, so we list the images instead
+  'shell.save.galleryTitle': 'Images in “{dir}”',
+  'shell.save.galleryEmpty': 'No images have been saved to this folder yet',
+  'shell.save.galleryCount': '{n} image(s)',
+  'shell.save.download': 'Download',
+  'shell.save.close': 'Close',
+  'shell.save.reopenDir': 'or click “Set save location…” to choose again',
 }
 
 /**
@@ -278,6 +292,7 @@ export const text = {
   '保存图片': 'Save image',
   '另存为…': 'Save as…',
   '设置保存位置…': 'Set save location…',
+  '打开保存位置': 'Open save location',
   '抓图失败：画布还没画好，稍等一下再试': 'Capture failed: the canvas is not ready yet — try again in a moment',
   '已保存到浏览器的下载目录': 'Saved to the browser download folder',
   '本浏览器不支持选保存位置，已放到下载目录':

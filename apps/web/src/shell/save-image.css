@@ -99,6 +99,61 @@
 .shell-save-acts button:hover { border-color: var(--shell-ui-accent); color: var(--shell-ui-accent); }
 .shell-save-tip { margin-top: 7px; min-height: 14px; font-size: 11.5px; color: var(--shell-ui-menu-dim); }
 
+/**
+ * 「打开保存位置」面板（应用内）：网页弹不出系统资源管理器，就在这里把图片列出来。
+ * 与菜单同一套令牌/圆角，位置也在保存按钮下面。
+ */
+.shell-save-gallery {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 1401;
+  width: min(560px, 86vw);
+  max-height: min(70vh, 560px);
+  overflow: auto;
+  padding: 10px 12px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--shell-ui-menu-line);
+  background: var(--shell-ui-menu-bg);
+  color: var(--shell-ui-menu-fg);
+  box-shadow: var(--elevation-1);
+  font-size: 12px;
+}
+.shell-save-gallery * { font-family: inherit; }
+.shell-save-gallery[hidden] { display: none; }
+.shell-save-gallery__head {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 8px; font-weight: 600;
+}
+.shell-save-gallery__head > span:first-child { flex: 1 1 auto; }
+.shell-save-gallery__close {
+  border: 0; background: transparent; color: var(--shell-ui-menu-fg);
+  font: inherit; cursor: pointer; padding: 0 4px;
+}
+.shell-save-gallery__list {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.shell-save-gallery__empty { color: var(--shell-ui-menu-dim); }
+.shell-save-gallery__item { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.shell-save-gallery__item img {
+  width: 100%; height: 96px; object-fit: contain;
+  /* 透明底的图在浅色/深色面板上都要看得见边界 */
+  background: repeating-conic-gradient(rgba(128,128,128,.18) 0 25%, transparent 0 50%) 0 0 / 12px 12px;
+  border: 1px solid var(--shell-ui-menu-line);
+  border-radius: 6px;
+}
+.shell-save-gallery__item figcaption { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.shell-save-gallery__item .nm {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.shell-save-gallery__item .meta { color: var(--shell-ui-menu-dim); font-size: 11px; }
+.shell-save-gallery__item .dl { color: var(--shell-ui-accent); text-decoration: none; width: fit-content; }
+.shell-save-gallery__item .dl:hover { text-decoration: underline; }
+
+/* 导出时这个面板也要一起藏（与菜单同款） */
+.export-hide-text .shell-save-gallery { visibility: hidden; }
+
 /* 没有可命中顶栏时的兜底（与 .shell-home--float 同款思路） */
 .shell-save-wrap--float { position: fixed; top: 12px; right: 62px; z-index: 900; }
 

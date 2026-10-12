@@ -569,6 +569,33 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok((cmpCode.match(/invalidate\(\)/g) || []).length >= 2 && /removeEventListener\('chem-agent:before-capture'/.test(cmpCode),
     '抓图时排帧、卸载时解绑（两块画布都要）')
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // 「打开保存位置」（用户："可以加一个按钮'打开图片保存位置'吗"）
+  //
+  // ★ 网页弹不出系统资源管理器（也拿不到目录绝对路径），所以形态是**应用内**：
+  //   列出该目录里的图片、给缩略图与下载。纯逻辑抽在 shell/saved-images.js（无别名依赖）
+  //   ⇒ 能在 Node 里用**假目录对象**单测（真的 FileSystemDirectoryHandle 造不出来）。
+  // ───────────────────────────────────────────────────────────────────────────
+  const saveSrc = readFileSync(resolve(REPO, 'apps/web/src/shell/save-image.js'), 'utf8')
+  ok(/data-role="open-dir"/.test(saveSrc) && /打开保存位置/.test(saveSrc), '保存菜单里有「打开保存位置」按钮')
+  ok(/listSavedImages\(/.test(saveSrc) && /shell-save-gallery/.test(saveSrc), '按钮打开的是应用内图片列表（缩略图 + 下载）')
+  {
+    const { listSavedImages, formatSize } = await import('../src/shell/saved-images.js')
+    const mk = (name, size, ts, kind = 'file') => ({ kind, name, getFile: async () => ({ name, size, lastModified: ts }) })
+    const dir = {
+      async *values() {
+        yield mk('b.png', 2000, 200); yield mk('a.png', 500, 100); yield mk('c.png', 3000, 300)
+        yield mk('notes.txt', 10, 400); yield mk('sub', 0, 500, 'directory'); yield mk('x.jpg', 150, 50)
+      },
+    }
+    const list = await listSavedImages(dir)
+    ok(list.length === 4 && list[0].name === 'c.png' && list.every((x) => /\.(png|jpe?g)$/i.test(x.name)),
+      '列出图片：过滤非图片/子目录、按时间倒序')
+    ok((await listSavedImages({})).length === 0, '目录不可读时返回空数组（不抛）')
+    ok((await listSavedImages(dir, { limit: 2 })).length === 2, 'limit 生效（目录可能很大）')
+    ok(formatSize(2048) === '2 KB' && /MB$/.test(formatSize(3 * 1024 * 1024)), '大小显示可读')
+  }
+
   // ★★ 2026-10-12（用户三条："返回二字超出格子" / "右侧设置无法独立修改" / "右侧设置与右侧样式不对应"）：
   //   ① 返回键不能写死 30px 宽（内容「← 返回」比它宽 ⇒ 溢出）；
   //   ② 自动对齐样式**只在首次进入双晶体模式时**做一次，且**跳出加载流程**（否则
