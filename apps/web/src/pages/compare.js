@@ -53,6 +53,11 @@ export class ComparePage {
     this._pendingViewState = null
     this._syncing = false
     this._settingsExpanded = false
+    /**
+     * 已经"为哪块 B 晶体自动对齐过样式"。
+     * ★★ 见 _onCanvasLoaded 的说明：不记住它，用户的每次右键样式改动都会被自动对齐回弹 ✗。
+     */
+    this._styleAlignedFor = null
 
     // 状态
     this._state = {
@@ -297,7 +302,7 @@ export class ComparePage {
     <style>
       .compare-page { width:100vw; height:100vh; display:flex; flex-direction:column; background:#ffffff; overflow:hidden; position:relative; }
       .cp-top-bar { display:flex; align-items:center; padding:calc(12px + env(safe-area-inset-top)) 12px 8px; flex-shrink:0; z-index:20; background:linear-gradient(to bottom, rgba(0,0,0,0.6), rgba(0,0,0,0)); }
-      .cp-back { width:30px; height:30px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:rgba(255,255,255,0.15); color:#fff; font-size:18px; cursor:pointer; margin-right:10px; }
+      .cp-back { min-width:30px; height:30px; padding:0 10px; display:flex; align-items:center; justify-content:center; border-radius:15px; background:rgba(255,255,255,0.15); color:#fff; font-size:18px; cursor:pointer; margin-right:10px; white-space:nowrap; }
       .cp-title { color:#fff; font-size:14px; font-weight:500; flex:1; }
       /* 主体：左列=设置抽屉（桌面），右侧=两幅画布 + 悬浮控制条 */
       .cp-body { flex:1; display:flex; min-height:0; position:relative; }
@@ -733,15 +738,26 @@ export class ComparePage {
     this._canvasLoadedCount++
     if (this._canvasLoadedCount < 2) return
 
-    // ★ **对比两个不同晶体时，样式默认对齐**（静默，不弹提示）。
-    //
-    //   本页有两种用途，对"样式是否该一致"的要求正好相反：
-    //     · 同一晶体的**双模型对比**（球棍 vs CPK）——两侧样式**刻意不同**，那才是重点；
-    //     · **两个不同晶体**的对比——样式必须一致，否则"一个球棍一个 CPK"，
-    //       学生分不清看到的差异是来自晶体本身还是来自显示方式（实测反馈）。
-    //   区分依据就是"有没有第二个晶体"（`_crystalIdB`）：有则对齐，无则保持独立。
-    //   （原先只能手动点「样式对齐」——功能是有的，但学生不知道要点那一下。）
-    if (this._crystalIdB) this._onAlignStyle(true)
+    /**
+     * ★★ 2026-10-12（用户："右侧设置无法独立修改" + "右侧设置与右侧样式不对应"）：
+     *
+     *   原先这里是 `if (this._crystalIdB) this._onAlignStyle(true)` —— **每次**加载都对齐 ✗：
+     *     ① 用户改右侧样式 ⇒ setProps 触发重建 ⇒ 又 fire loaded ⇒ 立刻把右侧**对齐回左侧**
+     *        ⇒ 右侧**永远改不动**（用户报的第 2 条）✗；
+     *     ② 这行还在**加载流程内部**执行，它引发的 setProps 会重入 _loadCrystal 被吞掉
+     *        ⇒ 面板（状态）写着"已对齐"，画面却还是旧样式（用户报的第 3 条）✗。
+     *
+     *   改法两条：**只在首次进入双晶体模式时对齐一次**，并且**跳出加载流程**再执行。
+     *   · `_styleAlignedFor` 记住"已经为哪块 B 晶体对过" ⇒ 之后用户的独立修改不再被回弹；
+     *   · `setTimeout(…, 0)` 让这次对齐发生在本次加载收尾之后（setProps 不再重入）。
+     *   ★ 换 B 晶体时会重新对齐一次（新的一组对比，样式应当一致）。
+     */
+    if (this._crystalIdB && this._styleAlignedFor !== this._crystalIdB) {
+      this._styleAlignedFor = this._crystalIdB
+      setTimeout(() => {
+        try { this._onAlignStyle(true) } catch (e) { console.warn('[compare] 自动对齐样式失败：', e) }
+      }, 0)
+    }
 
     if (this._pendingViewState) {
       const vs = this._pendingViewState
@@ -992,6 +1008,9 @@ export class ComparePage {
       }
       // 增量更新画布（不销毁重建，由 setProps 智能处理）
       this._updateCanvases()
+      // ★ 标签也要跟着刷：它写的是"该侧的模型名/晶体名"，改完样式不同步标签，
+      //   就又回到用户报过的"图文不对应"（实测：右侧改成 CPK 后标签仍写「球棍」）✗
+      this._refreshLabels()
       // 重建设置面板（刷新激活态与元素筛选）★ 同样挂到左列宿主 #csHost
       if (this._settingsExpanded) {
         const panel = this._container.querySelector('#csPanel')

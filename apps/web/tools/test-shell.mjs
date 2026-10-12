@@ -506,6 +506,18 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/rightEquivalentSettings = \(dataB \|\| data\)/.test(cmpCode), '原点变换选项逐侧派生')
   ok(/if \(!this\._crystalIdB\) \{\s*\n\s*s\.rightAtomVisibility/.test(cmpCode),
     '对齐样式时**只在两侧同晶体**的情况下对齐元素显隐（不同晶体不能套用）')
+
+  // ★★ 2026-10-12（用户三条："返回二字超出格子" / "右侧设置无法独立修改" / "右侧设置与右侧样式不对应"）：
+  //   ① 返回键不能写死 30px 宽（内容「← 返回」比它宽 ⇒ 溢出）；
+  //   ② 自动对齐样式**只在首次进入双晶体模式时**做一次，且**跳出加载流程**（否则
+  //      用户改右侧 ⇒ 重建 ⇒ 又 fire loaded ⇒ 立刻回弹；且重入 _loadCrystal 会被吞掉）；
+  //   ③ 设置点击后要同步刷新标签（否则"图文不对应"复发）。
+  ok(/\.cp-back \{[^}]*min-width:30px/.test(cmpCode.replace(/\s+/g, ' ')) && !/\.cp-back \{[^}]*[^-]width:30px/.test(cmpCode.replace(/\s+/g, ' ')),
+    '返回键按内容自适应宽度（不再写死 30px 溢出一半字）')
+  ok(/_styleAlignedFor/.test(cmpCode) && /setTimeout\(\(\) => \{\s*\n\s*try \{ this\._onAlignStyle\(true\) \}/.test(cmpCode),
+    '自动对齐样式只做一次、且跳出加载流程（否则右侧改不动 / 状态与画面不一致）')
+  ok(/_updateCanvases\(\)[\s\S]{0,220}?_refreshLabels\(\)/.test(cmpCode),
+    '设置改动后同步刷新两侧标签（图文一致）')
 }
 
 console.log('')
