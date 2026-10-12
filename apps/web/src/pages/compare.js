@@ -417,20 +417,23 @@ export class ComparePage {
       ]
       // 变换晶胞原点（左右独立）
       let equivHtml = ''
-      if (s.equivalentSettings && s.equivalentSettings.length > 0) {
+      // ★ 逐侧取：右侧那块晶体的"原点变换选项"与左侧不同（同一晶体时才恰好相同）
+      const sideEquiv = s[prefix + 'EquivalentSettings'] || s.equivalentSettings || []
+      if (sideEquiv.length > 0) {
         const idx = s[prefix + 'EquivalentIndex'] || 0
         equivHtml = `<div class="cs-section"><span class="cs-st">变换晶胞原点</span><div class="cs-sel">`
-        for (let i = 0; i < s.equivalentSettings.length; i++) {
-          equivHtml += `<span class="cs-opt${idx === i ? ' active' : ''}" data-cp-side="${prefix}" data-cp-act="equivalent" data-cp-idx="${i}">${s.equivalentSettings[i].label}</span>`
+        for (let i = 0; i < sideEquiv.length; i++) {
+          equivHtml += `<span class="cs-opt${idx === i ? ' active' : ''}" data-cp-side="${prefix}" data-cp-act="equivalent" data-cp-idx="${i}">${sideEquiv[i].label}</span>`
         }
         equivHtml += `</div></div>`
       }
-      // 分元素显隐（仅在原子图层开启时显示）
+      // 分元素显隐（仅在原子图层开启时显示）★ 元素列同样逐侧取（右侧可能是另一块晶体）
+      const sideData = (prefix === 'right' ? (s.crystalDataB || cd) : cd) || {}
       let elemHtml = ''
-      if (show('ShowAtoms') && cd.atoms) {
+      if (show('ShowAtoms') && sideData.atoms) {
         const vis = s[prefix + 'AtomVisibility'] || {}
         elemHtml = `<div class="cs-section"><span class="cs-st">元素筛选</span><div class="cs-toggles">`
-        for (const g of cd.atoms) {
+        for (const g of sideData.atoms) {
           elemHtml += `<span class="cs-tog${vis[g.element] !== false ? ' on' : ''}" data-cp-side="${prefix}" data-cp-act="elementToggle" data-cp-el="${g.element}">${g.element}</span>`
         }
         elemHtml += `</div></div>`
@@ -511,6 +514,22 @@ export class ComparePage {
     this._applyCrystalMeta()
     this._updateCanvases()
     this._refreshLabels()
+    // ★ 设置面板里的"元素筛选 / 原点变换"是**逐晶体**的 ⇒ 换完晶体必须重画它，
+    //   否则右栏还列着上一块晶体的元素（实测：右侧已是 CsCl，元素栏却还写着 Cu）✗
+    this._rebuildSettingsPanel()
+  }
+
+  /** 就地重建设置面板（不调 _render：那会重建整个 DOM、把画布也换掉） */
+  _rebuildSettingsPanel() {
+    if (!this._settingsExpanded || !this._container) return
+    const panel = this._container.querySelector('#csPanel')
+    if (!panel) return
+    panel.remove()
+    const div = document.createElement('div')
+    div.innerHTML = this._renderSettings()
+    const host = this._container.querySelector('#csHost')
+    ;(host || this._container).appendChild(div.firstElementChild)
+    this._bindSettingsEvents()
   }
 
   /** 刷新两侧标签（左上角那枚胶囊）与顶栏标题 —— 换晶体后必须跟着变 */
@@ -565,11 +584,27 @@ export class ComparePage {
     s.equivalentSettings = data.equivalentSettings || []
     const defaultShift = s.equivalentSettings.length > 0 ? (s.equivalentSettings[0].shift || [0, 0, 0]) : [0, 0, 0]
     s.leftFractionalShift = defaultShift; s.rightFractionalShift = defaultShift
-    const leftVis = {}, rightVis = {}
-    if (data.atoms) {
-      for (const g of data.atoms) { leftVis[g.element] = true; rightVis[g.element] = true }
+    /**
+     * ★★ 2026-10-12（用户："右边图文不对应"）：**分元素显隐必须逐侧派生**。
+     *   原先两张表都拿**左侧晶体**的原子算 ⇒ 右侧换成别的晶体后，
+     *   它的可见性表里全是左晶体的元素（实测：右侧渲 CsCl，可见性却是 {Cu:true}）✗
+     *   ⇒ 右侧的原子着色/显隐跟着出错，标签写着 CsCl、画面上却对不上。
+     *   ★ 判据：凡是"逐侧"的数据，就不要用"只算一次、两边共用"的写法 ——
+     *     同一晶体时两边一样是巧合，不同晶体时就是缺陷。
+     */
+    const visOf = (d) => {
+      const o = {}
+      if (d && d.atoms) for (const g of d.atoms) o[g.element] = true
+      return o
     }
-    s.leftAtomVisibility = leftVis; s.rightAtomVisibility = rightVis
+    s.leftAtomVisibility = visOf(data)
+    s.rightAtomVisibility = visOf(dataB || data)
+    // 变换晶胞原点：同样逐侧（左右可能是两块不同的晶体，选项本来就不同）
+    s.leftEquivalentSettings = data.equivalentSettings || []
+    s.rightEquivalentSettings = (dataB || data).equivalentSettings || []
+    s.equivalentSettings = s.leftEquivalentSettings
+    // ★ 右侧的**晶体数据**也要单独留着：设置面板里"元素筛选"那一栏要按**各侧自己的**元素列
+    s.crystalDataB = dataB || data
   }
 
   /** 生成某一侧 viewer-canvas 的完整 props（增量更新与初始化共用） */
@@ -849,9 +884,18 @@ export class ComparePage {
     const s = this._state
     const keys = ['ModelType','StickRadius','ShowAtoms','ShowBonds','ShowAxes','ShowHydrogenBonds','ShowLatticePoints','ShowAtomLabels','ShowInterstices','ShowOctahedral','ShowTetrahedral','ShowAuxiliaryBody','ShowAuxiliaryFace','AtomScale','Opacity','CellDisplayMode']
     for (const k of keys) s['right' + k] = s['left' + k]
-    s.rightAtomVisibility = { ...s.leftAtomVisibility }
-    s.rightEquivalentIndex = s.leftEquivalentIndex
-    s.rightFractionalShift = [...s.leftFractionalShift]
+    /**
+     * ★★ 2026-10-12（用户："右边图文不对应"）：**元素显隐 / 原点变换不能无条件对齐**。
+     *   它们是**逐晶体**的：两块不同的晶体，元素列（Cs/Cl vs Cu）与原点选项本来就不同。
+     *   原先这里无条件 `rightAtomVisibility = { ...leftAtomVisibility }` ✗ ⇒
+     *   右侧换成 CsCl 后，可见性被覆盖成左晶体的 {Cu:true} ⇒ 画面着色/显隐跟着错 ✗。
+     *   只在**两侧同一晶体**时对齐这两项（那才是"同款"的意思）；两块不同晶体时留给各自派生。
+     */
+    if (!this._crystalIdB) {
+      s.rightAtomVisibility = { ...s.leftAtomVisibility }
+      s.rightEquivalentIndex = s.leftEquivalentIndex
+      s.rightFractionalShift = [...s.leftFractionalShift]
+    }
     // 增量更新右侧画布（不销毁重建）
     if (this._rightCanvas) this._rightCanvas.setProps(this._mkProps('right'))
 

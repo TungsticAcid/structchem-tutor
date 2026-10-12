@@ -500,6 +500,12 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   //   ② 点原子必须弹**原子信息卡**（与查看页同一个组件）。
   ok(!/window\.wx/.test(cmpCode), '对比页不再调用宿主里不存在的 window.wx（会抛异常卡死拖拽）')
   ok(/AtomInfoPopup/.test(cmpCode) && /_onAtomTap\(/.test(cmpCode), '点原子会弹出原子信息卡（复用查看页那枚组件）')
+  // ★★ 2026-10-12（用户："右边图文不对应"）：逐侧数据不许写成"算一次、两边共用"。
+  //   实测：右画布渲 CsCl 而可见性是 {Cu:true}（左晶体的元素表）⇒ Cs 被当成隐藏、画面全绿 ✗。
+  ok(/rightAtomVisibility = visOf\(dataB/.test(cmpCode), '元素显隐逐侧派生（右侧用右侧晶体的元素列）')
+  ok(/rightEquivalentSettings = \(dataB \|\| data\)/.test(cmpCode), '原点变换选项逐侧派生')
+  ok(/if \(!this\._crystalIdB\) \{\s*\n\s*s\.rightAtomVisibility/.test(cmpCode),
+    '对齐样式时**只在两侧同晶体**的情况下对齐元素显隐（不同晶体不能套用）')
 }
 
 console.log('')
