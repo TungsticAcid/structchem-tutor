@@ -357,6 +357,27 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
   check('控制面板没有写死的浅色字面量（必须包在主题令牌的 fallback 位里）', bare.length === 0, bare.join(' ｜ '))
   check('面板表面走主题令牌（--card / --text）',
     /background:\s*var\(--card,/.test(lcSrc) && /color:\s*var\(--text,/.test(lcSrc))
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 原子标签必须**能被原子球遮挡**（用户："原子标签应可被原子球遮挡"）
+  //
+  // ★★ 2026-10-12：原先 SpriteMaterial 写的是 `depthTest: false` ⇒ 标签永远画在
+  //   所有原子之上 ✗（后面的 Na 标签会盖在挡着它的 Cl 球上）。
+  //   打开深度测试后还必须把标签从**原子中心**朝相机挪出自己那颗球，
+  //   否则一开深度测试标签会被自己吃掉 ✗（两件事必须同时成立）。
+  // ─────────────────────────────────────────────────────────────────────────
+  const sbSrc = readFileSync(new URL('../../../projects/crystal/H5/src/lib/scene-builder.js', import.meta.url), 'utf8')
+  // ★ 剥注释再判：我在注释里引用了**旧写法** `depthTest: false` 做说明，
+  //   不剥的话棘轮会扫到注释里的它并报红（本仓库第三次踩这个坑，前两次是
+  //   tokens.css 的 prefers-color-scheme 与 viewer-canvas 的旧复位写法）。
+  const sbCode = sbSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/^\s*\*.*$/gm, '')
+  const labelFn = (sbCode.match(/function buildAtomLabels\([\s\S]*?\n\}/) || [''])[0]
+  check('原子标签开启深度测试（可被球遮挡）',
+    /depthTest:\s*true/.test(labelFn) && !/depthTest:\s*false/.test(labelFn))
+  check('标签每帧朝相机挪出自己那颗球（否则会被自己吃掉）',
+    /_labelOffset/.test(labelFn) && /onBeforeRender/.test(labelFn) && /getWorldDirection/.test(labelFn))
+  check('偏移量按原子半径取（各元素球大小不同）',
+    /atomGroup\.radius \|\| 1\.0\) \* sizeFactor \* atomScale/.test(labelFn))
 }
 
 // ============================================================================

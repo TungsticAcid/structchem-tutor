@@ -1217,7 +1217,15 @@ function buildAtomLabels(atomGroups, lattice, THREE, options = {}) {
         map: texture,
         transparent: true,
         opacity: matOpacity,
-        depthTest: false,
+        /**
+         * ★★ 2026-10-12（用户："原子标签应可被原子球遮挡"）：
+         *   这里原先写的是 `depthTest: false` —— 标签于是永远画在所有原子之上 ✗
+         *   （前面的 Na 标签会盖在挡在它前面的 Cl 球上，看图就知道是错的）。
+         *   ⇒ 打开深度测试，让标签被**别的**原子遮挡。
+         *   ★ 但只打开它是**不够**的：标签在原子**中心**，会被它自己那颗球整个吃掉 ✗
+         *     ⇒ 每帧把它朝相机挪到"球面外一点点"（见下面 sprites 的 onBeforeRender）。
+         */
+        depthTest: true,
         depthWrite: false
       })
       elementMaterials[elem] = material
@@ -1237,6 +1245,31 @@ function buildAtomLabels(atomGroups, lattice, THREE, options = {}) {
       sprite.position.set(cart.x, cart.y, cart.z)
       sprite.scale.set(1.5, 0.75, 1)
       sprite._element = atomGroup.element
+      /**
+       * ★★ 2026-10-12（用户："原子标签应可被原子球遮挡"）：
+       *   标签世界半径口径与原子球一致（见上面 `(atomGroup.radius || 1.0) * sizeFactor * atomScale`）。
+       *   每帧把它从原子中心朝**相机**挪出球面一点点：
+       *     · 挪出去 ⇒ 自己那颗球不会把它吃掉（否则一开深度测试标签就全没了 ✗）；
+       *     · 只挪一点点 ⇒ 别的原子照旧能挡住它 ✓（这才是用户要的效果）。
+       */
+      const worldR = (atomGroup.radius || 1.0) * sizeFactor * atomScale
+      sprite._labelBase = sprite.position.clone()
+      sprite._labelOffset = worldR * 1.02 + 0.01
+      const _v = new THREE.Vector3()
+      const _dir = new THREE.Vector3()
+      sprite.onBeforeRender = (renderer, scene, camera) => {
+        const parent = sprite.parent
+        if (!parent || !camera) return
+        camera.getWorldDirection(_dir)                   // 相机朝向（世界坐标系）
+        _v.copy(sprite._labelBase)
+        parent.localToWorld(_v)                          // 原子中心（世界）
+        _v.addScaledVector(_dir, -sprite._labelOffset)   // 朝相机挪出球面
+        parent.worldToLocal(_v)
+        sprite.position.copy(_v)
+        // ★ 立即刷新矩阵：不然这一帧用的还是上一帧的位置（拖拽时会"追着走"一帧）
+        sprite.updateMatrix()
+        sprite.matrixWorld.multiplyMatrices(parent.matrixWorld, sprite.matrix)
+      }
       group.add(sprite)
     }
   }
