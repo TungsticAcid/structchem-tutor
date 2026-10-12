@@ -279,6 +279,9 @@ export class ViewerCanvas {
     const aspect = canvas.width / (canvas.height || 1)
     const frustumSize = 2 * DEFAULT_RADIUS * VIEW_FIT_MARGIN / Math.min(1, aspect)
     s._frustumSize = frustumSize
+    // ★ 初始化时的"原视角"（此时还不知道晶体，用默认半径）；真晶体加载后
+    //   _applyStructure 会用**拟合半径**再记一次（见 _captureHomeView）。
+    s._homeView = { theta: Math.PI / 4, phi: Math.atan(Math.sqrt(2)), radius: DEFAULT_RADIUS }
     const camera = new THREE.OrthographicCamera(
       frustumSize * aspect / -2, frustumSize * aspect / 2,
       frustumSize / 2, frustumSize / -2,
@@ -582,19 +585,14 @@ export class ViewerCanvas {
 
       if (isCrystalChange) {
         this._resetViewParams(Math.PI / 4, Math.atan(Math.sqrt(2)), suggestedRadius || DEFAULT_RADIUS)
-        if (s._frustumSize) {
-          // ★ 与初始化那处**同一个式子**（口径见 VIEW_FIT_MARGIN 的说明）。
-          //   两处曾各自写死 `× 1.2`：一处改了另一处没改，就会出现
-          //   "首屏正常、一换晶体就变样"，而且看起来像是晶体数据的问题。
-          const fr = suggestedRadius || DEFAULT_RADIUS
-          const aspect = s.canvas.width / (s.canvas.height || 1)
-          s._frustumSize = 2 * fr * VIEW_FIT_MARGIN / Math.min(1, aspect)
-          s.camera.left = s._frustumSize * aspect / -2
-          s.camera.right = s._frustumSize * aspect / 2
-          s.camera.top = s._frustumSize / 2
-          s.camera.bottom = s._frustumSize / -2
-          s.camera.updateProjectionMatrix()
-        }
+        // ★★ 记下"进入这块晶体时的原视角"（见 _captureHomeView / resetView 的说明）：
+        //   双击复位必须回到**这一套**，而不是写死的 DEFAULT_RADIUS。
+        this._captureHomeView(suggestedRadius || DEFAULT_RADIUS)
+        // ★ 与初始化那处**同一个式子**（口径见 VIEW_FIT_MARGIN 的说明）。
+        //   两处曾各自写死 `× 1.2`：一处改了另一处没改，就会出现
+        //   "首屏正常、一换晶体就变样"，而且看起来像是晶体数据的问题。
+        //   ⇒ 现在抽成 _applyFrustumFor（拟合与复位共用，改一处两处都生效）。
+        if (s._frustumSize) this._applyFrustumFor(suggestedRadius || DEFAULT_RADIUS)
         this._updateCameraPosition()
       }
 
@@ -1043,6 +1041,40 @@ export class ViewerCanvas {
     return { x: 0, y: -r * DEFAULT_PAN_Y_FACTOR, z: 0 }
   }
 
+  /**
+   * 记下"**进入这块晶体时的原视角**"。
+   *
+   * ★★ 2026-10-12（用户："对比模式中，双击应该恢复到原本视角（图1），而不是现在的双击变小（图2）"）：
+   *   进入时的视角是**按晶体拟合**出来的（`suggestedRadius` ⇒ radius≈19、frustumSize≈17），
+   *   而 `resetView()` 原先回到的是**写死的** `DEFAULT_RADIUS = 35` 与 `× 1.2` 的 frustum ✗
+   *   ⇒ 双击不是"回到原样"，而是**把模型缩小**（还改变了取景）。
+   *   修法：拟合时把这一套记下来（原视角），复位时回到它。
+   *   ★ 只记 `{ theta, phi, radius }`，**frustumSize 复位时按当前宽高比重算**：
+   *     面板开合 / 布局切换都会改变画布宽高比，记死一个数会在那时错位
+   *     （公式与拟合处同一份，见 VIEW_FIT_MARGIN）。
+   */
+  _captureHomeView(radius) {
+    const s = this._state
+    s._homeView = {
+      theta: Math.PI / 4,
+      phi: Math.atan(Math.sqrt(2)),
+      radius: radius || DEFAULT_RADIUS
+    }
+  }
+
+  /** 按当前画布宽高比重算并写入投影（拟合与复位共用同一式子） */
+  _applyFrustumFor(radius) {
+    const s = this._state
+    if (!s.camera || !s.canvas) return
+    const aspect = s.canvas.width / (s.canvas.height || 1)
+    s._frustumSize = 2 * (radius || DEFAULT_RADIUS) * VIEW_FIT_MARGIN / Math.min(1, aspect)
+    s.camera.left = s._frustumSize * aspect / -2
+    s.camera.right = s._frustumSize * aspect / 2
+    s.camera.top = s._frustumSize / 2
+    s.camera.bottom = s._frustumSize / -2
+    s.camera.updateProjectionMatrix()
+  }
+
   _resetViewParams(theta, phi, radius) {
     const s = this._state
     s._theta = theta; s._phi = phi
@@ -1054,8 +1086,15 @@ export class ViewerCanvas {
 
   resetView() {
     const s = this._state
-    this._resetViewParams(Math.PI / 4, Math.atan(Math.sqrt(2)), DEFAULT_RADIUS)
-    if (s._frustumSize) s._frustumSize = DEFAULT_RADIUS * 1.2
+    /**
+     * ★★ 2026-10-12（用户："对比模式中，双击应该恢复到原本视角，而不是现在的双击变小"）：
+     *   回到 `_homeView`（进入这块晶体时**拟合**出来的那一套视角），而不是写死的 DEFAULT_RADIUS。
+     *   原先两行都写死（`DEFAULT_RADIUS` 与 `DEFAULT_RADIUS * 1.2`）⇒ 双击后模型反而变小 ✗。
+     */
+    const home = s._homeView || { theta: Math.PI / 4, phi: Math.atan(Math.sqrt(2)), radius: DEFAULT_RADIUS }
+    this._resetViewParams(home.theta, home.phi, home.radius)
+    // ★ frustum 用**当前**宽高比重算（面板开合 / 布局切换会改宽高比），与拟合同一式子
+    this._applyFrustumFor(home.radius)
     if (s.crystalRoot) s.crystalRoot.quaternion.set(0, 0, 0, 1)
     this._updateCameraPosition()
     this._notifyViewChange()

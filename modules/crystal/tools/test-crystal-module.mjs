@@ -392,6 +392,30 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
 }
 
 // ============================================================================
+// 双击复位 = 回到**进入时的原视角**（用户："对比模式中，双击应该恢复到原本视角（图1），
+// 而不是现在的双击变小（图2）"）
+//
+// ★★ 2026-10-12：进入时的视角是**按晶体拟合**的（radius≈19 / frustum≈17），而 resetView()
+//   原先回到写死的 `DEFAULT_RADIUS = 35` 与 `× 1.2` 的 frustum ✗ ⇒ "复位"变成"缩小"。
+//   修法：拟合时记下原视角（_captureHomeView），复位时回到它；frustum 按**当前**宽高比重算
+//   （面板开合 / 布局切换会改宽高比，记死数字会在那时错位）。
+//   守卫钉三件事：① resetView 用 _homeView；② 拟合路径确实记了 _homeView；
+//   ③ frustum 走共用式子 _applyFrustumFor（旧的两处 `× 1.2` 一个字面量都不许留）。
+// ============================================================================
+{
+  const vcSrc = readFileSync(new URL('../../../projects/crystal/H5/src/components/viewer-canvas.js', import.meta.url), 'utf8')
+  // ★ 剥注释再判：第一版没剥，而我在注释里引用了那段**旧写法**做说明，
+  //   棘轮当场扫到注释里的它并报红（与 tokens.css 的 prefers-color-scheme 那次同一个坑）。
+  const vcCode = vcSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/^\s*\*.*$/gm, '')
+  const reset = (vcCode.match(/resetView\(\) \{[\s\S]{0,900}?\n  \}/) || [''])[0]
+  check('复位回到记录的原视角（_homeView），而不是写死的 DEFAULT_RADIUS',
+    /_homeView/.test(reset) && !/DEFAULT_RADIUS\)/.test(reset.replace(/home\.radius/g, '')))
+  check('拟合路径记下了原视角（_captureHomeView 被调用）', /this\._captureHomeView\(/.test(vcCode))
+  check('frustum 走共用式子 _applyFrustumFor（拟合与复位各一处）',
+    (vcCode.match(/_applyFrustumFor\(/g) || []).length >= 2 && !/DEFAULT_RADIUS \* 1\.2/.test(vcCode))
+}
+
+// ============================================================================
 console.log(`\n${'═'.repeat(60)}`)
 console.log(`test-crystal-module 结果：通过 ${pass} 项，失败 ${fail} 项`)
 console.log('═'.repeat(60))
