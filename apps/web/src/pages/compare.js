@@ -755,7 +755,17 @@ export class ComparePage {
     if (this._crystalIdB && this._styleAlignedFor !== this._crystalIdB) {
       this._styleAlignedFor = this._crystalIdB
       setTimeout(() => {
-        try { this._onAlignStyle(true) } catch (e) { console.warn('[compare] 自动对齐样式失败：', e) }
+        try {
+          this._onAlignStyle(true)
+          /**
+           * ★★ 2026-10-12（用户："切换到 NaCl 后，设置和模型的显示模型还是不一致"）：
+           *   自动对齐是**延迟**执行的，它改的是**状态** ——
+           *   而设置面板在这之前就已经画好了（_setSideCrystal 里重画过）✗
+           *   ⇒ 面板高亮着对齐前的「CPK」、画面却已经是对齐后的「球棍」✗。
+           *   改：对齐之后**再重画一次设置面板**，让"设置 ↔ 状态 ↔ 画面"三者始终一致。
+           */
+          this._rebuildSettingsPanel()
+        } catch (e) { console.warn('[compare] 自动对齐样式失败：', e) }
       }, 0)
     }
 
@@ -831,10 +841,9 @@ export class ComparePage {
     if (toggleBtn) toggleBtn.textContent = newLabelText
 
     // 更新画布标签
-    const leftLabel = this._container?.querySelector('#leftPane .cp-label')
-    const rightLabel = this._container?.querySelector('#rightPane .cp-label')
-    if (leftLabel) leftLabel.textContent = modelName(s.leftModelType, false)
-    if (rightLabel) rightLabel.textContent = modelName(s.rightModelType, false)
+    // ★ 统一走 _refreshLabels()：这里原先只写"模型短名"，双晶体模式下会把**晶体名**丢掉 ✗
+    //   （同一件事三处各写一份，本仓库反复踩过；收敛到一处后行为也一致了）
+    this._refreshLabels()
 
     // 延迟等CSS布局生效后调整frustum并resize
     setTimeout(() => {
@@ -929,22 +938,9 @@ export class ComparePage {
       this._rightCanvas.applyViewState({ radius: r })
     }
 
-    // ★ 只刷新**两侧的模型标签**，不调 `_render()`——那会重建整个 DOM（画布也一起被
-    //   销毁重建），把上面"增量更新右侧画布"的意义抵消掉。
-    //   漏掉这一步的表现是：样式其实已经对齐了，但标签还写着「NaCl · 球棍 / CsCl · CPK」，
-    //   学生（以及验证脚本）都会以为没生效（实测就是被这里绊住的）。
-    const lL = this._container?.querySelector('#leftPane .cp-label')
-    const lR = this._container?.querySelector('#rightPane .cp-label')
-    if (lL) {
-      lL.textContent = this._crystalIdB
-        ? `${s.crystalName} · ${modelName(s.leftModelType, true)}`
-        : modelName(s.leftModelType, false)
-    }
-    if (lR) {
-      lR.textContent = this._crystalIdB
-        ? `${s.crystalNameB} · ${modelName(s.rightModelType, true)}`
-        : modelName(s.rightModelType, false)
-    }
+    // ★ 标签统一走 _refreshLabels()（原先这段在这里又写了一份，与 mount/onLangChange
+    //   三处各写一遍 —— 本仓库的老毛病；改一处漏两处）
+    this._refreshLabels()
 
     if (!silent) this._toast(t('pages.compare.stylesAligned'))
   }

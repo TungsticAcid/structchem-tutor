@@ -514,10 +514,19 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   //   ③ 设置点击后要同步刷新标签（否则"图文不对应"复发）。
   ok(/\.cp-back \{[^}]*min-width:30px/.test(cmpCode.replace(/\s+/g, ' ')) && !/\.cp-back \{[^}]*[^-]width:30px/.test(cmpCode.replace(/\s+/g, ' ')),
     '返回键按内容自适应宽度（不再写死 30px 溢出一半字）')
-  ok(/_styleAlignedFor/.test(cmpCode) && /setTimeout\(\(\) => \{\s*\n\s*try \{ this\._onAlignStyle\(true\) \}/.test(cmpCode),
+  ok(/_styleAlignedFor/.test(cmpCode) && /setTimeout\(\(\) => \{[\s\S]{0,300}?this\._onAlignStyle\(true\)/.test(cmpCode),
     '自动对齐样式只做一次、且跳出加载流程（否则右侧改不动 / 状态与画面不一致）')
   ok(/_updateCanvases\(\)[\s\S]{0,220}?_refreshLabels\(\)/.test(cmpCode),
     '设置改动后同步刷新两侧标签（图文一致）')
+  // ★★ 2026-10-12（用户："切换到 NaCl 后，设置和模型的显示模型还是不一致"）：
+  //   自动对齐是**延迟**执行的、改的是状态 ⇒ 之后必须再重画一次设置面板，
+  //   否则面板高亮着对齐前的样式、画面已是新的（设置 ↔ 画面 不一致）。
+  ok(/_onAlignStyle\(true\)[\s\S]{0,200}?_rebuildSettingsPanel\(\)/.test(cmpCode),
+    '自动对齐后重画设置面板（设置 ↔ 画面 一致）')
+  // ★ 标签刷新只该有**一处**实现（_refreshLabels）；数出现次数而不是"必须没有" ——
+  //   第一版写成"不得出现"，而 _refreshLabels 本身正当含有这一行，守卫自己报红 ✗
+  ok((cmpCode.match(/querySelector\('#leftPane \.cp-label'\)/g) || []).length === 1,
+    '标签刷新收敛到 _refreshLabels()（各处不再复写一份）')
 }
 
 console.log('')
