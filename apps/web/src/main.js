@@ -1081,6 +1081,33 @@ quizUI = createQuizUI({ panel, app, module: crystal, quiz })
  *   · 门户（无板块）：先让学生选板块，而不是默默丢一份晶体知识点
  */
 function startPractice() {
+  /**
+   * ★★ 2026-10-12（用户截图："没配置 api key 时，点击练习会出现图中 bug"）：
+   *   两个问题叠在一起 ——
+   *   ① **上一轮的练习卡没人撤**：练习清单/题目卡都是"只存在于 DOM 的节点"，
+   *      它们被"重画时保留"这条规则保护着；换板块再点练习时，上一份清单还挂着
+   *      （截图里晶典在线的知识点与点群观鉴的 P1–P5 上下叠成一团 ✗）。
+   *      ⇒ 点「练习」的语义就是"重新开始练"，入口先清掉旧卡片。
+   *   ② **没配 Key 时不该走进练习流程**：练习闭环每一步都要模型（讲解/出题/判分），
+   *      没有 Key 只会留下一堆点了没反应的卡片 + 一句红字 ✗。
+   *      ⇒ 先给**一张**能照着做的卡片（说明 + 直接打开设置），然后返回。
+   */
+  panel.clearPracticeCards()
+  // ★ 判定必须写 `settings.hasKey()`：本文件里没有裸的 `hasKey` 这个名字，
+  //   写成 `typeof hasKey === 'function'` 会**静默**为假（typeof 未声明变量不报错），
+  //   守卫等于没写 —— 这才是本仓库反复记过的"字段名对不上不报错，只是功能没了"。
+  if (!settings.hasKey()) {
+    const el = panel.addCard(
+      '<div>' + t('shell.practice.needKey') + '</div>'
+      + '<div class="agent-picker">'
+      + '<button type="button" class="agent-pick-btn" data-open-settings="1">'
+      + t('shell.practice.openSettings') + '</button>'
+      + '</div>',
+      'assistant'
+    )
+    el.querySelector('[data-open-settings]')?.addEventListener('click', () => settingsPopup.open({ expand: 'model' }))
+    return
+  }
   const board = currentBoardId()
   if (board === 'orbit') return startOrbitPractice()
   if (board === 'symmetry') return startSymmetryPractice()

@@ -437,6 +437,21 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '板块子页前缀表登记了晶典在线的查看页/对比页')
   ok(/function currentBoardId\(\)[\s\S]{0,600}?startsWith\(/.test(mainSrc),
     'currentBoardId 同时做首页精确匹配与子页前缀匹配')
+
+  // ★★ 2026-10-12（用户报："没配置 api key 时，点击练习会出现图中 bug"）：
+  //   两个必须同时成立的点：① 练习入口先看有没有 Key（练习闭环每步都要模型，
+  //   没 Key 只会留下一堆点了没反应的卡片）；② 入口先清掉上一轮的练习卡
+  //   （它们受"重画时保留"保护，换板块再点会与新的清单叠成一团）。
+  //   ★ 判据要**剥掉注释**再比：第一版没剥，而我刚在注释里写了那段**反面写法**做说明，
+  //     棘轮当场扫到注释里的它并报红 —— 与 tokens.css 那条 prefers-color-scheme
+  //     棘轮踩的是同一个坑（"解释文字本身会误报"）。
+  const noComments = mainSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  const startIdx = noComments.indexOf('function startPractice()')
+  const practiceStart = startIdx >= 0 ? noComments.slice(startIdx, startIdx + 1600) : ''
+  ok(/settings\.hasKey\(\)/.test(practiceStart), '练习入口检查了 API Key（settings.hasKey()）')
+  ok(/panel\.clearPracticeCards\(\)/.test(practiceStart), '练习入口先清掉上一轮的练习卡')
+  ok(/typeof hasKey\b/.test(noComments) === false,
+    '没有写成 typeof 裸名 hasKey（那样会静默为假，守卫等于没写）')
 }
 
 console.log('')

@@ -107,6 +107,13 @@ export const zh = {
   /** ★ 用户第 7 条：点群题库补齐后，同样的启动失败也要如实说 */
   'shell.practice.symFailed': '点群题库没能启动（出题引擎未就绪），请稍后再试。',
   /**
+   * ★★ 2026-10-12（用户报："没配置 api key 时，点击练习会出现图中 bug"）：
+   *   练习闭环每一步都要模型（讲解 → 出题 → 判分），没配 Key 时点进来只会
+   *   留下一堆点了没反应的卡片 ✗。改成**一张**能照着做的卡片：说清原因 + 一个直接打开设置的按钮。
+   */
+  'shell.practice.needKey': '练习需要先配置 API Key —— 出题、讲解与判分都要靠模型完成。点下面的按钮填写即可。',
+  'shell.practice.openSettings': '去设置里填写 API Key',
+  /**
    * ★★ 2026-10-12（用户第 1 条）：面板输入框提示**按板块**说 —— 原先写死"晶体结构"，
    *   站在轨道/点群板块里也照旧这么说。末尾那句操作提示四个板块相同，就重复写进去
    *   （组装成一个完整句子最省事：它是 DOM 属性，英文侧也要逐条对应）。
@@ -200,6 +207,8 @@ export const en = {
     + 'ask me directly, or practise in one of the two modules below.',
   'shell.practice.orbitFailed': 'The orbital question bank could not start (the quiz engine is not ready) — please try again later.',
   'shell.practice.symFailed': 'The point-group question bank could not start (the quiz engine is not ready) — please try again later.',
+  'shell.practice.needKey': 'Practising needs an API key first — asking questions, explaining and marking all rely on the model. Use the button below to fill it in.',
+  'shell.practice.openSettings': 'Enter the API key in Settings',
   'shell.panel.ph.home': 'Ask a structural chemistry question, or let me demonstrate… (Enter to send, Shift+Enter for a new line)',
   'shell.panel.ph.crystal': 'Ask about crystal structures, or let me demonstrate… (Enter to send, Shift+Enter for a new line)',
   'shell.panel.ph.orbit': 'Ask about atomic orbitals, or let me demonstrate… (Enter to send, Shift+Enter for a new line)',

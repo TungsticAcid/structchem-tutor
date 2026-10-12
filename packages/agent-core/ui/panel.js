@@ -1742,6 +1742,22 @@ export function createPanel(cfg = {}) {
       doc.querySelectorAll('.agent-nokey').forEach((el) => { el.remove(); n++ })
       return n
     },
+    /**
+     * 撤掉**上一轮练习**留在面板里的卡片（知识点清单 / 选板块 / 题目卡 / 讲评卡）。
+     *
+     * ★★ 2026-10-12（用户截图：面板里"晶典在线的知识点清单"与"点群观鉴的 P1–P5 清单"
+     *   上下叠在一起，还挂着上一轮的开始按钮）：
+     *   练习相关的卡片都属于**只存在于 DOM 的节点**（见 domOnlyNodes 的说明），
+     *   它们被"重画时保留"这条规则保护着 —— 而在**换板块再点练习**时，
+     *   上一份清单没人撤 ⇒ 两份叠着 ✗。点击「练习」的语义就是"重新开始练"，
+     *   所以入口处先把这些卡片清掉。
+     * @returns {number} 撤掉了几张
+     */
+    clearPracticeCards: () => {
+      const kept = domOnlyNodes()
+      kept.forEach((el) => { try { el.remove() } catch (e) { /* 已脱落 */ } })
+      return kept.length
+    },
     /** 按当前板块换输入框提示（见 main.js 的分板块提示语） */
     setPlaceholder: (text) => { if (text) inputEl.placeholder = text },
     /** 输入框提示的当前值（供验证脚本断言） */
