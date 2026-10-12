@@ -427,6 +427,16 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(lost.length === 0, '这些会白屏的关键文件都在扫描范围内', lost.join(','))
   ok(broken.length === 0, `全部 ${files.length} 个文件都能被解析（语法错会直接白屏）`,
     broken.slice(0, 3).join(' ｜ '))
+
+  // ★★ 2026-10-12（用户报："在晶典在线里点练习，应显示晶典在线对应的选项"）：
+  //   `currentBoardId()` 原先只做**首页路由精确匹配**，于是晶典在线的**查看页/对比页**
+  //   （#/viewer/<id>、#/compare/<id>）被判成"不在任何板块" ⇒ 点「练习」弹出"先选板块"清单 ✗。
+  //   守卫：子页前缀表里必须有这两条，且判定函数确实用了前缀匹配（不是又改回精确匹配）。
+  const mainSrc = readFileSync(resolve(REPO, 'apps/web/src/main.js'), 'utf8')
+  ok(/MODULE_SUB_ROUTES\s*=\s*\{[\s\S]{0,200}?'\/viewer\/'[\s\S]{0,80}?'\/compare\/'/.test(mainSrc),
+    '板块子页前缀表登记了晶典在线的查看页/对比页')
+  ok(/function currentBoardId\(\)[\s\S]{0,600}?startsWith\(/.test(mainSrc),
+    'currentBoardId 同时做首页精确匹配与子页前缀匹配')
 }
 
 console.log('')

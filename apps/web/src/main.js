@@ -691,6 +691,22 @@ onThemeChange((_theme, resolved) => applyThemeVisualColors(resolved))
 const MODULE_HOME_ROUTE = { crystal: '#/crystal', orbit: '#/orbit', symmetry: '#/symmetry' }
 
 /**
+ * 板块的**子页**路由前缀（这些页面也属于同一个板块）。
+ *
+ * ★★ 2026-10-12（用户报："在晶典在线里点练习，应显示晶典在线对应的选项"）：
+ *   `currentBoardId()` 原先只做**精确匹配**首页路由 —— 而晶典在线除了库页 `#/crystal`，
+ *   还有**查看页** `#/viewer/<id>` 与**对比页** `#/compare/<id>`；
+ *   学生站在查看页上点「练习」，被判成"不在任何板块" ⇒ 弹出"先选板块"的清单 ✗
+ *   （他明明就在晶典在线里）。这里把子页前缀登记上，判定改成"首页精确匹配 + 子页前缀匹配"。
+ * ★ 只登记"确实属于该板块"的页面：例如 `#/settings` 不属于任何板块，不要往里塞。
+ */
+const MODULE_SUB_ROUTES = {
+  crystal: ['/viewer/', '/compare/'],
+  orbit: [],
+  symmetry: [],
+}
+
+/**
  * ★★ 2026-10-08：**最近一个场景模块**（"用户刚刚在哪个板块"）。
  *
  * 为什么要有它：用户在轨道页让智能体改轨道、思考期间点了「回门户」，
@@ -1076,11 +1092,18 @@ function startPractice() {
  * 当前板块（按 URL 判定）；门户页返回 null。
  * ★ 不能用 `lastSceneModuleId`：它回门户后**故意不清**（中枢要靠它把动作落回上个板块），
  *   拿它判断"现在在哪儿"会把门户页认成上一个板块 —— 这两件事必须分开。
+ * ★★ 2026-10-12：**首页路由精确匹配 + 子页前缀匹配**（见 MODULE_SUB_ROUTES）。
+ *   原先只做精确匹配，于是晶典在线的查看页/对比页被判成"不在任何板块"，
+ *   点「练习」会弹出"先选板块"的清单（用户截图就是这个）。
  */
 function currentBoardId() {
-  const path = router.currentPath
-  const hit = Object.keys(MODULE_HOME_ROUTE).find((id) => MODULE_HOME_ROUTE[id] === '#' + path)
-  return hit || null
+  const path = router.currentPath || ''
+  const full = '#' + path
+  const home = Object.keys(MODULE_HOME_ROUTE).find((id) => MODULE_HOME_ROUTE[id] === full)
+  if (home) return home
+  const sub = Object.keys(MODULE_SUB_ROUTES)
+    .find((id) => (MODULE_SUB_ROUTES[id] || []).some((p) => path.startsWith(p)))
+  return sub || null
 }
 
 /**
