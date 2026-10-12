@@ -355,6 +355,26 @@ const Orbit3D = (function () {
     const height = container.clientHeight || 400;
 
     scene = new THREE.Scene();
+    /**
+     * ★★ 2026-10-12（用户报：「深色模式下看不到轨道节面」→ 补一句后真相是
+     *   **时有时无、刷新后又显示**）：真因就在这里 —— 真凶是**跨挂载的缓存**。
+     *
+     *   `init()` 每次挂载（进板块、切走再回来）都会 `new THREE.Scene()`，而下面这些
+     *   辅助几何的记账全是**模块级单例状态**，原先一个都没重置：
+     *     · `auxGroup`  —— 它是一个挂在**旧场景**里的 Group。新场景建好后它依然非 null，
+     *        于是 `ensureAuxGroup()` 直接把新画的节面/参考球加进**旧场景** ⇒ 屏幕上什么都没有；
+     *     · `curSpotlight` / `curRingRadius` —— 记账还说"节面开着 / 参考球在"，于是
+     *        「◇ 节面」按钮显示为**已亮**，学生再点一下反而把它**关掉**（"时有时无"）；
+     *     · `auxSpotKey` —— 参数指纹缓存：它与新状态可能相同，于是连"重建"都被跳过；
+     *     · `chipEls` —— 缓存着**旧容器 DOM** 里的那几枚标签，新容器里再也显示不出来。
+     *   ⇒ 只要在重建场景时把这些记账一并归零，行为就与"刷新页面"一致（刷新之所以管用，
+     *     是因为整个模块重新加载、这些单例自然归零 —— 这正是用户观察到的现象）。
+     */
+    auxGroup = null;
+    curSpotlight = null;
+    curRingRadius = 0;
+    auxSpotKey = null;
+    Object.keys(chipEls).forEach((k) => { delete chipEls[k]; });
     camera = new THREE.PerspectiveCamera(50, width / height, 0.001, 200);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
