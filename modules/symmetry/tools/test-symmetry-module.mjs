@@ -635,6 +635,27 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
     F('x²-y²') === '<i>x</i>²-<i>y</i>²' && F('Rz') === '<i>R</i><sub><i>z</i></sub>')
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// 跨挂载的 DOM 缓存必须能重绑（用户报"退出再进入会自动播一次动画"时抓到的两个坑）
+//
+// ★ 坑①：页面把模块的 `playToken` 当"事件计数"用，而 `lastPlayToken` 是页面局部变量
+//   （每次挂载从 -1 起）⇒ 重新进入的第一次渲染必判"有新请求" ⇒ 自动重播。
+//   修法写在页面侧（卸载清记录 + 挂载对齐），这里用源码棘轮钉住"对齐要在挂载时"。
+// ★ 坑②：`animation.js` 的控件是**一次性绑定**的模块级单例，路由换页后 DOM 重建，
+//   它仍指着上一份已卸载的节点 ⇒ 动画照跑、进度条却永不出现（实测确认）。
+//   修法：ensureControls 里先看缓存节点 `isConnected`，不在了就重绑。
+// ───────────────────────────────────────────────────────────────────────────
+{
+  const animSrc = readFileSync(new URL('../render/animation.js', import.meta.url), 'utf8')
+  const pageSrc = readFileSync(new URL('../../../apps/web/src/pages/symmetry.js', import.meta.url), 'utf8')
+  check('animation.js 的控件绑定带 isConnected 检查（跨挂载能重绑）',
+    /isConnected/.test(animSrc))
+  check('页面在**挂载时**对齐播放计数（而不是在第一次渲染里）',
+    /lastPlayToken = t0/.test(pageSrc) && !/playTokenSynced/.test(pageSrc))
+  check('页面卸载时清掉模块里的播放记录（stopAnimation）',
+    /unmount\(\)[\s\S]{0,400}stopAnimation/.test(pageSrc))
+}
+
 console.log(`\n通过 ${pass}/${pass + fail}`)
 if (BREAK && fail === 0) {
   console.error('⚠ 造红模式下竟然全过——说明断言没有真的在检查')

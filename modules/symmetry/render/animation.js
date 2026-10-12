@@ -9,11 +9,24 @@
 import * as THREE from 'three'
 import { getAppearance } from '../data/settings.js'
 
-// ==================== 控件引用（一次性绑定） ====================
+// ==================== 控件引用 ====================
 const ctl = { wrap: null, input: null, toggle: null, reset: null, inverse: null, again: null, close: null, bound: false }
 
+/**
+ * 绑定进度条控件。
+ *
+ * ★★ 2026-10-12（修"退出再进入后动画看不见进度条"时抓到）：**不能只绑一次**。
+ *   `ctl` 是模块级单例，而页面（以及它的 DOM）是**每次挂载重建**的 —— 路由换页后
+ *   `document.getElementById` 给出的是**新节点**，而 ctl 里还存着**上一份已被卸载的旧节点**
+ *   ⇒ 动画照跑（3D 里分子确实在转），但进度条、▶/⏸/⟲ 全部作用在**看不见的旧 DOM** 上 ✗。
+ *   判据：`let ... = getElementById(...)` 存在模块级单例里时，必须问一句
+ *   "这个节点会不会在下一次挂载时被换掉"（同第 17 轮 render3d 的 auxGroup 那类坑）。
+ *   ⇒ 每次进来先看缓存的节点是否**还在文档里**（isConnected），不在了就重新取一遍并重新绑。
+ *   （旧节点已随页面卸载，旧监听器随之消失，不会泄漏。）
+ */
 function ensureControls() {
-  if (ctl.bound) return
+  const live = ctl.bound && ctl.wrap && ctl.wrap.isConnected && ctl.input && ctl.input.isConnected
+  if (live) return
   ctl.bound = true
   ctl.wrap = document.getElementById('anim-progress-wrap')
   ctl.input = document.getElementById('anim-progress')

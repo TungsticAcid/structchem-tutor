@@ -726,8 +726,21 @@ export function bootSymmetryPage(deps = {}) {
     sync('aux-toggle', showAx)
     sync('atom-label-toggle', showAtomLb)
 
-    // 播放：**只有 token 变了才真的播**。同一个操作连点两次时 playingKey 不变，
-    // 没有 token 就会出现"第二次点了没反应"。
+    /**
+     * 播放：**只有 token 变了才真的播**。同一个操作连点两次时 playingKey 不变，
+     * 没有 token 就会出现"第二次点了没反应"。
+     *
+     * ★★ 2026-10-12（用户报："播放过动画后，退出到主菜单再进入点群观鉴，
+     *   会自动播放一次动画"）：`lastPlayToken` 是本页局部变量（每次挂载从 -1 起），
+     *   而 `playToken` 住在**跨挂载存活**的模块里 ⇒ 重新进入后的第一次渲染
+     *   `snap.playToken !== -1` 恒真，配上还没被清的 `playingKey`，就自动重播了一次 ✗。
+     *   修法有两条，**都在"挂载/卸载"这一层**，而不是在本函数里：
+     *     ① 挂载时把 `lastPlayToken` 对齐到模块当前值（见本函数末尾附近的对齐代码）；
+     *     ② 卸载时下发 stopAnimation 清掉记录（见 SymmetryPage.unmount）。
+     *   ★ 我第一版把①写成了"第一次渲染只对齐、不当请求"—— 那是错的：重新进入后的
+     *     **第一次渲染往往就是那次播放请求本身**，于是请求被当成对齐吞掉，
+     *     手动播放也失效（实测：进度条再也不出现）。对齐必须在**渲染之前、挂载之时**。
+     */
     if (typeof snap.playToken === 'number' && snap.playToken !== lastPlayToken) {
       lastPlayToken = snap.playToken
       if (snap.playingKey) {
@@ -1107,6 +1120,24 @@ export function bootSymmetryPage(deps = {}) {
   applyThemeBg(resolvedTheme())
   const offTheme = onThemeChange((_t, resolved) => applyThemeBg(resolved))
 
+  /**
+   * ★★ 挂载时**对齐播放计数**（用户报："播放过动画后，退出到主菜单再进入点群观鉴，
+   *   会自动播放一次动画"）。
+   *
+   *   `lastPlayToken` 是页面局部变量（每次挂载从 -1 起），而模块的 `playToken` 跨挂载存活：
+   *   播过一次之后它是 1、2、3…，于是重新进入的第一次渲染 `snap.playToken !== -1` 恒真
+   *   ⇒ 把一条**过期请求**当成新请求，自动重播一次 ✗。
+   *   这里在**渲染开始之前**把页面计数对齐到模块当前值；此后每次 playOperation 都会让
+   *   token 递增，因此**正常播放一点不受影响**。
+   *   ★ 必须在"挂载时"而不是"第一次渲染时"对齐：重新进入后的第一次渲染往往正是那次
+   *     播放请求本身，写在渲染里会把真请求吞掉（手动播放失效 —— 我第一版就这么错过了）。
+   *   另一半在 `SymmetryPage.unmount`：离开板块时下发 stopAnimation 清掉记录。
+   */
+  if (facade && typeof facade.getSnapshot === 'function') {
+    const t0 = facade.getSnapshot().playToken
+    if (typeof t0 === 'number') lastPlayToken = t0
+  }
+
   // ---- 交给壳的接口 ----
   api = {
     /** 按 id 载入示例（门面状态变化时壳会调它） */
@@ -1217,6 +1248,17 @@ export class SymmetryPage {
   }
 
   unmount() {
+    /**
+     * ★★ 2026-10-12（用户报："播放过动画后，退出到主菜单再进入点群观鉴，
+     *   会自动播放一次动画"）：**动画是事件，不是状态** —— 页面走了，这次播放请求
+     *   就该作废。而 `playingKey`/`playToken` 住在模块（跨挂载存活），原先没人清它，
+     *   于是它成了一条"过期请求"，下次进来被新页面当成新请求照播一遍 ✗。
+     *   这里在卸载时下发 stopAnimation（清 playingKey + 递增 token），
+     *   配合 renderFromState 里"首次渲染只对齐"的双保险。
+     */
+    if (this._facade) {
+      try { this._facade.applyActions([{ action: 'stopAnimation' }]) } catch (e) { /* 忽略 */ }
+    }
     if (this._off) { try { this._off() } catch (e) { /* 忽略 */ } this._off = null }
     if (this._api && typeof this._api.dispose === 'function') {
       try { this._api.dispose() } catch (e) { /* 忽略 */ }
