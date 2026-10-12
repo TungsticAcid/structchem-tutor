@@ -467,6 +467,11 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '左列模式下画布同时锚定 left 与 right（避免收缩包裹）')
   ok((viewerNoComments.match(/_panelMqListener/g) || []).length >= 3,
     '媒体查询监听有注册也有摘除（反复挂载不累积）')
+  // ★ 左列模式下收起/展开的箭头必须指**左右**（用户要求）：底栏那套 ▼/▲ 会指错方向。
+  //   用宿主 CSS 的伪元素覆盖，不动共享组件 layer-control.js。
+  ok(/panel-left \.layer-control \.toggle-arrow::after \{[^}]*content:'◀'/.test(viewerNoComments.replace(/\s+/g, ' '))
+    && /panel-left \.layer-control\.collapsed \.toggle-arrow::after \{ content:'▶'/.test(viewerNoComments.replace(/\s+/g, ' ')),
+    '左列模式下箭头是 ◀/▶（收起 ▶、展开 ◀）')
 }
 
 console.log('')

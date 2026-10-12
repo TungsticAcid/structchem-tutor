@@ -387,6 +387,16 @@ export class ViewerPage {
         .viewer-page.panel-left .layer-control.collapsed .panel-toggle { flex-direction:column; }
         /* 左列里内容要能整列滚动，不再受底部横条那 250px 的限制 */
         .viewer-page.panel-left .panel-body { max-height:none; }
+        /* 左列模式里收起/展开的**箭头要指左右**（用户要求）：
+           底栏时 ▼/▲ 表示"往下收 / 往上展"，但面板搬到左侧后，收起的含义变成"往左收"，
+           再用上下箭头就指错方向了 ✗。
+           ★ 用 CSS 伪元素（::after）覆盖而不是改共享组件 layer-control.js：那个组件同时被
+             独立 H5 页与微信小程序复用，且箭头字形写在模板里、收起/展开走的是两套模板；
+             宿主在**自己的作用域**里换字形最省事，也不会被组件重渲染冲掉。
+           ★ 原字形用 font-size:0 隐掉，只显示 ::after 的内容（颜色/字号沿用 .toggle-arrow）。 */
+        .viewer-page.panel-left .layer-control .toggle-arrow { font-size:0; }
+        .viewer-page.panel-left .layer-control .toggle-arrow::after { font-size:10px; content:'◀'; }
+        .viewer-page.panel-left .layer-control.collapsed .toggle-arrow::after { content:'▶'; }
         /* ★ 必须 left+right 同时锚定：只写 left 会让绝对定位元素变成"收缩包裹"，
            宽度取内层 canvas 的固有宽度（实测：从窄屏切回宽屏时画布宽变成 411px ✗）。 */
         .viewer-page.panel-left .viewer-canvas { left:var(--layer-panel-w, 360px); right:0; width:auto; }
