@@ -473,6 +473,10 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '顶栏不再被左列挤走（返回键留在屏幕左上角）')
   ok(/--top-bar-h/.test(viewerNoComments) && /getBoundingClientRect\(\)\.height/.test(viewerNoComments),
     '顶栏高度是量出来的（写死会在安全区/换行时错位）')
+  // ★★ 2026-10-12（用户："晶胞参数变量要斜体"）：a/b/c 与 α/β/γ 是量符号 ⇒ 斜体，
+  //   数字/单位/等号/度号正体（与基函数、对称元素、Z/E 同一条排版口径）。
+  ok(/italicCellSymbols\(lenPart/.test(viewerNoComments) && /function italicCellSymbols\(/.test(viewerNoComments),
+    '晶胞参数的量符号斜体（a/b/c、α/β/γ）')
 
   // ★★ 2026-10-12（用户："×1 需要上下对齐吗"）：需要 —— 计数列必须上下齐平。
   //   实测：带下标的行（σd）会把行高撑开 1.3px，计数/箭头是垂直居中 ⇒ 跟着往下跳 ✗。

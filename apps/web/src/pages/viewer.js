@@ -71,7 +71,24 @@ function formatLatticeConstText(crystalSystem, lattice) {
   else if (beGaEq) angPart = 'α=' + alpha + ', β=γ=' + beta
   else angPart = 'α=' + alpha + ', β=' + beta + ', γ=' + gamma
 
-  return lenPart + ', ' + angPart
+  return italicCellSymbols(lenPart + ', ' + angPart)
+}
+
+/**
+ * 晶胞参数里的**量符号斜体**（用户："晶胞参数变量要斜体"）。
+ *
+ * 排版惯例（ISO 80000-2，与本仓库已定的口径一致：基函数的 x/y/z、对称元素的 C/σ、Z/E 描述符）：
+ *   · 量符号 **a / b / c 与 α / β / γ 斜体**；
+ *   · 数字、单位（Å）、等号、逗号、度（°）**正体**。
+ * 例：'a=b=c=5.62 Å, α=β=γ=90°' → '<i>a</i>=<i>b</i>=<i>c</i>=5.62 Å, <i>α</i>=<i>β</i>=<i>γ</i>=90°'
+ *
+ * ★ 返回值是 **HTML**：调用方（layer-control 的 .info-line）本来就是用它 innerHTML 插入的 ✓。
+ * ★ 前面不能是字母（避免动到 Å 之后的字母或词内字符），所以在符号前要求非字母边界。
+ */
+function italicCellSymbols(s) {
+  return String(s)
+    .replace(/(^|[^A-Za-z<])([abc])(?![A-Za-z])/g, '$1<i>$2</i>')
+    .replace(/([αβγ])/g, '<i>$1</i>')
 }
 
 const CRYSTAL_SYSTEM_MAP = {
