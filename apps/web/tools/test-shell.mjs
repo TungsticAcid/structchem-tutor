@@ -527,16 +527,16 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/s\.leftCaps = crystalCaps\(/.test(cmpCode) && /s\.rightCaps = crystalCaps\(/.test(cmpCode),
     '对比页逐侧派生能力（左右各一块晶体）')
 
-  // ★★ 2026-10-12（用户："对比模式切换晶体时，两边比例不一致，鼠标拖动时才自动对齐"）：
-  //   换晶体后新的一侧会按自己的包围球重新取景 ⇒ 两侧 frustumSize 不同 ✗；
-  //   必须等**那一侧**加载完立刻把另一侧的视角同步过来（与拖动联动同一口径），
-  //   且只在联动模式下做。
-  ok(/this\._needViewSync = side/.test(cmpCode) && /this\._needViewSync === side/.test(cmpCode),
-    '换晶体后记录"该侧需要对齐视角"')
-  ok(/_onCanvasLoaded\('left'\)/.test(cmpCode) && /_onCanvasLoaded\('right'\)/.test(cmpCode),
-    'loaded 事件带上"哪一侧"（否则不知道等谁加载完）')
-  ok(/_syncViewFromOther\(side\)/.test(cmpCode) && /if \(this\._state\.syncMode\) this\._syncViewFromOther/.test(cmpCode),
-    '加载完立刻同步另一侧的视角/比例（仅联动模式）')
+  // ★★ 2026-10-12（用户："切换晶体时……明显不一致，大小方向都不一致"）：
+  //   换晶体后每一侧都会按自己的包围球重新取景，而**同一晶体模式**下换晶体让左右**同时重载**
+  //   ⇒ "从另一侧取视角"必然取到中间值（实测 19.408 vs 16.382 ✗）。
+  //   口径改为：**切换前记下视角，两侧落定后一起套回去**（即"换晶体时比例/方向不变"）。
+  ok(/this\._viewBeforeSwitch = /.test(cmpCode) && /const vs = this\._viewBeforeSwitch/.test(cmpCode),
+    '换晶体前记下当前视角（比例+方向）')
+  ok(/clearTimeout\(this\._viewSyncTimer\)/.test(cmpCode) && /}, 80\)/.test(cmpCode),
+    '两侧都会 fire loaded ⇒ 去抖后再套（取最后一次）')
+  ok(/for \(const c of \[this\._leftCanvas, this\._rightCanvas\]\)/.test(cmpCode),
+    '套给**两侧**（同一晶体模式下两侧本就该同款）')
   ok(/from '@modules\/crystal\/capabilities\.js'/.test(viewerNoComments) && !/TEACHING_STACKING_IDS/.test(viewerNoComments),
     '查看页改用共享能力模块（不再留写死的白名单）')
 
