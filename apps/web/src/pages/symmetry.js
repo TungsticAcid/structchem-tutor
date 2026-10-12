@@ -38,7 +38,7 @@ import { getUniqueElements } from '@modules/symmetry/core/structure.js'
 import { EXAMPLES } from '@modules/symmetry/data/examples-index.js'
 import { renderInfo, formatStereodescriptors } from '@modules/symmetry/ui/info.js'
 import { getElementClassName, typeRank, findPrincipal, refineSymmetryElements } from '@modules/symmetry/engine/elementNaming.js'
-import { t, i18n, groupName as i18nGroupName, applyStaticI18n, formatGroupSymbol, formatFormulaU } from '@modules/symmetry/i18n/index.js'
+import { t, i18n, groupName as i18nGroupName, applyStaticI18n, formatGroupSymbol, formatFormulaU, formatSymmetrySymbol } from '@modules/symmetry/i18n/index.js'
 import { generateGroupOperations, orbit, stabilizer } from '@modules/symmetry/engine/groupOperations.js'
 import {
   getVisualColor, setVisualColor,
@@ -913,7 +913,14 @@ export function bootSymmetryPage(deps = {}) {
       const row = document.createElement('div')
       row.className = 'color-row'
       const lab = document.createElement('label')
-      lab.textContent = label
+      /**
+       * ★★ 2026-10-12（用户："字母斜体问题"，指的是本面板「对称元素颜色」里的 4C₃ / 3C₂ / 3S₄ / 6σ）：
+       *   Schönflies 记号的**主字母/σ 斜体**、下标与系数正体 —— 与特征标表、对称元素列表同一条口径
+       *   （`formatSymmetrySymbol` 就是这个共用入口，见 modules/symmetry/i18n/index.js）。
+       *   ★ 上面那一组「元素颜色」的 C / H **不斜体**：它们是**元素符号**，按 IUPAC 惯例用正体 ——
+       *     两组的排版规则不同，不要"顺手统一"。
+       */
+      lab.innerHTML = formatSymmetrySymbol(label)
       const input = document.createElement('input')
       input.type = 'color'
       input.value = getVisualColor(key)

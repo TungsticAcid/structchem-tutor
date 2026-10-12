@@ -489,6 +489,14 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     ok(body.length > 0 && /_updateLayerControl\(\)/.test(body), `状态写入要回写控件：${fn}`)
   }
 
+  // ★★ 2026-10-12（用户："字母斜体问题"，指外观设置面板里的 4C₃ / 3C₂ / 3S₄ / 6σ）：
+  //   对称元素符号的主字母/σ 斜体（与特征标表同一条口径）；
+  //   **元素颜色**那组的 C / H 保持正体（元素符号按 IUPAC 惯例不斜体）——两条规则不同，别"顺手统一"。
+  const symPage = readFileSync(resolve(REPO, 'apps/web/src/pages/symmetry.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  ok(/import \{[^}]*formatSymmetrySymbol[^}]*\}/.test(symPage) && /lab\.innerHTML = formatSymmetrySymbol\(label\)/.test(symPage),
+    '外观设置里的对称元素颜色标签走量符号斜体（4C₃ / 6σ）')
+
   // ★★ 2026-10-12（用户："×1 需要上下对齐吗"）：需要 —— 计数列必须上下齐平。
   //   实测：带下标的行（σd）会把行高撑开 1.3px，计数/箭头是垂直居中 ⇒ 跟着往下跳 ✗。
   //   守卫：行内文本要有稳定行高，且 sub 不参与行高计算（line-height:0）。
