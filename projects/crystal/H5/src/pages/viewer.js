@@ -64,7 +64,18 @@ function formatLatticeConstText(crystalSystem, lattice) {
   else if (beGaEq) angPart = 'α=' + alpha + ', β=γ=' + beta
   else angPart = 'α=' + alpha + ', β=' + beta + ', γ=' + gamma
 
-  return lenPart + ', ' + angPart
+  return italicCellSymbols(lenPart + ', ' + angPart)
+}
+
+/**
+ * 晶胞参数里的**量符号斜体**（a/b/c、α/β/γ 斜体；数字、单位、等号、度号正体）。
+ * ★ 集成页 apps/web/src/pages/viewer.js 有一份同名实现 —— 两处保持同一口径
+ *   （用户报过"晶胞参数变量要斜体"；这个独立页与集成页共用同一个 layer-control 组件）。
+ */
+function italicCellSymbols(s) {
+  return String(s)
+    .replace(/(^|[^A-Za-z<])([abc])(?![A-Za-z])/g, '$1<i>$2</i>')
+    .replace(/([αβγ])/g, '<i>$1</i>')
 }
 
 const CRYSTAL_SYSTEM_MAP = {
