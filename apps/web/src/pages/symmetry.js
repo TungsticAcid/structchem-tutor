@@ -36,7 +36,7 @@ import { analyzeSpaceGroup, operationsToSymmetryElements } from '@modules/symmet
 import { getCharacterTable } from '@modules/symmetry/engine/characterTables.js'
 import { getUniqueElements } from '@modules/symmetry/core/structure.js'
 import { EXAMPLES } from '@modules/symmetry/data/examples-index.js'
-import { renderInfo } from '@modules/symmetry/ui/info.js'
+import { renderInfo, formatStereodescriptors } from '@modules/symmetry/ui/info.js'
 import { getElementClassName, typeRank, findPrincipal, refineSymmetryElements } from '@modules/symmetry/engine/elementNaming.js'
 import { t, i18n, groupName as i18nGroupName, applyStaticI18n, formatGroupSymbol, formatFormulaU } from '@modules/symmetry/i18n/index.js'
 import { generateGroupOperations, orbit, stabilizer } from '@modules/symmetry/engine/groupOperations.js'
@@ -142,6 +142,15 @@ export function bootSymmetryPage(deps = {}) {
     return `${t}${l[0]}${formatFormulaU(ex.formula)}${l[1]}`
   }
 
+  /**
+   * 示例显示文本的 **HTML 版**：把立体描述符 E / Z 斜体化（用户："Z，E需要斜体"）。
+   * ★ 只给真正的 innerHTML 路径用；tooltip 等纯文本处仍用 `exampleDisplay`，
+   *   否则标题属性里会露出 `<i>` 标签。
+   */
+  function exampleDisplayHtml(ex) {
+    return formatStereodescriptors(exampleDisplay(ex))
+  }
+
   /** 结构标题（按语言；优先用示例库的精选名 title/titleEn，避免 XYZ 原始行 "过氧化氢 H2O2 (C2)"） */
   function structureTitle(structure) {
     const exMeta = EXAMPLES.find(e => e.structure === structure)
@@ -160,7 +169,7 @@ export function bootSymmetryPage(deps = {}) {
     // ★ 记下来：门面（facade.currentId）与页面必须对得上，否则智能体换过分子之后
     //   页面还停在上一个，"两边各说各话"。
     currentExampleId = (ex && ex.id) || null
-    let html = exampleDisplay(ex)
+    let html = exampleDisplayHtml(ex)
     if (ex.category !== 'crystal') {
       const sym = identifyPointGroup(ex.structure).symbol
       html += `&nbsp;<span class="es-cur-sym">${formatGroupSymbol(sym)}</span>`
@@ -243,7 +252,7 @@ export function bootSymmetryPage(deps = {}) {
         symEl.className = 'es-sym'
         const nameEl = document.createElement('span')
         nameEl.className = 'es-name'
-        nameEl.textContent = exampleDisplay(ex)
+        nameEl.innerHTML = exampleDisplayHtml(ex)   // ★ E/(Z) 立体描述符斜体（见 formatStereodescriptors）
         item.append(symEl, nameEl)
         // 点群/空间群符号（晶体走 WASM 异步分析）
         if (isCrystal) {
@@ -1063,7 +1072,7 @@ export function bootSymmetryPage(deps = {}) {
     })
     const sel = EXAMPLES.find(e => e.id === curId)
     if (sel) {
-      let html = exampleDisplay(sel)
+      let html = exampleDisplayHtml(sel)
       if (sel.category !== 'crystal') {
         const sym = identifyPointGroup(sel.structure).symbol
         html += `&nbsp;<span class="es-cur-sym">${formatGroupSymbol(sym)}</span>`

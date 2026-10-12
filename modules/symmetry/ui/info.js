@@ -50,12 +50,33 @@ export function infiniteFamilyNotation(type, elements) {
 }
 
 /**
+ * 立体描述符 E / Z（以及同类的 R / S）在分子名里**用斜体**。
+ *
+ * ★★ 2026-10-12（用户贴图："Z，E需要斜体"）：
+ *   IUPAC 的规矩是——**描述符字母斜体、位次与括号正体**：
+ *     (E)-1,2-二氯乙烯 → (<i>E</i>)-1,2-二氯乙烯
+ *     (2E,4Z)-…        → (2<i>E</i>,4<i>Z</i>)-…      （数字正体，字母斜体）
+ *   ★ 只在该括号**整段都是描述符**时才动手（`(E)`、`(2E,4Z)`、`(1R,2S)`），
+ *     所以 `(CH₃)₂`、`（C₂H₂Cl₂）` 这类化学式括号不会被误斜体。
+ *   ★ 位次里的中文全角括号也认（数据里目前是半角，认两种不必改数据）。
+ */
+export function formatStereodescriptors(name) {
+  const s = String(name == null ? '' : name)
+  const RE = /^([（(])((?:\d*[EZRS])(?:,\s*\d*[EZRS])*)([）)])/
+  const m = s.match(RE)
+  if (!m) return s
+  const inner = m[2].replace(/(\d*)([EZRS])/g, (_, num, letter) => num + '<i>' + letter + '</i>')
+  return m[1] + inner + m[3] + s.slice(m[0].length)
+}
+
+/**
  * 渲染信息面板
  * @param {Object} info - { title, formula, groupSymbol, groupName, meta, elements, characterTable }
  * @param {Object} callbacks - { onToggle(index, visible), onPlay(index) }
  */
 export function renderInfo(info, callbacks = {}) {
-  document.getElementById('struct-title').textContent = info.title || '—'
+  // ★ innerHTML：立体描述符要斜体（(E)-… → (<i>E</i>)-…），见 formatStereodescriptors
+  document.getElementById('struct-title').innerHTML = formatStereodescriptors(info.title || '—')
   document.getElementById('struct-formula').textContent = formatFormulaU(info.formula || '')
   document.getElementById('group-symbol').innerHTML = formatGroupSymbol(info.groupSymbol)
   document.getElementById('group-name').textContent = info.groupName || ''
