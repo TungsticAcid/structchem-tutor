@@ -473,6 +473,14 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '顶栏不再被左列挤走（返回键留在屏幕左上角）')
   ok(/--top-bar-h/.test(viewerNoComments) && /getBoundingClientRect\(\)\.height/.test(viewerNoComments),
     '顶栏高度是量出来的（写死会在安全区/换行时错位）')
+
+  // ★★ 2026-10-12（用户："×1 需要上下对齐吗"）：需要 —— 计数列必须上下齐平。
+  //   实测：带下标的行（σd）会把行高撑开 1.3px，计数/箭头是垂直居中 ⇒ 跟着往下跳 ✗。
+  //   守卫：行内文本要有稳定行高，且 sub 不参与行高计算（line-height:0）。
+  const symMarkup = readFileSync(resolve(REPO, 'apps/web/src/pages/symmetry-markup.js'), 'utf8')
+  ok(/\.elem-group-header > span, #info-panel \.elem-label \{ line-height:/.test(symMarkup)
+    && /\.elem-item sub \{ line-height: 0; \}/.test(symMarkup),
+    '对称元素行的下标不撑行高（计数列 ×n 上下对齐）')
   ok((viewerNoComments.match(/_panelMqListener/g) || []).length >= 3,
     '媒体查询监听有注册也有摘除（反复挂载不累积）')
   // ★ 左列模式下收起/展开的箭头必须指**左右**（用户要求）：底栏那套 ▼/▲ 会指错方向。

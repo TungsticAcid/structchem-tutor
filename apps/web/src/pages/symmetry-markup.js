@@ -231,6 +231,14 @@ export const SYMMETRY_CSS = `    .sym-page {
       border-radius: 5px; cursor: pointer; user-select: none;
     }
     #info-panel .elem-group-header:hover { background: var(--panel-item-bg); }
+    /* ★★ 2026-10-12（用户："×1 需要上下对齐吗"）：需要 —— 计数列必须**上下对齐**。
+       实测：C₃ / C₂ / S₄ 三行的计数 top 间距都是 25.0px ✓，而 σd 行是 26.3px ✗ ——
+       因为它的名字带下标（σ<sub>d</sub>），下标的行盒把这一行撑高了，
+       而计数/箭头是"垂直居中"⇒ 跟着往下跳，一列 ×n 就参差不齐 ✗。
+       做法：给行内文本定死 line-height，并让 sub 不参与行高计算（line-height:0，标准做法）。
+       本文件是模板串：注释里不能出现反引号。 */
+    #info-panel .elem-group-header > span, #info-panel .elem-label { line-height: 1.35; }
+    #info-panel .elem-group-header sub, #info-panel .elem-item sub { line-height: 0; }
     #info-panel .elem-arrow { margin-left: auto; color: var(--panel-dim, #9aa3b5); font-size: 11px; }
     #info-panel .elem-group-body { padding-left: 14px; margin-bottom: 2px; }
     #info-panel .elem-group-body .elem-item { display: flex; align-items: center; gap: 8px; padding: 3px 6px; font-size: 12px; }
