@@ -67,7 +67,14 @@ export class IndexPage {
     return `
     <div class="index-page">
       <nav data-page-topbar class="page-nav">
-        <span class="page-nav__title">晶体结构库</span>
+        <!--
+          ★★ 2026-10-12（用户问：名字不是叫「轨道视界」吗）：**顶栏要写板块名**。
+            板块名在门户、智能体口吻、练习选择里都是「晶典在线 / 轨道视界 / 点群观鉴」，
+            而这里原先写的是「晶体结构库」——同一个东西两个名字（点群页早就写的是板块名）。
+            改：标题=板块名，说明=门户卡片上那句副标题（与 home.js 的 MODULE_BLURB 同口径）。
+        -->
+        <span class="page-nav__title">晶典在线</span>
+        <span class="page-nav__subtitle">晶体结构与点阵型式</span>
       </nav>
 
       <div class="settings-entry" id="settingsBtn">
@@ -103,6 +110,12 @@ export class IndexPage {
         display: flex; align-items: center; border-bottom: 1px solid var(--line, #eee); flex-shrink: 0;
       }
       .page-nav__title { font-size: 18px; font-weight: 600; color: var(--text, #333); }
+      /* 说明文字：与板块名同一行、弱一档（与门户卡片的"板块名 + 副标题"口径一致）
+         ★ 右侧留 12px：壳会把「保存图片」按钮插进同一个顶栏，不留间距两者会贴在一起 */
+      .page-nav__subtitle {
+        font-size: 12px; font-weight: 400; color: var(--text-dim, #8a93a8);
+        margin-left: 8px; margin-right: 12px; transform: translateY(1px);
+      }
       .settings-entry {
         position: fixed; top: 12px; right: 16px; z-index: 200;
         /* ★★ 2026-10-06：深色下"浮动 UI 不清晰"（用户报）。

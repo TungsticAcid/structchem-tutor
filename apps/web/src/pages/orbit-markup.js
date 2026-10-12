@@ -9,8 +9,8 @@ export const ORBIT_HTML = `<div class="orbit-page">
 <header data-page-topbar class="topbar">
     <div class="brand">
       <span class="logo">⚛</span>
-      <h1>原子轨道三维可视化</h1>
-      <span class="subtitle">Hydrogen-like Atomic Orbital Visualizer</span>
+      <h1>轨道视界</h1>
+      <span class="subtitle">类氢原子轨道三维可视化 · 等值面 / 球谐 / 杂化</span>
     </div>
     <div class="top-meta">
       <span id="orbitTitle" class="orbit-title">1s</span>
