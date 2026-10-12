@@ -380,7 +380,10 @@ export class ViewerPage {
          - 让位量通过 --layer-panel-w 变量同时驱动画布与顶栏（一个真源）。
          - 窄屏（<900px）保持底部抽屉：这里是 @media，不加类就不生效。 */
       @media (min-width: 900px) {
-        .viewer-page.panel-left .bottom-panel { top:0; bottom:0; left:0; right:auto; width:auto; overflow-y:auto; }
+        /* ★★ 2026-10-12（用户："控制面板应该位于顶栏下方，方便使得返回按钮在左上角"）：
+           面板从**顶栏下沿**开始（--top-bar-h 由脚本量出），顶栏因此横跨整宽 ——
+           返回键留在屏幕左上角，与其它页面一致。 */
+        .viewer-page.panel-left .bottom-panel { top:var(--top-bar-h, 0px); bottom:0; left:0; right:auto; width:auto; overflow-y:auto; }
         .viewer-page.panel-left .layer-control { width:360px; min-height:100%; }
         .viewer-page.panel-left .layer-control.collapsed { width:44px; }
         .viewer-page.panel-left .layer-control.collapsed .toggle-label-text { display:none; }
@@ -400,7 +403,7 @@ export class ViewerPage {
         /* ★ 必须 left+right 同时锚定：只写 left 会让绝对定位元素变成"收缩包裹"，
            宽度取内层 canvas 的固有宽度（实测：从窄屏切回宽屏时画布宽变成 411px ✗）。 */
         .viewer-page.panel-left .viewer-canvas { left:var(--layer-panel-w, 360px); right:0; width:auto; }
-        .viewer-page.panel-left .top-bar { left:var(--layer-panel-w, 360px); }
+        /* ★ 顶栏**不再**左移：它横跨整宽，返回键就留在左上角（见上面 bottom-panel 的说明） */
       }
       .atom-popup-container { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:1000; }
     </style>`
@@ -461,6 +464,15 @@ export class ViewerPage {
         // ★ 先加类再量：getBoundingClientRect() 会触发布局，量到的是左列宽（展开 360 / 收起 44）
         const w = Math.max(0, Math.round(panel.getBoundingClientRect().width))
         if (page) page.style.setProperty('--layer-panel-w', w + 'px')
+        /**
+         * ★★ 2026-10-12（用户："控制面板应该位于顶栏下方，方便使得返回按钮在左上角"）：
+         *   面板原先从 y=0 开始，把顶栏整体推到了它右边 —— 返回键于是不在屏幕左上角 ✗。
+         *   改：顶栏横跨整宽（左上角就是返回键），面板从**顶栏下沿**开始。
+         *   顶栏高度是动态的（padding + 安全区），所以量出来写进 --top-bar-h，由 CSS 消费。
+         */
+        const bar = this._container?.querySelector('.top-bar')
+        const barH = bar ? Math.max(0, Math.round(bar.getBoundingClientRect().height)) : 0
+        if (page) page.style.setProperty('--top-bar-h', barH + 'px')
         // 左侧布局由 CSS 决定；清掉底部抽屉留下的内联样式，否则两者会打架
         cv.style.height = ''
         cv.style.bottom = ''
@@ -469,6 +481,7 @@ export class ViewerPage {
         if (page) {
           page.classList.remove('panel-left')
           page.style.removeProperty('--layer-panel-w')
+          page.style.removeProperty('--top-bar-h')
         }
         cv.style.left = ''
         const h = Math.max(0, Math.round(panel.getBoundingClientRect().height))

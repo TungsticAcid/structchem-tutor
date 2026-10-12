@@ -465,6 +465,14 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '查看页有"桌面左列 + 让位"的样式与变量')
   ok(/panel-left \.viewer-canvas \{ left:var\(--layer-panel-w[^}]*right:0/.test(viewerNoComments.replace(/\s+/g, ' ')),
     '左列模式下画布同时锚定 left 与 right（避免收缩包裹）')
+  // ★★ 2026-10-12（用户："控制面板应该位于顶栏下方，方便使得返回按钮在左上角"）：
+  //   顶栏必须横跨整宽（不许再被 --layer-panel-w 左移），面板从顶栏下沿开始。
+  ok(/panel-left \.bottom-panel \{ top:var\(--top-bar-h/.test(viewerNoComments.replace(/\s+/g, ' ')),
+    '左列模式下控制面板从顶栏下沿开始（--top-bar-h）')
+  ok(!/panel-left \.top-bar \{ left:var\(--layer-panel-w/.test(viewerNoComments.replace(/\s+/g, ' ')),
+    '顶栏不再被左列挤走（返回键留在屏幕左上角）')
+  ok(/--top-bar-h/.test(viewerNoComments) && /getBoundingClientRect\(\)\.height/.test(viewerNoComments),
+    '顶栏高度是量出来的（写死会在安全区/换行时错位）')
   ok((viewerNoComments.match(/_panelMqListener/g) || []).length >= 3,
     '媒体查询监听有注册也有摘除（反复挂载不累积）')
   // ★ 左列模式下收起/展开的箭头必须指**左右**（用户要求）：底栏那套 ▼/▲ 会指错方向。
