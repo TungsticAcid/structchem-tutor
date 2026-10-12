@@ -941,10 +941,28 @@ export class ViewerCanvas {
     const r = s.canvas ? s.canvas.getBoundingClientRect() : null
     const inside = r && e.clientX >= r.left && e.clientX <= r.right
       && e.clientY >= r.top && e.clientY <= r.bottom
-    if (inside && dx < 5 && dy < 5 && ms.button === 0 && s.scene && s.camera) {
-      this._hitTest({ x: e.clientX, y: e.clientY })
-    }
+
+    /**
+     * ★★ 2026-10-12（用户："对比模式点击原子，没触发原子信息弹窗，反而使得鼠标一动晶体就跟着旋转"）：
+     *
+     *   原先这两步的顺序是"**先射线检测、后复位拖拽状态**"，而检测会触发宿主的
+     *   `atomTap` 回调 —— 宿主一抛异常（对比页那次调了宿主里并不存在的 `window.wx` ✗），
+     *   后面那行 `ms.isDown = false` 就**永远执行不到** ⇒ 拖拽状态一直停在"按下" ⇒
+     *   此后不按任何键、只要移动鼠标，画面就跟着转（用户描述的正是这个）✗。
+     *
+     *   修法两条，都写在这里：
+     *     ① **先复位状态，再做可能抛异常的事**（状态复位不该依赖外部回调成功）；
+     *     ② 触发外部回调包进 try/catch —— 宿主写坏了也不该把交互卡死。
+     *   ★ 判据同第 13 轮那条：给"状态复位"和"外部回调"排顺序时，永远是"先复位、后回调"。
+     */
     ms.isDown = false
+    if (inside && dx < 5 && dy < 5 && ms.button === 0 && s.scene && s.camera) {
+      try {
+        this._hitTest({ x: e.clientX, y: e.clientY })
+      } catch (err) {
+        console.warn('[viewer-canvas] 原子点击回调抛错（不影响交互）：', err)
+      }
+    }
   }
 
   _onMouseWheel(e) {

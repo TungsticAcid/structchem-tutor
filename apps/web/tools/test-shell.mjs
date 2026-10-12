@@ -487,6 +487,11 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(bareLight.length === 0, '对比页面板/控制条的颜色都包在主题令牌里（浅色主题不再是黑块）', bareLight.slice(0, 2).join(' ｜ ').slice(0, 90))
   ok(/data-crystal-side/.test(cmpCode) && /_setSideCrystal\(/.test(cmpCode), '设置里有"更换左/右晶体"的选择器与处理')
   ok(/data-side/.test(cmpCode) && /router\.navigate\('\/viewer\/'/.test(cmpCode), '两侧标签可点击跳转到对应晶体的查看页')
+  // ★★ 2026-10-12（用户："对比模式点击原子，没触发原子信息弹窗，反而使得鼠标一动晶体就跟着旋转"）：
+  //   ① 对比页不许再用宿主里并不存在的 window.wx（它一抛异常就把画布的拖拽状态卡死）；
+  //   ② 点原子必须弹**原子信息卡**（与查看页同一个组件）。
+  ok(!/window\.wx/.test(cmpCode), '对比页不再调用宿主里不存在的 window.wx（会抛异常卡死拖拽）')
+  ok(/AtomInfoPopup/.test(cmpCode) && /_onAtomTap\(/.test(cmpCode), '点原子会弹出原子信息卡（复用查看页那枚组件）')
 }
 
 console.log('')

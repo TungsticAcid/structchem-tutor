@@ -416,6 +416,26 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
 }
 
 // ============================================================================
+// 抬起鼠标时：**先复位拖拽状态，再做可能抛异常的事**
+//
+// ★★ 2026-10-12（用户："对比模式点击原子，没触发原子信息弹窗，反而使得鼠标一动晶体就跟着旋转"）：
+//   `_onMouseUp` 原先"先射线检测、后 ms.isDown = false"，而检测会触发宿主 atomTap 回调；
+//   宿主一抛异常（对比页调了宿主里不存在的 window.wx ✗），复位那行就被跳过 ⇒
+//   拖拽状态永远停在"按下" ⇒ 此后不按键、只移动鼠标画面也跟着转 ✗。
+//   守卫钉两条：① 复位在检测**之前**；② 检测包在 try/catch 里（坏回调不许卡死交互）。
+// ============================================================================
+{
+  const vcSrc2 = readFileSync(new URL('../../../projects/crystal/H5/src/components/viewer-canvas.js', import.meta.url), 'utf8')
+  const up = (vcSrc2.match(/_onMouseUp\(e\) \{[\s\S]*?\n  \}/) || [''])[0]
+  const iReset = up.indexOf('ms.isDown = false')
+  const iHit = up.indexOf('_hitTest(')
+  check('抬起时先复位拖拽状态、再射线检测（顺序反了会被宿主异常卡死）',
+    iReset >= 0 && iHit >= 0 && iReset < iHit, `reset@${iReset} hit@${iHit}`)
+  check('射线检测（会触发宿主回调）包在 try/catch 里',
+    /_hitTest\([\s\S]{0,200}?\} catch/.test(up) || /try \{\s*\n\s*this\._hitTest/.test(up))
+}
+
+// ============================================================================
 console.log(`\n${'═'.repeat(60)}`)
 console.log(`test-crystal-module 结果：通过 ${pass} 项，失败 ${fail} 项`)
 console.log('═'.repeat(60))

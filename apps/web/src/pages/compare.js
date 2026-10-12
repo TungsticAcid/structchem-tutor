@@ -3,6 +3,9 @@
  * 左右分栏展示同一晶体的两种模型，支持联动/独立交互
  */
 import { ViewerCanvas } from '@crystal/components/viewer-canvas.js'
+// ★ 原子信息卡与元素数据：与晶体查看页**同一套**（点原子应该看到一样的信息）
+import { AtomInfoPopup } from '@crystal/components/atom-info-popup.js'
+import elementsData from '@crystal/data/elements.js'
 import { getCrystalData } from '@crystal/lib/crystal-loader.js'
 // ★ 两侧「换晶体」的选择器要列出全部晶体：目录本来就是数据真源，不另抄一份清单
 import crystalIndex from '@crystal/data/crystalIndex.js'
@@ -145,6 +148,13 @@ export class ComparePage {
     if (typeof window !== 'undefined' && window.__comparePage === this) window.__comparePage = null
     if (this._leftCanvas) { this._leftCanvas.unmount(); this._leftCanvas = null }
     if (this._rightCanvas) { this._rightCanvas.unmount(); this._rightCanvas = null }
+    // ★ 原子信息卡也要一起卸（页面可反复挂载，不卸会累积）
+    if (this._popups) {
+      for (const side of Object.keys(this._popups)) {
+        try { this._popups[side].popup.unmount() } catch (e) { /* 已卸 */ }
+      }
+      this._popups = null
+    }
     this._container = null
   }
 
@@ -261,12 +271,14 @@ export class ComparePage {
               <span class="cp-label" data-side="left" title="${t('pages.compare.openCrystal')}">${s.crystalNameB
                 ? `${s.crystalName} · ${modelName(s.leftModelType, true)}`
                 : modelName(s.leftModelType, false)}</span>
+              <div class="atom-popup-container" id="leftAtomPopup"></div>
             </div>
             <div class="cp-divider divider-${s.layoutMode}"></div>
             <div class="cp-pane" id="rightPane">
               <span class="cp-label" data-side="right" title="${t('pages.compare.openCrystal')}">${s.crystalNameB
                 ? `${s.crystalNameB} · ${modelName(s.rightModelType, true)}`
                 : modelName(s.rightModelType, false)}</span>
+              <div class="atom-popup-container" id="rightAtomPopup"></div>
             </div>
           </div>
 
@@ -349,6 +361,10 @@ export class ComparePage {
       .cs-crystal { display:flex; gap:6px; padding:6px 12px 2px; }
       .cs-crystal select { flex:1; min-width:0; padding:4px 6px; border-radius:6px; font-size:11px; background:var(--card-2, rgba(255,255,255,0.06)); color:var(--text, #fff); border:1px solid var(--line-soft, rgba(255,255,255,0.12)); }
       .cs-crystal select:focus { outline:none; border-color:rgba(66,133,244,0.6); }
+      /* 原子信息卡的挂载容器：铺满所在画布、默认不吃事件（显示时才打开 pointer-events） */
+      .atom-popup-container { position:absolute; inset:0; pointer-events:none; z-index:1000; }
+      /* 页内轻提示（视角/样式对齐的反馈；替代宿主里并不存在的 window.wx.showToast） */
+      .cp-toast { position:absolute; left:50%; bottom:64px; transform:translateX(-50%); background:var(--card, rgba(20,20,40,0.94)); color:var(--text, #fff); border:1px solid var(--line, rgba(255,255,255,0.12)); padding:6px 14px; border-radius:14px; font-size:12px; z-index:40; pointer-events:none; }
     </style>`
 
     c.querySelector('#cpBack')?.addEventListener('click', () => router.back())
@@ -597,17 +613,22 @@ export class ComparePage {
     const leftPane = this._container.querySelector('#leftPane')
     const rightPane = this._container.querySelector('#rightPane')
 
-    const onAtomTap = (e) => {
-      const el = e.detail?.element
-      if (el) window.wx.showToast({ title: el, icon: 'none', duration: 800 })
-    }
+    /**
+     * ★★ 2026-10-12（用户："对比模式点击原子，没触发原子信息弹窗"）：
+     *   原先这里只调 `window.wx.showToast` —— 而 `window.wx` 在宿主里**根本不存在** ✗
+     *   （微信小程序移植的残留，CLAUDE.md 待办第 14 条记着这一处），
+     *   于是点击原子既不弹卡片、还抛异常把画布的拖拽状态卡住（组件侧已一并加固）。
+     *   改：与晶体查看页**同一套**原子信息卡（AtomInfoPopup），左/右各一枚，
+     *   点哪一侧就弹哪一侧的。
+     */
+    const sideAtomTap = (side) => (e) => this._onAtomTap(side, e.detail || {})
 
     this._leftCanvas = new ViewerCanvas({
       container: leftPane, canvasId: 'compareCanvasLeft', props: this._mkProps('left'),
       events: {
         viewstatechange: (e) => this._onViewStateChange('left', e.detail),
         loaded: () => this._onCanvasLoaded(),
-        atomTap: onAtomTap,
+        atomTap: sideAtomTap('left'),
         resetview: (e) => this._onResetView('left')
       }
     })
@@ -618,11 +639,59 @@ export class ComparePage {
       events: {
         viewstatechange: (e) => this._onViewStateChange('right', e.detail),
         loaded: () => this._onCanvasLoaded(),
-        atomTap: onAtomTap,
+        atomTap: sideAtomTap('right'),
         resetview: (e) => this._onResetView('right')
       }
     })
     this._rightCanvas.mount()
+
+    // 原子信息卡：左右各一枚，挂在各自画布容器里（与查看页同款组件）
+    this._popups = {}
+    for (const [side, id] of [['left', 'leftAtomPopup'], ['right', 'rightAtomPopup']]) {
+      const host = this._container.querySelector('#' + id)
+      if (!host) continue
+      const popup = new AtomInfoPopup({
+        container: host,
+        props: { visible: false, atomData: null },
+        events: { close: () => this._closeAtomPopup(side) }
+      })
+      popup.mount(host)
+      this._popups[side] = { popup, host }
+    }
+  }
+
+  /** 点原子：组出该原子的信息并弹卡（字段口径与晶体查看页一致） */
+  _onAtomTap(side, { element, position }) {
+    const entry = (this._popups || {})[side]
+    if (!element || !entry) return
+    const info = elementsData[element] || {}
+    const pos = Array.isArray(position) && position.length >= 3
+      ? '(' + position.slice(0, 3).map((v) => (((v % 1) + 1) % 1).toFixed(2)).join(', ') + ')'
+      : ''
+    entry.popup.setProps({
+      visible: true,
+      atomData: {
+        element,
+        name: info.name || element,
+        enName: info.enName || '',
+        color: info.color || '#fff',
+        atomicNumber: info.atomicNumber || '',
+        atomicMass: info.atomicMass || '',
+        electronConfig: info.electronConfig || '',
+        electronegativity: info.electronegativity || '',
+        radius: info.radius || '',
+        position: pos
+      }
+    })
+    // 弹窗容器默认 pointer-events:none（不挡画布），要显示时临时打开
+    entry.host.style.pointerEvents = 'auto'
+  }
+
+  _closeAtomPopup(side) {
+    const entry = (this._popups || {})[side]
+    if (!entry) return
+    entry.popup.setProps({ visible: false })
+    entry.host.style.pointerEvents = 'none'
   }
 
   _onCanvasLoaded() {
@@ -750,10 +819,24 @@ export class ComparePage {
     if (this._state.syncMode) this._onAlignViews()
   }
 
+  /**
+   * 页内轻提示。
+   * ★ 替代 `window.wx.showToast` —— 那个全局在宿主里根本不存在 ✗（微信小程序移植的残留），
+   *   原先这两处一走到就抛 TypeError（顶栏那句"视角已对齐/样式已对齐"从来没出现过）。
+   */
+  _toast(text) {
+    if (!text || !this._container) return
+    const el = document.createElement('div')
+    el.className = 'cp-toast'
+    el.textContent = text
+    this._container.appendChild(el)
+    setTimeout(() => { try { el.remove() } catch (e) { /* 已移除 */ } }, 1400)
+  }
+
   _onAlignViews() {
     const ls = this._leftCanvas?.getViewState()
     if (ls && this._rightCanvas) this._rightCanvas.applyViewState(ls)
-    window.wx.showToast({ title: '视角已对齐', icon: 'success', duration: 1000 })
+    this._toast(t('pages.compare.viewsAligned'))
   }
 
   /**
@@ -803,7 +886,7 @@ export class ComparePage {
         : modelName(s.rightModelType, false)
     }
 
-    if (!silent) window.wx.showToast({ title: '样式已对齐', icon: 'success', duration: 1000 })
+    if (!silent) this._toast(t('pages.compare.stylesAligned'))
   }
 
   _onToggleSettings() {
