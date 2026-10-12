@@ -534,7 +534,14 @@ export class SymmetryViewer {
     raycaster.setFromCamera(new THREE.Vector2(nx, ny), s.camera)
     const meshes = []
     s.root.traverse(o => {
-      if (o.isMesh && o.userData && o.userData.atomIndex !== undefined) meshes.push(o)
+      /**
+       * ★ 影子（ghost）不参与拾取：它是 `clone(true)` 出来的半透明对比层，
+       *   停在**操作前**的位置。若让它可拾取，点击会返回"操作前在那儿的原子"的索引，
+       *   而那颗原子已经转走 ⇒ 高亮出现在另一颗原子上
+       *   （用户报："NH3 经过 C3 操作后，点击的 H 原子和突出显示的 H 原子会不一致"）。
+       *   克隆处已经摘掉 `atomIndex`，这里再挡一道 —— 交互判据只留一处写不够稳。
+       */
+      if (o.isMesh && o.userData && o.userData.atomIndex !== undefined && !o.userData.ghost) meshes.push(o)
     })
     const hits = raycaster.intersectObjects(meshes, false)
     if (hits.length) return hits[0].object.userData.atomIndex

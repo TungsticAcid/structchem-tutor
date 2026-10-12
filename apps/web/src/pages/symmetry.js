@@ -28,7 +28,7 @@ import { SYMMETRY_CSS, SYMMETRY_HTML } from './symmetry-markup.js'
 import * as THREE from 'three'
 
 import { SymmetryViewer } from '@modules/symmetry/render/viewer.js'
-import { playSymmetryAnimation as playAnim, stopAnimation } from '@modules/symmetry/render/animation.js'
+import { playSymmetryAnimation as playAnim, stopAnimation, freezeAnimation } from '@modules/symmetry/render/animation.js'
 import { buildMoleculeScene, buildCrystalScene, buildAuxCube, buildAuxDihedral, computeCentroid } from '@modules/symmetry/render/scene-builder.js'
 import { buildSymmetryElements } from '@modules/symmetry/render/symmetry-draw.js'
 import { identifyPointGroup } from '@modules/symmetry/engine/pointGroup.js'
@@ -447,7 +447,16 @@ export function bootSymmetryPage(deps = {}) {
 
   /** 选中原子（与动画互斥）：高亮 + 正常显示轨道成员与稳定化子对称元素 + 面板填充 */
   function selectAtom(index) {
-    stopAnimation()
+    /**
+     * ★★ 2026-10-11（用户："NH3 在经过 C3 操作后，点击的 H 原子和突出显示的 H 原子会不一致"）：
+     *   这里原先是 `stopAnimation()` —— 它把各组**复位到恒等** ✗。
+     *   学生若在动画**进行中**点中某个 H：射线是在**转过的朝向**下命中的 ✓，
+     *   紧接着分子被复位 ✗ ⇒ 高亮留在他点的那颗原子上，可它已经转到别处
+     *   ⇒ "点一个 H、亮在另一个 H 上" ✓。
+     *   改：用 `freezeAnimation()` **停在当前朝向**（"我看到哪一颗就选哪一颗"）。
+     *   切换结构仍走 `stopAnimation()`（新场景本就从零开始，复位无害）。
+     */
+    freezeAnimation()
     currentSelectedAtom = index
     const atoms = currentStructure && currentStructure.atoms
     if (!currentStructure || currentStructure.kind !== 'molecule' || !atoms) return

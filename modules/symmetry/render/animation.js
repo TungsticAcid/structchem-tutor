@@ -140,6 +140,20 @@ function cloneGhost(group) {
       o.material.opacity = 0.25
       o.material.depthWrite = false
       o.renderOrder = 1
+      /**
+       * ★★ 2026-10-11（用户："NH3 在经过 C3 操作后，点击的 H 原子和突出显示的 H 原子会不一致"）：
+       *
+       *   `group.clone(true)` 会把 `userData` **一起复制**，而射线拾取（`pickAtom`）
+       *   只认 `userData.atomIndex` ⇒ **影子会被拾取**，且它停在**操作前**的位置 ✗
+       *   ⇒ 点影子的那个屏幕点返回的是"操作前在那儿的原子"的索引，
+       *     而那颗原子已经转走了 ⇒ 高亮出现在**另一颗 H** 上（实测：C3 前后同一个点
+       *     都返回 `atom#3`，可那个位置已经是别的 H 了）。
+       *   影子只是**视觉对比**，不该参与交互 ⇒ 摘掉拾取标记，只留一个 ghost 标记备查。
+       */
+      if (o.userData) {
+        delete o.userData.atomIndex
+        o.userData.ghost = true
+      }
     }
   })
   return ghost
@@ -385,3 +399,17 @@ export function isAnimating() { return !!currentAnim }
 
 /** 停止当前动画并复位（供外部清除，如切换结构/选中原子时） */
 export function stopAnimation() { stopCurrentAnimation() }
+
+/**
+ * **冻结**当前动画：收起进度条，但把**当前朝向**烘焙下来（不复位）。
+ *
+ * ★★ 2026-10-11（用户："NH3 在经过 C3 操作后，点击的 H 原子和突出显示的 H 原子会不一致"）：
+ *   选中原子原先调的是 `stopAnimation()`，而它是**完整复位**（`setMatrix(1)`）✗ ——
+ *   学生若在动画**进行中**点了某个 H：射线是在**转过的朝向**下命中的 ✓，
+ *   紧接着分子被复位回原位 ✗ ⇒ 高亮留在他点的那颗原子上，可那颗原子已经转到别处
+ *   ⇒ 看起来就是"点一个 H、亮在另一个 H 上" ✓（实测：中途点到的点，复位后同一点是别的原子）。
+ *   ⇒ 选中原子时应当**停在当前朝向**（"我看到哪一颗就选哪一颗"）。
+ *   ★ 与 `stopAnimation()` 的分工：切换结构/播新动画用**复位**（新场景本就从零开始）；
+ *     "用户对当前画面做选择"用**冻结**。
+ */
+export function freezeAnimation() { closeProgressOnly() }

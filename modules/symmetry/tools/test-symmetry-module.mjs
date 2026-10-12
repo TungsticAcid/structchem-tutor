@@ -662,6 +662,36 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// 对称操作动画：影子不可拾取 + 选中原子时**冻结**当前朝向
+//
+// ★★ 2026-10-11（用户："NH3 在经过 C3 操作后，点击的 H 原子和突出显示的 H 原子会不一致"）：
+//   两个各自独立的缺陷叠在一起：
+//   ① 影子是 `group.clone(true)` 出来的 —— three 的 clone **连 userData 一起复制** ✗
+//      ⇒ 影子带着 `userData.atomIndex`，射线拾取只认这个字段 ⇒ 会命中影子（停在操作前的位置）
+//      ⇒ 返回的是"操作前在那儿的原子"的索引，而那颗原子已经转走了 ✗。
+//   ② 选中原子原先调 `stopAnimation()`，而它是**完整复位**（`setMatrix(1)`）✗ ——
+//      在动画**进行中**点中的原子，是在**转过的朝向**下命中的；紧接着分子被复位
+//      ⇒ 高亮留在那颗原子上、可它已经转到别处 ⇒ "点一个 H、亮在另一个 H 上" ✓。
+//      改：选中走 `freezeAnimation()`（停在当前朝向）。
+// ───────────────────────────────────────────────────────────────────────────
+{
+  const animSrc = readFileSync(new URL('../render/animation.js', import.meta.url), 'utf8')
+  const viewSrc = readFileSync(new URL('../render/viewer.js', import.meta.url), 'utf8')
+  const pageSrc = readFileSync(new URL('../../../apps/web/src/pages/symmetry.js', import.meta.url), 'utf8')
+  const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/^\s*\*.*$/gm, '')
+  const ghostFn = (strip(animSrc).match(/function cloneGhost\([\s\S]*?\n\}/) || [''])[0]
+  check('影子摘掉拾取标记（clone 会复制 userData.atomIndex）',
+    /delete o\.userData\.atomIndex/.test(ghostFn) && /userData\.ghost = true/.test(ghostFn))
+  check('拾取时跳过影子（交互判据两处都写，单处不够稳）',
+    /!o\.userData\.ghost/.test(strip(viewSrc)))
+  check('导出 freezeAnimation（冻结当前朝向，不复位）',
+    /export function freezeAnimation\(\) \{ closeProgressOnly\(\) \}/.test(strip(animSrc)))
+  const selectFn = (strip(pageSrc).match(/function selectAtom\(index\) \{[\s\S]*?\n  \}/) || [''])[0]
+  check('选中原子走 freezeAnimation（否则画面会跳回原位、亮点错位）',
+    /freezeAnimation\(\)/.test(selectFn) && !/[^e]stopAnimation\(\)/.test(selectFn))
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // 跨挂载的 DOM 缓存必须能重绑（用户报"退出再进入会自动播一次动画"时抓到的两个坑）
 //
 // ★ 坑①：页面把模块的 `playToken` 当"事件计数"用，而 `lastPlayToken` 是页面局部变量
