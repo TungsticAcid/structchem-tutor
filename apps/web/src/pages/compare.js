@@ -52,7 +52,14 @@ export class ComparePage {
     // 状态
     this._state = {
       crystalName: '', crystalNameB: '', crystalData: null, showIntersticeControl: false,
-      syncMode: true, layoutMode: 'vertical',
+      syncMode: true,
+    /**
+     * ★★ 2026-10-12（用户要求）：「晶典在线对比模式在电脑端默认是（左右并排）这种模式与大小」。
+     *   原先这里写死 `'vertical'`（上下排）。改为**按宽度**取默认：够宽就左右并排
+     *   （两幅画布各拿半宽、整屏高，与用户截图一致）；窄屏仍上下排
+     *   （否则每一侧只剩半屏宽，看不清楚）。用户随时可点控制条切换，切换逻辑没变。
+     */
+    layoutMode: (typeof window !== 'undefined' && window.innerWidth >= 900) ? 'horizontal' : 'vertical',
       leftModelType: 'ballStick', leftStickRadius: 0.08, leftShowAtoms: true,
       leftShowBonds: false, leftShowAxes: true, leftShowInterstices: false,
       leftShowOctahedral: false, leftShowTetrahedral: false, leftShowAuxiliaryBody: false,
@@ -268,7 +275,8 @@ export class ComparePage {
         panel.remove()
         const div = document.createElement('div')
         div.innerHTML = this._renderSettings()
-        this._container.appendChild(div.firstElementChild)
+        const host = this._container?.querySelector('#csHost')
+        ;(host || this._container).appendChild(div.firstElementChild)
         this._bindSettingsEvents()
       }
     }
@@ -287,36 +295,46 @@ export class ComparePage {
           : t('pages.compare.titleOne', { name: s.crystalName })}</span>
       </div>
 
-      <div class="cp-dual layout-${s.layoutMode}">
-        <div class="cp-pane" id="leftPane">
-          <span class="cp-label">${s.crystalNameB
-            ? `${s.crystalName} · ${modelName(s.leftModelType, true)}`
-            : modelName(s.leftModelType, false)}</span>
-        </div>
-        <div class="cp-divider divider-${s.layoutMode}"></div>
-        <div class="cp-pane" id="rightPane">
-          <span class="cp-label">${s.crystalNameB
-            ? `${s.crystalNameB} · ${modelName(s.rightModelType, true)}`
-            : modelName(s.rightModelType, false)}</span>
-        </div>
-      </div>
+      <div class="cp-body">
+        <!-- 设置面板（左侧抽屉）的挂载点：desktop 下它是**左列**（让位，不遮挡画布），
+             窄屏下退化为底部抽屉（见下面的 CSS）。原先它被 append 到页面容器外，
+             所以只能做成"盖在画布上"的浮层。 -->
+        <div class="cs-host" id="csHost">${this._renderSettings()}</div>
+        <div class="cp-main">
+          <div class="cp-dual layout-${s.layoutMode}">
+            <div class="cp-pane" id="leftPane">
+              <span class="cp-label">${s.crystalNameB
+                ? `${s.crystalName} · ${modelName(s.leftModelType, true)}`
+                : modelName(s.leftModelType, false)}</span>
+            </div>
+            <div class="cp-divider divider-${s.layoutMode}"></div>
+            <div class="cp-pane" id="rightPane">
+              <span class="cp-label">${s.crystalNameB
+                ? `${s.crystalNameB} · ${modelName(s.rightModelType, true)}`
+                : modelName(s.rightModelType, false)}</span>
+            </div>
+          </div>
 
-      <div class="cp-controls">
-        <span class="cp-btn" id="cpToggleLayout">${s.layoutMode === 'horizontal'
-          ? t('pages.compare.toVertical') : t('pages.compare.toHorizontal')}</span>
-        <span class="cp-btn${s.syncMode ? ' active' : ''}" id="cpToggleSync">${s.syncMode
-          ? t('pages.compare.syncOn') : t('pages.compare.syncOff')}</span>
-        <span class="cp-btn" id="cpAlignView">↺对齐视角</span>
-        <span class="cp-btn" id="cpAlignStyle">≡对齐样式</span>
-        <span class="cp-btn${this._settingsExpanded ? ' active' : ''}" id="cpToggleSettings">⚙设置</span>
+          <div class="cp-controls">
+            <span class="cp-btn" id="cpToggleLayout">${s.layoutMode === 'horizontal'
+              ? t('pages.compare.toVertical') : t('pages.compare.toHorizontal')}</span>
+            <span class="cp-btn${s.syncMode ? ' active' : ''}" id="cpToggleSync">${s.syncMode
+              ? t('pages.compare.syncOn') : t('pages.compare.syncOff')}</span>
+            <span class="cp-btn" id="cpAlignView">↺对齐视角</span>
+            <span class="cp-btn" id="cpAlignStyle">≡对齐样式</span>
+            <span class="cp-btn${this._settingsExpanded ? ' active' : ''}" id="cpToggleSettings">⚙设置</span>
+          </div>
+        </div>
       </div>
     </div>
-    ${this._renderSettings()}
     <style>
       .compare-page { width:100vw; height:100vh; display:flex; flex-direction:column; background:#ffffff; overflow:hidden; position:relative; }
       .cp-top-bar { display:flex; align-items:center; padding:calc(12px + env(safe-area-inset-top)) 12px 8px; flex-shrink:0; z-index:20; background:linear-gradient(to bottom, rgba(0,0,0,0.6), rgba(0,0,0,0)); }
       .cp-back { width:30px; height:30px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:rgba(255,255,255,0.15); color:#fff; font-size:18px; cursor:pointer; margin-right:10px; }
       .cp-title { color:#fff; font-size:14px; font-weight:500; flex:1; }
+      /* 主体：左列=设置抽屉（桌面），右侧=两幅画布 + 悬浮控制条 */
+      .cp-body { flex:1; display:flex; min-height:0; position:relative; }
+      .cp-main { flex:1; min-width:0; position:relative; display:flex; flex-direction:column; }
       .cp-dual { flex:1; display:flex; min-height:0; }
       .layout-horizontal { flex-direction:row; }
       .layout-vertical { flex-direction:column; }
@@ -328,6 +346,45 @@ export class ComparePage {
       .cp-controls { position:absolute; bottom:12px; left:50%; transform:translateX(-50%); display:flex; gap:6px; background:rgba(20,20,40,0.94); border-radius:20px; padding:4px 10px; z-index:25; border:1px solid rgba(255,255,255,0.12); }
       .cp-btn { padding:4px 8px; border-radius:10px; font-size:11px; color:rgba(255,255,255,0.7); cursor:pointer; white-space:nowrap; transition:background 0.2s; }
       .cp-btn.active { background:rgba(66,133,244,0.3); color:#fff; }
+      /* 窄屏：设置仍是"盖在画布上"的底部抽屉（空间不够时让位反而看不清）
+         ★ .cs-host 用 display:contents：它只是挂载点，真正的列由 .cs-panel 承担
+           （否则多一层 div 会把 flex 布局截断，让位就不生效了）。 */
+      .cs-host { display: contents; }
+
+      /* ================= 对比页设置面板（左列 / 底部抽屉）=================
+         ★★ 2026-10-12（用户要求）：电脑端设置面板放**左侧**、并且**让位**（不盖在画布上）：
+            它是 cp-body 的左列（flex 项，固定 320px），画布区域自动缩到右侧，
+            结构跟着 ResizeObserver 重新居中（与智能体抽屉、晶体查看页同一条机制）。
+            窄屏退化为底部抽屉：空间不够时"让位"反而看不清。
+         ★ 这些样式**必须放在页面常驻的 style 里**：原先它们跟着 _renderSettings() 的返回值
+           一起给出，而动态注入那条路只取 firstElementChild（面板 div）⇒ style 块被丢弃 ✗，
+            于是"桌面看着像左列"只是 flex 项的自然宽度，媒体查询从未生效、窄屏也跟着挤 ✗。
+           教训：**样式与标记一起返回时，谁取第一个元素谁就可能把样式丢掉**。 */
+      @media (min-width: 900px) {
+        .cs-panel { flex:0 0 320px; width:320px; height:100%; max-height:none; overflow-y:auto; background:rgba(18,18,35,0.97); border-right:1px solid rgba(255,255,255,0.12); z-index:30; padding-bottom:8px; }
+        /* 320px 的窄列里，两侧设置改为上下排 */
+        .cs-cols { flex-direction:column; }
+        .cs-divider-col { width:auto; height:1px; }
+      }
+      @media (max-width: 899px) {
+        .cs-panel { position:absolute; bottom:0; left:0; right:0; background:rgba(18,18,35,0.97); border-top:1px solid rgba(255,255,255,0.12); z-index:30; max-height:55vh; overflow-y:auto; padding-bottom:60px; }
+      }
+      .cs-cols { display:flex; padding:8px 0; }
+      .cs-col { flex:1; padding:8px; }
+      .cs-divider-col { width:1px; background:rgba(255,255,255,0.1); flex-shrink:0; }
+      .cs-col-header { display:flex; align-items:center; justify-content:center; gap:4px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:4px; }
+      .cs-col-dot { width:7px; height:7px; border-radius:50%; }
+      .cs-col-title { color:#fff; font-size:13px; font-weight:500; }
+      .cs-section { margin-bottom:6px; }
+      .cs-st { color:rgba(255,255,255,0.45); font-size:10px; display:block; margin-bottom:2px; }
+      .cs-sel { display:flex; gap:3px; }
+      .cs-opt { flex:1; text-align:center; padding:4px 0; font-size:10px; color:rgba(255,255,255,0.5); background:rgba(255,255,255,0.05); border-radius:4px; cursor:pointer; border:1px solid rgba(255,255,255,0.06); }
+      .cs-opt.active { color:#fff; background:rgba(66,133,244,0.3); border-color:rgba(66,133,244,0.4); }
+      .cs-toggles { display:flex; flex-wrap:wrap; gap:3px; }
+      .cs-tog { padding:3px 5px; font-size:9px; color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.05); border-radius:3px; cursor:pointer; border:1px solid rgba(255,255,255,0.06); }
+      .cs-tog.on { color:#fff; background:rgba(66,133,244,0.3); border-color:rgba(66,133,244,0.4); }
+      .cs-shared-row { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.08); }
+      .cs-shared-label { margin:0; white-space:nowrap; }
     </style>`
 
     c.querySelector('#cpBack')?.addEventListener('click', () => router.back())
@@ -421,26 +478,7 @@ export class ComparePage {
         <div class="cs-divider-col"></div>
         ${genSide('right', '#EA4335', isHoriz ? t('pages.compare.rightPanel') : t('pages.compare.bottomPanel'))}
       </div>
-    </div>
-    <style>
-      .cs-panel { position:absolute; bottom:0; left:0; right:0; background:rgba(18,18,35,0.97); border-top:1px solid rgba(255,255,255,0.12); z-index:30; max-height:55vh; overflow-y:auto; padding-bottom:60px; }
-      .cs-cols { display:flex; padding:8px 0; }
-      .cs-col { flex:1; padding:8px; }
-      .cs-divider-col { width:1px; background:rgba(255,255,255,0.1); flex-shrink:0; }
-      .cs-col-header { display:flex; align-items:center; justify-content:center; gap:4px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:4px; }
-      .cs-col-dot { width:7px; height:7px; border-radius:50%; }
-      .cs-col-title { color:#fff; font-size:13px; font-weight:500; }
-      .cs-section { margin-bottom:6px; }
-      .cs-st { color:rgba(255,255,255,0.45); font-size:10px; display:block; margin-bottom:2px; }
-      .cs-sel { display:flex; gap:3px; }
-      .cs-opt { flex:1; text-align:center; padding:4px 0; font-size:10px; color:rgba(255,255,255,0.5); background:rgba(255,255,255,0.05); border-radius:4px; cursor:pointer; border:1px solid rgba(255,255,255,0.06); }
-      .cs-opt.active { color:#fff; background:rgba(66,133,244,0.3); border-color:rgba(66,133,244,0.4); }
-      .cs-toggles { display:flex; flex-wrap:wrap; gap:3px; }
-      .cs-tog { padding:3px 5px; font-size:9px; color:rgba(255,255,255,0.4); background:rgba(255,255,255,0.05); border-radius:3px; cursor:pointer; border:1px solid rgba(255,255,255,0.06); }
-      .cs-tog.on { color:#fff; background:rgba(66,133,244,0.3); border-color:rgba(66,133,244,0.4); }
-      .cs-shared-row { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.08); }
-      .cs-shared-label { margin:0; white-space:nowrap; }
-    </style>`
+    </div>`
   }
 
   /** 生成某一侧 viewer-canvas 的完整 props（增量更新与初始化共用） */
@@ -620,7 +658,8 @@ export class ComparePage {
         panel.remove()
         const div = document.createElement('div')
         div.innerHTML = this._renderSettings()
-        this._container.appendChild(div.firstElementChild)
+        const host = this._container?.querySelector('#csHost')
+        ;(host || this._container).appendChild(div.firstElementChild)
         this._bindSettingsEvents()
       }
     }
@@ -700,7 +739,9 @@ export class ComparePage {
     } else if (this._settingsExpanded) {
       const tmp = document.createElement('div')
       tmp.innerHTML = this._renderSettings()
-      this._container.appendChild(tmp.firstElementChild)
+      // ★ 挂到 .cp-body 里的左列宿主 #csHost：桌面下它是"让位"的左列，不再是盖在画布上的浮层
+      const host = this._container.querySelector('#csHost')
+      ;(host || this._container).appendChild(tmp.firstElementChild)
       this._bindSettingsEvents()
     }
     // 更新按钮样式
@@ -739,10 +780,17 @@ export class ComparePage {
       }
       // 增量更新画布（不销毁重建，由 setProps 智能处理）
       this._updateCanvases()
-      // 重建设置面板（刷新激活态与元素筛选）
+      // 重建设置面板（刷新激活态与元素筛选）★ 同样挂到左列宿主 #csHost
       if (this._settingsExpanded) {
         const panel = this._container.querySelector('#csPanel')
-        if (panel) { panel.remove(); const div = document.createElement('div'); div.innerHTML = this._renderSettings(); this._container.appendChild(div.firstElementChild); this._bindSettingsEvents() }
+        if (panel) {
+          panel.remove()
+          const div = document.createElement('div')
+          div.innerHTML = this._renderSettings()
+          const host = this._container.querySelector('#csHost')
+          ;(host || this._container).appendChild(div.firstElementChild)
+          this._bindSettingsEvents()
+        }
       }
     })
   }
