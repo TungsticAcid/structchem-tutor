@@ -16,6 +16,9 @@ import { createModule } from '../index.js'
 import { assertModuleContract, REQUIRED_METHODS } from '../../../packages/module-contract/index.js'
 // 示例分子的化学合理性检查要用它（见文件末那节）
 import { EXAMPLES } from '../data/examples-index.js'
+// 动画轴守卫要用它：点群识别 + 源码棘轮读文件
+import { identifyPointGroup } from '../engine/pointGroup.js'
+import { readFileSync } from 'node:fs'
 
 let pass = 0
 let fail = 0
@@ -448,6 +451,55 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
   const w1 = stabOf('water', 1)
   check('H₂O 的 O 仍是 C2v（4 个操作）', !!w0 && w0.names.length === 4 && !w0.infinite, w0 && String(w0.count))
   check('H₂O 的 H 仍是 Cs（2 个操作）', !!w1 && w1.names.length === 2 && !w1.infinite, w1 && String(w1.count))
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 动画轴必须与"画出来的那根"一致（用户实测缺陷）
+//
+// ★★ 用户报："点群观鉴对称操作动画与其对称元素不匹配，比如甲烷的 C₂(1)，
+//   动画是绕着 C₂(2) 在转"。真因：动画用的是**共轭轴** C·A·C⁻¹（C = 分子组
+//   当前累计矩阵），而对称元素固定画在原始坐标系 ⇒ 从第二轮播放起就绕着
+//   另一根画出来的轴转。下面用真实的甲烷元素把这条场景钉住：
+//   先播 C₃(1)（120°，把 x̂ 映到 ŷ）之后，旧的共轭做法给 C₂(1) 的轴正好是
+//   **C₂(2) 的轴**（0,1,0）；而现在必须仍是 C₂(1) 自己的轴（1,0,0）。
+// ───────────────────────────────────────────────────────────────────────────
+{
+  const { operationAxisFor } = await import('../render/animation.js')
+  const THREE = await import('three')
+  const near = (v, want) => Math.abs(v.x - want[0]) < 1e-6
+    && Math.abs(v.y - want[1]) < 1e-6 && Math.abs(v.z - want[2]) < 1e-6
+  const methaneEls = identifyPointGroup(
+    EXAMPLES.find((e) => e.id === 'methane').structure).elements
+  const c2_1 = methaneEls[0], c2_2 = methaneEls[1], c3_1 = methaneEls[3]
+
+  check('甲烷 C₂(1) 的轴是 x̂', near(operationAxisFor(c2_1), [1, 0, 0]))
+  check('甲烷 C₂(2) 的轴是 ŷ', near(operationAxisFor(c2_2), [0, 1, 0]))
+
+  // 复现旧做法的错：共轭 C·A·C⁻¹（这里 C = 先播过的 C₃(1)）
+  const C = new THREE.Matrix4().makeRotationAxis(operationAxisFor(c3_1), 2 * Math.PI / 3)
+  const conj = operationAxisFor(c2_1).clone().applyMatrix4(C).normalize()
+  check('（记录旧缺陷）先播 C₃(1) 后，共轭会给 C₂(1) 用 C₂(2) 的轴',
+    near(conj, [0, 1, 0]), conj.toArray().map((v) => v.toFixed(2)).join(','))
+
+  // 现在的约定：**不接受累计矩阵**，永远是元素自己的轴
+  check('现在：C₂(1) 的轴不受"之前播过什么"影响，仍是 x̂',
+    near(operationAxisFor(c2_1), [1, 0, 0]))
+  check('现在：C₂(2) 的轴不受影响，仍是 ŷ',
+    near(operationAxisFor(c2_2), [0, 1, 0]))
+  check('operationAxisFor 只认元素（不接矩阵参数）——签名即约定',
+    operationAxisFor.length === 1, String(operationAxisFor.length))
+
+  // 终态：新做法 = B·C（模块文件头写的"过渡到 B·A"）；旧做法 = C·B（顺序反了）
+  const B = new THREE.Matrix4().makeRotationAxis(operationAxisFor(c2_1), Math.PI)
+  const newFinal = B.clone().multiply(C)
+  const oldFinal = new THREE.Matrix4().makeRotationAxis(conj, Math.PI).multiply(C)
+  const same = newFinal.elements.every((v, i) => Math.abs(v - oldFinal.elements[i]) < 1e-9)
+  check('新旧终态确实不同（旧做法真的转错了轴）', !same)
+
+  // ★ 源码棘轮：不许再把累计矩阵"共轭"回动画轴（本仓库对"同一个坑再踩一次"用棘轮）
+  const src = readFileSync(new URL('../render/animation.js', import.meta.url), 'utf8')
+  check('animation.js 不再对轴做 applyMatrix4（共轭）',
+    !/applyMatrix4\(\s*cMat\s*\)/.test(src) && !/\bdetC\b/.test(src))
 }
 
 console.log(`\n通过 ${pass}/${pass + fail}`)

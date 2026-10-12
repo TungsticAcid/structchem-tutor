@@ -102,12 +102,19 @@ function opMatrixAt(progress, type, axis, rotN, sign, reflectStart) {
   }
 }
 
-/** 3×3 行列式（three Matrix4 列优先，取左上旋转部分） */
-function det3(m) {
-  const e = m.elements
-  return e[0] * (e[5] * e[10] - e[6] * e[9])
-    - e[4] * (e[1] * e[10] - e[2] * e[9])
-    + e[8] * (e[1] * e[6] - e[2] * e[5])
+/**
+ * 播放某元素时用哪根轴 —— **就是画面上画出来的那根**（元素自己在原始坐标系里的 axis）。
+ *
+ * ★ 抽成导出函数是为了能被 Node 守卫直接调用（见 `tools/test-symmetry-module.mjs`）：
+ *   这条约定曾经写成"共轭 C·A·C⁻¹"，症状是"点 C₂(1) 却绕 C₂(2) 转"（用户实测）。
+ *   ★ 刻意**不接受**累计矩阵参数：签名本身就是"不随姿态共轭"这一条约定，
+ *     将来有人想改回去，就得先改签名与这条注释，而不是顺手加一行。
+ */
+export function operationAxisFor(element) {
+  if (!element || !Array.isArray(element.axis) || element.axis.length < 3) {
+    return new THREE.Vector3(0, 0, 1)
+  }
+  return new THREE.Vector3(element.axis[0], element.axis[1], element.axis[2]).normalize()
 }
 
 /** 克隆分子为半透明 ghost（共享几何，独立半透明材质，定格初始位） */
@@ -272,14 +279,27 @@ export function playSymmetryAnimation({ root, moleculeGroup, symmetryGroup, auxG
     : element.type.startsWith('S') ? 'improper'
     : 'rotate'
 
-  // 当前组矩阵 C（上一次变换结果）。对称元素 A 已被 C 重排，其"当前操作"= 共轭 C·A·C⁻¹，
-  // 即轴/法向经 C 变换后做同一角度操作。注意 C 若为镜像（det=−1），共轭会翻转旋转方向，
-  // 故旋转分量有效符号需乘上 det(C)。
-  const cMat = moleculeGroup.matrix.clone()
-  const detC = det3(cMat)
-  const signEff = sign * (detC > 0 ? 1 : -1)
-  const axis0 = element.axis ? new THREE.Vector3(...element.axis).normalize() : new THREE.Vector3(0, 0, 1)
-  const axis = axis0.clone().applyMatrix4(cMat).normalize()
+  /**
+   * 用**画面上画出来的那根轴**，不做任何共轭。
+   *
+   * ★★ 2026-10-12（用户实测报的缺陷）："点群观鉴对称操作动画与其对称元素不匹配，
+   *   比如甲烷的 C₂(1)，动画是绕着 C₂(2) 在转"。
+   *
+   *   真因就在原来的写法：轴取的是**共轭** `C·A·C⁻¹`（C = 分子组当前累计矩阵）。
+   *   数学上那是"当前姿态下对应的那个元素"，但**对称元素是固定画在原始坐标系里的**
+   *   （见下面"对称元素/辅助几何始终留在 root（固定操作基准）"那段），于是从第二轮播放起
+   *   动画就绕着**另一根画出来的轴**转：甲烷先播 C₂(2)（绕 ŷ）再点 C₂(1)，
+   *   共轭把 x̂ 变成 ŷ ⇒ 学生点 C₂(1)，看到的是绕 C₂(2) 转。
+   *   （另外 `applyMatrix4` 是**含平移的 4×4**，用在"方向"上连第一次播放都会偏。）
+   *
+   *   ★ 共轭与本模块**自己的核心约定**也不一致：文件头写的是"再播 B 从 A 起、过渡到 **B·A**"，
+   *     而共轭算出来的终态是 `C·B·C⁻¹·C = C·B`（顺序反了）；用元素自己的轴则正好得到 B·C = B·A ✓。
+   *     所以这不只是"观感"问题，是**公式写错了**。
+   *   ★ 顺带去掉 `det(C)` 的符号修正：那是为共轭准备的补丁；不共轭时由元素自己的类型
+   *     （rotate / reflect / improper）驱动即可，镜像姿态下也应当"绕画出的那根轴"。
+   */
+  const axis = operationAxisFor(element)
+  const signEff = sign
   const rotN = element.order === Infinity ? 6 : (element.order || 2)
   // 分子包围半径（供 Sn 镜面尺寸）
   const molRadius = new THREE.Box3().setFromObject(moleculeGroup).getBoundingSphere(new THREE.Sphere()).radius || 3

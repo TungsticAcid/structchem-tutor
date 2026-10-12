@@ -370,7 +370,17 @@ symMastery.configure({
 })
 
 const symmetry = createSymmetryModule({
-  initialId: 'water',
+  /**
+   * ★★ 2026-10-12（用户要求）：进入点群观鉴的默认分子改成**甲烷**。
+   *
+   * 原先写的是 `'water'`。改的理由（也是"为什么甲烷是好默认"）：
+   *   · 甲烷是 **Td**，对称元素 **5 个**（4 个 C₃ + 3 个 C₂ + 6 个 σd，群阶 24）——
+   *     进页面就能看到"对称性不只是几个镜面"，而水只有 3 个元素、阶 4，太单薄；
+   *   · 它还是**正四面体**的教科书例子，学生一眼能对上实物（与轨道那页的 sp³ 一脉相承）；
+   *   · 顺带把两处默认值**统一**：`createSymmetryFacade` 在没给 id 时取示例表**第一个**，
+   *     而示例表第一个正是 methane —— 原先 main.js 用 'water' 覆盖了它，两处各说一套。
+   */
+  initialId: 'methane',
   /** 出题引擎 + 学情：注入了才有 generateQuestion / explainConcept / recommendNext / updateMastery */
   quiz: SymQuestionEngine,
   mastery: symMastery,

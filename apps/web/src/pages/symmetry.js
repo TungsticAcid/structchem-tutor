@@ -270,8 +270,24 @@ export function bootSymmetryPage(deps = {}) {
     renderGroup(t('ex.molecule'), molecules)
     renderGroup(t('ex.crystal'), crystals)
 
-    // 默认选中排序后第一个分子示例（仅首次调用；语言切换重建时不重选）
-    if (selectFirst && molecules[0]) selectExample(molecules[0].ex)
+    /**
+     * 默认选中**以模块的当前分子为准**（门面构造时的 `initialId` 就是"进入板块看哪个分子"），
+     * 只有它不在列表里（或门面没给）时才退回"族序排序后的第一个分子"。
+     *
+     * ★★ 2026-10-12（用户要求"进入点群观鉴的默认分子改为甲烷"时抓到）：
+     *   这里原先**无条件**选 `molecules[0]`，而族序是 C→D→T→O→I→S→Cs→Ci ——
+     *   于是入口落在一个 **C1** 的分子上（实测是"一溴一氯一氟甲烷"）。用户看到的是
+     *   "我改了 initialId，怎么还是别的分子"：真因是**同一个事实写了两处**
+     *   （模块的 `initialId` 与页面的"排序第一个"），而后者在挂载后把前者覆盖掉。
+     *   仓库里那条判据在这里第二次生效：两处表达同一个事实，必须合成一处。
+     *   现在入口默认值只有一个来源 —— `createSymmetryModule({initialId})`。
+     *   ★ 列表**顺序**不变（仍是教学用的族序），只改"进来先看哪个"。
+     */
+    const facadeNow = (deps && deps.facade && typeof deps.facade.currentId === 'function')
+      ? deps.facade.currentId()
+      : null
+    const wanted = facadeNow ? molecules.filter((m) => m.ex.id === facadeNow)[0] : null
+    if (selectFirst && (wanted || molecules[0])) selectExample((wanted || molecules[0]).ex)
   }
 
   // ==================== 默认显隐策略（需求3） ====================
