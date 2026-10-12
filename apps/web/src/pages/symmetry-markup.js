@@ -52,7 +52,15 @@ export const SYMMETRY_CSS = `    .sym-page {
     /* ★ 原本写在 body 上：会覆盖壳的主题底色。改为页面根，并跟随主题令牌 */
     .sym-page {
       background: var(--bg, #eeeeee);
-      font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      /**
+       * ★★ 2026-10-12（用户问「点群观鉴用的是什么字体」时对账）：
+       *   这里原先**自己写了一份字体栈**（-apple-system, Segoe UI, PingFang SC,
+       *   Microsoft YaHei, sans-serif），与全局令牌 --font-ui（system-ui 打头）是
+       *   **两份表达同一件事的清单** —— 在 Windows 上渲染结果恰好一样（都落到 Segoe UI／
+       *   雅黑），所以一直没暴露；但只要谁改了令牌，这一页就会与其它板块分家。
+       *   改：走令牌，缺令牌时退回原来那份（渲染不变）。
+       */
+      font-family: var(--font-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
     }
     #viewer-container { position: absolute; inset: 0; }
     #viewer-container canvas { display: block; }
@@ -126,7 +134,8 @@ export const SYMMETRY_CSS = `    .sym-page {
     .example-select .es-sym {
       width: 66px; flex-shrink: 0; text-align: center;
       color: var(--accent); font-weight: 600; font-size: 12px;
-      font-family: "Segoe UI", "PingFang SC", sans-serif;
+      /* ★ 原先这里写了第三套字体栈（少了 -apple-system 与 Microsoft YaHei）——
+         同一页三份清单，结果是"哪天改一处、三处不一致"。字体一律继承页面的 --font-ui。 */
     }
     .example-select .es-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
