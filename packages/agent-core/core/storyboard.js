@@ -754,6 +754,38 @@ export function createStoryboard(opts = {}) {
   }
 
   /**
+   * **只登记**一条演示记录：不碰队列、不播放。
+   *
+   * ★★ 2026-10-12（用户："演示为什么不能重新播放或收藏？"）：
+   *   `demos` 是**内存态**的 —— 刷新 / 换页重建之后记录就没了，而历史消息里的
+   *   「↻ 重播这个演示」「☆ 收藏」点的正是 `getDemo(demoId)` ✗
+   *   ⇒ 点了只会显示"演示已失效"或干脆没反应（用户报的正是这个）。
+   *   而**步骤其实还在存档里**（助手消息的 `tool_calls.args.actions`）⇒ 用它们把记录补回来。
+   *   ★ 不能用 `loadDemo` 来补：它会 `stop()` 并**立刻开始播放** ——
+   *     那样每次重画历史都会自动播一遍演示 ✗（这正是"补记录"与"播放"必须分成两件事的原因）。
+   *
+   * @param {Array} steps 步骤清单（逐条校验，非法的丢弃）
+   * @param {Object} [o]  { demoId, origin, module }
+   */
+  function registerDemo(steps, o) {
+    o = o || {}
+    const valid = []
+    for (const s of (steps || [])) {
+      const it = toStep(s)
+      if (!it.err) valid.push(it)
+    }
+    if (!valid.length) return { ok: false, error: t('agent.sb.noSteps') }
+    const id = o.demoId != null && demos.has(String(o.demoId)) ? String(o.demoId) : (o.demoId != null ? String(o.demoId) : nextDemoId())
+    const rec = demos.get(id) || { id, origin: o.origin || 'history', label: '', live: false, mode: 'manual', ts: 0, steps: [] }
+    rec.origin = o.origin || rec.origin || 'history'
+    rec.module = o.module || rec.module || (valid[0] && valid[0].module) || null
+    rec.steps = valid.map((s) => Object.assign({}, s))
+    rec.ts = Date.now()
+    demos.set(id, rec)
+    return { ok: true, demoId: id, total: rec.steps.length }
+  }
+
+  /**
    * 「重新演示」：从记录里原样重播一条演示（省略 demoId 则重播最近一条）。
    * ★ 从**演示记录**取，而不是从队列——队列在 stop() 之后已经空了。这正是
    *   "结束演示后无法回放"的根因（原先 `if (!queue.length) return 失败` 在结束之后
@@ -1022,7 +1054,7 @@ export function createStoryboard(opts = {}) {
     // 演示的"可寻址"三件套：整改 / 从历史重建 / 节奏切换
     setManual, reviseDemo, syncDemosFromHistory,
     // 队列可寻址：面板与修订用
-    queueInfo, getStep, jumpTo, loadDemo,
+    queueInfo, getStep, jumpTo, loadDemo, registerDemo,
     getDemo, listRecords,
     // "回到演示前"：一键还原到这一轮演示开始之前的视图与视角
     restoreBefore, beforeSnapshot,

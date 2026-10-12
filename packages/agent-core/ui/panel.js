@@ -655,7 +655,7 @@ export function createPanel(cfg = {}) {
    *   它却改了第 5 步"。让他直接点那一行的「引用」，括号里的步号由 `perAction` 算出，
    *   就不会指错；而这段文本随工具回执存档，**刷新之后引用依然准确**。
    */
-  function enrichActionBubble(d, result) {
+  function enrichActionBubble(d, result, acts, module) {
     if (!d || !d._acts || !result || !d._body) return
     const perAction = result.perAction
     const demoId = result.demoId
@@ -682,6 +682,22 @@ export function createPanel(cfg = {}) {
       rows[i].appendChild(btn)
     }
     if (!demoId) return
+    /**
+     * ★★ 2026-10-12（用户："演示为什么不能重新播放或收藏？"）：
+     *
+     *   分镜记录是**内存态**的（storyboard 里的 demos Map）—— 刷新 / 换页重建之后就没了，
+     *   而下面这两个按钮点的正是 `SB.getDemo(demoId)` / `SB.replay(demoId)` ✗
+     *   ⇒ 点「☆ 收藏」显示"演示已失效"、点「↻ 重播这个演示」毫无反应。
+     *   而**步骤其实还在存档里**（助手消息的 `tool_calls.args.actions`）⇒ 记录缺失时
+     *   用**只登记、不播放**的 `registerDemo` 把它补回去。
+     *   ★ 为什么不能顺手用 `loadDemo`：它会 stop() 并**立刻播放** ——
+     *     那样每次重画历史都会自动播一遍演示 ✗（"补记录"与"播放"必须是两件事）。
+     */
+    const SB0 = cfg.storyboard
+    if (acts && acts.length && SB0 && typeof SB0.getDemo === 'function'
+      && typeof SB0.registerDemo === 'function' && !SB0.getDemo(demoId)) {
+      try { SB0.registerDemo(acts, { demoId, origin: 'history', module: module || null }) } catch (e) { /* 校验不过就保持失效 */ }
+    }
     const foot = E('div', { class: 'agent-act-foot' })
     const rb = E('button', { class: 'agent-act-btn', text: '↻ 重播这个演示', type: 'button' })
     rb.onclick = async () => {
@@ -1106,7 +1122,8 @@ export function createPanel(cfg = {}) {
         try { res = JSON.parse(n.content || 'null') } catch (e) { res = null }
         const acts = c.args && Array.isArray(c.args.actions) ? c.args.actions : c.args
         const bubble = addActionBubble(c.name, acts, res)
-        if (bubble) enrichActionBubble(bubble, res)
+        // ★ 带上 acts 与模块归属：记录缺失时要用它们把分镜记录补回来（见 enrichActionBubble）
+        if (bubble) enrichActionBubble(bubble, res, acts, (c.args && c.args.module) || null)
       } else if (n.role === 'card') {
         if (n.meta && n.meta.html) addCard(n.meta.html, 'agent-card-' + (n.kind || 'card'))
       }
@@ -1448,7 +1465,9 @@ export function createPanel(cfg = {}) {
         // ★ 把回执里的 perAction / demoId 落到气泡上：逐行「引用」+ 底部「重播这个演示」。
         //   少了这一步，"演示可寻址"在界面上就没有落点——学生看到的是 6 行动作，
         //   却没法指着其中一行说"我要改这一步"。
-        enrichActionBubble(lastBubble, info.result)
+        enrichActionBubble(lastBubble, info.result,
+          (info.args && info.args.actions) || info.acts || null,
+          (info.args && info.args.module) || info.module || null)
         lastBubble = null
       },
       onDone(summary) {

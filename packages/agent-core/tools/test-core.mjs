@@ -1799,6 +1799,47 @@ console.log(`\n${'═'.repeat(60)}`)
   check('主动提示：换到别的结构后可以再提示（不是永久静音）', !!other && other.ruleId === 'rule-a', JSON.stringify(other))
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// 演示的「重播 / 收藏」在**刷新之后**还能用
+//
+// ★★ 2026-10-12（用户："演示为什么不能重新播放或收藏？"）：
+//   分镜记录（demos Map）是**内存态**的 —— 刷新 / 换页重建后记录就没了，
+//   而历史消息里的「↻ 重播这个演示」「☆ 收藏」点的正是 `getDemo(demoId)` ✗
+//   ⇒ 点了显示"演示已失效"或毫无反应（用户报的正是这个）。
+//   步骤其实还在存档里（助手消息的 tool_calls.args.actions）⇒ 用"只登记、不播放"的
+//   `registerDemo` 把记录补回来。守卫这条链路的三个环节。
+// ───────────────────────────────────────────────────────────────────────────
+{
+  const sbSrc = readFileSync(new URL('../core/storyboard.js', import.meta.url), 'utf8')
+  const reg = (sbSrc.match(/function registerDemo\(steps, o\) \{[\s\S]*?\n  \}/) || [''])[0]
+  check('分镜提供了"只登记"的 registerDemo', reg.length > 0 && /demos\.set\(/.test(reg))
+  check('registerDemo 不碰队列、不开始播放（补记录 ≠ 播放；否则重画历史会自己播一遍）',
+    reg.length > 0 && !/runQueue\(/.test(reg) && !/playing = true/.test(reg) && !/\bstop\(\)/.test(reg))
+  check('registerDemo 已导出（面板补记录要用到）', /registerDemo,/.test(sbSrc))
+  const panelSrc = readFileSync(new URL('../ui/panel.js', import.meta.url), 'utf8')
+  check('历史重画时会把缺失的演示记录补回来（否则重播/收藏点了没反应）',
+    /registerDemo\(acts, \{ demoId, origin: 'history'/.test(panelSrc))
+  check('补记录只在记录确实缺失时做（不覆盖正在播的那条）',
+    /!SB0\.getDemo\(demoId\)\)/.test(panelSrc))
+
+  // ★ 运行时确认"只登记、不播放"（源码棘轮只能证明它没写 runQueue，这条证明它真的没动队列）
+  const { createStoryboard } = await import('../core/storyboard.js')
+  const calls = []
+  const sb2 = createStoryboard({
+    t: (k) => k,
+    validate: () => ({ ok: true }),
+    vocabulary: ['setQuantumNumbers'],
+    applyStep: (n, p) => { calls.push([n, p]); return { ok: true } },
+    capture: () => ({ s: 1 }),
+    restore: () => {},
+    getDefaultPlayback: () => 'manual',
+  })
+  const rr = sb2.registerDemo([{ action: 'setQuantumNumbers', params: { n: 3 } }], { demoId: 'hist-1', origin: 'history' })
+  check('registerDemo 运行时不播放、不执行动作（重画历史不会自己播一遍）',
+    rr.ok === true && !!sb2.getDemo('hist-1') && sb2.state().playing !== true && calls.length === 0,
+    `ok=${rr.ok} rec=${!!sb2.getDemo('hist-1')} playing=${sb2.state().playing} calls=${calls.length}`)
+}
+
 console.log(`test-core 结果：通过 ${pass} 项，失败 ${fail} 项`)
 console.log('═'.repeat(60))
 process.exit(fail ? 1 : 0)
