@@ -1845,6 +1845,18 @@ console.log(`\n${'═'.repeat(60)}`)
   const reset = (panelSrc.match(/resetDemo: \(\) => \{[\s\S]*?\n    \},/) || [''])[0]
   check('面板提供 resetDemo（新对话时收掉演示条）', reset.length > 0)
   check('resetDemo 既停演示又隐藏控制条', /SB\.stop/.test(reset) && /hideBar\(\)/.test(reset))
+  // ★★ 2026-10-12（用户："退出演示，新建会话后，仍有演示残留"）：
+  //   `'stopped'` 分支**故意**保留「↩ 回到演示前」窄条 ⇒ 只要停止事件**晚到/再来一次**
+  //   （`canRestoreBefore` 仍为 true），窄条就会重新出现 ✗。
+  //   ⇒ 新会话必须**结构性**地抑制它：置位要在 `SB.stop()` **之前**（stop 是同步发事件的）。
+  // ★ 判定前先**剥注释**：函数里那段注释本身提到 `SB.stop()`（"必须在其之前置位"），
+  //   不剥的话 indexOf 比的是注释里的提及 —— 守卫当场误报（本仓库第四次踩这个坑）。
+  const resetCode = reset.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  check('新会话的抑制位在 stop() 之前置位（stop 是同步发事件的）',
+    resetCode.indexOf('demoSuppressed = true') >= 0
+    && resetCode.indexOf('demoSuppressed = true') < resetCode.indexOf('SB.stop'))
+  check('stopped 事件在抑制期内不再显示窄条，其它阶段解除抑制',
+    /if \(demoSuppressed\) \{ hideBar\(\); return \}/.test(panelSrc) && /demoSuppressed = false/.test(panelSrc))
   check('会话页的「＋ 新会话」也调 resetDemo', /store\.newSession\(\)[\s\S]{0,200}?resetDemo\(\)/.test(panelSrc))
 }
 

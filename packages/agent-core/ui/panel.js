@@ -157,6 +157,16 @@ export function createPanel(cfg = {}) {
    *   不重画的表现是"切了语言，控制条还是旧语言"，而且**不报错**。
    */
   let lastProgress = null
+/**
+ * ★★ 2026-10-12（用户："退出演示，新建会话后，仍有演示残留"）：
+ *   `'stopped'` 分支是**故意**保留一条「↩ 回到演示前」窄条的（学生中途不想看了，
+ *   那正是想退回去的时刻）。但**新会话之后**这条窄条不该再回来 —— 上一段对话的演示
+ *   与新建的对话无关。原先只靠"先 stop 再 hideBar"的顺序保证，一旦停止事件**晚到**
+ *   （或再次发出）窄条就会回来 ✗。这里用一个抑制标志把它**结构性**地挡住：
+ *   · `resetDemo()`（新会话）把它置 true；
+ *   · 只有**新的**演示开始（queued/replay/step/auto/waiting）才解除。
+ */
+let demoSuppressed = false
 
   // ---------------------------------------------------------------------------
   // 构建 UI
@@ -1639,6 +1649,15 @@ export function createPanel(cfg = {}) {
   function applyProgress(evt, isReplay) {
     if (!evt || disposed) return
     lastProgress = evt
+    /**
+     * ★ 新会话之后的"停止"事件不该把演示条叫回来（见 demoSuppressed 的说明）；
+     * 任何意味着"新演示开始"的阶段都会解除抑制。
+     */
+    if (evt.phase === 'stopped') {
+      if (demoSuppressed) { hideBar(); return }
+    } else {
+      demoSuppressed = false
+    }
     switch (evt.phase) {
       case 'step':
         // 手动演示的第一帧就要让用户看见控制条，否则他会不知道要动手
@@ -1771,6 +1790,12 @@ export function createPanel(cfg = {}) {
      */
     resetDemo: () => {
       const wasActive = !!(demoBar && !demoBar.classList.contains('hidden'))
+      /**
+       * ★ 必须在 `SB.stop()` **之前**置抑制位：stop 会**同步**发出 `'stopped'`，
+       *   而那条分支是"故意显示窄条"的 —— 先置位才能把它挡住。
+       * ★ 顺带覆盖"停止事件晚到 / 再次发出"的情形（用户报的正是"新建会话后仍有残留"）。
+       */
+      demoSuppressed = true
       try { if (SB && typeof SB.stop === 'function') SB.stop() } catch (e) { /* 忽略 */ }
       hideBar()
       return wasActive
