@@ -522,6 +522,17 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '对比页设置按逐侧能力给图层项（空隙 / 氢键）')
   ok(/s\.leftCaps = crystalCaps\(/.test(cmpCode) && /s\.rightCaps = crystalCaps\(/.test(cmpCode),
     '对比页逐侧派生能力（左右各一块晶体）')
+
+  // ★★ 2026-10-12（用户："对比模式切换晶体时，两边比例不一致，鼠标拖动时才自动对齐"）：
+  //   换晶体后新的一侧会按自己的包围球重新取景 ⇒ 两侧 frustumSize 不同 ✗；
+  //   必须等**那一侧**加载完立刻把另一侧的视角同步过来（与拖动联动同一口径），
+  //   且只在联动模式下做。
+  ok(/this\._needViewSync = side/.test(cmpCode) && /this\._needViewSync === side/.test(cmpCode),
+    '换晶体后记录"该侧需要对齐视角"')
+  ok(/_onCanvasLoaded\('left'\)/.test(cmpCode) && /_onCanvasLoaded\('right'\)/.test(cmpCode),
+    'loaded 事件带上"哪一侧"（否则不知道等谁加载完）')
+  ok(/_syncViewFromOther\(side\)/.test(cmpCode) && /if \(this\._state\.syncMode\) this\._syncViewFromOther/.test(cmpCode),
+    '加载完立刻同步另一侧的视角/比例（仅联动模式）')
   ok(/from '@modules\/crystal\/capabilities\.js'/.test(viewerNoComments) && !/TEACHING_STACKING_IDS/.test(viewerNoComments),
     '查看页改用共享能力模块（不再留写死的白名单）')
 

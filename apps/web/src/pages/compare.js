@@ -531,6 +531,9 @@ export class ComparePage {
     }
     if (this._crystalIdB === this._crystalId) this._crystalIdB = null
     this._applyCrystalMeta()
+    // ★ 换晶体后新的一侧会**重新取景** ⇒ 记下"这一侧需要与另一侧对齐视角（比例）"，
+    //   等它加载完立刻同步（见 _onCanvasLoaded / _syncViewFromOther）
+    this._needViewSync = side
     this._updateCanvases()
     this._refreshLabels()
     // ★ 设置面板里的"元素筛选 / 原点变换"是**逐晶体**的 ⇒ 换完晶体必须重画它，
@@ -689,7 +692,7 @@ export class ComparePage {
       container: leftPane, canvasId: 'compareCanvasLeft', props: this._mkProps('left'),
       events: {
         viewstatechange: (e) => this._onViewStateChange('left', e.detail),
-        loaded: () => this._onCanvasLoaded(),
+        loaded: () => this._onCanvasLoaded('left'),
         atomTap: sideAtomTap('left'),
         resetview: (e) => this._onResetView('left')
       }
@@ -700,7 +703,7 @@ export class ComparePage {
       container: rightPane, canvasId: 'compareCanvasRight', props: this._mkProps('right'),
       events: {
         viewstatechange: (e) => this._onViewStateChange('right', e.detail),
-        loaded: () => this._onCanvasLoaded(),
+        loaded: () => this._onCanvasLoaded('right'),
         atomTap: sideAtomTap('right'),
         resetview: (e) => this._onResetView('right')
       }
@@ -756,8 +759,21 @@ export class ComparePage {
     entry.host.style.pointerEvents = 'none'
   }
 
-  _onCanvasLoaded() {
+  _onCanvasLoaded(side) {
     this._canvasLoadedCount++
+    /**
+     * ★★ 2026-10-12（用户："对比模式切换晶体时，会出现两边比例不一致的情况，而鼠标拖动时会
+     *   自动对齐比例……应该切换晶体时，新晶体自动与另一侧晶体比例保持一致"）：
+     *   换晶体后新的一侧会**按自己的包围球重新取景** ⇒ 两侧 frustumSize 不同 ✗，
+     *   而只有**拖动**时才走 `_onViewStateChange` 的联动同步 ⇒ 差这一步（用户描述的现象）。
+     *   修法：换晶体时记下"哪一侧换了"（_needViewSync），等**那一侧**加载完（本函数）
+     *   立刻把另一侧的视角（含 frustumSize，也就是比例）同步过来 —— 与拖动联动**同一条口径**。
+     *   ★ 只在联动模式下做：非联动时两侧本就该各自独立。
+     */
+    if (side && this._needViewSync === side) {
+      this._needViewSync = null
+      if (this._state.syncMode) this._syncViewFromOther(side)
+    }
     if (this._canvasLoadedCount < 2) return
 
     /**
@@ -817,6 +833,20 @@ export class ComparePage {
       this._leftCanvas.applyViewState({ radius: r })
       this._rightCanvas.applyViewState({ radius: r })
     }
+  }
+
+  /**
+   * 把**另一侧**当前的视角（含比例 frustumSize）套到这一侧。
+   * ★ 换晶体后立即对齐用，与"拖动时的联动同步"同一条口径（用户要的就是这个效果）。
+   */
+  _syncViewFromOther(side) {
+    const from = side === 'left' ? this._rightCanvas : this._leftCanvas
+    const to = side === 'left' ? this._leftCanvas : this._rightCanvas
+    if (!from || !to || !from.getViewState || !to.applyViewState) return false
+    const vs = from.getViewState()
+    if (!vs) return false
+    to.applyViewState(vs)
+    return true
   }
 
   _onViewStateChange(source, viewState) {
