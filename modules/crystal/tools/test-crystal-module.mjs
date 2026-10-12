@@ -299,6 +299,39 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
 }
 
 // ============================================================================
+// 主动提示的规则必须看**能力**，不能只看"停留久"
+//
+// ★★ 2026-10-12（用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"）：
+//   那条规则原先只判 `crystal.id` 存在 + 停留 > 45s ⇒ **在任何晶体上**都会建议
+//   "打开空隙图层"，而空隙只有最密堆积（fcc/hcp）才有数据 —— 在 CaF₂ / NaCl 上
+//   打开了什么都没有 ✗。这里直接调**真实规则**，把两边行为都钉住。
+// ============================================================================
+{
+  const { default: crystalDesc } = await import('../../../packages/agent-core/registry/descriptors/crystal.js')
+  const rule = (crystalDesc.proactiveRules || []).find((r) => r.id === 'crystal-idle-structure')
+  check('晶体描述符里有"停留久 → 建议空隙图层"这条规则', !!rule)
+  if (rule) {
+    const idle = { idleMs: 60000, recentActions: [] }
+    check('CaF₂（无空隙层）不提示',
+      rule.check(idle, { crystal: { id: 'caf2' }, intersticesAvailable: false }) === false)
+    check('Cu 型 fcc（有空隙层）会提示',
+      rule.check(idle, { crystal: { id: 'fcc' }, intersticesAvailable: true }) === true)
+    check('拿不到能力字段时宁可不提示',
+      rule.check(idle, { crystal: { id: 'fcc' } }) === false)
+    check('有空隙层但刚操作过不提示',
+      rule.check({ idleMs: 60000, recentActions: [1, 2, 3] }, { crystal: { id: 'fcc' }, intersticesAvailable: true }) === false)
+  }
+  // 快照必须**发布**这个能力字段：规则靠它判断，缺了这个字段就等于永远不提示。
+  // ★ 用本文件已有的 mkView（它满足门面的完整视图契约），不要另造一个残缺的假 view。
+  const fNo = createCrystalFacade({ view: mkView({ showIntersticeControl: false }) })
+  check('页面说没有空隙层时，快照里 intersticesAvailable = false',
+    fNo.getSnapshot().intersticesAvailable === false, JSON.stringify(fNo.getSnapshot().intersticesAvailable))
+  const fYes = createCrystalFacade({ view: mkView({ showIntersticeControl: true }) })
+  check('页面说有空隙层时，快照里 intersticesAvailable = true',
+    fYes.getSnapshot().intersticesAvailable === true, JSON.stringify(fYes.getSnapshot().intersticesAvailable))
+}
+
+// ============================================================================
 console.log(`\n${'═'.repeat(60)}`)
 console.log(`test-crystal-module 结果：通过 ${pass} 项，失败 ${fail} 项`)
 console.log('═'.repeat(60))

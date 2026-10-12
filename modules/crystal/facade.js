@@ -110,6 +110,15 @@ export function createCrystalFacade(opts = {}) {
       layersOn: Object.keys(layers),
       // 空隙总开关关着时，上面两项即使为真也不可见——单列出来以免误读
       intersticesMasterOn: !!props.showInterstices,
+      /**
+       * ★★ 2026-10-12（用户："CaF2 没空隙图层，不用在看 CaF₂ 时提醒"）：
+       *   这是"**这块晶体有没有空隙层**"——**能力**；上面那条是"总开关开没开"——**状态**。
+       *   两者常被混为一谈，但用途完全不同：主动提示必须看**能力**，
+       *   否则会在 CaF₂ / NaCl 这类非最密堆积上一遍遍建议"打开空隙图层"（打开了也什么都没有）。
+       *   ★ 值来自页面算好的 `showIntersticeControl`（只有教学用的最密堆积 fcc/hcp 为真），
+       *     放在快照里而不是让规则去硬编晶体 id 白名单 —— 数据改了规则不用改。
+       */
+      intersticesAvailable: !!props.showIntersticeControl,
       atomScale: props.atomScale,
       stickRadius: props.stickRadius,
       cellDisplayMode: props.cellDisplayMode,

@@ -1754,6 +1754,51 @@ console.log(`\n${'═'.repeat(60)}`)
   if (stale.length) { fail++; console.log('  X 清单里但已不再分叉（应从清单删掉）：' + stale.join('、')) }
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// 主动提示：同一条规则在**同一个结构**上只提示一次 + 能力不足时不许提示
+//
+// ★★ 2026-10-12（用户截图：同一条"要我把空隙图层打开…"出现了两遍；并在 CaF₂ 上反复提示，
+//   而 CaF₂ 根本没有空隙层）：
+//   · 引擎原先只有"冷却 3 分钟 + 全局最小间隔 45 秒"，学生停在同一个晶体上不动，
+//     冷却一过就又弹一张一模一样的卡（他刚点过「不用了」）✗；
+//   · 晶体那条规则原先只看"停留久了没操作"，不看**这块晶体有没有空隙层** ✗。
+//   这里用一条合成规则同时钉住两条：去重（按结构）与能力门槛。
+// ───────────────────────────────────────────────────────────────────────────
+{
+  const { createProactive } = await import('../proactive.js')
+  const suggests = []
+  let state = { crystal: { id: 'fcc' }, intersticesAvailable: true }
+  const proactive = createProactive({
+    rules: [{
+      id: 'rule-a',
+      desc: '测试规则',
+      check: (trace, st) => !!(st && st.crystal && st.crystal.id)
+        && st.intersticesAvailable === true && (trace.idleMs || 0) > 45000,
+      suggest: [{ text: '要我把空隙图层打开吗？', actions: [] }],
+    }],
+    perception: {
+      getTrace: () => ({ idleMs: 60000, recentActions: [] }),
+      snapshot: () => ({ state }),
+    },
+    onSuggest: (s) => suggests.push(s),
+    isEnabled: () => true,
+    tickMs: 10,
+  })
+  const t0 = 1e9
+  const first = proactive.evaluate(t0)
+  check('主动提示：第一次命中原样给出', !!first && first.ruleId === 'rule-a', JSON.stringify(first))
+  const later = proactive.evaluate(t0 + 30 * 60 * 1000)   // 冷却(3min)与全局间隔(45s)都早过了
+  check('主动提示：同一结构不重复同一条（用户报的重影）', later === null, JSON.stringify(later))
+
+  state = { crystal: { id: 'caf2' }, intersticesAvailable: false }
+  const noCap = proactive.evaluate(t0 + 60 * 60 * 1000)
+  check('主动提示：没有该能力的晶体不提示（CaF₂ 无空隙层）', noCap === null, JSON.stringify(noCap))
+
+  state = { crystal: { id: 'hcp' }, intersticesAvailable: true }
+  const other = proactive.evaluate(t0 + 90 * 60 * 1000)
+  check('主动提示：换到别的结构后可以再提示（不是永久静音）', !!other && other.ruleId === 'rule-a', JSON.stringify(other))
+}
+
 console.log(`test-core 结果：通过 ${pass} 项，失败 ${fail} 项`)
 console.log('═'.repeat(60))
 process.exit(fail ? 1 : 0)

@@ -417,7 +417,7 @@ export const zh = {
   // ==========================================================================
   // registry/descriptors/** —— 主动介入规则的一句话说明
   // ==========================================================================
-  'agent.descriptor.crystal.ruleIdle': '在同一种晶体上停留较久且几乎没操作 → 建议打开空隙图层看看',
+  'agent.descriptor.crystal.ruleIdle': '在同一种晶体上停留较久且几乎没操作，且这块晶体确实有空隙层（只有最密堆积 fcc/hcp 有）→ 建议打开空隙图层看看',
   'agent.descriptor.crystal.ruleLayer': '反复开关同一图层 → 讲解该图层的晶体学含义',
   'agent.descriptor.crystal.suggestInterstices': '要我把空隙图层打开，看看最密堆积里的空隙分布吗？',
   'agent.descriptor.crystal.compareNote': '使用通用 compare 节点，此处仅登记本模块的对象类型为 crystalId',
@@ -808,7 +808,7 @@ export const en = {
   // ==========================================================================
   // registry/descriptors/**
   // ==========================================================================
-  'agent.descriptor.crystal.ruleIdle': 'stayed on one crystal for a long time with almost no interaction → suggest opening the void layer',
+  'agent.descriptor.crystal.ruleIdle': 'stayed on one crystal for a long time with almost no interaction, and this crystal actually has a void layer (only closest packings fcc/hcp do) → suggest opening the void layer',
   'agent.descriptor.crystal.ruleLayer': 'toggling the same layer back and forth → explain the crystallographic meaning of that layer',
   'agent.descriptor.crystal.suggestInterstices': 'Shall I turn on the void layer so we can look at how the voids are distributed in the closest packing?',
   'agent.descriptor.crystal.compareNote': 'uses the generic compare node; this entry only registers the object type of this module as crystalId',

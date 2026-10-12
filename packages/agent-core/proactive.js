@@ -48,6 +48,16 @@ export function createProactive(deps = {}) {
   const lastFiredAt = Object.create(null)
   /** 已触发过的规则计数（供诊断） */
   const firedCount = Object.create(null)
+  /**
+   * 规则 id → 上次提示时**所在的结构**（`state.crystal.id`）。
+   *
+   * ★★ 2026-10-12（用户截图：同一条"要我把空隙图层打开…"提示**出现了两遍**）：
+   *   引擎只有"冷却时间"（3 分钟）+ "全局最小间隔"（45 秒），而学生一直停在同一个晶体上不动，
+   *   于是冷却一过就又弹一次**一模一样**的建议 ✗ —— 学生刚点过"不用了"，三分钟后又来一遍。
+   *   改：同一条规则在**同一个结构**上只提示一次；换到别的晶体或重开入口（resetCooldown）后
+   *   才会再提示。
+   */
+  const lastFiredKey = Object.create(null)
 
   /** 这次 tick 检出的建议（供测试直接驱动，不必等定时器） */
   function evaluate(now = Date.now()) {
@@ -69,6 +79,9 @@ export function createProactive(deps = {}) {
     for (const r of rules) {
       if (!r || !r.id || typeof r.check !== 'function') continue
       if (now - (lastFiredAt[r.id] || 0) < COOLDOWN_MS) continue
+      // ★ 同一条规则在同一个结构上只提示一次（见 lastFiredKey 的说明）
+      const stateKey = (state && state.crystal && state.crystal.id) || ''
+      if (stateKey && lastFiredKey[r.id] === stateKey) continue
 
       let hit = false
       try { hit = !!r.check(trace, state) } catch (e) {
@@ -83,6 +96,7 @@ export function createProactive(deps = {}) {
       if (!s || !s.text) { lastFiredAt[r.id] = now; continue }
 
       lastFiredAt[r.id] = now
+      lastFiredKey[r.id] = stateKey
       lastGlobalAt = now
       firedCount[r.id] = (firedCount[r.id] || 0) + 1
       return { ruleId: r.id, text: s.text, actions: s.actions || [], desc: r.desc || '' }
@@ -108,6 +122,8 @@ export function createProactive(deps = {}) {
   function resetCooldown() {
     lastGlobalAt = 0
     for (const k of Object.keys(lastFiredAt)) delete lastFiredAt[k]
+    // ★ 用户是"手动重新开启"的 ⇒ 允许同一条建议再出现一次（所以连去重键一起清）
+    for (const k of Object.keys(lastFiredKey)) delete lastFiredKey[k]
   }
 
   /**

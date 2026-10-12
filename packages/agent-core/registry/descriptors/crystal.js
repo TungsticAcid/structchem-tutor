@@ -115,6 +115,17 @@ export default {
       id: 'crystal-idle-structure',
       get desc() { return t('agent.descriptor.crystal.ruleIdle') },
       check: (trace, state) => !!(state && state.crystal && state.crystal.id)
+        /**
+         * ★★ 2026-10-12（用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"）：
+         *   这条规则原先只看"停留久了没操作"，于是**在任何晶体上**都会建议"打开空隙图层"——
+         *   而空隙只有**最密堆积**（fcc/hcp）才有数据，在 CaF₂（萤石型）、NaCl、CsCl 上
+         *   打开了也什么都看不见 ✗。
+         *   改：先看**能力**（快照里的 intersticesAvailable，由页面按晶体算出）。
+         *   ★ 用 `=== true` 而不是 `!== false`：拿不到这个字段时**宁可不提示** ——
+         *     一条"打开了却什么都没有"的建议比没有建议更伤。
+         *   ★ 也不在这里硬编晶体 id 白名单：能力由数据/页面决定，规则只消费它。
+         */
+        && state.intersticesAvailable === true
         && (trace.idleMs || 0) > 45000 && ((trace.recentActions || []).length < 3),
       suggest: [
         {
