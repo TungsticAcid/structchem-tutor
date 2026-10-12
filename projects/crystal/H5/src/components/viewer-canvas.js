@@ -331,6 +331,28 @@ export class ViewerCanvas {
 
     canvas.addEventListener('wheel', (e) => this._onMouseWheel(e), { passive: false })
     canvas.addEventListener('contextmenu', (e) => e.preventDefault())
+
+    /**
+     * ★★ 2026-10-12（用户要求）：**双击复位**。
+     *
+     * 口径与轨道视界 / 点群观鉴的提示条一致：「左键拖动旋转 · 右键拖动平移 · 滚轮缩放 · 双击复位」。
+     * 这一条其实是"**半接线**"：宿主页早就把 `resetview` 事件接好了
+     * （`apps/web/src/pages/compare.js` 的 `_onResetView` 里甚至写着
+     * "联动模式下双击一侧时同步重置另一侧"），只是**画布从没绑过 dblclick** ✗ ——
+     * 于是那段逻辑永远跑不到。这里把它接上。
+     *
+     * ★ 用 `dblclick` 而不是自己数两次 click：浏览器已经处理了双击间隔与
+     *   移动端双击（Chrome 在双指双击/双击时同样派发 dblclick），
+     *   自己实现一套只会与"拖动"抢事件。
+     * ★ 只调 `resetView()` 并**派发 resetview**，不在这里同步另一侧：
+     *   那是宿主（对比页）的事 —— 组件不该知道"另一侧"存在。
+     */
+    this._onDblClick = (e) => {
+      e.preventDefault()
+      this.resetView()
+      this._triggerEvent('resetview')
+    }
+    canvas.addEventListener('dblclick', this._onDblClick)
   }
 
   /**

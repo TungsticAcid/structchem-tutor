@@ -360,6 +360,23 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
 }
 
 // ============================================================================
+// 晶典在线：**双击复位**（用户要求）
+//
+// ★★ 2026-10-12：这条其实是"半接线"—— 宿主页（apps/web/src/pages/compare.js 的 _onResetView）
+//   早就把 `resetview` 事件接好了，注释里甚至写着"联动模式下双击一侧时同步重置另一侧"，
+//   但**画布从来没绑过 dblclick** ✗ ⇒ 那段逻辑永远跑不到。
+//   守卫两件事：① 画布绑了 dblclick；② 处理里**既 resetView() 又派发 resetview**
+//   （少了后半句，对比页的联动同步就断了；少了前半句，双击就没作用）。
+// ============================================================================
+{
+  const vcSrc = readFileSync(new URL('../../../projects/crystal/H5/src/components/viewer-canvas.js', import.meta.url), 'utf8')
+  check('画布绑定了 dblclick', /addEventListener\('dblclick'/.test(vcSrc))
+  const dbl = (vcSrc.match(/this\._onDblClick = \(e\) => \{[\s\S]{0,400}?\n    \}/) || [''])[0]
+  check('双击里既复位又派发 resetview（宿主靠它做联动同步）',
+    /this\.resetView\(\)/.test(dbl) && /_triggerEvent\('resetview'\)/.test(dbl), dbl.replace(/\s+/g, ' ').slice(0, 90))
+}
+
+// ============================================================================
 console.log(`\n${'═'.repeat(60)}`)
 console.log(`test-crystal-module 结果：通过 ${pass} 项，失败 ${fail} 项`)
 console.log('═'.repeat(60))
