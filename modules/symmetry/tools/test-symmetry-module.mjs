@@ -502,6 +502,56 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
     !/applyMatrix4\(\s*cMat\s*\)/.test(src) && !/\bdetC\b/.test(src))
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// ∞ 只属于真正无穷多的族（用户贴图报："氨分子这里显示有问题"）
+//
+// ★★ 氨是 C₃ᵥ，只有 3 个 σᵥ，清单却写成「∞σᵥ ×3」——∞ 与 ×3 自相矛盾，
+//   还把"有限个"讲成了"无穷多个"。真因：加前缀那一支写成 `g.type === 'sigma_v'`
+//   而漏了 `isInfiniteElement` 判断 —— 可 `sigma_v` 这个类型是 **Cₙᵥ 与线型分子共用**的
+//   （C₃ᵥ 的三个镜面正是竖直面）⇒ 所有 Cₙᵥ 的 σᵥ 都被加上 ∞。
+//   守卫就用这条**通用不变量**：**群符号里没有 ∞ 的群，任何元素都不许带 ∞**。
+// ───────────────────────────────────────────────────────────────────────────
+{
+  const { isInfiniteElement, infinitePrefixOf } = await import('../ui/info.js')
+  const probe = createModule({ initialId: 'water' })
+  const finiteBad = []
+  const linearBad = []
+  for (const ex of EXAMPLES) {
+    probe.facade.applyActions([{ action: 'loadExample', params: { id: ex.id } }])
+    const snap = probe.facade.getSnapshot()
+    const els = probe.facade.listSymmetryElements()
+    const symbol = String(snap.pointGroup || '')
+    const linear = symbol.includes('∞')   // C∞v / D∞h
+    for (const ty of new Set(els.map((e) => e.type))) {
+      const inf = isInfiniteElement(ty, els)
+      if (!linear && inf) finiteBad.push(`${ex.id}(${symbol}).${ty}`)
+      if (!linear && infinitePrefixOf(ty, els) !== '') finiteBad.push(`前缀 ${ex.id}({symbol}).${ty}`)
+    }
+    if (linear) {
+      for (const ty of ['sigma_v', 'C2']) {
+        if (els.some((e) => e.type === ty) && infinitePrefixOf(ty, els) !== '∞') {
+          linearBad.push(`${ex.id}(${symbol}).${ty}`)
+        }
+      }
+    }
+  }
+  check('有限群里任何元素都不带 ∞（含 C₃ᵥ 的 σᵥ）', finiteBad.length === 0, finiteBad.slice(0, 5).join(', '))
+  check('线型群（C∞v/D∞h）里 σᵥ 与 C₂′ 仍带 ∞', linearBad.length === 0, linearBad.slice(0, 5).join(', '))
+
+  // 直接钉住用户那条：氨 = C3v，σᵥ 三个、不许有 ∞
+  probe.facade.applyActions([{ action: 'loadExample', params: { id: 'ammonia' } }])
+  const nh3 = probe.facade.listSymmetryElements()
+  const nh3Sigma = nh3.filter((e) => e.type === 'sigma_v')
+  check('氨的 σᵥ 个数是 3（有限个）', nh3Sigma.length === 3, String(nh3Sigma.length))
+  check('氨的 σᵥ 不带 ∞ 前缀', infinitePrefixOf('sigma_v', nh3) === '')
+  check('氨的 σᵥ 计数是 ×3 而不是 ×∞', !isInfiniteElement('sigma_v', nh3))
+  // 名字里已有 ∞ 的（C∞ / S∞）不加前缀，避免「∞C∞」叠字
+  probe.facade.applyActions([{ action: 'loadExample', params: { id: 'co2' } }])
+  const co2 = probe.facade.listSymmetryElements()
+  check('C∞ 自身不再叠一个 ∞ 前缀', infinitePrefixOf('C∞', co2) === '')
+  check('D∞h 的 C₂′ 仍带 ∞ 前缀', infinitePrefixOf('C2', co2) === '∞')
+}
+
 console.log(`\n通过 ${pass}/${pass + fail}`)
 if (BREAK && fail === 0) {
   console.error('⚠ 造红模式下竟然全过——说明断言没有真的在检查')

@@ -19,6 +19,46 @@ function formatClassSymbol(s) {
 }
 
 /**
+ * 该元素类型是否属于**无限族**（同一类有无数个）。
+ *
+ * ★ C∞ / S∞ 本身就带 `order: Infinity`；σᵥ 不带，但**在线性分子里**（清单含 C∞）
+ *   它的同伴是无穷多个 —— 只写一个代表面是生成器的表达限制，不是分子的事实。
+ *   ∞C₂′ 同理（D∞h 里类型也是 'C2'，同样要靠"清单里有没有 C∞"来判断）。
+ *
+ * ★ 单看**类型名**是不够的：`sigma_v` 这个类型**线型分子与 Cₙᵥ 都在用**
+ *   （C₃ᵥ 的 3 个镜面也是竖直面 σᵥ）——所以判据里必须带上 `elements`，
+ *   用"清单里有没有 C∞"区分线型与非线型。下面的 `infinitePrefixOf` 就是这条约定。
+ * ★ 这两个函数**必须是顶层导出**：它们原先写在 `renderInfo` 体内，我只是给它们加了
+ *   `export` —— 于是 `export` 出现在函数体里，整份文件直接**解析失败**（页面起不来）。
+ *   教训：给"嵌套函数"加导出之前，先把它提到顶层。
+ */
+export function isInfiniteElement(type, elements) {
+  if (type === 'C∞' || type === 'S∞') return true
+  const linear = (elements || []).some((e) => e && e.type === 'C∞')
+  if (!linear) return false
+  // ★ 只到这三类为止：σh（垂直镜面）与 i（对称中心）在 D∞h 里**各只有一个**，
+  //   把它们也算成无限是另一种内容错误。
+  return type === 'sigma_v' || type === 'C2'
+}
+
+/**
+ * 组名前面要不要加 `∞` 前缀（∞σᵥ / ∞C₂′）。
+ *
+ * ★★ 2026-10-12（用户贴图报"氨分子这里显示有问题"）：
+ *   氨是 **C₃ᵥ**，只有 **3 个** σᵥ，清单却写成「**∞**σᵥ ×3」—— 自相矛盾
+ *   （∞ 与 ×3 同时出现），而且把"有限个"讲成了"无穷多个"✗。
+ *   真因：加前缀的判据写成了 `g.type === 'sigma_v' || …`，**唯独 σᵥ 这一支漏了
+ *   `isInfiniteElement` 判断** —— 而 `sigma_v` 这个类型是 Cₙᵥ 与线型分子**共用**的
+ *   （C₃ᵥ 的三个镜面正是竖直面），于是所有 Cₙᵥ 的 σᵥ 都被加上 ∞。
+ *   ⇒ 前缀与计数必须用**同一条**判据（`isInfiniteElement`），也就是"这个族到底有没有无穷多个"。
+ * ★ 名字里已经写着 ∞ 的（C∞ / S∞）不再加前缀，否则成了「∞C∞」叠字。
+ */
+export function infinitePrefixOf(type, elements) {
+  if (type === 'C∞' || type === 'S∞') return ''
+  return isInfiniteElement(type, elements) ? '∞' : ''
+}
+
+/**
  * 渲染信息面板
  * @param {Object} info - { title, formula, groupSymbol, groupName, meta, elements, characterTable }
  * @param {Object} callbacks - { onToggle(index, visible), onPlay(index) }
@@ -57,21 +97,6 @@ export function renderInfo(info, callbacks = {}) {
     item.append(dot, lab)
     listEl.appendChild(item)
   }
-/**
- * 该元素类型是否属于**无限族**（同一类有无数个）。
- *
- * ★ C∞ / S∞ 本身就带 `order: Infinity`；σᵥ 不带，但**在线性分子里**（清单含 C∞）
- *   它的同伴是无穷多个 —— 只写一个代表面是生成器的表达限制，不是分子的事实。
- *   ∞C₂′ 同理（D∞h 里类型也是 'C2'，同样要靠"清单里有没有 C∞"来判断）。
- */
-function isInfiniteElement(type, elements) {
-  if (type === 'C∞' || type === 'S∞') return true
-  const linear = elements.some((e) => e && e.type === 'C∞')
-  if (!linear) return false
-  // ★ 只到这三类为止：σh（垂直镜面）与 i（对称中心）在 D∞h 里**各只有一个**，
-  //   把它们也算成无限是另一种内容错误。
-  return type === 'sigma_v' || type === 'C2'
-}
 
 /** 参与分组/交互的仅非恒等元素；index 保留原始下标，与 3D items / onToggle / onPlay 对齐 */
   const interactive = []
@@ -111,11 +136,10 @@ function isInfiniteElement(type, elements) {
     // ★ innerHTML：坐标变量要斜体（σᵥ(yz) → σᵥ(<i>y</i><i>z</i>)）
     // ★ 无限族加前缀 ∞（∞σᵥ / ∞C₂ / ∞C∞）：与特征标表表头的写法一致，
     //   也把"这一族有无数个"直接写进名字里 —— 光靠 `×∞` 那个角标容易被看漏。
+    // ★★ 前缀与计数**同一条判据**（infinitePrefixOf 内部就是 isInfiniteElement）：
+    //   原先这一支漏判，于是 C₃ᵥ 的 3 个 σᵥ 被写成「∞σᵥ ×3」（用户报"氨分子显示有问题"）。
     nameSpan.innerHTML = formatBasisFunctions(
-      // ★ 只给"名字里看不出无限"的那两类加前缀：σᵥ 与 C₂′（D∞h 里是 ∞C₂′）。
-      //   C∞ / S∞ 的名字本身已经写着 ∞ 了，再加一遍是"∞C∞"这种叠字。
-      (g.type === 'sigma_v' || (g.type === 'C2' && isInfiniteElement(g.type, elements)))
-        ? ('∞' + className) : className)
+      infinitePrefixOf(g.type, elements) + className)
     const count = document.createElement('span')
     count.className = 'elem-count'
     /**
