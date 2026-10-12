@@ -103,6 +103,17 @@ export const zh = {
     + '—— 你可以先直接问我，或去下面两个板块练。',
   'shell.practice.orbitFailed': '轨道题库没能启动（出题引擎未就绪），请稍后再试。',
   /**
+   * ★★ 2026-10-12（用户第 1 条）：面板输入框提示**按板块**说 —— 原先写死"晶体结构"，
+   *   站在轨道/点群板块里也照旧这么说。末尾那句操作提示四个板块相同，就重复写进去
+   *   （组装成一个完整句子最省事：它是 DOM 属性，英文侧也要逐条对应）。
+   */
+  'shell.panel.ph.home': '问结构化学的问题，或让我演示…（Enter 发送，Shift+Enter 换行）',
+  'shell.panel.ph.crystal': '问晶体结构的问题，或让我演示…（Enter 发送，Shift+Enter 换行）',
+  'shell.panel.ph.orbit': '问原子轨道的问题，或让我演示…（Enter 发送，Shift+Enter 换行）',
+  'shell.panel.ph.symmetry': '问分子对称性的问题，或让我演示…（Enter 发送，Shift+Enter 换行）',
+  /** ★ 用户第 2 条：配好 Key 后给一句明确的成功回执（红字同时被撤掉） */
+  'shell.panel.keyReady': 'API Key 已配置，可以开始提问了',
+  /**
    * ★ 面板开场白：**统一身份**（用户报「三个板块的智能体没有综合成为一个总智能体」）。
    *   由宿主（main.js 的 greeting）统一给出，模块只接自己的示例问题。
    *   同 `shell.practice.askLlm`：这是 `t()` 的键，不在 text 表里。
@@ -183,6 +194,11 @@ export const en = {
     + 'numeric criteria and a misconception library, and that data is still being built) — '
     + 'ask me directly, or practise in one of the two modules below.',
   'shell.practice.orbitFailed': 'The orbital question bank could not start (the quiz engine is not ready) — please try again later.',
+  'shell.panel.ph.home': 'Ask a structural chemistry question, or let me demonstrate… (Enter to send, Shift+Enter for a new line)',
+  'shell.panel.ph.crystal': 'Ask about crystal structures, or let me demonstrate… (Enter to send, Shift+Enter for a new line)',
+  'shell.panel.ph.orbit': 'Ask about atomic orbitals, or let me demonstrate… (Enter to send, Shift+Enter for a new line)',
+  'shell.panel.ph.symmetry': 'Ask about molecular symmetry, or let me demonstrate… (Enter to send, Shift+Enter for a new line)',
+  'shell.panel.keyReady': 'API key configured — you can start asking questions',
   'shell.panel.greetHead': "I'm the structural chemistry teaching agent",
   'shell.panel.greetScope': 'I cover all three modules — Orbital Horizon · Point Group Explorer · '
     + 'Crystal Atlas. Ask about any of them and I switch to the right one.',

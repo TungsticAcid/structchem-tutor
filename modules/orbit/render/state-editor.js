@@ -740,7 +740,19 @@ const StateEditor = (function () {
       if (syncing) return;
       const st = getApp().getState();
       const appTerms = st.terms || [];
-      if (sameTerms(appTerms, state.terms)) return;      // 自己发起的变更 → 不回灌
+      /**
+       * ★★ 2026-10-12（用户第 4 条：「AI 可能会改变轨道正负相位颜色，用户改不回去」）。
+       *
+       *   原先的早返回**只比 terms**：`if (sameTerms(appTerms, state.terms)) return`。
+       *   而 `setRelPhase` 这个动作**只改相位、不改 terms** ⇒ 它永远从这里早返回，
+       *   编辑器里的相位滑块/预设一直停在旧值 —— 学生看到画面里正负瓣的相位变了
+       *   （红青的分布跟着变），打开"进阶 → 量子态"却发现 φ 还是 0，
+       *   拖滑块也不是从他看到的那个值开始改，**回不到原来的相位**。
+       *
+       *   判据补上相位：terms 与相对相位**任一不同**都要回灌。
+       */
+      const samePhase = Math.abs((st.relPhase || 0) - state.relPhase) < 1e-9;
+      if (sameTerms(appTerms, state.terms) && samePhase) return;   // 自己发起的变更 → 不回灌
       syncing = true;
       state.terms = appTerms.map(function (t) {
         return { n: t.n, l: t.l, m: t.m, mode: t.mode || 'real', c: { re: t.c.re, im: t.c.im || 0 } };

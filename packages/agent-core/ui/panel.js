@@ -138,6 +138,16 @@ export function createPanel(cfg = {}) {
   let layoutRedrawTimer = null
   let demoHideTimer = null
   let cur = null
+  /**
+   * ★★ 2026-10-12（用户第 3 条）：**一轮是否正在跑**。
+   *
+   *   提问到回答之间，面板里的"用户气泡 + 正在流式的助手气泡"是**DOM 里唯一的一份**
+   *   （对话树要等这一轮结束才写入 store）。所以这期间的任何"重画"都会把它们抹掉：
+   *   学生看到的正是"提问后跳转一下，面板空白了；思考结束只剩问题"。
+   *   ⇒ 运行期间的重画一律**推迟**到这一轮收尾（见下面的 pendingRender）。
+   */
+  let running = false
+  let pendingRender = false
   let disposed = false
   let offProgress = null
   /**
@@ -995,6 +1005,15 @@ export function createPanel(cfg = {}) {
   }
 
   function renderPath(tree) {
+    /**
+     * ★★ 2026-10-12（用户第 3 条）：**一轮跑着的时候不许重画消息区**。
+     *   重画是从**对话树**里读的，而这一轮还没写进树 —— 途中重画会渲染出上一轮的路径
+     *   （或空态），把"刚问的那句 + 正在流式的回答"一起抹掉；流式回调随后写进
+     *   已经脱落的节点，于是屏幕上什么都没有。记一个待办，这一轮收尾时补画。
+     *   ★ 收尾那次（main.js 的 onDone → renderPath）正落在这里，所以推迟是安全的：
+     *     它会紧接着在本轮结束时执行一次（见 runAgent 末尾）。
+     */
+    if (running) { pendingRender = true; return }
     if (!store && !tree) return
     const t = tree || { path: store.path(), forks: store.forkPoints() }
     const path = t.path || []
@@ -1285,10 +1304,20 @@ export function createPanel(cfg = {}) {
   }
 
   function addChip(text, cls) {
-    addMsg('<span class="agent-chip ' + (cls || '') + '">' + escapeHtml(text) + '</span>', 'chip-row')
+    // ★ 返回元素：调用方常需要给它挂标记/绑定（本仓库踩过"只为了副作用的函数被当返回值用"）。
+    return addMsg('<span class="agent-chip ' + (cls || '') + '">' + escapeHtml(text) + '</span>', 'chip-row')
   }
 
   function renderEmptyState() {
+    /**
+     * ★★ 2026-10-12（用户第 3 条）：**一轮跑着的时候不许清空消息区**。
+     *
+     *   空态 = "清空 + 画问候语"。而提问到回答之间，用户气泡与正在流式的助手气泡
+     *   **只存在于 DOM 里**（对话树要等这一轮结束才写入 store）—— 这期间清一次，
+     *   学生就再也看不到自己问的那句和正在写的回答（用户报："跳转后显示空白"）。
+     *   推迟到这一轮收尾再画。
+     */
+    if (running) { pendingRender = true; return }
     clear(msgBox)
     const g = typeof cfg.greeting === 'function' ? cfg.greeting() : cfg.greeting
     addMsg('<div class="agent-hello">' + (g || '') + '</div>', 'assistant')
@@ -1301,7 +1330,14 @@ export function createPanel(cfg = {}) {
     const text = inputEl.value.trim()
     if (!text) return
     if (cfg.hasKey && !cfg.hasKey()) {
-      addMsg('<span class="agent-err">尚未配置 API Key。请点右上角「设置」填写你自己的模型密钥（BYOK，本工具不提供额度）。</span>', 'assistant')
+      const m = addMsg('<span class="agent-err">尚未配置 API Key。请点右上角「设置」填写你自己的模型密钥（BYOK，本工具不提供额度）。</span>', 'assistant')
+      /**
+       * ★★ 2026-10-12（用户第 2 条）："配置好 API Key、连接成功后，红字应消掉"。
+       *   这条红字是**消息**（进了消息区就一直在），原先没有"配好之后清掉"的通路 ——
+       *   于是学生配好 Key、一切正常了，屏幕上还挂着一句"尚未配置 API Key"。
+       *   这里给它一个稳定标记，配好 Key 时由 `clearNoKeyNotices()` 一并撤掉。
+       */
+      if (m) { m.classList.add('agent-nokey'); m.setAttribute('data-nokey', '1') }
       if (cfg.openSettings) cfg.openSettings()
       return
     }
@@ -1318,6 +1354,7 @@ export function createPanel(cfg = {}) {
   async function runAgent(userText) {
     if (typeof cfg.send !== 'function') throw new Error('createPanel 需要 cfg.send')
     cur = beginAssistant()
+    running = true
     let reasoning = '', content = ''
     let lastBubble = null
     let truncated = false
@@ -1391,6 +1428,16 @@ export function createPanel(cfg = {}) {
     stopBtn.classList.add('hidden')
     sendBtn.disabled = false
     cur = null
+    running = false
+    /**
+     * ★★ 2026-10-12（用户第 3 条）：本轮流式期间**别人要求重画过**，现在补上。
+     *   典型来源：提问中途换板块 —— 路由挂载钩子会重画空态/消息列表。
+     *   期间不能真画（会清掉正在流式的气泡），故记一个待办，到这里再执行。
+     */
+    if (pendingRender) {
+      pendingRender = false
+      try { renderPath() } catch (e) { /* 重画失败不影响这一轮的返回 */ }
+    }
     return r
   }
 
@@ -1635,6 +1682,22 @@ export function createPanel(cfg = {}) {
     addMsg, addUser, addChip, addActionBubble, beginAssistant, runAgent, send: doSend,
     addCard,
     renderRich,
+    /**
+     * 撤掉所有"尚未配置 API Key"的提示（消息 + 提示条）。
+     *
+     * ★★ 2026-10-12（用户第 2 条）：配好 Key 之后那句红字必须消失 —— 它不是状态灯，
+     *   而是一条**留在消息区里的消息**，不主动撤就永远挂着，看起来像"还没配好"。
+     * @returns {number} 撤掉了几处
+     */
+    clearNoKeyNotices: () => {
+      let n = 0
+      doc.querySelectorAll('.agent-nokey').forEach((el) => { el.remove(); n++ })
+      return n
+    },
+    /** 按当前板块换输入框提示（见 main.js 的分板块提示语） */
+    setPlaceholder: (text) => { if (text) inputEl.placeholder = text },
+    /** 输入框提示的当前值（供验证脚本断言） */
+    placeholder: () => inputEl.placeholder,
     // 分支 / 会话 / 消息工具条（都建立在"对话是一棵树"之上）
     renderPath, attachActs, copyText, editUserMsg, reanswer, forkInto, branchBar,
     enterConvPage, leaveConvPage,

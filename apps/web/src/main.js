@@ -586,6 +586,19 @@ const settingsPopup = createSettingsPopup({
     } catch (e) { /* 不在晶体页时无视图可落，忽略——不是错误 */ }
 
     /**
+     * ★★ 2026-10-12（用户第 2 条）：配好 Key、连接成功之后，那句红字**必须消失**。
+     *   它是留在消息区里的**消息**（不是状态灯），不主动撤就永远挂着 ——
+     *   学生会以为"还没配好"，然后在设置里反复填。
+     *   这里一次撤掉全部"未配置"提示（消息 + 提示条），并给一句明确的成功回执。
+     */
+    try {
+      if (settings.hasKey() && panel) {
+        const n = typeof panel.clearNoKeyNotices === 'function' ? panel.clearNoKeyNotices() : 0
+        if (n > 0) panel.addChip(t('shell.panel.keyReady'), 'info')
+      }
+    } catch (e) { /* 撤提示失败不该影响保存本身 */ }
+
+    /**
      * ★ 用户**亲手**改过背景色 ⇒ 从此不再替他按主题覆盖。
      *   这个判断不能靠"模块存储里有没有 bgColor"——我们按主题写进去的值
      *   和用户选的值在存储里长得一模一样，分不出来。
@@ -746,6 +759,8 @@ const app = createAgentApp({
     } catch (e) { /* 面板尚未就绪（装配早期）——提示可省，但绝不能因此中断切模块 */ }
     const route = MODULE_HOME_ROUTE[id]
     if (route && router.currentPath === '/') location.hash = route
+    // ★★ 2026-10-12（用户第 1 条）：面板底部提示语跟着板块走（"问晶体结构的问题…" 说错板块）
+    try { if (panel && panel.setPlaceholder) panel.setPlaceholder(boardPlaceholder()) } catch (e) { /* 面板未就绪 */ }
   },
   /**
    * ★★ 中枢在**播放动作/演示之前**用它把目标模块的页面叫回来
@@ -870,7 +885,13 @@ panel = createPanel({
    *   （空 src 会让浏览器去请求当前页面 URL，每次打开吃一个 404）。
    */
   iconSrc: `${(typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) || './'}agent-icon.png`,
-  placeholder: '问晶体结构的问题，或让我演示…（Enter 发送，Shift+Enter 换行）',
+  /**
+   * ★★ 2026-10-12（用户第 1 条：「右下角仍然显示"晶体结构"」）：
+   *   输入框提示原先**写死**成"问晶体结构的问题…"，于是站在轨道视界 / 点群观鉴里，
+   *   面板底部（右下角）那句提示一直在说"晶体结构"。
+   *   现在按**当前板块**取（`boardPlaceholder()`），并随切板块更新。
+   */
+  placeholder: boardPlaceholder(),
   menu: [
     // ★ 「练习」= 练习闭环入口：选知识点 → 本地出题 → 题目卡作答 → 本地判分 + 错因诊断。
     //   全程**不经过模型**，所以没有 API Key 也能用。
@@ -1017,6 +1038,23 @@ function currentBoardId() {
   const path = router.currentPath
   const hit = Object.keys(MODULE_HOME_ROUTE).find((id) => MODULE_HOME_ROUTE[id] === '#' + path)
   return hit || null
+}
+
+/**
+ * 面板输入框的分板块提示语。
+ *
+ * ★★ 2026-10-12（用户第 1 条：「右下角仍然显示"晶体结构"」）：那句提示原先**写死**
+ *   成"问晶体结构的问题…"，站在轨道视界 / 点群观鉴里也照旧说"晶体结构" ——
+ *   面板底部（右下角）是学生每次提问都会看到的地方，说错板块会让他以为进错了页面。
+ * ★ 用 `t()` 取（两张表里都登记了），不写死中文：这是**会进 DOM 的属性**，
+ *   英文界面下必须跟着变。
+ */
+function boardPlaceholder() {
+  const board = currentBoardId()
+  const key = (board === 'crystal' || board === 'orbit' || board === 'symmetry')
+    ? 'shell.panel.ph.' + board
+    : 'shell.panel.ph.home'
+  return t(key)
 }
 
 /** 切到某板块后接着开练习（"这个板块没有题库，去那边练"那条路） */
@@ -1384,7 +1422,10 @@ startAutoSweep(document.body)
 if (!settings.hasKey()) {
   // ★ 这里保持中文原文即可：它是 **DOM 文本**，由运行时的扫描替换翻（text 表里有）。
   //   改写成 t() 反而多一处要维护的键，而行为完全一样。
-  panel.addChip('尚未配置 API Key：点面板右上角「设置」填写你自己的模型密钥', 'warn')
+  // ★★ 2026-10-12（用户第 2 条）：加上稳定标记，配好 Key 后由
+  //   `panel.clearNoKeyNotices()` 一并撤掉 —— 否则它会一直挂在面板上。
+  const chip = panel.addChip('尚未配置 API Key：点面板右上角「设置」填写你自己的模型密钥', 'warn')
+  if (chip && chip.classList) { chip.classList.add('agent-nokey'); chip.setAttribute('data-nokey', '1') }
 }
 
 // 调试用把手（只读为主，供实机验证与排查；**不含密钥**）
@@ -1407,6 +1448,11 @@ window.__chemAgent = {
    *   这条路径**只能在真实浏览器里验**（要渲染题目卡、要看有没有泄答案）。
    */
   startPractice: () => startPractice(),
+  /**
+   * ★ 实机验证用：打开设置弹层。
+   *   "配好 Key 后红字应当消失"这种事**只能在真实 DOM 上验**（要点保存按钮、走 onSaved）。
+   */
+  openSettings: () => settingsPopup.open(),
   /** 当前快照（门面读的实时状态） */
   snapshot: () => crystal.facade.getSnapshot(),
   /** 当前节点的工具白名单（验证"约束靠白名单"时的直接证据） */

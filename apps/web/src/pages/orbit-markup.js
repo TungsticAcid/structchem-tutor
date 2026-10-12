@@ -26,7 +26,11 @@ export const ORBIT_HTML = `<div class="orbit-page">
           <div class="card-head-right">
 <button id="nodeBtn" class="btn btn-ghost" title="把节面画出来：径向节面（球壳）+ 角度节面（锥面 / 平面）">◇ 节面</button>
             <button id="resetView" class="btn btn-ghost" title="重置视角">⟳ 复位</button>
-            <label class="chk" title="绕竖直轴（z 轴）旋转。s、p_z、d_z² 这类以 z 为对称轴的轨道转起来看不出变化 —— 那正说明绕 z 旋转是它的对称操作"><input type="checkbox" id="autoRotate" checked /> 自动旋转</label>
+            <!--  ★★ 2026-10-12（用户第 6 条）：**默认不自动旋转**（原先写死 checked）。
+                  理由：默认转起来时，学生刚打开页面想看清一个固定方向（对照节面、读瓣的朝向）
+                  就得先去关它；而"想转"是主动意图。class="chk" 的 title 里已经写明
+                  "绕 z 的对称轴转看不出变化"，所以默认静止反而少一层误解。 -->
+            <label class="chk" title="绕竖直轴（z 轴）旋转。s、p_z、d_z² 这类以 z 为对称轴的轨道转起来看不出变化 —— 那正说明绕 z 旋转是它的对称操作"><input type="checkbox" id="autoRotate" /> 自动旋转</label>
             <label class="chk" title="坐标轴与赤道参考圆环：读方位角、对照节面方向用；想看清曲面时可以关掉"><input type="checkbox" id="showDecor" checked /> 参考线</label>
           </div>
         </div>
