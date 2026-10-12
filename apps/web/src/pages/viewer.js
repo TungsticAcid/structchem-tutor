@@ -222,6 +222,12 @@ export class ViewerPage {
       try { this._panelObserver.disconnect() } catch (e) { /* 忽略 */ }
       this._panelObserver = null
     }
+    // ★ 媒体查询监听同样要摘（它也会在页面卸载后继续回调）
+    if (this._panelMq && this._panelMqListener && this._panelMq.removeEventListener) {
+      try { this._panelMq.removeEventListener('change', this._panelMqListener) } catch (e) { /* 忽略 */ }
+    }
+    this._panelMq = null
+    this._panelMqListener = null
     this._applyPanelInset = null
     if (this._popup) {
       this._popup.unmount()
@@ -364,6 +370,28 @@ export class ViewerPage {
       .compare-fab:active { background:rgba(66,133,244,0.55); }
       .compare-text { color:#fff; font-size:13px; font-weight:500; }
       .bottom-panel { position:absolute; bottom:0; left:0; right:0; z-index:10; }
+      /* ================= 桌面：控制面板在**左侧**，并且**让位** =================
+         ★★ 2026-10-12（用户："为何控制面板还在下边而不是在左边"）：上一轮我只把对比页的
+           设置面板搬到了左侧，**查看页这个控制面板没动** —— 用户要的正是它。
+         做法与对比页、智能体抽屉同一条：面板成为**左列**，画布（和顶栏）从它右侧开始，
+         画布尺寸一变，viewer-canvas 里的 ResizeObserver 会把结构重新居中。
+         - 宽度写在**内层 .layer-control** 上（展开 360px、收起 44px），外层 .bottom-panel
+           用 width:auto 收缩包裹 ⇒ 脚本里量"面板当前宽度"就能得到让位量；
+         - 让位量通过 --layer-panel-w 变量同时驱动画布与顶栏（一个真源）。
+         - 窄屏（<900px）保持底部抽屉：这里是 @media，不加类就不生效。 */
+      @media (min-width: 900px) {
+        .viewer-page.panel-left .bottom-panel { top:0; bottom:0; left:0; right:auto; width:auto; overflow-y:auto; }
+        .viewer-page.panel-left .layer-control { width:360px; min-height:100%; }
+        .viewer-page.panel-left .layer-control.collapsed { width:44px; }
+        .viewer-page.panel-left .layer-control.collapsed .toggle-label-text { display:none; }
+        .viewer-page.panel-left .layer-control.collapsed .panel-toggle { flex-direction:column; }
+        /* 左列里内容要能整列滚动，不再受底部横条那 250px 的限制 */
+        .viewer-page.panel-left .panel-body { max-height:none; }
+        /* ★ 必须 left+right 同时锚定：只写 left 会让绝对定位元素变成"收缩包裹"，
+           宽度取内层 canvas 的固有宽度（实测：从窄屏切回宽屏时画布宽变成 411px ✗）。 */
+        .viewer-page.panel-left .viewer-canvas { left:var(--layer-panel-w, 360px); right:0; width:auto; }
+        .viewer-page.panel-left .top-bar { left:var(--layer-panel-w, 360px); }
+      }
       .atom-popup-container { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:1000; }
     </style>`
   }
@@ -392,33 +420,68 @@ export class ViewerPage {
      * ★★ 2026-10-12（用户要求）：**控制面板收起/展开时，结构的中心要保持在剩余空白画布的中心**
      *   —— 与"智能体窗口开合时各板块让位"是同一件事。
      *
-     *   原先的布局：`.viewer-canvas` 是 `inset:0`（铺满整屏），而底部控制面板
-     *   `position:absolute; bottom:0` **盖在画布上** ⇒ 相机把结构居中于**整屏**，
-     *   展开面板后学生看到的结构就偏在上半部分（被盖住的其实是"下半张画布"）。
+     *   原先的布局：`.viewer-canvas` 是 `inset:0`（铺满整屏），而控制面板
+     *   `position:absolute`（`bottom:0`）**盖在画布上** ⇒ 相机把结构居中于整屏，
+     *   面板一展开，学生看到的结构就偏了（被盖住的其实是面板那一条画布）。
+     *   随后用户进一步要求：**桌面端面板改到左侧**（见下面 _applyPanelInset 的说明）。
+     *   两处共用的机制不变：**让画布区域 = 剩余可见区**，其余交给相机与 ResizeObserver。
+     */
+    /**
+     * ★★ 2026-10-12（用户："为何控制面板还在下边而不是在左边"）：
+     *   **桌面**下面板改到**左侧**、并且**让位**（画布从面板右侧开始）；
+     *   **窄屏**保持原来的底部抽屉。
      *
-     *   改法：把画布区域的**下边界抬到面板之上**（`bottom = 面板高度`），
-     *   剩下的事交给已有的 ResizeObserver —— 画布尺寸一变，相机宽高比与投影矩阵跟着更新，
-     *   结构自然居中在"剩余可见区"里（与智能体抽屉让位走的是同一条机制）。
-     *   ★ 用 ResizeObserver 盯**面板**而不是监听某个按钮：面板高度会因折行、语言、内容增减而变，
-     *     盯按钮只能覆盖"用户点了收起"这一种情形。
+     *   · 桌面：给页面根加 `panel-left` 类（CSS 负责把面板变成左列、画布/顶栏左移），
+     *     并把**量到的面板宽度**写进 `--layer-panel-w` —— 让位量只有一个真源，
+     *     收起态（面板缩成 44px 窄条）也自动跟随。
+     *   · 窄屏：沿用"画布下边界抬到面板之上"（bottom = 面板高度），画布随 ResizeObserver 重新居中。
+     *   ★ 用 ResizeObserver 盯**面板**而不是监听收起按钮：面板尺寸会因折行、语言、内容增减而变；
+     *     跨 900px 断点则由 matchMedia 的 change 事件补上（那一步面板尺寸不变，
+     *     只靠 ResizeObserver 会漏）。
      */
     this._applyPanelInset = () => {
       const cv = this._container?.querySelector('.viewer-canvas')
+      const page = this._container?.querySelector('.viewer-page')
       if (!cv) return
-      const h = Math.max(0, Math.round(panel.getBoundingClientRect().height))
-      if (h > 0) {
-        // 面板可见：画布止于面板上沿。★ 必须把 CSS 里的 height:100% 让开，
-        //   否则 height 会压过 bottom（绝对定位里两者同时存在时 height 优先）。
-        cv.style.height = 'auto'
-        cv.style.bottom = h + 'px'
-      } else {
+      const wide = typeof window.matchMedia === 'function'
+        ? window.matchMedia('(min-width: 900px)').matches
+        : window.innerWidth >= 900
+      if (wide) {
+        if (page) page.classList.add('panel-left')
+        // ★ 先加类再量：getBoundingClientRect() 会触发布局，量到的是左列宽（展开 360 / 收起 44）
+        const w = Math.max(0, Math.round(panel.getBoundingClientRect().width))
+        if (page) page.style.setProperty('--layer-panel-w', w + 'px')
+        // 左侧布局由 CSS 决定；清掉底部抽屉留下的内联样式，否则两者会打架
         cv.style.height = ''
         cv.style.bottom = ''
+        cv.style.left = ''
+      } else {
+        if (page) {
+          page.classList.remove('panel-left')
+          page.style.removeProperty('--layer-panel-w')
+        }
+        cv.style.left = ''
+        const h = Math.max(0, Math.round(panel.getBoundingClientRect().height))
+        if (h > 0) {
+          // 面板可见：画布止于面板上沿。★ 必须把 CSS 里的 height:100% 让开，
+          //   否则 height 会压过 bottom（绝对定位里两者同时存在时 height 优先）。
+          cv.style.height = 'auto'
+          cv.style.bottom = h + 'px'
+        } else {
+          cv.style.height = ''
+          cv.style.bottom = ''
+        }
       }
     }
     if (typeof ResizeObserver === 'function') {
       this._panelObserver = new ResizeObserver(() => this._applyPanelInset())
       this._panelObserver.observe(panel)
+    }
+    // ★ 跨 900px 断点时面板自身尺寸可能不变 ⇒ ResizeObserver 不会触发，必须另听媒体查询
+    if (typeof window.matchMedia === 'function') {
+      this._panelMq = window.matchMedia('(min-width: 900px)')
+      this._panelMqListener = () => this._applyPanelInset()
+      if (this._panelMq.addEventListener) this._panelMq.addEventListener('change', this._panelMqListener)
     }
     this._applyPanelInset()
     this._layerControl = new LayerControl({

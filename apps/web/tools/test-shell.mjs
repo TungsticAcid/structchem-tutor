@@ -452,6 +452,21 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/panel\.clearPracticeCards\(\)/.test(practiceStart), '练习入口先清掉上一轮的练习卡')
   ok(/typeof hasKey\b/.test(noComments) === false,
     '没有写成 typeof 裸名 hasKey（那样会静默为假，守卫等于没写）')
+
+  // ★★ 2026-10-12（用户："为何控制面板还在下边而不是在左边"）：
+  //   查看页的控制面板在**桌面**下必须是左列且让位（窄屏才退回底部抽屉）。
+  //   守卫：① 有 panel-left 的媒体查询与 --layer-panel-w 变量；
+  //        ② 画布**同时**锚定 left 与 right —— 只写 left 会退化成"收缩包裹"，
+  //           宽度取内层 canvas 的固有宽度（实测从窄屏切回宽屏时画布宽变成 411px ✗）；
+  //        ③ 媒体查询监听在卸载时要摘掉（页面可反复挂载）。
+  const viewerSrc = readFileSync(resolve(REPO, 'apps/web/src/pages/viewer.js'), 'utf8')
+  const viewerNoComments = viewerSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  ok(/panel-left/.test(viewerNoComments) && /--layer-panel-w/.test(viewerNoComments),
+    '查看页有"桌面左列 + 让位"的样式与变量')
+  ok(/panel-left \.viewer-canvas \{ left:var\(--layer-panel-w[^}]*right:0/.test(viewerNoComments.replace(/\s+/g, ' ')),
+    '左列模式下画布同时锚定 left 与 right（避免收缩包裹）')
+  ok((viewerNoComments.match(/_panelMqListener/g) || []).length >= 3,
+    '媒体查询监听有注册也有摘除（反复挂载不累积）')
 }
 
 console.log('')
