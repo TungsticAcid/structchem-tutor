@@ -478,6 +478,17 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/italicCellSymbols\(lenPart/.test(viewerNoComments) && /function italicCellSymbols\(/.test(viewerNoComments),
     '晶胞参数的量符号斜体（a/b/c、α/β/γ）')
 
+  // ★★ 2026-10-12（用户："显示原子标签后，点击分元素控制，会使得设置中原子标签关闭，
+  //   但仍显示原子标签。为何分元素控制会影响原子标签？"）：
+  //   分元素控制**没碰过**原子标签 —— 它只是让组件重画一次，而 `render()` 读的是**组件 props**
+  //   ⇒ 凡"改了状态却只更新画布、不回写控件"的处理器，重画后开关就退回挂载时的旧值 ✗
+  //     （开关的 DOM 靠浏览器自己保持勾选 ⇒ 表面上当时还是开着的，一重画就露馅）。
+  //   守卫：这几个会改变"控件自身显示值"的处理器必须回写控件。
+  for (const fn of ['_onAtomLabelsToggle', '_onAuxAboveToggle', '_onPartialAtomsChange', '_onCellDisplayModeChange']) {
+    const body = (viewerNoComments.match(new RegExp(fn + '\\(\\{[^)]*\\)\\s*\\{[\\s\\S]*?\\n  \\}')) || [''])[0]
+    ok(body.length > 0 && /_updateLayerControl\(\)/.test(body), `状态写入要回写控件：${fn}`)
+  }
+
   // ★★ 2026-10-12（用户："×1 需要上下对齐吗"）：需要 —— 计数列必须上下齐平。
   //   实测：带下标的行（σd）会把行高撑开 1.3px，计数/箭头是垂直居中 ⇒ 跟着往下跳 ✗。
   //   守卫：行内文本要有稳定行高，且 sub 不参与行高计算（line-height:0）。

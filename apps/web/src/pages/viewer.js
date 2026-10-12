@@ -641,19 +641,35 @@ export class ViewerPage {
     this._updateLayerControl()
   }
 
+  /**
+   * ★★ 2026-10-12（用户："显示原子标签后，点击分元素控制，会使得设置中原子标签关闭，
+   *   但仍显示原子标签。为何分元素控制会影响原子标签？"）：
+   *
+   *   分元素控制**根本没有碰过**原子标签 —— 它只是让组件重画了一次 ✗
+   *   （`onToggleElements` → `setData` → `render()`），而 `render()` 读的是
+   *   **组件 props**；下面这几个处理器只更新了 state 与画布、**从不回写 props** ✗
+   *   ⇒ 开关的 DOM 靠浏览器自己保持着勾选（"当时看着是开的"），
+   *   一重画就按挂载时的旧 props 画成**关**，而画布那边 state 仍是开 ⇒ **图文相反** ✓。
+   *
+   *   ⇒ 规矩：**凡是会改变"控件自身显示值"的状态写入，都要回写一次控件**
+   *     （`_updateLayerControl()`）。与"改了状态要重画设置面板"是同一条。
+   */
   _onAtomLabelsToggle({ value }) {
     this._state.showAtomLabels = value
     this._updateCanvasProps()
+    this._updateLayerControl()
   }
 
   _onAuxAboveToggle({ value }) {
     this._state.auxiliaryLineAboveAtoms = value
     this._updateCanvasProps()
+    this._updateLayerControl()
   }
 
   _onPartialAtomsChange({ value }) {
     this._state.partialAtoms = value
     this._updateCanvasProps()
+    this._updateLayerControl()
   }
 
   _onEquivalentChange({ index }) {
@@ -669,6 +685,8 @@ export class ViewerPage {
   _onCellDisplayModeChange({ value }) {
     this._state.cellDisplayMode = value
     this._updateCanvasProps()
+    // ★ 同一类：不回写控件的话，重画一次「裁剪」按钮的高亮就回到旧值（与原子标签那条同源）
+    this._updateLayerControl()
   }
 
   _updateCanvasProps() {
