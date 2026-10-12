@@ -148,11 +148,56 @@ export class ComparePage {
     //   getAdapter() 返回 null（表现为"当前没有可驱动的三维视图"）。注册后
     //   highlightAtoms 等动作即可落到对比页（见 compare-page-adapter）。
     registerViewerPage(this, createComparePageAdapter(this))
+    /**
+     * ★★ 2026-10-11（用户："浅色，晶体对比模式下，保存图片是空白的"）：
+     *
+     *   壳在抓图前会派发 `chem-agent:before-capture`，请页面**为下一帧排一次渲染** ——
+     *   查看页与点群页都接了，**对比页漏了** ✗。而两块画布都是
+     *   `preserveDrawingBuffer: false` + 按需重绘 ⇒ 抓图落在"这一帧什么都没画"的时刻时，
+     *   缓冲里是**空的** ⇒ 存下来就是一张全透明空图（实测：不同颜色数 1、不透明像素 0%）。
+     *   ★ 两块画布都要排队：壳只会抓**面积最大**的那块，但不能假定是哪块。
+     *   ★ 「透明背景」还要把清屏 alpha 临时设成 0（与查看页同一条规矩），抓完必须恢复，
+     *     否则屏幕上那张图会一直透明着、露出页面底色。
+     */
+    this._onBeforeCapture = (ev) => {
+      const transparent = !!(ev && ev.detail && ev.detail.transparent)
+      this._savedClearAlphas = []
+      for (const c of [this._leftCanvas, this._rightCanvas]) {
+        const r = c && c._state && c._state.renderer
+        if (r && transparent) {
+          this._savedClearAlphas.push([r, r.getClearAlpha()])
+          try { r.setClearAlpha(0) } catch (e) { /* 忽略 */ }
+        }
+        try { if (c && typeof c.invalidate === 'function') c.invalidate() } catch (e) { /* 画布还没就绪 */ }
+      }
+    }
+    this._onAfterCapture = () => {
+      let restored = false
+      for (const [r, a] of (this._savedClearAlphas || [])) {
+        try { r.setClearAlpha(a); restored = true } catch (e) { /* 忽略 */ }
+      }
+      this._savedClearAlphas = null
+      if (restored) {
+        for (const c of [this._leftCanvas, this._rightCanvas]) {
+          try { if (c && typeof c.invalidate === 'function') c.invalidate() } catch (e) { /* 忽略 */ }
+        }
+      }
+    }
+    window.addEventListener('chem-agent:before-capture', this._onBeforeCapture)
+    window.addEventListener('chem-agent:after-capture', this._onAfterCapture)
   }
 
   unmount() {
     unregisterViewerPage(this)
     if (typeof window !== 'undefined' && window.__comparePage === this) window.__comparePage = null
+    if (this._onBeforeCapture) {
+      window.removeEventListener('chem-agent:before-capture', this._onBeforeCapture)
+      this._onBeforeCapture = null
+    }
+    if (this._onAfterCapture) {
+      window.removeEventListener('chem-agent:after-capture', this._onAfterCapture)
+      this._onAfterCapture = null
+    }
     if (this._leftCanvas) { this._leftCanvas.unmount(); this._leftCanvas = null }
     if (this._rightCanvas) { this._rightCanvas.unmount(); this._rightCanvas = null }
     // ★ 原子信息卡也要一起卸（页面可反复挂载，不卸会累积）

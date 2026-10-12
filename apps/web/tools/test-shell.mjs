@@ -559,6 +559,16 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/from '@modules\/crystal\/capabilities\.js'/.test(viewerNoComments) && !/TEACHING_STACKING_IDS/.test(viewerNoComments),
     '查看页改用共享能力模块（不再留写死的白名单）')
 
+  // ★★ 2026-10-11（用户："浅色，晶体对比模式下，保存图片是空白的"）：
+  //   壳抓图前派发 `chem-agent:before-capture` 请页面**为下一帧排一次渲染** ——
+  //   对比页原先没接 ✗，而两块画布都是 `preserveDrawingBuffer:false` + 按需重绘
+  //   ⇒ 抓图落在"这帧什么都没画"的时刻，存下来就是全透明空图
+  //   （实测：摘掉钩子 1 色/0% 不透明；挂上钩子 1487 色/9.2% 不透明）。
+  ok(/chem-agent:before-capture/.test(cmpCode) && /chem-agent:after-capture/.test(cmpCode),
+    '对比页接上抓图钩子（否则保存的图片是空白）')
+  ok((cmpCode.match(/invalidate\(\)/g) || []).length >= 2 && /removeEventListener\('chem-agent:before-capture'/.test(cmpCode),
+    '抓图时排帧、卸载时解绑（两块画布都要）')
+
   // ★★ 2026-10-12（用户三条："返回二字超出格子" / "右侧设置无法独立修改" / "右侧设置与右侧样式不对应"）：
   //   ① 返回键不能写死 30px 宽（内容「← 返回」比它宽 ⇒ 溢出）；
   //   ② 自动对齐样式**只在首次进入双晶体模式时**做一次，且**跳出加载流程**（否则
