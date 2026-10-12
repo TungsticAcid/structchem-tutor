@@ -79,7 +79,8 @@ const CRYSTAL_SYSTEM_MAP = {
   'orthorhombic': '正交', 'monoclinic': '单斜', 'triclinic': '三斜', 'trigonal': '三方'
 }
 
-const TEACHING_STACKING_IDS = ['fcc', 'hcp']
+// ★ 能力判据统一在 modules/crystal/capabilities.js（查看页与对比页共用一份）
+import { crystalCaps, hasIntersticeData } from '@modules/crystal/capabilities.js'
 
 export class ViewerPage {
   constructor(params = {}) {
@@ -261,9 +262,10 @@ export class ViewerPage {
       for (const group of data.atoms) atomVisibility[group.element] = true
     }
 
-    const showIntersticeControl = TEACHING_STACKING_IDS.includes(this._crystalId)
+    const caps = crystalCaps(this._crystalId, data)
+    const showIntersticeControl = hasIntersticeData(this._crystalId, data)   // 只有最密堆积才有空隙数据
     const MOLECULAR_CRYSTAL_IDS = ['co2', 'ice', 'i2', 'urea']
-    const isMolecularCrystal = MOLECULAR_CRYSTAL_IDS.includes(this._crystalId)
+    const isMolecularCrystal = caps.molecular
     const METAL_CRYSTAL_IDS = ['fcc', 'bcc', 'hcp']
     const isMetalCrystal = METAL_CRYSTAL_IDS.includes(this._crystalId)
     const showBonds = isMolecularCrystal ? true : (isMetalCrystal ? false : true)

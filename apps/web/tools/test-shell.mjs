@@ -515,6 +515,16 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/if \(!this\._crystalIdB\) \{\s*\n\s*s\.rightAtomVisibility/.test(cmpCode),
     '对齐样式时**只在两侧同晶体**的情况下对齐元素显隐（不同晶体不能套用）')
 
+  // ★★ 2026-10-12（用户："没空隙显示功能的结构，设置中就不要显示空隙显示了；
+  //   有氢键的结构，设置中也应可控制氢键的显隐"）：设置里的图层项必须按**逐侧能力**给，
+  //   能力判据只此一处（modules/crystal/capabilities.js），查看页也不许再留白名单。
+  ok(/caps\.interstices \? \[\[.Octahedral/.test(cmpCode) && /caps\.hydrogenBonds \? \[\[.HydrogenBonds/.test(cmpCode),
+    '对比页设置按逐侧能力给图层项（空隙 / 氢键）')
+  ok(/s\.leftCaps = crystalCaps\(/.test(cmpCode) && /s\.rightCaps = crystalCaps\(/.test(cmpCode),
+    '对比页逐侧派生能力（左右各一块晶体）')
+  ok(/from '@modules\/crystal\/capabilities\.js'/.test(viewerNoComments) && !/TEACHING_STACKING_IDS/.test(viewerNoComments),
+    '查看页改用共享能力模块（不再留写死的白名单）')
+
   // ★★ 2026-10-12（用户三条："返回二字超出格子" / "右侧设置无法独立修改" / "右侧设置与右侧样式不对应"）：
   //   ① 返回键不能写死 30px 宽（内容「← 返回」比它宽 ⇒ 溢出）；
   //   ② 自动对齐样式**只在首次进入双晶体模式时**做一次，且**跳出加载流程**（否则

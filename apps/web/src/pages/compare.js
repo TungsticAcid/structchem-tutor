@@ -9,6 +9,8 @@ import elementsData from '@crystal/data/elements.js'
 import { getCrystalData } from '@crystal/lib/crystal-loader.js'
 // ★ 两侧「换晶体」的选择器要列出全部晶体：目录本来就是数据真源，不另抄一份清单
 import crystalIndex from '@crystal/data/crystalIndex.js'
+// ★ 能力判据只此一处（空隙图层 / 氢键 / 分子晶体），查看页也用同一份
+import { crystalCaps } from '@modules/crystal/capabilities.js'
 import { router } from '../shell/router.js'
 import { globalData } from '../shell/app-state.js'
 import { registerViewerPage, unregisterViewerPage } from '../shell/agent-bridge.js'
@@ -412,12 +414,24 @@ export class ComparePage {
      */
     const genSide = (prefix, sideColor, layoutTitle) => {
       const show = (k) => s[prefix + k]
-      // 图层开关列表（分子晶体隐藏"键"开关，有氢键时显示氢键开关）
+      /**
+       * 图层开关列表 —— **按该侧晶体的能力**给项（用户："没空隙显示功能的结构，设置中就不要
+       * 显示空隙显示了；有氢键的结构，设置中也应可控制氢键的显隐"）。
+       *
+       * ★ 判据取自**晶体数据本身**（不是另抄的白名单）：
+       *   · `octahedral` / `tetrahedral` 只有最密堆积（fcc / hcp）才有 ⇒ 没有就不显示这两项
+       *     （在 NaCl、冰这类结构上打开了也什么都看不见 ✗）；
+       *   · `hydrogenBonds` 只有真的含氢键的晶体才有 ⇒ 有才显示「氢键」这一项。
+       * ★ 必须**逐侧**取：左右可能是两块不同的晶体（原先用共用的 s.isMolecularCrystal /
+       *   s.hasHydrogenBonds —— 那是从**左侧**晶体派生的 ✗），且空隙项原先**无条件显示** ✗。
+       */
+      const caps = s[prefix + 'Caps'] || crystalCaps(prefix === 'right' ? this._crystalIdB : this._crystalId, prefix === 'right' ? (s.crystalDataB || cd) : cd)
       const toggles = [
         ['Atoms', '原子'], ['AtomLabels', '标签'],
-        ...(s.isMolecularCrystal ? [] : [['Bonds', '键']]),
-        ...(s.hasHydrogenBonds ? [['HydrogenBonds', '氢键']] : []),
-        ['Axes', '轴'], ['Octahedral', '八面体空隙'], ['Tetrahedral', '四面体空隙'],
+        ...(caps.molecular ? [] : [['Bonds', '键']]),
+        ...(caps.hydrogenBonds ? [['HydrogenBonds', '氢键']] : []),
+        ['Axes', '轴'],
+        ...(caps.interstices ? [['Octahedral', '八面体空隙'], ['Tetrahedral', '四面体空隙']] : []),
         ['AuxiliaryBody', '体对角'], ['AuxiliaryFace', '面对角'], ['LatticePoints', '点阵型式']
       ]
       // 变换晶胞原点（左右独立）
@@ -610,6 +624,14 @@ export class ComparePage {
     s.equivalentSettings = s.leftEquivalentSettings
     // ★ 右侧的**晶体数据**也要单独留着：设置面板里"元素筛选"那一栏要按**各侧自己的**元素列
     s.crystalDataB = dataB || data
+    /**
+     * ★★ 逐侧**能力**（见 modules/crystal/capabilities.js）：
+     *   设置面板据此决定给哪些图层开关 —— 没有空隙数据的结构不显示空隙项，
+     *   有氢键的才显示氢键项（用户："没空隙显示功能的结构…就不要显示空隙显示了；
+     *   有氢键的结构…也应可控制氢键的显隐"）。
+     */
+    s.leftCaps = crystalCaps(this._crystalId, data)
+    s.rightCaps = crystalCaps(this._crystalIdB || this._crystalId, dataB || data)
   }
 
   /** 生成某一侧 viewer-canvas 的完整 props（增量更新与初始化共用） */

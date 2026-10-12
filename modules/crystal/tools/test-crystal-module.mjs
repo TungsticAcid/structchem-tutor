@@ -360,6 +360,30 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
 }
 
 // ============================================================================
+// 能力判据（空隙图层 / 氢键 / 分子晶体）取自晶体数据 —— 只此一处
+//
+// ★★ 2026-10-12（用户："没空隙显示功能的结构，设置中就不要显示空隙显示了；
+//   有氢键的结构，设置中也应可控制氢键的显隐"）：
+//   查看页原先用写死的白名单 ['fcc','hcp']，对比页原先**无条件**显示空隙项、
+//   氢键项还用**左侧**晶体的标志 ✗ ⇒ 抽到 capabilities.js 一处判。
+//   守卫连"嵌套 vs 顶层"这个坑一起钉住：数据里是 interstices.octahedral（嵌套），
+//   第一版按顶层判，结果连 fcc 都被判成"没有空隙图层"✗（正例当场抓到）。
+// ============================================================================
+{
+  const { crystalCaps, hasIntersticeData } = await import('../capabilities.js')
+  const fcc = { interstices: { octahedral: { positions: [] }, tetrahedral: { positions: [] } } }
+  const ice = { atoms: [{ element: 'O' }], hydrogenBonds: [{ a: 1 }] }
+  const naCl = { atoms: [{ element: 'Na' }, { element: 'Cl' }] }
+  check('最密堆积有空隙图层（嵌套写法）', hasIntersticeData('fcc', fcc) === true)
+  check('旧式顶层写法也认（数据搬家不静默失效）', hasIntersticeData('x', { octahedral: {} }) === true)
+  check('NaCl / 冰没有空隙图层', hasIntersticeData('naCl', naCl) === false && hasIntersticeData('ice', ice) === false)
+  check('氢键能力来自数据（冰有、NaCl 没有）',
+    crystalCaps('ice', ice).hydrogenBonds === true && crystalCaps('naCl', naCl).hydrogenBonds === false)
+  check('分子晶体按 id 判定（CO2/I2 是分子晶体但不含氢键）',
+    crystalCaps('co2', {}).molecular === true && crystalCaps('i2', {}).molecular === true && crystalCaps('naCl', {}).molecular === false)
+}
+
+// ============================================================================
 // 晶典在线：**双击复位**（用户要求）
 //
 // ★★ 2026-10-12：这条其实是"半接线"—— 宿主页（apps/web/src/pages/compare.js 的 _onResetView）
