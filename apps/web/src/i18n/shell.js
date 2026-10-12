@@ -102,6 +102,8 @@ export const zh = {
   'shell.practice.noBank': '「点群观鉴」还没有自己的题库（出题要有数值化的判据与错因库，这个板块的数据还在建）'
     + '—— 你可以先直接问我，或去下面两个板块练。',
   'shell.practice.orbitFailed': '轨道题库没能启动（出题引擎未就绪），请稍后再试。',
+  /** ★ 用户第 7 条：点群题库补齐后，同样的启动失败也要如实说 */
+  'shell.practice.symFailed': '点群题库没能启动（出题引擎未就绪），请稍后再试。',
   /**
    * ★★ 2026-10-12（用户第 1 条）：面板输入框提示**按板块**说 —— 原先写死"晶体结构"，
    *   站在轨道/点群板块里也照旧这么说。末尾那句操作提示四个板块相同，就重复写进去
@@ -194,6 +196,7 @@ export const en = {
     + 'numeric criteria and a misconception library, and that data is still being built) — '
     + 'ask me directly, or practise in one of the two modules below.',
   'shell.practice.orbitFailed': 'The orbital question bank could not start (the quiz engine is not ready) — please try again later.',
+  'shell.practice.symFailed': 'The point-group question bank could not start (the quiz engine is not ready) — please try again later.',
   'shell.panel.ph.home': 'Ask a structural chemistry question, or let me demonstrate… (Enter to send, Shift+Enter for a new line)',
   'shell.panel.ph.crystal': 'Ask about crystal structures, or let me demonstrate… (Enter to send, Shift+Enter for a new line)',
   'shell.panel.ph.orbit': 'Ask about atomic orbitals, or let me demonstrate… (Enter to send, Shift+Enter for a new line)',

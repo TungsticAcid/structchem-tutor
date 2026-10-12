@@ -17,7 +17,7 @@ import { t } from './i18n/index.js'
  * @param {Object} facade  createSymmetryFacade() 的返回值
  * @returns {{ defs: Object, handlers: Object }}  交给 createModule 的形状
  */
-export function createSymmetryTools(facade) {
+export function createSymmetryTools(facade, opts = {}) {
   if (!facade) throw new Error('createSymmetryTools 需要 facade')
 
   const def = (name, description, properties, required) => ({
@@ -132,6 +132,68 @@ export function createSymmetryTools(facade) {
           + '若要向学生解释"为什么是这个点群"，可结合 elements 里各元素的类型与方向来讲。',
       }
     },
+  }
+
+  // ---------------------------------------------------------------------------
+  // 教学类工具（**注入后才存在**）
+  // ---------------------------------------------------------------------------
+  /**
+   * ★★ 2026-10-12（用户第 7 条：「点群观鉴的练习部分套用轨道视界的流程」）：
+   *   轨道的教学工具是"注入 quiz/diagnosis/mastery 才注册"（未注入则**如实为空**，
+   *   而不是给模型一个调不动的名字）。这里照同一套写：
+   *     · `generateQuestion` —— 出题（题目与答案都由 core/question-engine.js 算，模型不参与）
+   *     · `explainConcept`   —— 取该知识点的知识条目 id（讲什么、依据哪几条）
+   *     · `recommendNext`    —— 按学情推荐下一个知识点
+   *     · `updateMastery`    —— 学生口头答对/答错时记一笔（卡片式作答是本地自动记的）
+   */
+  const quiz = opts.quiz
+  const mastery = opts.mastery
+
+  if (quiz) {
+    defs.teach.push(
+      def('generateQuestion', () => t('symmetry.tool.generateQuestion.desc'), {
+        knowledgePoint: { type: 'string',
+          description: () => t('symmetry.tool.generateQuestion.p.knowledgePoint') },
+        difficulty: { type: 'string',
+          description: () => t('symmetry.tool.generateQuestion.p.difficulty') },
+        exclude: { type: 'array', items: { type: 'string' },
+          description: () => t('symmetry.tool.generateQuestion.p.exclude') },
+      }, ['knowledgePoint']),
+      def('explainConcept', () => t('symmetry.tool.explainConcept.desc'), {
+        knowledgePoint: { type: 'string' },
+      }, ['knowledgePoint']),
+      def('recommendNext', () => t('symmetry.tool.recommendNext.desc'), {
+        count: { type: 'number', description: () => t('symmetry.tool.recommendNext.p.count') },
+      }, []),
+      def('updateMastery', () => t('symmetry.tool.updateMastery.desc'), {
+        knowledgePoint: { type: 'string' },
+        correct: { type: 'boolean', description: () => t('symmetry.tool.updateMastery.p.correct') },
+      }, ['knowledgePoint', 'correct']),
+    )
+
+    handlers.generateQuestion = (p) => {
+      const kp = p && p.knowledgePoint
+      if (!kp) return { error: t('symmetry.tool.err.kpRequired') }
+      const fn = quiz.askQuestion || quiz.generate
+      if (typeof fn !== 'function') return { error: t('symmetry.tool.err.noQuiz') }
+      return fn.call(quiz, kp, p && p.difficulty, p && p.exclude)
+    }
+    handlers.explainConcept = (p) => {
+      const kp = p && p.knowledgePoint
+      if (!kp) return { error: t('symmetry.tool.err.kpRequired') }
+      if (typeof quiz.explain !== 'function') return { error: t('symmetry.tool.err.noQuiz') }
+      return quiz.explain(kp)
+    }
+    handlers.recommendNext = (p) => {
+      if (typeof quiz.recommend !== 'function') return { error: t('symmetry.tool.err.noQuiz') }
+      return quiz.recommend(p && p.count)
+    }
+    handlers.updateMastery = (p) => {
+      const kp = p && p.knowledgePoint
+      if (!kp) return { error: t('symmetry.tool.err.kpRequired') }
+      if (!mastery || typeof mastery.update !== 'function') return { error: t('symmetry.tool.err.noMastery') }
+      return mastery.update(kp, p && p.correct ? 1 : -1)
+    }
   }
 
   return { defs, handlers }

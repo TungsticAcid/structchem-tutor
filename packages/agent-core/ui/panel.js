@@ -1033,10 +1033,32 @@ export function createPanel(cfg = {}) {
     const forkMap = new Map()
     for (const f of (t.forks || [])) forkMap.set(f.id || '__root__', f)
 
+    /**
+     * ★★ 2026-10-12（用户第 7 条，实机跑点群练习时抓到）：
+     *   **只存在于 DOM 里的东西，重画时要留着。**
+     *
+     *   对话树只存文本协议（user/assistant/tool），而下面这些是**本地渲染的界面**：
+     *     · 题目卡与讲评卡（练习闭环里由出题引擎直接插进面板，不是工具返回）
+     *     · 提示条（chip）
+     *   `msgBox.innerHTML = ''` 会把它们一起抹掉 —— 症状是"学生答完题，模型一开口，
+     *   题目卡和判定结果就消失了"。而按钮的 onclick 就挂在**这些节点**上，
+     *   所以这里保留**原节点**（不是复制），重画后按原顺序接到末尾：交互仍然有效。
+     *
+     *   ★ 为什么要接到末尾而不是插回原位：面板不记录它们的位置（它们不在树里），
+     *     而"留在屏幕上、能继续点"才是学生要的；顺序在最下方不影响阅读。
+     */
+    const keep = Array.from(msgBox.children).filter((el) =>
+      el.matches('.agent-chip-row') || el.querySelector('.agent-q, .agent-fb, .agent-opt, .agent-goto'))
+
     msgBox.innerHTML = ''
     const rootFork = forkMap.get('__root__')
     if (rootFork) msgBox.appendChild(branchBar(rootFork))
-    if (!path.length) { renderEmptyState(); return }
+    if (!path.length) {
+      renderEmptyState()
+      // 空路径时也要把卡片接回去（例如"新对话"之后仍想看到刚出的那道题）
+      keep.forEach((el) => msgBox.appendChild(el))
+      return
+    }
 
     for (const n of path) {
       if (n.role === 'user') {
@@ -1089,6 +1111,12 @@ export function createPanel(cfg = {}) {
       const f = forkMap.get(n.id)
       if (f) msgBox.appendChild(branchBar(f))
     }
+    /**
+     * 把重画前摘下来的 DOM-only 节点接回末尾（见上面 `keep` 的说明）：
+     * 题目卡 / 讲评卡 / 提示条不在对话树里，不接回去就等于"学生答完题、模型一开口，
+     * 判定与题目卡凭空消失"。★ 是**原节点**，所以按钮的 onclick 仍然有效。
+     */
+    keep.forEach((el) => msgBox.appendChild(el))
     scrollDown()
     // ★ 演示记录从历史重建（幂等）。**必须留在渲染路径末尾**：它正是"刷新后
     //   仍能重播 / 仍能引用某一步"的唯一来源。

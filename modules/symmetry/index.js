@@ -40,7 +40,12 @@ export function createModule(opts = {}) {
   // 调用仍然保留：将来要向宿主索取什么，只有这一个地方可写。
   const hostReport = enforceHostRequirements('symmetry', opts, HOST_REQUIREMENTS)
   const facade = createSymmetryFacade(opts)
-  const tools = createSymmetryTools(facade)
+  /**
+   * ★★ 2026-10-12（用户第 7 条）：把**出题引擎与学情模型**传进工具层 ——
+   *   注入了才有 `generateQuestion / explainConcept / recommendNext / updateMastery`
+   *   这四个教学工具；没注入就**如实为空**（与轨道同一套约定）。
+   */
+  const tools = createSymmetryTools(facade, { quiz: opts.quiz, mastery: opts.mastery })
 
   return {
     id: 'symmetry',
@@ -51,13 +56,23 @@ export function createModule(opts = {}) {
     /** 装配期实测的「宿主给了什么 / 少了什么」 */
     hostReport,
     /**
-     * **角色映射**：本模块目前是**空的** —— 它还没有出题/判卷/学情这些教学工具。
+     * **角色映射**（节点按角色名向模块要"干这件事的工具"）。
      *
-     * ★ 空不等于遗漏：节点向本模块索要"出题"时拿不到，是如实反映"本模块还没有这个能力"。
-     *   覆盖缺口由 selftest 的 `KNOWN_ROLE_GAPS` 双向棘轮显式记着（多了红、少了也红），
-     *   所以它不会悄悄变成"一堆没人看的豁免"。
+     * ★★ 2026-10-12（用户第 7 条）：本模块补齐了**练习闭环**的四项角色；
+     *   **费曼自检（feynmanStart / feynmanEval）还没有** —— 由 selftest 的
+     *   `KNOWN_ROLE_GAPS` 双向棘轮显式记着（多了红、少了也红）。
+     * ★ 这张表是**静态**的（与轨道一致）：它声明的是"模块在完整装配下能提供什么"，
+     *   而装载后是否有真工具由 `createSymmetryTools(facade, {quiz, mastery})` 决定 ——
+     *   **没注入 quiz 时那四个工具如实不存在**（模型拿到的是空清单，而不是调不动的名字）。
+     *   之所以不能写成 `opts.quiz ? {...} : {}`：无头自检（selftest）不注入引擎，
+     *   那样算出来的"能力缺口"会随装配方式漂移，棘轮就失去意义。
      */
-    roles: {},
+    roles: {
+      quizGen: 'generateQuestion',
+      explainConcept: 'explainConcept',
+      recommend: 'recommendNext',
+      learningEvent: 'updateMastery',
+    },
     /** 动作校验（壳的分镜引擎逐调用它）—— 取值域由 facade 里的 byId 把关 */
     validate: (name, params) => facade.validateAction(name, params),
     /** 动作词汇表 */

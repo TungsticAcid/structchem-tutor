@@ -34,6 +34,34 @@
 **每个知识库的"该写什么"都写在作业现场**：`packages/knowledge/<模块>/README.md`
 （crystal 的 C1–C8、symmetry 的 P1–P5 骨架与素材来源表都在那里，条目已写完）。
 
+### 已完成（2026-10-12 第十六轮：用户七条 —— 提示语/红字/中途跳转/相位/练习/默认旋转 + **点群练习闭环补齐**）
+
+| # | 现象 | 真因与改法 |
+|---|---|---|
+| 1 | 面板底部（输入框提示）**一直说"晶体结构"** | 提示语在 `main.js` 里**写死**。改 `boardPlaceholder()`：按 `currentBoardId()`（URL 判定）取门户/晶体/轨道/点群四条文案，切板块经 `onActiveChange` 刷新（新增 `panel.setPlaceholder`）。实测四条各自正确 |
+| 2 | **配好 Key 后红字不消失** | 那句红字是**留在消息区里的消息**（不是状态灯），没有撤销通路。改：加 `agent-nokey` 标记（含启动时那条 chip），面板新增 `clearNoKeyNotices()`；`onSaved` 里 `hasKey()` 为真时撤掉并回一句「API Key 已配置」。★ 顺带修掉 `addChip` **原先不返回元素**（宿主拿不到它挂标记）。实测：未配=1 条 → 打开设置填 Key 点保存 → **0 条** |
+| 3 | **提问中途跳转 → 面板空白、只剩问题** | `router.onAfterMount` 换页时按"**store** 里有没有消息"判断要不要重画开场白，而 store 只在**一轮结束时**才写 ⇒ 提问途中换页被当成空会话，`renderEmptyState()` 清空消息区（用户气泡 + 正在流式的助手气泡一起没），流式回调写进**已脱落的节点**。改（面板内护栏，覆盖所有调用方）：`running` 标志 + 运行期间 `renderPath/renderEmptyState` 只记 `pendingRender`，本轮收尾补画。实测：思考中 `count=4 · hasUser=true`；跳转后仍 4 条；结束后答案在 |
+| 4 | **AI 改了轨道正负相位，用户改不回** | `setRelPhase` 只改相位不改 terms，而 `state-editor.js` 的回灌守卫只比 terms ⇒ 该动作**永远被早返回**，φ 滑块停在旧值。改：守卫补相位比较。实测：滑块 0 → 动作 0.5π 后 **app=0.5 且滑块=0.5** → 点 φ=0 预设两者都回 0 |
+| 5 | 练习内容不对 | 见第 7 条（本轮把点群练习补齐） |
+| 6 | 轨道视界**默认不自动旋转** | markup 里去掉写死的 `checked`。实测 `checked=false` · 快照 `autoRotate=false` |
+| **7** | **点群观鉴的练习套用轨道的流程，缺的补齐** | 上一轮我只能"如实说明没有题库+给两条去路"（当时确实没有）。本轮**补齐**：<br>· `modules/symmetry/core/question-engine.js` —— **P1–P5 五类题**（元素计数 / 最高次主轴 / 哪个不是本群操作 / 点群判定 / 群阶 / 不可约表示归属 / 特征标读数 / 红外活性 / 拉曼活性 / 互斥规则 / 三道空间群概念题）；流程与轨道**逐字同形**（`startFlow → pickKnowledgePoint → launch → askQuestion → renderQuestion → answer → next`）<br>· `modules/symmetry/store/mastery.js` —— 与轨道同一套接口的学情模型（P1–P5）<br>· `tools.js` 加四个教学工具 `generateQuestion / explainConcept / recommendNext / updateMastery`（**注入后才存在**）；`index.js` 填 `roles`；selftest 的 `KNOWN_ROLE_GAPS` 由六项缩到 `['feynmanStart','feynmanEval']`<br>· 宿主 `main.js` 注入引擎与学情，练习入口点群 → `startFlow()`<br>★★ **答案一律由引擎算**：`identifyPointGroup` / `generateGroupOperations` / `getCharacterTable`。实测一道题 = 「分子「乙烷（交叉式构象）」C2H6 属于哪个点群？」选项 D3d/D5d/Td/C4v ✓ |
+
+**本轮抓到的两个"只有实机才看得见"的缺陷（都修在通用层）**
+
+1. **无限群不能问"阶"与"元素数"** —— C∞v / D∞h 的阶是 ∞，而 `generateGroupOperations` 只能给**代表元**；
+   拿它去问"这个群有几阶""有几个对称元素"会让学生背下一个**假数字**。
+   改：`facts.finite`（符号里有没有 ∞）作为所有计数/枚举类题的门槛。★ 这类错误**静态断言看不出来**（数字自洽）。
+2. **重画会把"只存在于 DOM 里的卡片"抹掉** —— 对话树只存文本协议，而题目卡/讲评卡/提示条是本地渲染的
+   （练习闭环里由引擎直接插进面板，不是工具返回）。`renderPath` 里 `msgBox.innerHTML = ''` 把它们一起抹掉：
+   症状就是"学生答完题、模型一开口，判定与题目卡凭空消失"。改：重画前把这些节点**摘下来**，
+   重画后按原顺序接回末尾（保留**原节点**，所以按钮的 onclick 仍然有效）。
+   ★ 这条对晶体/轨道/点群三套练习都有效（它们共用这条路）。
+
+**新增守卫**：`modules/symmetry/tools/test-symmetry-quiz.mjs`（已加入 `test:symmetry`）
+—— **独立重算**每道题的答案（回到 `identifyPointGroup` / `generateGroupOperations` /
+`getCharacterTable` 再算一遍，与答案下标所指的选项比对），并守"无限群不出计数题""选项 4 个互异"
+"未知知识点返回 error""判定路径不经模型"。**实测 1744 项通过**。
+
 ### 已完成（2026-10-12 第十五轮：用户六条点名 —— 面板提示/红字/中途跳转清空/相位改不回/练习/默认旋转）
 
 用户这次点了六条（1 提示语说错板块 · 2 配好 Key 红字不消 · 3 提问中途跳转后空白、只留问题 ·

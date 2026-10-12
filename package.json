@@ -13,7 +13,7 @@
     "test:data": "node projects/crystal/tools/check-crystal-data.mjs",
     "test:shared": "node packages/knowledge/tools/check-shared-data.mjs && node packages/knowledge/tools/test-knowledge.mjs",
     "test:modules": "node modules/crystal/tools/test-crystal-module.mjs && node modules/crystal/tools/test-crystal-tools.mjs",
-    "test:symmetry": "node modules/symmetry/tools/test-symmetry-engine.mjs && node modules/symmetry/tools/test-symmetry-module.mjs",
+    "test:symmetry": "node modules/symmetry/tools/test-symmetry-engine.mjs && node modules/symmetry/tools/test-symmetry-module.mjs && node modules/symmetry/tools/test-symmetry-quiz.mjs",
     "test:orbit": "node modules/orbit/tools/test-orbit-core.mjs && node modules/orbit/tools/test-orbit-module.mjs && node modules/orbit/tools/test-orbit-engine.mjs",
     "test:shell": "node apps/web/tools/test-shell.mjs",
     "verify:live": "node tools/acceptance.mjs",

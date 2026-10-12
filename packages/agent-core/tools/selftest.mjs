@@ -157,8 +157,10 @@ ok(toolsFor('orbit', 'teach').includes('updateMastery'),
   const KNOWN_ROLE_GAPS = {
     crystal: ['explainConcept'],   // 晶体没有 explainConcept 工具（它的讲解不走这个工具）
     orbit: [],                     // 节点索要的六项它全有 —— ★ 修复前这里是拿不到 quizGen 的
-    symmetry: ['quizGen', 'explainConcept', 'feynmanStart', 'feynmanEval',
-               'recommend', 'learningEvent'],  // 阶段 C 待补：本模块还没有这些教学工具
+    symmetry: ['feynmanStart', 'feynmanEval'],
+    // ★ 2026-10-12（用户第 7 条）：点群观鉴补齐了练习闭环（出题 / 讲解 / 推荐 / 学情 四项），
+    //   缺口从六项缩到**两项**：费曼自检的入口与评估还没有。棘轮是双向的 ——
+    //   把这两项也补上之后，这里必须跟着清空（少了也红）。
   };
   const bad = [];
   for (const [id, b] of BUILT) {

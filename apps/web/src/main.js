@@ -50,6 +50,9 @@ import { createModule as createOrbitModule } from '@modules/orbit/index.js'
 import { QuestionEngine as OrbitQuiz } from '@modules/orbit/core/question-engine.js'
 import { MasteryModel as OrbitMastery } from '@modules/orbit/store/mastery.js'
 import { ErrorDiagnosis as OrbitDiagnosis } from '@modules/orbit/core/error-diagnosis.js'
+// ★ 点群观鉴的**练习闭环**（用户第 7 条）：题库 + 学情，接口与轨道那套一致
+import { QuestionEngine as SymQuiz } from '@modules/symmetry/core/question-engine.js'
+import { MasteryModel as SymMastery } from '@modules/symmetry/store/mastery.js'
 import * as crystalTools from '@modules/crystal/tools.js'
 import { createQuizEngine } from '@modules/crystal/quiz/index.js'
 import { createQuizUI } from '@modules/crystal/quiz/ui.js'
@@ -339,8 +342,38 @@ const loadSpaceGroup = async () => {
   if (!_spaceGroupMod) _spaceGroupMod = await import('@modules/symmetry/space-group.js')
   return _spaceGroupMod
 }
+/**
+ * 点群观鉴：**练习闭环**（用户第 7 条：套用轨道那套流程）。
+ * ★ 与轨道同一个写法：题库与学情都是**模块自带**的自包含引擎，宿主只做两件事 ——
+ *   `configure`（把面板/运行时/知识库注入）与 `createModule({quiz, mastery})`（注册教学工具）。
+ * ★ `gotoExample` 是"去看这个分子 →"的落点：模块内不 import 自己的 facade（会成环），
+ *   所以由宿主把它接到动作通路上 —— 与"用户点按钮"和"模型下发"是同一条路。
+ */
+const SymQuestionEngine = SymQuiz
+SymQuestionEngine.configure({
+  /**
+   * ★ 点群的"运行时"就是**模块自己的状态**（与轨道不同：轨道把状态放在页面闭包里）。
+   *   所以这里把门面快照包成一个最小的 `getState()` —— 学情推荐要用它读当前点群
+   *   （快照字段名是 `pointGroup`，不是 `symbol`）。
+   */
+  getApp: () => ({ getState: () => ({ symbol: symmetry.facade.getSnapshot().pointGroup }) }),
+  getPanel: () => panel,
+  getKnowledge: () => knowledge,
+  gotoExample: (id) => symmetry.facade.applyActions([
+    { action: 'loadExample', params: { id: id } },
+  ]),
+})
+const symMastery = SymMastery
+symMastery.configure({
+  storageKey: 'chem-agent.symmetry.mastery',
+  getApp: () => ({ getState: () => ({ symbol: symmetry.facade.getSnapshot().pointGroup }) }),
+})
+
 const symmetry = createSymmetryModule({
   initialId: 'water',
+  /** 出题引擎 + 学情：注入了才有 generateQuestion / explainConcept / recommendNext / updateMastery */
+  quiz: SymQuestionEngine,
+  mastery: symMastery,
   /** (structure) => Promise<空间群分析结果>；第一次调用时才加载 WASM */
   spaceGroup: async (structure) => (await loadSpaceGroup()).analyzeSpaceGroup(structure),
   /** 同步包装：只在 spaceGroup 已解析之后被调用（那时模块必然已加载） */
@@ -1024,7 +1057,7 @@ quizUI = createQuizUI({ panel, app, module: crystal, quiz })
 function startPractice() {
   const board = currentBoardId()
   if (board === 'orbit') return startOrbitPractice()
-  if (board === 'symmetry') return startPracticeNote()
+  if (board === 'symmetry') return startSymmetryPractice()
   if (!board) return startPracticeBoardChooser()
   return startCrystalPractice()
 }
@@ -1084,7 +1117,29 @@ function startPracticeBoardChooser() {
   })
 }
 
-/** 点群观鉴：**没有题库就如实说**，并给出两条真能走的路 */
+/**
+ * 点群观鉴：走**点群自己的**练习闭环（2026-10-12 用户第 7 条）。
+ *
+ * ★ 上一轮这里给的是"如实说明没有题库 + 两个跳转按钮"（当时确实没有题库）。
+ *   用户接着要求"套用轨道视界的流程，缺少的内容你自己补齐" —— 于是补出了
+ *   `modules/symmetry/core/question-engine.js`（P1–P5 五类题，答案全部由引擎算）
+ *   与 `store/mastery.js`；这里就与轨道完全同形：**交给引擎自己把界面插进面板**。
+ * ★ 不要再另发一句 LLM 请求：那会绕开它的状态机（讲解、出题、判定、学情各一步）。
+ */
+function startSymmetryPractice() {
+  try {
+    const r = SymQuestionEngine.startFlow()
+    if (r && r.ok) return
+  } catch (e) {
+    console.error('[practice] 点群题库启动失败：', e)
+  }
+  panel.addMsg('<span class="agent-err">' + t('shell.practice.symFailed') + '</span>', 'assistant')
+}
+
+/**
+ * 点群观鉴：**没有题库就如实说**，并给出两条真能走的路。
+ * ★ 2026-10-12 起点群已有题库（`startSymmetryPractice`），这条只在题库启动失败时用。
+ */
 function startPracticeNote() {
   const el = panel.addCard(
     '<div>' + t('shell.practice.noBank') + '</div>'
