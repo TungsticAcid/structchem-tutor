@@ -556,11 +556,14 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   const mainSrc2 = readFileSync(resolve(REPO, 'apps/web/src/main.js'), 'utf8')
   ok(/convStore\.newSession\(\)[\s\S]{0,240}?panel\.resetDemo\(\)/.test(mainSrc2),
     '头部「新对话」会收掉演示条（不留上一段对话的演示信息）')
-  // ★★ 2026-10-12（用户："切换到 NaCl 后，设置和模型的显示模型还是不一致"）：
-  //   自动对齐是**延迟**执行的、改的是状态 ⇒ 之后必须再重画一次设置面板，
-  //   否则面板高亮着对齐前的样式、画面已是新的（设置 ↔ 画面 不一致）。
-  ok(/_onAlignStyle\(true\)[\s\S]{0,200}?_rebuildSettingsPanel\(\)/.test(cmpCode),
-    '自动对齐后重画设置面板（设置 ↔ 画面 一致）')
+  // ★★ 2026-10-12（用户："切换到 NaCl 后，设置和模型的显示模型还是不一致" +
+  //   随后"点击对齐样式后，设置与显示的显示模型不一致"）：对齐是**改状态**的动作，
+  //   落定后必须重画设置面板，否则面板停在对齐前的高亮 ✗。
+  //   ★ 重画必须放在 `_onAlignStyle` **内部**：这条路径有"点按钮"与"自动对齐"两个入口，
+  //     只补其中一个就会出现"一处生效、一处不生效"（第一版就是这么漏的）。
+  const alignFn = (cmpCode.match(/_onAlignStyle\(silent\) \{[\s\S]*?\n  \}/) || [''])[0]
+  ok(/this\._rebuildSettingsPanel\(\)/.test(alignFn),
+    '对齐样式后重画设置面板（设置 ↔ 画面 一致）')
   // ★ 标签刷新只该有**一处**实现（_refreshLabels）；数出现次数而不是"必须没有" ——
   //   第一版写成"不得出现"，而 _refreshLabels 本身正当含有这一行，守卫自己报红 ✗
   ok((cmpCode.match(/querySelector\('#leftPane \.cp-label'\)/g) || []).length === 1,

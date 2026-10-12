@@ -819,15 +819,15 @@ export class ComparePage {
       this._styleAlignedFor = this._crystalIdB
       setTimeout(() => {
         try {
-          this._onAlignStyle(true)
           /**
-           * ★★ 2026-10-12（用户："切换到 NaCl 后，设置和模型的显示模型还是不一致"）：
-           *   自动对齐是**延迟**执行的，它改的是**状态** ——
-           *   而设置面板在这之前就已经画好了（_setSideCrystal 里重画过）✗
-           *   ⇒ 面板高亮着对齐前的「CPK」、画面却已经是对齐后的「球棍」✗。
-           *   改：对齐之后**再重画一次设置面板**，让"设置 ↔ 状态 ↔ 画面"三者始终一致。
+           * ★★ 2026-10-12（用户："切换到 NaCl 后，设置和模型的显示模型还是不一致" +
+           *   后来又问"点击对齐样式后，设置与显示的显示模型不一致"）：
+           *   自动对齐是**延迟**执行的、改的是**状态**，而设置面板早就画好了 ✗
+           *   ⇒ 面板高亮着对齐前的样式、画面已是对齐后的 ✗。
+           *   改：对齐之后重画设置面板 —— 这一步现在放在 `_onAlignStyle` **内部**，
+           *   这样"点按钮"与"自动对齐"两条入口都会重画（原先只在这里补，点按钮那条漏了 ✗）。
            */
-          this._rebuildSettingsPanel()
+          this._onAlignStyle(true)
         } catch (e) { console.warn('[compare] 自动对齐样式失败：', e) }
       }, 0)
     }
@@ -1004,6 +1004,16 @@ export class ComparePage {
     // ★ 标签统一走 _refreshLabels()（原先这段在这里又写了一份，与 mount/onLangChange
     //   三处各写一遍 —— 本仓库的老毛病；改一处漏两处）
     this._refreshLabels()
+    /**
+     * ★★ 2026-10-12（用户："点击对齐样式后，设置与显示的显示模型不一致"）：
+     *   对齐是**改状态**的动作，而设置面板在这之前就画好了 ⇒ 不重画它就停在"对齐前"的
+     *   高亮上 ✗（实测：右侧画面已经变成球棍，面板里还高亮着 CPK）。
+     *   ⇒ 与"换晶体后重画面板"同一条规矩：**凡改了状态的动作，落定后重画一次面板**。
+     *   ★ 放在 `_onAlignStyle` **内部**（不是各个调用点各写一遍）：
+     *     这条路径有"点按钮"与"进双晶体模式时自动对齐"两个入口，漏一个就是"一处生效一处不生效"。
+     *   ★ `_rebuildSettingsPanel()` 在面板未展开时安全早退，不必在这里判断。
+     */
+    this._rebuildSettingsPanel()
 
     if (!silent) this._toast(t('pages.compare.stylesAligned'))
   }
