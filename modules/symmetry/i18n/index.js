@@ -681,14 +681,50 @@ export function formatGroupSymbol(symbol) {
   if (!symbol) return '—'
   const m = String(symbol).match(/^([A-Za-z])(.*)$/)
   if (!m) return symbol
-  return `<i>${m[1]}</i><sub>${m[2]}</sub>`
+  // ★ 下标为空时不输出空 <sub></sub>（'E' → <i>E</i>，而不是 <i>E</i><sub></sub>）
+  return m[2] ? `<i>${m[1]}</i><sub>${m[2]}</sub>` : `<i>${m[1]}</i>`
 }
 
 /** 不可约表示符号 HTML 化（主字母斜体、下标正体）'E1u' → <i>E</i><sub>1u</sub> */
 export function formatIrrepLabel(label) {
   const m = String(label).match(/^([A-Za-z])(.*)$/)
   if (!m) return label
-  return `<i>${m[1]}</i><sub>${m[2]}</sub>`
+  return m[2] ? `<i>${m[1]}</i><sub>${m[2]}</sub>` : `<i>${m[1]}</i>`
+}
+
+/**
+ * **对称元素/操作符号** HTML 化（用户："对称元素里的 C 需要斜体吗"、"还有特征标表"）。
+ *
+ * 排版惯例（IUPAC / ISO 80000-2，与教材一致，也与本页已有的
+ * `formatGroupSymbol` / `formatIrrepLabel` 同一条口径）：
+ *   · Schönflies 记号的**主字母斜体**：*C*₂、*S*₄、*D*∞h、*T*d、*O*h、*I*h、*E*、*i*、
+ *     以及镜面 *σ*（希腊字母同样斜体）
+ *   · 下标/上标（2、v、h、d、∞）、系数（2*C*₂′ 的 2）、撇号 **正体**
+ *   · 括号里的**坐标变量** x/y/z 斜体（交给 `formatBasisFunctions`，同一条规则）
+ *   ⇒ `σᵥ(xz)` → `<i>σ</i><sub>v</sub>(<i>x</i><i>z</i>)`、`C₂` → `<i>C</i>₂`、`8C3` → `8<i>C</i><sub>3</sub>`
+ *
+ * ★ 为什么单独一个函数：群符号与不可约表示早就斜体了，而**对称元素行**与**特征标表列头**
+ *   走的是另一条路（`formatBasisFunctions` 只管坐标、`formatClassSymbol` 只管下标）
+ *   ⇒ 同一个 *C* 在一页里一处斜体一处正体（用户截图报的就是这个）。
+ * ★ **顺序必须是"先 formatBasisFunctions（它会转义 HTML）、再加标签"**：
+ *   反过来 `<sub>` 会被转义成 `&lt;sub&gt;` 直接显示在界面上（实测踩到过）✗。
+ * ★ 返回值是 HTML：调用方必须用 `innerHTML`。
+ */
+export function italicizeSymmetrySymbols(text) {
+  let s = String(text == null ? '' : text)
+  // 下标：C3→C<sub>3</sub>、S4→S<sub>4</sub>、σv/σd/σh→σ<sub>v</sub>…
+  s = s.replace(/([CS])(\d+)/g, '$1<sub>$2</sub>')
+    .replace(/σ([vdh])(?![a-z])/g, 'σ<sub>$1</sub>')
+  // 主字母/σ 斜体：前面不能是字母或 '<'（不动已有标签与词内字母），
+  // 后面可以跟下标/上标/撇号/∞/数字/字母，也可以直接跟标签
+  return s.replace(
+    /(^|[^A-Za-z<])(C|S|D|T|O|I|E|i|σ)(?=[₀-₉ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ′∞A-Za-z0-9²³]|$|<)/g,
+    (_m, pre, sym) => pre + '<i>' + sym + '</i>'
+  )
+}
+
+export function formatSymmetrySymbol(text) {
+  return italicizeSymmetrySymbols(formatBasisFunctions(text == null ? '' : String(text)))
 }
 
 /**

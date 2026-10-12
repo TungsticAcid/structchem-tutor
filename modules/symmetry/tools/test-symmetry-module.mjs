@@ -625,7 +625,7 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
 //   于是清单组头、逐项标签、特征标表类名一起生效。
 // ───────────────────────────────────────────────────────────────────────────
 {
-  const { formatBasisFunctions: F } = await import('../i18n/index.js')
+  const { formatBasisFunctions: F, formatSymmetrySymbol, formatIrrepLabel, formatGroupSymbol } = await import('../i18n/index.js')
   check('σd(1) → σ<sub>d</sub>(1)（甲烷的镜面标签）', F('σd(1)') === 'σ<sub>d</sub>(1)', F('σd(1)'))
   check('组头 σd → σ<sub>d</sub>', F('σd') === 'σ<sub>d</sub>')
   check('ASCII 写法的 σh / σv 同样加下标', F('σh') === 'σ<sub>h</sub>' && F('σv') === 'σ<sub>v</sub>')
@@ -633,6 +633,32 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
     F('σᵥ(xz)') === 'σᵥ(<i>x</i><i>z</i>)', F('σᵥ(xz)'))
   check('原来的 x/y/z 斜体与 Rx 规则不受影响',
     F('x²-y²') === '<i>x</i>²-<i>y</i>²' && F('Rz') === '<i>R</i><sub><i>z</i></sub>')
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 对称元素 / 特征标表里的 Schönflies 记号：主字母斜体、下标正体、坐标斜体
+//
+// ★★ 2026-10-12（用户："对称元素里的 C 需要斜体吗"、"还有特征标表"）：
+//   群符号与不可约表示早就斜体，而**对称元素行**（走 formatBasisFunctions，只管坐标）
+//   与**特征标表列头**（走局部 formatClassSymbol，只管下标）都不是斜体 ✗
+//   ⇒ 同一页里同一个 C 一处斜体一处正体。现在统一走 formatSymmetrySymbol。
+//   ★ 顺序陷阱：这个函数内部第一步会**转义 HTML**，所以下标/斜体标签只能在它之后加 ——
+//     先插 `<sub>` 会被转义成 `&lt;sub&gt;` 直接显示出来（实测踩到过）✗。
+// ───────────────────────────────────────────────────────────────────────────
+{
+  // ★ 每个块自己 import：上面那个块里的 const 出了块就没了（第一版就栽在这里）
+  const { formatSymmetrySymbol: S, formatIrrepLabel, formatGroupSymbol } = await import('../i18n/index.js')
+  check('对称元素：主字母斜体 + 下标正体（C₂ → <i>C</i>₂）', S('C₂') === '<i>C</i>₂' && S('S₄') === '<i>S</i>₄')
+  check('对称元素：σ 斜体、下标正体、括号里坐标斜体',
+    S('σv(xz)') === '<i>σ</i><sub>v</sub>(<i>x</i><i>z</i>)' && S('σᵥ(yz)') === '<i>σ</i>ᵥ(<i>y</i><i>z</i>)')
+  check('特征标表列头：系数正体、主字母斜体、下标正体（8C3 → 8<i>C</i><sub>3</sub>）',
+    S('8C3') === '8<i>C</i><sub>3</sub>' && S('6S4') === '6<i>S</i><sub>4</sub>' && S('6σd') === '6<i>σ</i><sub>d</sub>')
+  check('恒等操作与反演中心斜体（E / i）', S('E') === '<i>E</i>' && S('i') === '<i>i</i>')
+  check('无穷轴不吞 ∞（C∞ → <i>C</i>∞）', S('C∞') === '<i>C</i>∞' && S('D∞h') === '<i>D</i>∞h')
+  check('坐标斜体规则仍然生效（x²-y²）', S('x²-y²') === '<i>x</i>²-<i>y</i>²')
+  check('不会把标签转义掉（不得出现 &lt;sub&gt;）', !/&lt;|&gt;/.test(S('8C3')))
+  check('空下标不再输出空标签（E 这类单字母）',
+    !/<sub><\/sub>/.test(formatIrrepLabel('E')) && !/<sub><\/sub>/.test(formatGroupSymbol('E')))
 }
 
 // ───────────────────────────────────────────────────────────────────────────

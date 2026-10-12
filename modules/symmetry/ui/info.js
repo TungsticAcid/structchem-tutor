@@ -4,18 +4,24 @@
  */
 import { getSymmetryElementColor } from '../data/settings.js'
 import { singleElementName, typeRank, findPrincipal } from '../engine/elementNaming.js'
-import { t, formatGroupSymbol, formatIrrepLabel, formatFormulaU, formatBasisFunctions } from '../i18n/index.js'
+import { t, formatGroupSymbol, formatIrrepLabel, formatFormulaU, formatBasisFunctions, formatSymmetrySymbol } from '../i18n/index.js'
 
 /** 对称元素类型 → 教学说明（组头 tooltip；i18n 提供中英） */
 function typeHint(type) {
   return t('elem.' + type)
 }
 
-/** 特征标表类名/符号 → 带下标的 HTML（C2→C₂、σᵥ、S₄、2C₂′、σᵥ(xz)） */
+/**
+ * 特征标表类名/符号 → 带下标的 HTML（C2→C₂、σᵥ、S₄、2C₂′、σᵥ(xz)）
+ * ★★ 2026-10-12（用户："还有特征标表"）：这里原先只加下标、**不斜体** ✗ ——
+ *   而群符号与不可约表示早就斜体了 ⇒ 同一张表里 C 一处斜体一处正体。
+ *   现在统一走 formatSymmetrySymbol（下标 + 主字母/σ 斜体 + 坐标斜体，**一条规则**）。
+ *   ★ 下标**不能**在这里先插：formatSymmetrySymbol 内部第一步会**转义 HTML**，
+ *     先插的 `<sub>` 会被转义成 `&lt;sub&gt;` 直接显示在界面上（实测踩到过）✗
+ *     —— 下标规则已并入 italicizeSymmetrySymbols，在转义之后执行。
+ */
 function formatClassSymbol(s) {
-  return String(s)
-    .replace(/([CS])(\d+)/g, '$1<sub>$2</sub>')   // C2→C₂、S4→S₄
-    .replace(/σ([vdh])/g, 'σ<sub>$1</sub>')         // σv/σd/σh → σᵥ/σd/σh（下标）
+  return formatSymmetrySymbol(s)
 }
 
 /**
@@ -105,7 +111,8 @@ export function renderInfo(info, callbacks = {}) {
     dot.style.background = getSymmetryElementColor(el.type)
     const lab = document.createElement('span')
     lab.className = 'elem-label'
-    lab.innerHTML = formatBasisFunctions(el.label || singleElementName(el.type))
+    // ★ 对称元素符号：主字母斜体（formatSymmetrySymbol 内含坐标斜体），见其注释
+    lab.innerHTML = formatSymmetrySymbol(el.label || singleElementName(el.type))
     item.append(dot, lab)
     listEl.appendChild(item)
   }
@@ -159,7 +166,7 @@ export function renderInfo(info, callbacks = {}) {
     const nameSpan = document.createElement('span')
     // ★ innerHTML：坐标变量要斜体（σᵥ(yz) → σᵥ(<i>y</i><i>z</i>)）
     //   **不再加 ∞ 前缀**：∞ 只出现在"名字本身含 ∞ 的符号"（C∞ / S∞）与计数列里。
-    nameSpan.innerHTML = formatBasisFunctions(className)
+    nameSpan.innerHTML = formatSymmetrySymbol(className)
     const count = document.createElement('span')
     count.className = 'elem-count'
     /**
@@ -189,7 +196,8 @@ export function renderInfo(info, callbacks = {}) {
       cb.checked = el.defaultVisible !== false
       const lab = document.createElement('span')
       lab.className = 'elem-label'
-      lab.innerHTML = formatBasisFunctions(el.label || singleElementName(el.type))
+      // ★ 对称元素符号：主字母斜体（formatSymmetrySymbol 内含坐标斜体），见其注释
+    lab.innerHTML = formatSymmetrySymbol(el.label || singleElementName(el.type))
       // 播放按钮：仅当前可见（勾选）的行显示，隐藏行预留同尺寸占位
       const play = document.createElement('button')
       play.className = 'elem-play'
