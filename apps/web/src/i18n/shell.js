@@ -98,6 +98,8 @@ export const zh = {
   'shell.practice.chooseBoard': '选择要练习的板块：',
   'shell.practice.board.crystal': '晶典在线 · 晶体结构',
   'shell.practice.board.orbit': '轨道视界 · 原子轨道',
+  /** ★ 用户反馈："这里少了点群在线" —— 点群也有题库了，选板块时必须列出 */
+  'shell.practice.board.symmetry': '点群观鉴 · 分子对称性',
   'shell.practice.boardCrystalTitle': '晶典在线 · 晶体结构 —— 选择要练习的知识点：',
   'shell.practice.noBank': '「点群观鉴」还没有自己的题库（出题要有数值化的判据与错因库，这个板块的数据还在建）'
     + '—— 你可以先直接问我，或去下面两个板块练。',
@@ -191,6 +193,7 @@ export const en = {
   'shell.practice.chooseBoard': 'Choose a module to practise:',
   'shell.practice.board.crystal': 'Crystal Online · crystal structures',
   'shell.practice.board.orbit': 'Orbital Horizon · atomic orbitals',
+  'shell.practice.board.symmetry': 'Point Group Explorer · molecular symmetry',
   'shell.practice.boardCrystalTitle': 'Crystal Online · crystal structures — choose a knowledge point to practise:',
   'shell.practice.noBank': 'Point Group Explorer does not have its own question bank yet (generating questions needs '
     + 'numeric criteria and a misconception library, and that data is still being built) — '

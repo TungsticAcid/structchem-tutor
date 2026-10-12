@@ -1046,9 +1046,11 @@ export function createPanel(cfg = {}) {
      *
      *   ★ 为什么要接到末尾而不是插回原位：面板不记录它们的位置（它们不在树里），
      *     而"留在屏幕上、能继续点"才是学生要的；顺序在最下方不影响阅读。
+     *   ★ 同一套规则也用在**空态刷新**上（见 `domOnlyNodes`）：从门户点「练习 → 某板块」时
+     *     路由挂载会重画空态，而刚开出的知识点选择器正是这种卡片 ——
+     *     不保留就会"跳过去了，但什么也没出现"。
      */
-    const keep = Array.from(msgBox.children).filter((el) =>
-      el.matches('.agent-chip-row') || el.querySelector('.agent-q, .agent-fb, .agent-opt, .agent-goto'))
+    const keep = domOnlyNodes()
 
     msgBox.innerHTML = ''
     const rootFork = forkMap.get('__root__')
@@ -1336,6 +1338,22 @@ export function createPanel(cfg = {}) {
     return addMsg('<span class="agent-chip ' + (cls || '') + '">' + escapeHtml(text) + '</span>', 'chip-row')
   }
 
+  /**
+   * 消息区里"只存在于 DOM、不在对话树里"的节点：题目卡 / 讲评卡 / 知识点选择器 / 提示条。
+   *
+   * ★★ 2026-10-12（用户反馈"这里少了点群在线"时顺带抓到的那条路径）：
+   *   从门户点「练习 → 点群观鉴」时，`goPracticeOn` 先切路由，路由挂载钩子随后
+   *   `renderEmptyState()`；若会话是空的，它会把刚开出的知识点选择器**一起清掉** ——
+   *   学生看到的是"跳过去了，但面板里什么都没有"。
+   *   所以"保留 DOM-only 节点"这条规则必须同时用在**重画**与**空态刷新**上，
+   *   而不是只在其中一条路径里写一遍。
+   */
+  function domOnlyNodes() {
+    if (!msgBox) return []
+    return Array.from(msgBox.children).filter((el) =>
+      el.matches('.agent-chip-row') || el.querySelector('.agent-q, .agent-fb, .agent-opt, .agent-goto, .agent-pick-btn'))
+  }
+
   function renderEmptyState() {
     /**
      * ★★ 2026-10-12（用户第 3 条）：**一轮跑着的时候不许清空消息区**。
@@ -1346,9 +1364,11 @@ export function createPanel(cfg = {}) {
      *   推迟到这一轮收尾再画。
      */
     if (running) { pendingRender = true; return }
+    const keep = domOnlyNodes()          // 卡片/提示条不在树里，见 domOnlyNodes 的说明
     clear(msgBox)
     const g = typeof cfg.greeting === 'function' ? cfg.greeting() : cfg.greeting
     addMsg('<div class="agent-hello">' + (g || '') + '</div>', 'assistant')
+    keep.forEach((el) => msgBox.appendChild(el))
   }
 
   // ---------------------------------------------------------------------------

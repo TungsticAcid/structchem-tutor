@@ -1101,17 +1101,30 @@ function goPracticeOn(boardId) {
 
 /** 门户页：先选板块 */
 function startPracticeBoardChooser() {
+  /**
+   * ★★ 2026-10-12（用户反馈："这里少了点群在线"）：
+   *   选板块的清单必须**跟着各板块的实际能力走** —— 点群观鉴补齐题库之后，
+   *   这里还只列着晶体与轨道两个，学生就无法从门户练点群。
+   *   ⇒ 三个板块都列上，顺序与门户首页的授课顺序一致（轨道 → 点群 → 晶体）。
+   *   ★ 判据写在这里而不是"再加一个布尔量"：能在门户练的板块 = 有题库的板块。
+   */
+  const boards = ['orbit', 'symmetry', 'crystal']
   const el = panel.addCard(
     '<div class="agent-picker">'
     + '<div style="font-size:12px;color:var(--text-dim,#9aa7c6)">' + t('shell.practice.chooseBoard') + '</div>'
-    + '<button type="button" class="agent-pick-btn" data-board="crystal">' + t('shell.practice.board.crystal') + '</button>'
-    + '<button type="button" class="agent-pick-btn" data-board="orbit">' + t('shell.practice.board.orbit') + '</button>'
+    + boards.map((id) => '<button type="button" class="agent-pick-btn" data-board="' + id + '">'
+      + t('shell.practice.board.' + id) + '</button>').join('')
     + '</div>',
     'assistant'
   )
   el.querySelectorAll('.agent-pick-btn').forEach((b) => {
     b.addEventListener('click', () => {
       el.querySelectorAll('.agent-pick-btn').forEach((x) => { x.disabled = true })
+      /**
+       * ★ 选完就把这张"选板块"卡**撤掉**：接着出现的是该板块的知识点清单，
+       *   两张清单叠在一起（一张已禁用）会让学生以为"还要再选一次板块"。
+       */
+      el.remove()
       goPracticeOn(b.dataset.board)
     })
   })
@@ -1137,8 +1150,9 @@ function startSymmetryPractice() {
 }
 
 /**
- * 点群观鉴：**没有题库就如实说**，并给出两条真能走的路。
- * ★ 2026-10-12 起点群已有题库（`startSymmetryPractice`），这条只在题库启动失败时用。
+ * 点群观鉴：**题库启动失败时**的兜底说明。
+ * ★ 2026-10-12 起点群已有题库（`startSymmetryPractice`），这条只在引擎没就绪时用；
+ *   它给的两条去路也按"有题库的板块"列（点群自己不在里面 —— 正是它失败了）。
  */
 function startPracticeNote() {
   const el = panel.addCard(
