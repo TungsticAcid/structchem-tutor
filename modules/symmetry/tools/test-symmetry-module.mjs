@@ -616,6 +616,25 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
     !!dce && f(dce.title).includes('<i>E</i>'), dce && dce.title)
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// σ 的下标（用户："d需要下标"）
+//
+// ★ Unicode 里**没有下标 d**（只有 ᵥ ₕ 这类），所以 σd 只能用 <sub>；
+//   而引擎给 σᵥ 的已经是 Unicode 下标字符 —— 两条路径都要正确、且不能互相干扰。
+// ★ 规则放在 `formatBasisFunctions`（对称符号/基函数的唯一格式化入口），
+//   于是清单组头、逐项标签、特征标表类名一起生效。
+// ───────────────────────────────────────────────────────────────────────────
+{
+  const { formatBasisFunctions: F } = await import('../i18n/index.js')
+  check('σd(1) → σ<sub>d</sub>(1)（甲烷的镜面标签）', F('σd(1)') === 'σ<sub>d</sub>(1)', F('σd(1)'))
+  check('组头 σd → σ<sub>d</sub>', F('σd') === 'σ<sub>d</sub>')
+  check('ASCII 写法的 σh / σv 同样加下标', F('σh') === 'σ<sub>h</sub>' && F('σv') === 'σ<sub>v</sub>')
+  check('已是 Unicode 下标的 σᵥ 不被重复处理',
+    F('σᵥ(xz)') === 'σᵥ(<i>x</i><i>z</i>)', F('σᵥ(xz)'))
+  check('原来的 x/y/z 斜体与 Rx 规则不受影响',
+    F('x²-y²') === '<i>x</i>²-<i>y</i>²' && F('Rz') === '<i>R</i><sub><i>z</i></sub>')
+}
+
 console.log(`\n通过 ${pass}/${pass + fail}`)
 if (BREAK && fail === 0) {
   console.error('⚠ 造红模式下竟然全过——说明断言没有真的在检查')

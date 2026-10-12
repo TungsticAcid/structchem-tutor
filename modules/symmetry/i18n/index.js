@@ -716,6 +716,15 @@ export function formatBasisFunctions(s) {
   const subs = []
   let t = esc.replace(/R([xyz])/g, (_, c) => { subs.push(c); return '\u0000' + (subs.length - 1) + '\u0000' })
   t = t.replace(/([xyz])/g, '<i>$1</i>')
+  /**
+   * ★★ σ 的下标（用户："d需要下标"）：清单里 σd 的 `d` 应当是**下标** σ_d。
+   *   · σᵥ / σₕ 引擎给的是 **Unicode 下标字符**（ᵥ ₕ），本来就对，不会再匹配 ASCII [vdh]；
+   *   · 而 **Unicode 里没有下标 d**（只有 ₐ ₑ ₕ ᵢ ⱼ ₖ ₗ ₘ ₙ ₒ ₚ ᵣ ₛ ₜ ᵤ ᵥ ₓ），
+   *     所以 σd 只能用 `<sub>` —— 这也是"水的 σᵥ 对、甲烷的 σd 不对"的原因。
+   *   放在这里而不是各调用点：本函数是对称符号/基函数的**唯一**格式化入口
+   *   （见它的说明），清单组头、逐项标签、特征标表类名都走它。
+   */
+  t = t.replace(/σ([vdh])/g, 'σ<sub>$1</sub>')
   return t.replace(/\u0000(\d+)\u0000/g, (_, i) => '<i>R</i><sub><i>' + subs[+i] + '</i></sub>')
 }
 
