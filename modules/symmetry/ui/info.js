@@ -19,43 +19,34 @@ function formatClassSymbol(s) {
 }
 
 /**
- * 该元素类型是否属于**无限族**（同一类有无数个）。
+ * 这一**族**元素是不是**无穷多个**（只管"个数"，与"阶"无关）。
  *
- * ★ C∞ / S∞ 本身就带 `order: Infinity`；σᵥ 不带，但**在线性分子里**（清单含 C∞）
- *   它的同伴是无穷多个 —— 只写一个代表面是生成器的表达限制，不是分子的事实。
- *   ∞C₂′ 同理（D∞h 里类型也是 'C2'，同样要靠"清单里有没有 C∞"来判断）。
- *
- * ★ 单看**类型名**是不够的：`sigma_v` 这个类型**线型分子与 Cₙᵥ 都在用**
- *   （C₃ᵥ 的 3 个镜面也是竖直面 σᵥ）——所以判据里必须带上 `elements`，
- *   用"清单里有没有 C∞"区分线型与非线型。下面的 `infinitePrefixOf` 就是这条约定。
- * ★ 这两个函数**必须是顶层导出**：它们原先写在 `renderInfo` 体内，我只是给它们加了
- *   `export` —— 于是 `export` 出现在函数体里，整份文件直接**解析失败**（页面起不来）。
- *   教训：给"嵌套函数"加导出之前，先把它提到顶层。
+ * ★★ 2026-10-12（用户问「∞C₂×∞ 是啥意思」）——
+ *   那句话确实读不通：名字与计数**各说了一遍 ∞**，而且混了两种不同的 ∞：
+ *     · `C∞` / `S∞` 里的 ∞ 说的是**阶**（绕它转任意角度都是对称操作）⇒ **只有一根**；
+ *     · 而 σᵥ / C₂′ 在 C∞v / D∞h 里是**真的有无穷多根**。
+ *   所以这里把判据收紧成"**只有个数**"这一件事：
+ *     · 线型群里 σᵥ 有无穷多个（任一含分子轴的平面都是）⇒ true
+ *     · D∞h 里垂直主轴的 C₂ 亦然 ⇒ true
+ *     · **C∞ / S∞ 返回 false**（它们是"阶无穷的一根轴"，不是"无穷多根轴"）
+ *     · σh 与 i 在 D∞h 里**各只有一个** ⇒ false（把它们算成无限是另一种内容错误）
+ *   ★ 只跟"个数"有关，所以清单里**不再**给名字加 `∞` 前缀（那是把"个数"塞进名字，
+ *     与计数列重复）；特征标表的写法 `∞σᵥ / ∞C₂` 改由组头 tooltip 交代，
+ *     两处口径仍然对得上，学生不会以为矛盾。
  */
-export function isInfiniteElement(type, elements) {
-  if (type === 'C∞' || type === 'S∞') return true
+export function isInfiniteFamily(type, elements) {
   const linear = (elements || []).some((e) => e && e.type === 'C∞')
   if (!linear) return false
-  // ★ 只到这三类为止：σh（垂直镜面）与 i（对称中心）在 D∞h 里**各只有一个**，
-  //   把它们也算成无限是另一种内容错误。
   return type === 'sigma_v' || type === 'C2'
 }
 
 /**
- * 组名前面要不要加 `∞` 前缀（∞σᵥ / ∞C₂′）。
- *
- * ★★ 2026-10-12（用户贴图报"氨分子这里显示有问题"）：
- *   氨是 **C₃ᵥ**，只有 **3 个** σᵥ，清单却写成「**∞**σᵥ ×3」—— 自相矛盾
- *   （∞ 与 ×3 同时出现），而且把"有限个"讲成了"无穷多个"✗。
- *   真因：加前缀的判据写成了 `g.type === 'sigma_v' || …`，**唯独 σᵥ 这一支漏了
- *   `isInfiniteElement` 判断** —— 而 `sigma_v` 这个类型是 Cₙᵥ 与线型分子**共用**的
- *   （C₃ᵥ 的三个镜面正是竖直面），于是所有 Cₙᵥ 的 σᵥ 都被加上 ∞。
- *   ⇒ 前缀与计数必须用**同一条**判据（`isInfiniteElement`），也就是"这个族到底有没有无穷多个"。
- * ★ 名字里已经写着 ∞ 的（C∞ / S∞）不再加前缀，否则成了「∞C∞」叠字。
+ * 特征标表 / 教科书里对"无穷多"的写法（tooltip 用）：σᵥ → ∞σᵥ，C₂′ → ∞C₂′。
+ * 只有真正无穷多的族才有这个写法；C∞ / S∞ 本身就是符号，不在此列。
  */
-export function infinitePrefixOf(type, elements) {
-  if (type === 'C∞' || type === 'S∞') return ''
-  return isInfiniteElement(type, elements) ? '∞' : ''
+export function infiniteFamilyNotation(type, elements) {
+  if (!isInfiniteFamily(type, elements)) return ''
+  return type === 'sigma_v' ? '∞σᵥ' : '∞C₂′'
 }
 
 /**
@@ -124,34 +115,42 @@ export function renderInfo(info, callbacks = {}) {
   for (const className of order) {
     const g = groupMap.get(className)
     const color = getSymmetryElementColor(g.type)
+    /**
+     * 这一族是不是**无穷多个**（只管个数，见 `isInfiniteFamily` 的说明）。
+     * ★ 名字与计数**只用这一条判据**，且**各说一件事**：
+     *   名字里的 ∞ 只能是符号本身（C∞ / S∞ 的"阶无穷"）；
+     *   计数列的 ∞ 只表示"个数无穷多"。
+     *   原先两处都写 ∞ ⇒ 出现「∞C₂ ×∞」这种读不通的行（用户问"这是啥意思"）。
+     */
+    const infFamily = isInfiniteFamily(g.type, elements)
 
     // 组头（点击折叠/展开）
     const header = document.createElement('div')
     header.className = 'elem-group-header'
-    header.title = typeHint(g.type)
+    // tooltip：常规类型说明 + （无穷多时）特征标表里的写法 —— 两处口径对得上
+    const notation = infiniteFamilyNotation(g.type, elements)
+    header.title = notation
+      ? typeHint(g.type) + ' ' + t('elem.infFamilyHint', { notation })
+      : typeHint(g.type)
     const dot = document.createElement('span')
     dot.className = 'elem-dot'
     dot.style.background = color
     const nameSpan = document.createElement('span')
     // ★ innerHTML：坐标变量要斜体（σᵥ(yz) → σᵥ(<i>y</i><i>z</i>)）
-    // ★ 无限族加前缀 ∞（∞σᵥ / ∞C₂ / ∞C∞）：与特征标表表头的写法一致，
-    //   也把"这一族有无数个"直接写进名字里 —— 光靠 `×∞` 那个角标容易被看漏。
-    // ★★ 前缀与计数**同一条判据**（infinitePrefixOf 内部就是 isInfiniteElement）：
-    //   原先这一支漏判，于是 C₃ᵥ 的 3 个 σᵥ 被写成「∞σᵥ ×3」（用户报"氨分子显示有问题"）。
-    nameSpan.innerHTML = formatBasisFunctions(
-      infinitePrefixOf(g.type, elements) + className)
+    //   **不再加 ∞ 前缀**：∞ 只出现在"名字本身含 ∞ 的符号"（C∞ / S∞）与计数列里。
+    nameSpan.innerHTML = formatBasisFunctions(className)
     const count = document.createElement('span')
     count.className = 'elem-count'
     /**
-     * ★★ 无限族的计数不能写 `×1`（用户报「C∞v 群……还是有问题」）。
-     *
-     *   C∞v 里的 σᵥ 有**无穷多个**（任一含轴的平面都是），C∞ 是**任意角度**的旋转；
-     *   D∞h 还多 ∞C₂′ 与 S∞。而生成器只能给出**一个代表**（有限代表集，见
-     *   `linearSymmetryElements`），于是清单显示成「σᵥ ×1」 ——
-     *   学生会据此以为 C∞v 只有一个镜面，那是**内容错误**，不是排版问题。
-     *   判据：元素类型属于无限族时，计数写 `∞`。
+     * 计数列的两种含义必须分清（用户问「∞C₂×∞ 是啥意思」时查出来的）：
+     *   · `×∞` —— 这一族**有无穷多个**（C∞v 的 σᵥ、D∞h 的 C₂′）；
+     *   · `×1`  —— **一根**（C∞、S∞ 就是各一根：它们的 ∞ 是**阶**，不是个数）。
+     *   ★ 原先 `isInfiniteElement('C∞')` 也返回 true ⇒ 显示「C∞ ×∞」，
+     *     那是把"阶无穷"当成了"无穷多根"，属于**内容错误**（C∞v 只有一根分子轴）。
+     * ★★ 也不能写成 `×1` 的那一类（早先的缺陷）：C∞v 的 σᵥ 有无穷多个，
+     *   而生成器只给一个代表面 ⇒ 学生会以为只有一个镜面。
      */
-    count.textContent = isInfiniteElement(g.type, elements) ? '×∞' : `×${g.count}`
+    count.textContent = infFamily ? '×∞' : `×${g.count}`
     const arrow = document.createElement('span')
     arrow.className = 'elem-arrow'
     arrow.textContent = '▸'

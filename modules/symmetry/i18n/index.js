@@ -58,8 +58,7 @@ export const MESSAGES = {
     // ★ 用户第 7 条：点群观鉴的练习套用轨道的流程 —— 知识点选择 → 讲解（LLM）→
     //   出题卡（4 选项）→ 本地判定 → 讲评 → 追问。这里放这套流程与题目的全部文案。
     // ★ 答案一律由引擎算（见 core/question-engine.js 顶部），文案只负责"怎么问"。
-    'symmetry.kp.P1': '对称操作与对称元素',
-    'symmetry.kp.P2': '点群判定与群阶',
+    'symmetry.kp.P1': '对称操作与对称元素',    'symmetry.kp.P2': '点群判定与群阶',
     'symmetry.kp.P3': '群表示与特征标表',
     'symmetry.kp.P4': '红外 / 拉曼活性与互斥规则',
     'symmetry.kp.P5': '空间群与晶体对称',
@@ -155,8 +154,17 @@ export const MESSAGES = {
     'elem.C2': '二重旋转轴', 'elem.C3': '三重旋转轴', 'elem.C4': '四重旋转轴',
     'elem.C5': '五重旋转轴', 'elem.C6': '六重旋转轴', 'elem.C∞': '分子主轴（无限阶）',
     'elem.S4': '四重旋反轴', 'elem.S5': '五重旋反轴', 'elem.S6': '六重旋反轴', 'elem.S8': '八重旋反轴',
+    // ★ 这三个原先漏了：UI 上会直接露出 `elem.S∞` 这种**原始键**
+    //   （实机在 CO₂ 的 S∞ 行 tooltip 里抓到）。缺键不会报错、只会显示键名，所以三种都补齐。
+    'elem.S3': '三重旋反轴', 'elem.S10': '十重旋反轴', 'elem.S∞': '无穷阶旋反轴',
     'elem.sigma': '对称面', 'elem.sigma_v': '竖直对称面', 'elem.sigma_d': '对角对称面', 'elem.sigma_h': '水平对称面',
-    'elem.i': '反演中心', 'elem.E': '恒等元素'
+    'elem.i': '反演中心', 'elem.E': '恒等元素',
+    /**
+     * 无穷多族的 tooltip 补充（见 ui/info.js 的 isInfiniteFamily）。
+     * ★ 清单里**不再给名字加 ∞ 前缀**（那样会与计数列重复成「∞C₂ ×∞」，
+     *   用户问"这是啥意思"）；特征标表/教科书的写法改在这里交代，两处口径对得上。
+     */
+    'elem.infFamilyHint': '（这一类有无穷多个，特征标表里写作 {notation}）',
   },
   en: {
     brand: 'Point Group Explorer',
@@ -287,8 +295,12 @@ export const MESSAGES = {
     'elem.C5': 'fivefold rotation axis', 'elem.C6': 'sixfold rotation axis', 'elem.C∞': 'principal axis (infinite order)',
     'elem.S4': 'fourfold improper rotation axis', 'elem.S5': 'fivefold improper rotation axis',
     'elem.S6': 'sixfold improper rotation axis', 'elem.S8': 'eightfold improper rotation axis',
+    // ★ 同 zh 侧：这三个原先漏了，UI 会露出原始键 `elem.S∞`
+    'elem.S3': 'threefold improper rotation axis', 'elem.S10': 'tenfold improper rotation axis',
+    'elem.S∞': 'improper rotation axis (infinite order)',
     'elem.sigma': 'mirror plane', 'elem.sigma_v': 'vertical mirror plane', 'elem.sigma_d': 'dihedral mirror plane', 'elem.sigma_h': 'horizontal mirror plane',
-    'elem.i': 'inversion center', 'elem.E': 'identity element'
+    'elem.i': 'inversion center', 'elem.E': 'identity element',
+    'elem.infFamilyHint': ' (there are infinitely many of these; character tables write them {notation})',
   }
 }
 

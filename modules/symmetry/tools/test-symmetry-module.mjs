@@ -509,10 +509,15 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
 //   还把"有限个"讲成了"无穷多个"。真因：加前缀那一支写成 `g.type === 'sigma_v'`
 //   而漏了 `isInfiniteElement` 判断 —— 可 `sigma_v` 这个类型是 **Cₙᵥ 与线型分子共用**的
 //   （C₃ᵥ 的三个镜面正是竖直面）⇒ 所有 Cₙᵥ 的 σᵥ 都被加上 ∞。
-//   守卫就用这条**通用不变量**：**群符号里没有 ∞ 的群，任何元素都不许带 ∞**。
+//   守卫就用这两条**通用不变量**：
+//     ① 群符号里没有 ∞ 的群，任何元素的**个数**都不是无穷（计数列不出现 ×∞）；
+//     ② 名字里的 ∞ 只能是符号本身（C∞ / S∞ 的"阶无穷"）—— 不许把"个数"塞进名字，
+//        否则会出现「∞C₂ ×∞」这种读不通的行（用户问"这是啥意思"）。
+//   第二轮的更正（同一处）：`C∞` / `S∞` 是**一根**无穷阶轴 ⇒ 计数必须是 ×1，
+//   原先 `isInfiniteElement('C∞') === true` 把它们写成了「C∞ ×∞」（把"阶"当"个数"）。
 // ───────────────────────────────────────────────────────────────────────────
 {
-  const { isInfiniteElement, infinitePrefixOf } = await import('../ui/info.js')
+  const { isInfiniteFamily, infiniteFamilyNotation } = await import('../ui/info.js')
   const probe = createModule({ initialId: 'water' })
   const finiteBad = []
   const linearBad = []
@@ -523,33 +528,71 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
     const symbol = String(snap.pointGroup || '')
     const linear = symbol.includes('∞')   // C∞v / D∞h
     for (const ty of new Set(els.map((e) => e.type))) {
-      const inf = isInfiniteElement(ty, els)
-      if (!linear && inf) finiteBad.push(`${ex.id}(${symbol}).${ty}`)
-      if (!linear && infinitePrefixOf(ty, els) !== '') finiteBad.push(`前缀 ${ex.id}({symbol}).${ty}`)
+      if (!linear && isInfiniteFamily(ty, els)) finiteBad.push(`${ex.id}(${symbol}).${ty}`)
+      // 名字里的 ∞ 只能是符号本身的 C∞ / S∞；其余类型都不许带 ∞ 记号
+      if (ty !== 'C∞' && ty !== 'S∞' && infiniteFamilyNotation(ty, els).includes('∞') && !linear) {
+        finiteBad.push(`记号 ${ex.id}(${symbol}).${ty}`)
+      }
     }
     if (linear) {
       for (const ty of ['sigma_v', 'C2']) {
-        if (els.some((e) => e.type === ty) && infinitePrefixOf(ty, els) !== '∞') {
-          linearBad.push(`${ex.id}(${symbol}).${ty}`)
+        if (els.some((e) => e.type === ty) && !isInfiniteFamily(ty, els)) {
+          linearBad.push(`${ex.id}(${symbol}).${ty} 应为无穷多`)
+        }
+      }
+      // ★ C∞ / S∞：一根无穷**阶**的轴 ⇒ 不是无穷多根
+      for (const ty of ['C∞', 'S∞']) {
+        if (els.some((e) => e.type === ty) && isInfiniteFamily(ty, els)) {
+          linearBad.push(`${ex.id}(${symbol}).${ty} 被当成了"无穷多根"`)
         }
       }
     }
   }
-  check('有限群里任何元素都不带 ∞（含 C₃ᵥ 的 σᵥ）', finiteBad.length === 0, finiteBad.slice(0, 5).join(', '))
-  check('线型群（C∞v/D∞h）里 σᵥ 与 C₂′ 仍带 ∞', linearBad.length === 0, linearBad.slice(0, 5).join(', '))
+  check('有限群里任何元素都不是"无穷多个"（含 C₃ᵥ 的 σᵥ）', finiteBad.length === 0, finiteBad.slice(0, 5).join(', '))
+  check('线型群里 σᵥ / C₂′ 是无穷多、C∞ / S∞ 是"一根"', linearBad.length === 0, linearBad.slice(0, 5).join(', '))
 
   // 直接钉住用户那条：氨 = C3v，σᵥ 三个、不许有 ∞
   probe.facade.applyActions([{ action: 'loadExample', params: { id: 'ammonia' } }])
   const nh3 = probe.facade.listSymmetryElements()
   const nh3Sigma = nh3.filter((e) => e.type === 'sigma_v')
   check('氨的 σᵥ 个数是 3（有限个）', nh3Sigma.length === 3, String(nh3Sigma.length))
-  check('氨的 σᵥ 不带 ∞ 前缀', infinitePrefixOf('sigma_v', nh3) === '')
-  check('氨的 σᵥ 计数是 ×3 而不是 ×∞', !isInfiniteElement('sigma_v', nh3))
-  // 名字里已有 ∞ 的（C∞ / S∞）不加前缀，避免「∞C∞」叠字
+  check('氨的 σᵥ 计数是 ×3 而不是 ×∞', !isInfiniteFamily('sigma_v', nh3))
+  check('氨里没有任何"无穷多"的族', nh3.every((e) => !isInfiniteFamily(e.type, nh3)))
+
+  // 线型群：σᵥ 记 ×∞ 并给出特征标表写法；C∞ / S∞ 记 ×1 且不给 ∞ 记号
   probe.facade.applyActions([{ action: 'loadExample', params: { id: 'co2' } }])
   const co2 = probe.facade.listSymmetryElements()
-  check('C∞ 自身不再叠一个 ∞ 前缀', infinitePrefixOf('C∞', co2) === '')
-  check('D∞h 的 C₂′ 仍带 ∞ 前缀', infinitePrefixOf('C2', co2) === '∞')
+  check('D∞h 的 C₂′ 是无穷多（计数 ×∞）', isInfiniteFamily('C2', co2))
+  check('D∞h 的 σᵥ 是无穷多（计数 ×∞）', isInfiniteFamily('sigma_v', co2))
+  check('C∞ 是"一根"（计数 ×1，不是 ×∞）', !isInfiniteFamily('C∞', co2))
+  check('S∞ 是"一根"（计数 ×1，不是 ×∞）', !isInfiniteFamily('S∞', co2))
+  check('σh 与 i 在 D∞h 里各只有一个（不算无穷多）',
+    !isInfiniteFamily('sigma_h', co2) && !isInfiniteFamily('i', co2))
+  check('特征标表写法：σᵥ → ∞σᵥ、C₂ → ∞C₂′、C∞ → 无（符号自带 ∞）',
+    infiniteFamilyNotation('sigma_v', co2) === '∞σᵥ'
+    && infiniteFamilyNotation('C2', co2) === '∞C₂′'
+    && infiniteFamilyNotation('C∞', co2) === '')
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 每个对称元素类型都要有 `elem.*` 译文（缺键不会报错，只会在界面上露出原始键）
+//
+// ★ 实机在 CO₂ 的 S∞ 行 tooltip 里抓到 `elem.S∞` —— 因为缺键时 `t()` 原样返回键名。
+//   这类"漏一个键"靠 check-i18n 抓不到（键是**拼**出来的，不是字面量），只能在这里守。
+// ───────────────────────────────────────────────────────────────────────────
+{
+  const { t: symT } = await import('../i18n/index.js')
+  const probe = createModule({ initialId: 'water' })
+  const missing = []
+  for (const ex of EXAMPLES) {
+    probe.facade.applyActions([{ action: 'loadExample', params: { id: ex.id } }])
+    for (const e of probe.facade.listSymmetryElements()) {
+      if (symT('elem.' + e.type) === 'elem.' + e.type) missing.push(`${ex.id}:${e.type}`)
+    }
+  }
+  check('所有出现过的对称元素类型都有 elem.* 译文（不缺键）',
+    missing.length === 0, [...new Set(missing)].slice(0, 6).join(', '))
+  check('S∞（D∞h 里出现）有译文', symT('elem.S∞') !== 'elem.S∞')
 }
 
 console.log(`\n通过 ${pass}/${pass + fail}`)
