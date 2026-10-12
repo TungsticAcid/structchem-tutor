@@ -217,6 +217,12 @@ export class ViewerPage {
       this._layerControl.unmount()
       this._layerControl = null
     }
+    // ★ 面板观察器与"画布让位"一起收掉：页面可反复挂载，不摘会累积（同上面那两处监听）
+    if (this._panelObserver) {
+      try { this._panelObserver.disconnect() } catch (e) { /* 忽略 */ }
+      this._panelObserver = null
+    }
+    this._applyPanelInset = null
     if (this._popup) {
       this._popup.unmount()
       this._popup = null
@@ -382,6 +388,39 @@ export class ViewerPage {
   _initLayerControl() {
     const panel = this._container?.querySelector('#layerControlPanel')
     if (!panel) return
+    /**
+     * ★★ 2026-10-12（用户要求）：**控制面板收起/展开时，结构的中心要保持在剩余空白画布的中心**
+     *   —— 与"智能体窗口开合时各板块让位"是同一件事。
+     *
+     *   原先的布局：`.viewer-canvas` 是 `inset:0`（铺满整屏），而底部控制面板
+     *   `position:absolute; bottom:0` **盖在画布上** ⇒ 相机把结构居中于**整屏**，
+     *   展开面板后学生看到的结构就偏在上半部分（被盖住的其实是"下半张画布"）。
+     *
+     *   改法：把画布区域的**下边界抬到面板之上**（`bottom = 面板高度`），
+     *   剩下的事交给已有的 ResizeObserver —— 画布尺寸一变，相机宽高比与投影矩阵跟着更新，
+     *   结构自然居中在"剩余可见区"里（与智能体抽屉让位走的是同一条机制）。
+     *   ★ 用 ResizeObserver 盯**面板**而不是监听某个按钮：面板高度会因折行、语言、内容增减而变，
+     *     盯按钮只能覆盖"用户点了收起"这一种情形。
+     */
+    this._applyPanelInset = () => {
+      const cv = this._container?.querySelector('.viewer-canvas')
+      if (!cv) return
+      const h = Math.max(0, Math.round(panel.getBoundingClientRect().height))
+      if (h > 0) {
+        // 面板可见：画布止于面板上沿。★ 必须把 CSS 里的 height:100% 让开，
+        //   否则 height 会压过 bottom（绝对定位里两者同时存在时 height 优先）。
+        cv.style.height = 'auto'
+        cv.style.bottom = h + 'px'
+      } else {
+        cv.style.height = ''
+        cv.style.bottom = ''
+      }
+    }
+    if (typeof ResizeObserver === 'function') {
+      this._panelObserver = new ResizeObserver(() => this._applyPanelInset())
+      this._panelObserver.observe(panel)
+    }
+    this._applyPanelInset()
     this._layerControl = new LayerControl({
       container: panel,
       props: this._getLayerControlProps(),
