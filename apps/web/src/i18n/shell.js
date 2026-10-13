@@ -88,7 +88,19 @@ export const zh = {
      */
     + '★ 给学生的正文里**不要**出现内部出处：工具名（如 queryPointGroup）、'
     + '知识条目 id（如 symmetry:P2-3）、快照字段名。要交代依据就用**学科语言**'
-    + '（"按点群判定规则""由结构算出"）；内部 id 是给程序与审核看的，不进正文。',
+    + '（"按点群判定规则""由结构算出"）；内部 id 是给程序与审核看的，不进正文。'
+    /**
+     * ★★ 2026-10-14（用户质疑："把元素全部隐去就只剩 1 个对称元素"？）：
+     *   那句话是模型现场说的（全仓源码里 0 命中 ⇒ 不是预置脚本、也不在知识库），
+     *   而它**自相矛盾** ✗：本应用里"元素"一律指**对称元素**，把对称元素全隐去就什么都不剩了。
+     *   模型想说的是"画面上只画出 1 个对称元素、而群阶是 2"（H₂O₂ 是 C₂：1 个元素 / 2 个操作 ✓）。
+     *   ⇒ 钉住术语：**"元素"只指对称元素，"原子"才指原子**；讲"操作数≠元素数"时说清
+     *     "E 也是操作、但 E 不占任何对称元素"。
+     */
+    + '★ 术语要一致：本应用里**"元素"一律指对称元素**，**"原子"**才指原子。'
+    + '讲"操作数 ≠ 元素数"时别写成"把元素全部隐去…"（隐去对称元素就什么都不剩，句子自相矛盾）；'
+    + '要说"画面上只画出 **1 个**对称元素（那根 C₂ 轴），而它的群阶是 **2** —— '
+    + '因为 E 也是一个操作，而 E 不占任何对称元素"。',
   'shell.prompt.roleCrystal': '涉及配位数、空隙数、晶胞参数、密度等一切数值，必须用 queryCrystal 取得，不要口算。',
   'shell.prompt.roleOrbit': '节面数、径向峰位、能级、简并度等一切数值必须用 queryOrbital 取得，不要凭记忆或口算。',
   'shell.prompt.roleSymmetry': '点群符号与对称元素清单一律用 queryPointGroup 取得；晶体示例走空间群（同一条命令）。',
@@ -214,7 +226,13 @@ export const en = {
     + '★ Never put internal provenance into student-facing text: no tool names (queryPointGroup), no '
     + 'knowledge-entry ids (symmetry:P2-3), no snapshot field names. To justify a claim, use subject '
     + 'language ("by the point-group rules", "computed from the structure"): those ids are for the '
-    + 'programme and for review, not for the student.',
+    + 'programme and for review, not for the student. '
+    + '★ Keep the terminology straight: in this app **“元素” always means a symmetry element**; an atom '
+    + 'is **“原子”**. When contrasting the number of operations with the number of elements, never write '
+    + '“hide all the elements and only one element is left” (hiding the symmetry elements leaves nothing — '
+    + 'the sentence contradicts itself). Say instead: “only **one** symmetry element is drawn (the C₂ '
+    + 'axis), yet the group order is **2** — because E is an operation too, and E occupies no symmetry '
+    + 'element.”',
   'shell.prompt.roleCrystal': 'For any number — coordination number, void count, cell parameters, density — '
     + 'obtain it with queryCrystal. Never compute or recall it yourself.',
   'shell.prompt.roleOrbit': 'For any number — node count, radial peak positions, energy levels, degeneracy — '

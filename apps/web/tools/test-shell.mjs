@@ -537,6 +537,11 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     const shellSrc2 = readFileSync(resolve(REPO, 'apps/web/src/i18n/shell.js'), 'utf8')
     ok(shellSrc2.includes('给学生的正文里**不要**出现内部出处'), '中文角色提示要有"内部出处不进学生正文"这条')
     ok(shellSrc2.includes('Never put internal provenance into student-facing text'), '英文角色提示要有同一条')
+    // ★★ 2026-10-14（用户质疑："把元素全部隐去就只剩 1 个对称元素"？）：
+    //   那句话是模型现场说的（源码 0 命中 ⇒ 不是预置脚本、不在知识库），且**自相矛盾** ——
+    //   本应用里"元素"指对称元素，隐去它们就什么都不剩。术语纪律必须钉在提示词里（中英各一份）。
+    ok(shellSrc2.includes('"元素"一律指对称元素'), '中文角色提示要钉住"元素=对称元素"这条术语')
+    ok(shellSrc2.includes('“元素” always means a symmetry element'), '英文角色提示要有同一条术语纪律')
   }
   // ★★ 2026-10-12（用户："对比模式点击原子，没触发原子信息弹窗，反而使得鼠标一动晶体就跟着旋转"）：
   //   ① 对比页不许再用宿主里并不存在的 window.wx（它一抛异常就把画布的拖拽状态卡死）；
