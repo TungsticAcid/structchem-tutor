@@ -96,7 +96,7 @@ export const P4_ENTRIES = [
     id: 'symmetry:P4-3',
     kp: 'symmetry:P4',
     title: '互斥规则：有反演中心时红外与拉曼互不相容',
-    keywords: ['互斥规则', 'rule of mutual exclusion', '反演中心', 'i', '对照'],
+    keywords: ['互斥规则', 'rule of mutual exclusion', '反演中心', 'i', '对照', '乙烯', 'CO₂'],
     source: '[教材] 分子对称性章 · 互斥规则；[Cotton] 群论在化学中的应用 · 互斥规则',
     body: [
       '**互斥规则**：若分子**有反演中心 i**，则它的振动模式**不可能同时**是红外活性和拉曼活性——',
@@ -140,7 +140,7 @@ export const P4_ENTRIES = [
     id: 'symmetry:P4-4',
     kp: 'symmetry:P4',
     title: '手性判据：没有非真旋转就有手性',
-    keywords: ['手性', 'chirality', 'S_n', '非真旋转', '旋光', '对映体'],
+    keywords: ['手性', 'chirality', 'S_n', '非真旋转', '旋光', '对映体', '内消旋酒石酸', 'C₆₀'],
     source: '[教材] 分子对称性章 · 手性；[Cotton] 群论在化学中的应用 · 手性与对称性',
     body: [
       '**判据**：分子**有手性**（能与它的镜像不重合）',
@@ -186,7 +186,7 @@ export const P4_ENTRIES = [
     id: 'symmetry:P4-5',
     kp: 'symmetry:P4',
     title: '偶极矩判据：只有少数几个群能有永久偶极矩',
-    keywords: ['偶极矩', 'dipole', 'Cnv', 'Cs', '极性', '判据'],
+    keywords: ['偶极矩', 'dipole', 'Cnv', 'Cs', '极性', '判据', 'CH₄', 'NH₃', 'H₂O', 'CO₂', 'BF₃'],
     source: '[教材] 分子对称性章 · 偶极矩与对称性；[Cotton] 群论在化学中的应用 · 偶极矩',
     body: [
       '**判据**：一个分子**可能有**永久偶极矩，当且仅当它的点群属于',
@@ -231,7 +231,7 @@ export const P4_ENTRIES = [
     id: 'symmetry:P4-6',
     kp: 'symmetry:P4',
     title: '振动模式的数目、简并与光谱能看到的峰',
-    keywords: ['振动模式数', '3N-6', '3N-5', '简并', '峰数', '多重度'],
+    keywords: ['振动模式数', '3N-6', '3N-5', '简并', '峰数', '多重度', 'H₂O', 'CO₂'],
     source: '[教材] 分子对称性章 · 振动光谱；[Cotton] 群论在化学中的应用 · 振动的对称性',
     body: [
       '**三个不同的"数"，不要混为一谈**：',

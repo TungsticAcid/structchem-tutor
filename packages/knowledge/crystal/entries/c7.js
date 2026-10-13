@@ -86,7 +86,7 @@ export const C7_ENTRIES = [
     id: 'crystal:C7-3',
     kp: 'crystal:C7',
     title: '★ 由晶胞参数算密度：Z 到底指什么',
-    keywords: ['密度', 'Z', '化学式单位数', '经典易错', '摩尔质量'],
+    keywords: ['密度', 'Z', '化学式单位数', '经典易错', '摩尔质量', 'NaCl'],
     source: '[教材] 晶体结构章 · 晶胞参数的用途；[设计] 出题引擎技术设计 §2.4',
     body: [
       '密度公式是：',
@@ -160,7 +160,7 @@ export const C7_ENTRIES = [
     id: 'crystal:C7-5',
     kp: 'crystal:C7',
     title: '晶格常数与原子半径的关系',
-    keywords: ['晶格常数', '原子半径', '相切方向', '换算'],
+    keywords: ['晶格常数', '原子半径', '相切方向', '换算', 'NaCl'],
     source: '[教材] 晶体结构章 · 原子半径与晶格常数',
     body: [
       '在**单质**晶体中，原子半径与晶格常数由一个"相切关系"联系起来：',

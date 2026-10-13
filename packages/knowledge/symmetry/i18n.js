@@ -29,6 +29,20 @@
 
 /** 中文原文（整行，trim 后） → 英文 */
 export const entryText = {
+  /**
+   * ★★ 2026-10-13（用户：知识库"超纲"误判，①keywords 补分子名）：
+   *   给条目 keywords 补了**分子名**（甲烷 / 过氧化氢 / 丙二烯 / 二茂铁…），
+   *   为的是模型按**分子名**检索清单时能命中（原先只有正文里有分子名 ⇒ 检索必然落空 ✗）。
+   *   这些名字是 keywords 的一部分，所以词典要跟上（check-i18n 会数）。
+   */
+  "甲烷": "Methane",
+  "氯溴甲烷": "Bromochloromethane",
+  "丙二烯": "Propadiene",
+  "三乙二胺合钴": "Tris(ethylenediamine)cobalt(II)",
+  "过氧化氢": "Hydrogen peroxide",
+  "乙烯": "Ethylene",
+  "内消旋酒石酸": "meso-Tartaric acid",
+  "二茂铁": "Ferrocene",
   "d 轨道": "d orbitals",
   "d, g…（偶）": "d, g… (even)",
   "p, f…（奇）": "p, f… (odd)",

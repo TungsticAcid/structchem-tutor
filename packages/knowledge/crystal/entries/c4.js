@@ -14,7 +14,7 @@ export const C4_ENTRIES = [
     id: 'crystal:C4-1',
     kp: 'crystal:C4',
     title: '配位数与配位构型是两个概念',
-    keywords: ['配位数', '配位构型', '配位多面体', '区别'],
+    keywords: ['配位数', '配位构型', '配位多面体', '区别', 'NaCl'],
     source: '[教材] 晶体结构章 · 配位环境',
     body: [
       '· **配位数**：一个原子（或离子）**最近邻**的异种原子（离子）数目。它是一个**数**。',
@@ -78,7 +78,7 @@ export const C4_ENTRIES = [
     id: 'crystal:C4-3',
     kp: 'crystal:C4',
     title: '半径比规则：为什么 Cs⁺ 是 8 配位而 Na⁺ 是 6 配位',
-    keywords: ['半径比', 'r+/r-', '配位数', '离子半径', '规则'],
+    keywords: ['半径比', 'r+/r-', '配位数', '离子半径', '规则', 'NaCl', 'CsCl'],
     source: '[教材] 晶体结构章 · 离子半径比与配位',
     body: [
       '**半径比规则**把配位数与阳离子/阴离子的半径比联系起来：',

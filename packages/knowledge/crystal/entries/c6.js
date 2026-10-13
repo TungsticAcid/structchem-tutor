@@ -150,7 +150,7 @@ export const C6_ENTRIES = [
     id: 'crystal:C6-5',
     kp: 'crystal:C6',
     title: '等效点系与原点选择',
-    keywords: ['等效点系', 'Wyckoff', '原点选择', '等价描述'],
+    keywords: ['等效点系', 'Wyckoff', '原点选择', '等价描述', 'CsCl'],
     source: '[教材] 晶体结构章 · 等效点系；[本库] 晶体数据的 equivalentSettings 字段',
     body: [
       '**等效点系**：由空间群的对称操作互相联系的一组位置。同一等效点系上的原子',

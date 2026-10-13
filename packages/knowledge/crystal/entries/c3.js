@@ -206,7 +206,7 @@ export const C3_ENTRIES = [
     id: 'crystal:C3-7',
     kp: 'crystal:C3',
     title: '怎样在三维视图里判断堆积方式',
-    keywords: ['观察方法', '辅助面', '辅助体', '相切方向', 'CPK'],
+    keywords: ['观察方法', '辅助面', '辅助体', '相切方向', 'CPK', 'NaCl', 'CsCl'],
     source: '[本库] 三维视图的辅助几何图层',
     body: [
       '判断堆积方式的观察步骤（本库的图层与视角为此而设）：',

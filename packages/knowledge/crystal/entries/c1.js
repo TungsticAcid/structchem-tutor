@@ -87,7 +87,7 @@ export const C1_ENTRIES = [
     id: 'crystal:C1-3',
     kp: 'crystal:C1',
     title: '★ 为什么 CsCl 型的点阵型式是简单立方，而不是体心立方',
-    keywords: ['CsCl', '简单立方', 'cP', '体心', '经典易错'],
+    keywords: ['CsCl', '简单立方', 'cP', '体心', '经典易错', 'NaCl'],
     source: '[教材] 晶体结构章 · 离子晶体；[题解] 第九章 9.9（CsCl 所属空间群）',
     body: [
       '这是本课程最经典的一处混淆。**结论：CsCl 型的点阵型式是简单立方(cP)。**',
@@ -147,7 +147,7 @@ export const C1_ENTRIES = [
     id: 'crystal:C1-5',
     kp: 'crystal:C1',
     title: '怎样从三维视图判断点阵型式',
-    keywords: ['点阵点', '图层', '视图判断', '等效点系', '观察方法'],
+    keywords: ['点阵点', '图层', '视图判断', '等效点系', '观察方法', 'CsCl'],
     source: '[教材] 晶体结构章 · 点阵型式；[本库] 三维视图的点阵点图层',
     body: [
       '判断点阵型式时，**不要盯着原子看**——原子是结构基元的内容，会把点阵点遮住。',

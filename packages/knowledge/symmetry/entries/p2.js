@@ -49,7 +49,7 @@ export const P2_ENTRIES = [
     id: 'symmetry:P2-2',
     kp: 'symmetry:P2',
     title: '判群流程：五步之内一定能定下来',
-    keywords: ['判群', '第一步', '流程图', '方法', '识别点群'],
+    keywords: ['判群', '第一步', '流程图', '方法', '识别点群', 'CO₂', 'HCN'],
     source: '[教材] 分子对称性章 · 点群的判定；[Cotton] 群论在化学中的应用 · 点群的系统识别',
     body: [
       '判断一个分子属于哪个点群，有一条**确定的流程**，不需要凭感觉：',
@@ -97,7 +97,7 @@ export const P2_ENTRIES = [
     id: 'symmetry:P2-3',
     kp: 'symmetry:P2',
     title: '低对称点群落：C₁、Cs、Ci、Cₙ、S₂ₙ',
-    keywords: ['C1', 'Cs', 'Ci', 'Cn', 'S2n', '低对称', '无旋转轴'],
+    keywords: ['C1', 'Cs', 'Ci', 'Cn', 'S2n', '低对称', '无旋转轴', 'H₂O₂', 'H₂O'],
     source: '[教材] 分子对称性章 · 点群的分类；[Cotton] 群论在化学中的应用 · 低对称点群',
     body: [
       '这一族的特点：**没有（或只有一根）旋转轴，且没有垂直于主轴的 C₂ 轴**。',
@@ -136,7 +136,7 @@ export const P2_ENTRIES = [
     id: 'symmetry:P2-4',
     kp: 'symmetry:P2',
     title: 'Cₙᵥ、Cₙₕ、Dₙ、Dₙₕ、Dₙd 五个最容易混的群',
-    keywords: ['Cnv', 'Cnh', 'Dn', 'Dnh', 'Dnd', '区分', '对比'],
+    keywords: ['Cnv', 'Cnh', 'Dn', 'Dnh', 'Dnd', '区分', '对比', '丙二烯', 'NH₃', 'H₂O', 'C₂H₂Cl₂', 'BF₃', 'SF₆'],
     source: '[教材] 分子对称性章 · 点群的分类；[Cotton] 群论在化学中的应用 · 点群对照',
     body: [
       '这五个群共用一根主轴 Cₙ，区别只在**"额外的操作有哪些"**。列成一张表最清楚：',
@@ -189,7 +189,7 @@ export const P2_ENTRIES = [
     id: 'symmetry:P2-5',
     kp: 'symmetry:P2',
     title: '高对称群 T、O、I：为什么只有这三族',
-    keywords: ['Td', 'Oh', 'Ih', 'Th', 'O', 'T', '高对称', '立方', '正多面体'],
+    keywords: ['Td', 'Oh', 'Ih', 'Th', 'O', 'T', '高对称', '立方', '正多面体', '三乙二胺合钴', 'CH₄', 'SF₆', 'C₆₀'],
     source: '[教材] 分子对称性章 · 高对称点群；[群论] 李新征《群论一》· 正多面体的旋转群',
     body: [
       '当分子**有多根高阶轴（≥3 阶且互不重合）**时，就进入高对称族。',
@@ -231,7 +231,7 @@ export const P2_ENTRIES = [
     id: 'symmetry:P2-6',
     kp: 'symmetry:P2',
     title: '线性分子：C∞v 与 D∞h',
-    keywords: ['线型分子', 'C∞v', 'D∞h', '无穷阶轴', 'CO2', 'HCl'],
+    keywords: ['线型分子', 'C∞v', 'D∞h', '无穷阶轴', 'CO2', 'HCl', 'CO₂', 'HCN'],
     source: '[教材] 分子对称性章 · 线型分子；[Cotton] 群论在化学中的应用 · 线型分子',
     body: [
       '线性分子绕分子轴转**任意**角度都不变，所以那条轴的阶数是**无穷**，记作 C∞。',
@@ -269,7 +269,7 @@ export const P2_ENTRIES = [
     id: 'symmetry:P2-7',
     kp: 'symmetry:P2',
     title: '构象与点群：同一分子可以有不同点群',
-    keywords: ['构象', '交叉式', '重叠式', '扭曲', '联苯', '点群变化'],
+    keywords: ['构象', '交叉式', '重叠式', '扭曲', '联苯', '点群变化', '过氧化氢', 'H₂O₂', 'H₂O', 'C₂H₆', 'C₁₂H₁₀'],
     source: '[教材] 分子对称性章 · 构象与对称性；[Cotton] 群论在化学中的应用 · 构象的对称性',
     body: [
       '**点群是给定几何构型（哪怕是瞬时的）的性质，不是分子的标签。**',

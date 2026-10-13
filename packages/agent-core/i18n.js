@@ -329,9 +329,23 @@ export const zh = {
   'agent.tool.listSceneActions.desc':
     '拉取当前模块的**受控动作词汇表**（能做哪些动作、参数取值范围）。'
     + '词汇表不进常驻上下文，需要时调用本工具获取。',
+  /**
+   * ★★ 2026-10-13（用户报：模型把"知识库清单里没有过氧化氢"读成"超纲/不在知识库范围内"）：
+   *
+   *   知识清单是**按知识点**组织的（crystal C1–C8 / symmetry P1–P5 / orbit K1–K9），
+   *   而清单里只给 id/标题/关键词 —— **分子名往往只出现在正文里**。
+   *   于是模型按分子名去清单里搜必然落空 ✗，再据此断言"超纲"就错了 ✗
+   *   （实测：H₂O₂ 的知识就在 symmetry:P2-3 / P2-7 里，只是标题与关键词都没有它）。
+   *   这句话放在**工具描述**里（离模型最近的一段），比放在上游说明里有效 ——
+   *   与"要模型改行为，指令放回执里"是同一条经验。
+   */
   'agent.tool.loadKnowledge.desc':
     '按 id 加载知识条目正文。系统提示里只有清单（id/标题/关键词），'
-    + '正文必须用本工具按需拉取——**不要臆测条目内容**。',
+    + '正文必须用本工具按需拉取——**不要臆测条目内容**。'
+    + '★ 清单是**按知识点**组织的（晶体 C1–C8 / 点群 P1–P5 / 轨道 K1–K9），'
+    + '标题与关键词里**未必有分子名**（分子名常只出现在正文里）。'
+    + '按分子名搜不到时，请改按**主题**检索（如「Cₙ 群」「判群流程」「构象与点群」「晶胞参数」），'
+    + '并如实说明"这条知识在哪个知识点里"；**不要**据此判断"超纲 / 不在知识库范围内"。',
   'agent.tool.loadKnowledge.id': '条目 id，形如 crystal:C4-1 或 orbit:K3-1',
   'agent.tool.loadSkill.desc': '按名加载教学法技能的完整步骤。系统提示里只有技能名与一句话说明。',
   'agent.tool.loadSkill.name': '技能名，如 feynman / socratic',
@@ -709,7 +723,12 @@ export const en = {
   'agent.tool.loadKnowledge.desc':
     'Load the body of a knowledge entry by id. The system prompt only carries the index '
     + '(id/title/keywords); fetch the body on demand with this tool — **never guess what an '
-    + 'entry says**.',
+    + 'entry says**. ★ The index is organised **by knowledge point** (crystal C1–C8 / symmetry '
+    + 'P1–P5 / orbit K1–K9) and its titles/keywords **need not contain molecule names** (those '
+    + 'often appear only in the body). If a molecule name finds nothing, search by **topic** '
+    + 'instead (e.g. “Cₙ groups”, “point-group workflow”, “conformation and point group”, '
+    + '“unit-cell parameters”) and say which knowledge point covers it — **do not** conclude '
+    + 'that it is out of scope or outside the knowledge base.',
   'agent.tool.loadKnowledge.id': 'entry id, such as crystal:C4-1 or orbit:K3-1',
   'agent.tool.loadSkill.desc': 'Load the full steps of a teaching skill by name. The system prompt carries only skill names with a one-line description.',
   'agent.tool.loadSkill.name': 'skill name, such as feynman / socratic',

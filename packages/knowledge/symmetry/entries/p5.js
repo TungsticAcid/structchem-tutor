@@ -58,7 +58,7 @@ export const P5_ENTRIES = [
     id: 'symmetry:P5-2',
     kp: 'symmetry:P5',
     title: '空间群去掉平移 = 点群：两个概念的确切关系',
-    keywords: ['空间群', '点群', '同态', '去掉平移', '晶体学点群'],
+    keywords: ['空间群', '点群', '同态', '去掉平移', '晶体学点群', 'NaCl', 'CsCl'],
     source: '[现代晶体学 1] · 空间群与点群；[教材] 晶体结构章 · 空间群',
     body: [
       '**确切的关系是这样**：空间群里的每个操作都可以写成"**点式部分 + 平移部分**"。',
@@ -181,7 +181,7 @@ export const P5_ENTRIES = [
     id: 'symmetry:P5-5',
     kp: 'symmetry:P5',
     title: '晶体学限制定理：为什么晶体里没有五次轴',
-    keywords: ['五次轴', '五次对称', '晶体学限制', '准晶', '2cosθ', '禁止'],
+    keywords: ['五次轴', '五次对称', '晶体学限制', '准晶', '2cosθ', '禁止', '二茂铁'],
     source: '[现代晶体学 1] · 晶体学限制定理；[教材] 晶体结构章（五次轴与准晶）',
     body: [
       '分子里可以有 C₅、C₇ 轴（如二茂铁有 C₅），但**晶体里不行**。这条结论叫**晶体学限制定理**：',
@@ -224,7 +224,7 @@ export const P5_ENTRIES = [
     id: 'symmetry:P5-6',
     kp: 'symmetry:P5',
     title: 'Pearson 符号：一个词说清晶系与点阵型式',
-    keywords: ['Pearson', 'cF8', 'cP2', '点阵型式', '晶系', '符号'],
+    keywords: ['Pearson', 'cF8', 'cP2', '点阵型式', '晶系', '符号', 'NaCl', 'CsCl'],
     source: '[现代晶体学 1] · Pearson 符号；[教材] 晶体结构章',
     body: [
       '**Pearson 符号**是两个字母加一个数字，读法固定：',
@@ -267,7 +267,7 @@ export const P5_ENTRIES = [
     id: 'symmetry:P5-7',
     kp: 'symmetry:P5',
     title: '分子点群与晶体学点群：对照着记',
-    keywords: ['分子点群', '晶体学点群', '32', '对照', '区别'],
+    keywords: ['分子点群', '晶体学点群', '32', '对照', '区别', '甲烷', '二茂铁', 'CH₄'],
     source: '[现代晶体学 1] · 点群分类；[Cotton] 群论在化学中的应用 · 分子与晶体',
     body: [
       '两套点群容易混，用一张表划清：',

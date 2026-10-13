@@ -69,7 +69,16 @@ export const zh = {
     + '两个板块的画面**不能同屏**，所以正文里必须说清**本次演示的是哪一侧**、'
     + '另一侧的关键结论用文字给出，并**主动提出**可以切到另一个板块再演示一遍；'
     + '不要只演示一侧就当作两件事都演示过了。'
-    + '★ 演示步数按问题复杂度给：单纯的"是什么 / 有哪些"类问题 2–4 步就够，不要一律排满 8 步。',
+    + '★ 演示步数按问题复杂度给：单纯的"是什么 / 有哪些"类问题 2–4 步就够，不要一律排满 8 步。'
+    /**
+     * ★★ 2026-10-13（用户报：模型把"清单里没有过氧化氢"读成"超纲/不在知识库范围内"）：
+     *   知识清单**按知识点**组织（C1–C8 / P1–P5 / K1–K9），清单里只给 id/标题/关键词，
+     *   而**分子名往往只出现在正文里** ⇒ 按分子名搜清单必然落空 ✗，据此断言"超纲"就错了 ✗。
+     *   （其实 H₂O₂ 就在 symmetry:P2-3 / P2-7 里。）与 loadKnowledge 的工具描述同一口径。
+     */
+    + '★ 查知识时注意：清单是**按知识点**组织的，标题/关键词里未必有分子名。'
+    + '按分子名搜不到就改按**主题**搜（如「Cₙ 群」「判群流程」「构象与点群」），'
+    + '并说明这条知识在哪个知识点里；**不要**因此说"超纲 / 不在知识库范围内"。',
   'shell.prompt.roleCrystal': '涉及配位数、空隙数、晶胞参数、密度等一切数值，必须用 queryCrystal 取得，不要口算。',
   'shell.prompt.roleOrbit': '节面数、径向峰位、能级、简并度等一切数值必须用 queryOrbital 取得，不要凭记忆或口算。',
   'shell.prompt.roleSymmetry': '点群符号与对称元素清单一律用 queryPointGroup 取得；晶体示例走空间群（同一条命令）。',
@@ -186,7 +195,12 @@ export const en = {
     + '★ When the student asks "is my reasoning right / did I get it right", the FIRST sentence must be an explicit '
     + 'verdict (right / wrong / partly right), immediately followed by what is right and what is wrong — never just '
     + 'lay out data and let them draw their own conclusion. '
-    + '★ Size the demo to the question: a plain what/which question needs 2–4 steps, not a full 8-step sequence.',
+    + '★ Size the demo to the question: a plain what/which question needs 2–4 steps, not a full 8-step sequence. '
+    + '★ When looking things up: the knowledge index is organised **by knowledge point**, and its '
+    + 'titles/keywords need not contain molecule names. If a molecule name finds nothing, search by '
+    + '**topic** instead (e.g. “Cₙ groups”, “point-group workflow”, “conformation and point group”) and '
+    + 'say which knowledge point covers it — do not call something out of scope just because a molecule '
+    + 'name is not in the index.',
   'shell.prompt.roleCrystal': 'For any number — coordination number, void count, cell parameters, density — '
     + 'obtain it with queryCrystal. Never compute or recall it yourself.',
   'shell.prompt.roleOrbit': 'For any number — node count, radial peak positions, energy levels, degeneracy — '
