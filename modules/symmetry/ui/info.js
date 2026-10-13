@@ -221,6 +221,18 @@ export function renderInfo(info, callbacks = {}) {
     body.hidden = true
     const childCbs = []
     /**
+     * 每个子行的"勾选态 → 播放按钮显隐"。
+     *
+     * ★★ 2026-10-14（用户："现在只有 C₃ 有（▶），σ 之前有，现在没了"）：
+     *   ▶ 的显隐规则是"仅当前可见（勾选）的行显示，隐藏行留同尺寸占位"（见下），
+     *   而它原先只在**建行时**与**子勾选框自己的 change** 里算过 ✗ ——
+     *   从**状态**灌回来的那条路（`syncers`，勾选框从模块状态同步）只改 `checked`、
+     *   不碰 ▶ ⇒ NH₃ 的 σᵥ 默认隐藏、建行时 ▶ 被藏起来，之后无论怎么勾选都**再也不出现** ✗
+     *   （用户截图：σᵥ(1)(2)(3) 三行都勾着，却一个 ▶ 也没有）。
+     *   ⇒ 与 childCbs 同序存一份同步函数，两条路都调它 —— 同一条规则只留一处实现。
+     */
+    const childRowSync = []
+    /**
      * 组级复选框的三态：全勾 / 全不勾 / 半选。
      * ★ 每次任何一个子项变了都重算一次 —— 否则学生手动取消了 σᵥ(2)，
      *   组头还显示"全选"，看起来像坏了。
@@ -249,6 +261,7 @@ export function renderInfo(info, callbacks = {}) {
       play.title = t('anim.playTitle')
       const setPlayVisible = () => { play.style.visibility = cb.checked ? 'visible' : 'hidden' }
       setPlayVisible()
+      childRowSync.push(setPlayVisible)
       play.addEventListener('click', (e) => {
         e.stopPropagation()
         if (callbacks.onPlay) callbacks.onPlay(index)
@@ -281,6 +294,8 @@ export function renderInfo(info, callbacks = {}) {
         const idx = g.items[k] && g.items[k].index
         const key = typeof keyOfIndex === 'function' ? keyOfIndex(idx) : null
         childCbs[k].checked = !(key && hidden.has(key))
+        // ★ 勾选态一变，▶ 的显隐必须跟着走（用户报的正是"σ 的 ▶ 没了"）
+        if (childRowSync[k]) childRowSync[k]()
       }
       syncGroupCb()
     })

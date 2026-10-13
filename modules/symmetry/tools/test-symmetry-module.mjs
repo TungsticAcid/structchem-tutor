@@ -744,6 +744,13 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
     /syncVisibility\(hidden, keyOfIndex\)/.test(info) && /currentInfoApi\.syncVisibility\(hidden, \(i\) =>/.test(page3))
   check('同步不读 el.key（那份对象没有 key，必须由页面给映射）',
     !/g\.items\[k\]\.el\.key/.test(info) && /keyOfIndex\(idx\)/.test(info))
+  // ★★ 2026-10-14（用户："现在只有 C₃ 有（▶），σ 之前有，现在没了"）：
+  //   ▶ 的显隐规则是"仅勾选的行显示"，但它原先只在建行时与子勾选框自己的 change 里算过 ✗ ——
+  //   从**模块状态**灌回勾选态的那条路（syncers）只改 checked、不碰 ▶
+  //   ⇒ NH₃ 的 σᵥ 默认隐藏、建行时 ▶ 被藏起来，之后无论怎么勾选都再也不出现。
+  //   判据：两条路必须调**同一份**子行同步函数。
+  check('状态同步也要更新子行 ▶ 的显隐（否则 σ 的播放按钮永远不出现）',
+    /childRowSync\.push\(setPlayVisible\)/.test(info) && /if \(childRowSync\[k\]\) childRowSync\[k\]\(\)/.test(info))
 
   // ★★ 2026-10-14（用户："重播演示，没有回到演示前状态"）：
   //   宿主 `agent-core/app.js` 的 restore 是**刻意**"模块未实现 restoreState 就禁用"的
