@@ -526,6 +526,18 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(bareLight.length === 0, '对比页面板/控制条的颜色都包在主题令牌里（浅色主题不再是黑块）', bareLight.slice(0, 2).join(' ｜ ').slice(0, 90))
   ok(/data-crystal-side/.test(cmpCode) && /_setSideCrystal\(/.test(cmpCode), '设置里有"更换左/右晶体"的选择器与处理')
   ok(/data-side/.test(cmpCode) && /router\.navigate\('\/viewer\/'/.test(cmpCode), '两侧标签可点击跳转到对应晶体的查看页')
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // ★★ 2026-10-14（用户："用户不需要知道来源、知识条目"）：
+  //   模型曾把内部出处写进给学生的正文（截图那句"（来源：queryPointGroup 实测结果 +
+  //   知识条目 symmetry:P2-3）"）✗。判据落在**提示词文本**上：中英两段都要有这条禁令 ——
+  //   少一段就是"切到英文界面后又开始报工具名"。
+  // ───────────────────────────────────────────────────────────────────────────
+  {
+    const shellSrc2 = readFileSync(resolve(REPO, 'apps/web/src/i18n/shell.js'), 'utf8')
+    ok(shellSrc2.includes('给学生的正文里**不要**出现内部出处'), '中文角色提示要有"内部出处不进学生正文"这条')
+    ok(shellSrc2.includes('Never put internal provenance into student-facing text'), '英文角色提示要有同一条')
+  }
   // ★★ 2026-10-12（用户："对比模式点击原子，没触发原子信息弹窗，反而使得鼠标一动晶体就跟着旋转"）：
   //   ① 对比页不许再用宿主里并不存在的 window.wx（它一抛异常就把画布的拖拽状态卡死）；
   //   ② 点原子必须弹**原子信息卡**（与查看页同一个组件）。

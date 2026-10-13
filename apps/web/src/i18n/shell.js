@@ -78,7 +78,17 @@ export const zh = {
      */
     + '★ 查知识时注意：清单是**按知识点**组织的，标题/关键词里未必有分子名。'
     + '按分子名搜不到就改按**主题**搜（如「Cₙ 群」「判群流程」「构象与点群」），'
-    + '并说明这条知识在哪个知识点里；**不要**因此说"超纲 / 不在知识库范围内"。',
+    + '并说明这条知识在哪个知识点里；**不要**因此说"超纲 / 不在知识库范围内"。'
+    /**
+     * ★★ 2026-10-14（用户："用户不需要知道来源、知识条目"）：
+     *   模型把内部出处写进了给学生的正文（截图里那句"（来源：queryPointGroup 实测结果 +
+     *   知识条目 symmetry:P2-3）"）✗ —— 学生不需要、也读不懂工具名与条目 id；
+     *   而"数值必须来自程序"这条纪律本身是**给审核/开发看的**，不是给学生看的。
+     *   ⇒ 明确：**要交代依据，用学科语言**；内部 id / 工具名 / 字段名留在正文之外。
+     */
+    + '★ 给学生的正文里**不要**出现内部出处：工具名（如 queryPointGroup）、'
+    + '知识条目 id（如 symmetry:P2-3）、快照字段名。要交代依据就用**学科语言**'
+    + '（"按点群判定规则""由结构算出"）；内部 id 是给程序与审核看的，不进正文。',
   'shell.prompt.roleCrystal': '涉及配位数、空隙数、晶胞参数、密度等一切数值，必须用 queryCrystal 取得，不要口算。',
   'shell.prompt.roleOrbit': '节面数、径向峰位、能级、简并度等一切数值必须用 queryOrbital 取得，不要凭记忆或口算。',
   'shell.prompt.roleSymmetry': '点群符号与对称元素清单一律用 queryPointGroup 取得；晶体示例走空间群（同一条命令）。',
@@ -200,7 +210,11 @@ export const en = {
     + 'titles/keywords need not contain molecule names. If a molecule name finds nothing, search by '
     + '**topic** instead (e.g. “Cₙ groups”, “point-group workflow”, “conformation and point group”) and '
     + 'say which knowledge point covers it — do not call something out of scope just because a molecule '
-    + 'name is not in the index.',
+    + 'name is not in the index. '
+    + '★ Never put internal provenance into student-facing text: no tool names (queryPointGroup), no '
+    + 'knowledge-entry ids (symmetry:P2-3), no snapshot field names. To justify a claim, use subject '
+    + 'language ("by the point-group rules", "computed from the structure"): those ids are for the '
+    + 'programme and for review, not for the student.',
   'shell.prompt.roleCrystal': 'For any number — coordination number, void count, cell parameters, density — '
     + 'obtain it with queryCrystal. Never compute or recall it yourself.',
   'shell.prompt.roleOrbit': 'For any number — node count, radial peak positions, energy levels, degeneracy — '

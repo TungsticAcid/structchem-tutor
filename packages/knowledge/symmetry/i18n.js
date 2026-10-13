@@ -467,6 +467,12 @@ export const entryText = {
   "所以\"联苯是 D₂ₕ 还是 D₂\"取决于问的是理想平面构型还是真实构象——": "So \"is biphenyl D₂ₕ or D₂\" depends on whether the question is about the ideal planar geometry or the real conformation —",
   "本模块给的是**扭曲构象**（更接近真实），符号会与\"平面联苯\"不同。": "this module gives the **twisted conformation** (closer to reality), so the symbol differs from that of \"planar biphenyl\".",
   "· **过氧化氢 H₂O₂**：绕 O—O 键转动，点群在 C₂ 与 C₂ₕ 之间变化。": "· **Hydrogen peroxide H₂O₂**: rotating about the O—O bond, the point group varies between C₂ and C₂ₕ.",
+  // ★ 2026-10-14：这句改成"扭转（构象转动）"并补了三句澄清 —— 起因是模型把
+  //   "绕 O—O 键转动（构象扭转）"读成了"C₂ 轴沿 O—O 键"✗（实测那根轴与 O—O 成 90°）。
+  "· **过氧化氢 H₂O₂**：绕 O—O 键**扭转**（构象转动）时，点群在 C₂ 与 C₂ₕ 之间变化。": "· **Hydrogen peroxide H₂O₂**: as the molecule **twists** about the O—O bond (conformational rotation), the point group varies between C₂ and C₂ₕ.",
+  "★ 别把两件事混起来：这里的\"绕 O—O 键\"说的是**构象扭转**（H—O—O—H 二面角在变）；": "★ Do not conflate two things: \"about the O—O bond\" here means **conformational torsion** (the H—O—O—H dihedral angle is changing);",
+  "而 C₂ 群的**那根 C₂ 轴与 O—O 键垂直** —— 它平分两条 O—H 键（各约 56°），与 O—O 约 90°。": "whereas the **C₂ axis of the C₂ group is perpendicular to the O—O bond** — it bisects the two O—H bonds (≈56° each) and makes ≈90° with O—O.",
+  "分子\"看起来\"是绕 O—O 在转，但**对称轴不是 O—O 本身**（这条被模型误读过一次）。": "The molecule \"looks like\" it is rotating about O—O, but the **symmetry axis is not the O—O bond itself** (a model once misread this).",
   "**这对教学意味着什么**：": "**What this means for teaching**:",
   "1. 问\"某分子的点群\"时，**必须先明确构象**——否则问题没有唯一答案。": "1. When asked \"what is the point group of some molecule\", **the conformation must be specified first** — otherwise the question has no unique answer.",
   "2. 到 P4 用对称性判断红外/拉曼活性时，要用**该构象**的点群。": "2. When using symmetry in P4 to judge IR/Raman activity, the point group of **that conformation** must be used.",

@@ -13,7 +13,9 @@
  * ★ 因此本文件**没有任何写死的化学事实**（唯一例外是 P5 的三道概念题 —— 空间群那部分
  *   需要 WASM，生成题目时不能异步等它；那三题按知识条目 P5-1/P5-3/P5-6 写成选项，
  *   并在 `cite` 里注明条目，方便对账）。
- * ★ 题目自带 `cite`（知识条目 id）：讲评时学生能回到条目原文，而不是只信我这一句。
+ * ★ 题目自带 `cite`（知识条目 id）：**只用于对账与测试**（守卫会独立重算并核对条目）。
+ *   ★★ 2026-10-14（用户："用户不需要知道来源、知识条目"）：这行**不再渲染到学生界面上** ✗
+ *     （原先讲评卡上有一行「依据：知识条目 symmetry:P2-3」，学生不需要也读不懂内部 id）。
  */
 import '../i18n/index.js'
 import { t } from '../../../packages/i18n/index.js'
@@ -554,7 +556,11 @@ const QuestionEngine = (function () {
       let fb = '<div class="agent-fb ' + (correct ? 'ok' : 'bad') + '">' +
         '<b>' + (correct ? t('symmetry.qe.fb.ok') : t('symmetry.qe.fb.bad')) + '</b>' +
         '<div class="agent-fb-exp">' + P.renderRich(q.explanation) + '</div>';
-      if (q.cite) fb += '<div class="agent-fb-cite">' + t('symmetry.qe.cite', { id: q.cite }) + '</div>';
+      /**
+       * ★★ 2026-10-14（用户："用户不需要知道来源、知识条目"）：
+       *   原先这里会渲染一行「依据：知识条目 symmetry:P2-3」✗ —— 学生不需要、也读不懂内部 id。
+       *   与提示词里那条"内部出处不进学生正文"同一口径（数值仍由程序算，只是不摆出处）。
+       */
       if (q.exampleId) fb += '<button class="agent-btn agent-goto" data-qid="' + q.id + '">' + t('symmetry.qe.goto') + '</button>';
       fb += '</div>';
       const el = P.addMsg(fb, 'assistant');
@@ -562,9 +568,25 @@ const QuestionEngine = (function () {
       if (go) go.onclick = () => gotoStructure(q);
 
       // 追问交给模型组织引导语（判定与讲评已经在上面本地完成了）
+      /**
+       * ★★ 2026-10-14（用户："智能体为何看不了题目？"）：
+       *
+       *   原先只把**题号**发给模型（`{id}` + 选了第几项）✗ —— 而题目卡是**本地渲染**的
+       *   （不在对话树里），模型手里既没有题干也没有选项 ⇒ 学生回头问"这道题我为什么选错"，
+       *   它只能泛泛而谈（实测：它自己说"我这里看不到 q-7919 的题面和四个选项"✗）。
+       *   改：把**题干、四个选项、学生选的原文**一并带上 —— 上下文齐了，追问才有落点。
+       *   ★ 正确答案本来就已经在卡片上标出来了，所以这里给全信息**不会泄题**。
+       */
+      const optText = (q.options || []).map((o, i) => (i + 1) + '. ' + String(o).replace(/\s+/g, ' ').trim()).join('；')
+      const chosenText = (q.options && q.options[chosenIndex] != null) ? String(q.options[chosenIndex]).replace(/\s+/g, ' ').trim() : ''
+      const rightText = (q.options && q.options[q.answerIndex] != null) ? String(q.options[q.answerIndex]).replace(/\s+/g, ' ').trim() : ''
+      const stem = String(q.stem || '').replace(/\s+/g, ' ').trim()
       P.runAgent(correct
-        ? t('symmetry.qe.agent.right', { id: q.id })
-        : t('symmetry.qe.agent.wrong', { id: q.id, chosen: chosenIndex + 1, correct: q.answerIndex + 1 }));
+        ? t('symmetry.qe.agent.right', { id: q.id, stem: stem, options: optText })
+        : t('symmetry.qe.agent.wrong', {
+          id: q.id, chosen: chosenIndex + 1, correct: q.answerIndex + 1,
+          chosenText: chosenText, correctText: rightText, stem: stem, options: optText,
+        }));
     }
     return { correct: correct, answerIndex: q.answerIndex };
   }

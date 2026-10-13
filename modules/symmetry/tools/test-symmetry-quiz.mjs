@@ -211,6 +211,39 @@ const wrong = Q.answer(q0.id, wrongIdx)
 ok(wrong && wrong.correct === false, 'answer() 判错失败')
 ok(!!Q.answer('q-does-not-exist', 0).error, '不存在的题号要返回 error')
 
+// ───────────────────────────────────────────────────────────────────────────
+// ★★ 2026-10-14（用户："智能体为何看不了题目？" + "用户不需要知道来源、知识条目"）
+//
+//   ① 答题后发给模型的话**必须带题干与选项** —— 原先只发「我选了第 N 项（正确是第 M 项）」✗，
+//      而题目卡是**本地渲染**的、不在对话树里 ⇒ 学生回头问"我为什么选错"，模型手里什么都没有
+//      （实测它自己说"我这里看不到 q-7919 的题面和四个选项"）。
+//   ② 讲评卡上**不再**渲染「依据：知识条目 symmetry:Px-y」—— 学生不需要、也读不懂内部 id。
+//   这里用**桩面板**直接跑答题，抓**真实发出**的那句话与那张卡（不是读源码）。
+// ───────────────────────────────────────────────────────────────────────────
+{
+  const sent = []
+  let cardHtml = ''
+  const stub = {
+    runAgent: (text) => { sent.push(String(text)); return null },
+    addMsg: (html) => { cardHtml = String(html); return null },
+    addCard: () => null,
+    addChip: () => null,
+    renderRich: (s) => String(s == null ? '' : s),
+  }
+  Q.configure({ getPanel: () => stub })
+  const qq = Q.generate('P1')
+  const badIdx0 = (qq.answerIndex + 1) % qq.options.length
+  Q.answer(qq.id, badIdx0)
+  const msg = sent[sent.length - 1] || ''
+  const flat = (s) => String(s).replace(/\s+/g, ' ').trim()
+  ok(msg.includes(flat(qq.stem).slice(0, 12)), '答题后发给模型的话里要有**题干**')
+  ok(qq.options.every((o) => msg.includes(flat(o).slice(0, 10))), '答题后发给模型的话里要有**全部选项**')
+  ok(msg.includes(flat(qq.options[badIdx0]).slice(0, 10)), '要带上学生所选那一项的原文')
+  ok(!cardHtml.includes('agent-fb-cite') && !cardHtml.includes('symmetry:P'),
+    '讲评卡上不得再出现「依据：知识条目 xxx」这类内部出处')
+  Q.configure({ getPanel: () => null })
+}
+
 console.log(`\n结果：通过 ${pass} 项，失败 ${fail} 项`)
 if (fail) {
   bad.slice(0, 12).forEach((m) => console.log('  ✗ ' + m))
