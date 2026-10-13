@@ -81,6 +81,8 @@ export function formatStereodescriptors(name) {
  * @param {Object} callbacks - { onToggle(index, visible), onPlay(index) }
  */
 export function renderInfo(info, callbacks = {}) {
+  /** 各组「勾选态 ↔ 模块状态」的同步函数（见函数末尾的 syncVisibility） */
+  const syncers = []
   // ★ innerHTML：立体描述符要斜体（(E)-… → (<i>E</i>)-…），见 formatStereodescriptors
   document.getElementById('struct-title').innerHTML = formatStereodescriptors(info.title || '—')
   document.getElementById('struct-formula').textContent = formatFormulaU(info.formula || '')
@@ -182,18 +184,57 @@ export function renderInfo(info, callbacks = {}) {
     const arrow = document.createElement('span')
     arrow.className = 'elem-arrow'
     arrow.textContent = '▸'
-    header.append(dot, nameSpan, count, arrow)
+    /**
+     * ★★ 2026-10-13（用户："支持对同类对称元素全选"）：
+     *   组头加一个**同选**复选框（这一类 >1 个时才显示）：一下把 σᵥ(1)(2)(3) 一起勾上/取消 ✗
+     *   原先只能逐个点 ✗（NH₃ 的 3 个 σᵥ、D3h 的多个 C₂′ 都要点很多下）。
+     *   · 走的是**同一批动作**（每个个体一次 `onToggle`）⇒ 与单个勾选同源，没有第二条真源；
+     *   · 三态：全勾 = 勾、全不勾 = 空、混杂 = 半选（indeterminate），一眼能看出"这类没全开"。
+     */
+    let groupCb = null
+    const items = g.items || []
+    if (items.length > 1) {
+      groupCb = document.createElement('input')
+      groupCb.type = 'checkbox'
+      groupCb.className = 'elem-group-cb'
+      groupCb.title = t('elem.selectAllSame')
+      groupCb.checked = items.every(({ el }) => el.defaultVisible !== false)
+      groupCb.indeterminate = items.some(({ el }) => el.defaultVisible !== false) && !groupCb.checked
+      // ★ 点它不该顺手折叠/展开这一组（组头自己的 click 会做那件事）
+      groupCb.addEventListener('click', (e) => e.stopPropagation())
+      groupCb.addEventListener('change', () => {
+        const on = groupCb.checked
+        for (const { index } of items) {
+          if (callbacks.onToggle) callbacks.onToggle(index, on)
+        }
+        syncGroupCb()
+      })
+    }
+    header.append(...(groupCb ? [groupCb] : []), dot, nameSpan, count, arrow)
 
     // 组体（默认折叠，展开后每个个体 checkbox + 播放按钮）
     const body = document.createElement('div')
     body.className = 'elem-group-body'
     body.hidden = true
+    const childCbs = []
+    /**
+     * 组级复选框的三态：全勾 / 全不勾 / 半选。
+     * ★ 每次任何一个子项变了都重算一次 —— 否则学生手动取消了 σᵥ(2)，
+     *   组头还显示"全选"，看起来像坏了。
+     */
+    const syncGroupCb = () => {
+      if (!groupCb) return
+      const checked = childCbs.filter((c) => c.checked).length
+      groupCb.checked = checked === childCbs.length && childCbs.length > 0
+      groupCb.indeterminate = checked > 0 && checked < childCbs.length
+    }
     for (const { el, index } of g.items) {
       const row = document.createElement('div')
       row.className = 'elem-item'
       const cb = document.createElement('input')
       cb.type = 'checkbox'
       cb.checked = el.defaultVisible !== false
+      childCbs.push(cb)
       const lab = document.createElement('span')
       lab.className = 'elem-label'
       // ★ 对称元素符号：主字母斜体（formatSymmetrySymbol 内含坐标斜体），见其注释
@@ -212,6 +253,7 @@ export function renderInfo(info, callbacks = {}) {
       cb.addEventListener('change', () => {
         if (callbacks.onToggle) callbacks.onToggle(index, cb.checked)
         setPlayVisible()
+        syncGroupCb()          // 手动改了某一项 ⇒ 组头的三态要跟着重算（否则显示"全选"像坏了）
       })
       row.append(cb, lab, play)
       body.appendChild(row)
@@ -222,12 +264,44 @@ export function renderInfo(info, callbacks = {}) {
       arrow.textContent = body.hidden ? '▸' : '▾'
     })
 
+    if (groupCb) syncGroupCb()
+
     listEl.appendChild(header)
     listEl.appendChild(body)
+    syncers.push((hidden, keyOfIndex) => {
+      for (let k = 0; k < childCbs.length; k++) {
+        /**
+         * ★ 这一份元素对象**没有 `key`** —— key（`sigma_v#1` 这种稳定 id）住在页面的 items 上，
+         *   本层只按**下标**与它们对齐。所以同步时由**页面**给出"索引 → key"的映射 ✗
+         *   （第一版直接读 `el.key` ⇒ 永远 undefined ⇒ 状态改了、勾选框纹丝不动，实测抓到的）。
+         */
+        const idx = g.items[k] && g.items[k].index
+        const key = typeof keyOfIndex === 'function' ? keyOfIndex(idx) : null
+        childCbs[k].checked = !(key && hidden.has(key))
+      }
+      syncGroupCb()
+    })
   }
 
   // ==================== 特征标表（默认折叠） ====================
   renderCharacterTable(info.characterTable, callbacks)
+
+  /**
+   * ★★ 2026-10-13：把"模块状态里的隐藏集合"灌回**勾选框**。
+   *   原先只有 3D 画面跟着状态走 ✓、复选框停在**建 DOM 时**的初值 ✗ ——
+   *   于是模型（或别的入口）隐藏了某个元素，面板上的勾还打着 ⇒ 图文不一致。
+   *   现在页面每次 renderFromState 都调它一次，勾选态与真源一致。
+   * @param {Set<string>} hidden 隐藏元素的稳定 key 集合
+   * @param {(index:number)=>string|null} [keyOfIndex]
+   *        索引 → 稳定 key。★ 必须由**页面**给：这份元素对象里没有 `key`
+   *        （key 住在页面的 items 上，info 层只按**下标**与它们对齐）。
+   */
+  return {
+    syncVisibility(hidden, keyOfIndex) {
+      const h = hidden instanceof Set ? hidden : new Set()
+      for (const fn of syncers) fn(h, keyOfIndex)
+    },
+  }
 }
 
 /**

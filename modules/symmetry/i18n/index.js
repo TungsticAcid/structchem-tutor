@@ -159,6 +159,8 @@ export const MESSAGES = {
     'elem.S3': '三重旋反轴', 'elem.S10': '十重旋反轴', 'elem.S∞': '无穷阶旋反轴',
     'elem.sigma': '对称面', 'elem.sigma_v': '竖直对称面', 'elem.sigma_d': '对角对称面', 'elem.sigma_h': '水平对称面',
     'elem.i': '反演中心', 'elem.E': '恒等元素',
+    // ★ 组头「同选」复选框的 tooltip（用户："支持对同类对称元素全选"）
+    'elem.selectAllSame': '全选 / 取消这一类',
     /**
      * 无穷多族的 tooltip 补充（见 ui/info.js 的 isInfiniteFamily）。
      * ★ 清单里**不再给名字加 ∞ 前缀**（那样会与计数列重复成「∞C₂ ×∞」，
@@ -300,6 +302,7 @@ export const MESSAGES = {
     'elem.S∞': 'improper rotation axis (infinite order)',
     'elem.sigma': 'mirror plane', 'elem.sigma_v': 'vertical mirror plane', 'elem.sigma_d': 'dihedral mirror plane', 'elem.sigma_h': 'horizontal mirror plane',
     'elem.i': 'inversion center', 'elem.E': 'identity element',
+    'elem.selectAllSame': 'Select / deselect this whole class',
     'elem.infFamilyHint': ' (there are infinitely many of these; character tables write them {notation})',
   }
 }

@@ -102,6 +102,13 @@ export function bootSymmetryPage(deps = {}) {
   let currentBondMeshes = []
   let currentSelectedAtom = null
   /**
+   * `renderInfo()` 返回的同步接口（目前只有 `syncVisibility(hidden)`）。
+   * ★★ 2026-10-13（用户："支持对同类对称元素全选"）：加了组级"同选"复选框之后，
+   *   **勾选态也要跟着模块状态走** —— 原先只有画面跟着状态 ✓、勾选框停在建 DOM 时的初值 ✗
+   *   （模型隐藏了某个元素，面板上的勾还打着 ⇒ 图文不一致）。这里存下来给 renderFromState 用。
+   */
+  let currentInfoApi = null
+  /**
    * ★ 显示状态**不再是页面的真源**。真源在模块里（`modules/symmetry/facade.js` 的 `display`），
    *   页面只是它的**渲染视图**：`renderFromState(snap)` 是唯一把状态落到画面的地方；
    *   复选框的 change 事件也只**发动作**，不改本地状态。
@@ -667,7 +674,7 @@ export function bootSymmetryPage(deps = {}) {
 
     viewer.setContent(root, frameRadius, { preserveView })
     if (!preserveView) viewer.alignToView(alignDir)
-    renderInfo(info, {
+    currentInfoApi = renderInfo(info, {
       // ★ 人点勾选也**走动作通路**（与模型同源）：页面只发动作，由 renderFromState 落到画面。
       //   这样"模型改了状态、面板勾选没跟上"这类不同步在结构上不可能发生。
       onToggle: (index, visible) => {
@@ -717,6 +724,13 @@ export function bootSymmetryPage(deps = {}) {
     const showAx = !!snap.showAux
     const showAtomLb = !!snap.showAtomLabels
     const hidden = new Set(String(snap.hiddenElements || '').split(',').filter(Boolean))
+    // ★ 把"隐藏集合"灌回**勾选框**：勾选态与真源一致（否则模型隐藏了元素、面板上的勾还打着）
+    //   ★ 映射由**页面**给：info 层那份元素对象没有 key，key 住在这里的 items 上（按索引对齐）
+    try {
+      if (currentInfoApi) {
+        currentInfoApi.syncVisibility(hidden, (i) => (currentSymmetryItems[i] && currentSymmetryItems[i].key) || null)
+      }
+    } catch (e) { /* 面板还没建 */ }
 
     if (currentSymmetryGroup) currentSymmetryGroup.visible = showSym
     for (const item of currentSymmetryItems) {

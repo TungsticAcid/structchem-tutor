@@ -231,6 +231,9 @@ export const SYMMETRY_CSS = `    .sym-page {
       border-radius: 5px; cursor: pointer; user-select: none;
     }
     #info-panel .elem-group-header:hover { background: var(--panel-item-bg); }
+    /* ★ 组级「同选」复选框（用户：支持对同类对称元素全选）：与子项的勾选框对齐、
+       比子项略小一点，避免和组名抢视线。本文件是模板串：注释里不能出现反引号。 */
+    #info-panel .elem-group-cb { flex-shrink: 0; width: 12px; height: 12px; margin: 0; accent-color: var(--accent); }
     /* ★★ 2026-10-12（用户："×1 需要上下对齐吗"）：需要 —— 计数列必须**上下对齐**。
        实测：C₃ / C₂ / S₄ 三行的计数 top 间距都是 25.0px ✓，而 σd 行是 26.3px ✗ ——
        因为它的名字带下标（σ<sub>d</sub>），下标的行盒把这一行撑高了，

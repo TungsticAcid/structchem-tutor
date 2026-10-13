@@ -692,6 +692,33 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
 }
 
 // ───────────────────────────────────────────────────────────────────────────
+// 同类对称元素「全选」（用户："支持对同类对称元素全选"）
+//
+// 组头加一个同选复选框（这一类不止一个时才显示）：一下把 σᵥ(1)(2)(3) 一起勾上/取消。
+// ★ 两个容易做错的地方都在这里钉住：
+//   ① 勾选态必须**跟着模块状态**走（原先只有 3D 画面跟、复选框停在建 DOM 时的初值 ✗）；
+//   ② 同步时**不能读 `el.key`** —— 那份元素对象没有 key，key 住在页面 items 上，
+//      必须由页面提供"索引 → key"的映射（第一版就错在这里：状态改了、勾选框纹丝不动）。
+// ───────────────────────────────────────────────────────────────────────────
+{
+  const infoSrc = readFileSync(new URL('../ui/info.js', import.meta.url), 'utf8')
+  const pageSrc3 = readFileSync(new URL('../../../apps/web/src/pages/symmetry.js', import.meta.url), 'utf8')
+  const strip3 = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/^\s*\*.*$/gm, '')
+  const info = strip3(infoSrc)
+  const page3 = strip3(pageSrc3)
+  check('组头有同选复选框，且只在这一类不止一个时出现',
+    /elem-group-cb/.test(info) && /if \(items\.length > 1\)/.test(info))
+  check('同选走的是**同一批个体动作**（每个个体一次 onToggle，没有第二条真源）',
+    /for \(const \{ index \} of items\)[\s\S]{0,90}?callbacks\.onToggle\(index, on\)/.test(info))
+  check('组头三态：全勾 / 全不勾 / 半选',
+    /groupCb\.indeterminate = checked > 0 && checked < childCbs\.length/.test(info))
+  check('勾选态跟状态同步：syncVisibility 收 hidden，页面给出索引→key 映射',
+    /syncVisibility\(hidden, keyOfIndex\)/.test(info) && /currentInfoApi\.syncVisibility\(hidden, \(i\) =>/.test(page3))
+  check('同步不读 el.key（那份对象没有 key，必须由页面给映射）',
+    !/g\.items\[k\]\.el\.key/.test(info) && /keyOfIndex\(idx\)/.test(info))
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // 跨挂载的 DOM 缓存必须能重绑（用户报"退出再进入会自动播一次动画"时抓到的两个坑）
 //
 // ★ 坑①：页面把模块的 `playToken` 当"事件计数"用，而 `lastPlayToken` 是页面局部变量
