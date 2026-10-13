@@ -563,6 +563,25 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     ok(mainSrc.includes('if (panel && typeof panel.clearPracticeCards === \'function\') panel.clearPracticeCards()'),
       '「切换/删除会话」也要清掉上一段对话的 DOM 卡片')
   }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // ★★ 2026-10-14（用户："之前数据清理了，为什么也显示已掌握"）：
+  //   三份学情的键**不一样**：晶体那份由宿主注入 `chem-agent.mastery`，而点群/轨道那份是
+  //   `chem-agent.symmetry.mastery` / `chem-agent.orbit.mastery`（注入值）。
+
+  //   ⇒ 原先 `clearKeys` 只列了晶体的键、`onClearAll` 只清对话 ⇒ 清完数据再打开练习，
+  //     P1 依然标着"已掌握" ✗。判据：`onClearAll` 必须**让三份学情各自 reset()**
+  //     （键归模块所有，宿主不枚举键名 —— 枚举法漏一个就静默失效）。
+  // ───────────────────────────────────────────────────────────────────────────
+  {
+    const mainSrc = readFileSync(resolve(REPO, 'apps/web/src/main.js'), 'utf8')
+    const clear = mainSrc.slice(mainSrc.indexOf('onClearAll:'), mainSrc.indexOf('onClearAll:') + 600)
+    ok(/for \(const m of \[mastery, orbitMastery, symMastery\]\)/.test(clear),
+      '「清除本机数据」要 reset 三份学情（晶体/轨道/点群），不能只清静态键')
+    ok(/typeof m\.reset === 'function'/.test(clear), 'reset 要判存在（老版本/独立部署时不出错）')
+    ok(/id === 'symmetry' \? symMastery/.test(mainSrc),
+      '学情路由要带上点群（否则在点群板块练了，模型的感知快照里没有学情）')
+  }
   // ★★ 2026-10-12（用户："对比模式点击原子，没触发原子信息弹窗，反而使得鼠标一动晶体就跟着旋转"）：
   //   ① 对比页不许再用宿主里并不存在的 window.wx（它一抛异常就把画布的拖拽状态卡死）；
   //   ② 点原子必须弹**原子信息卡**（与查看页同一个组件）。

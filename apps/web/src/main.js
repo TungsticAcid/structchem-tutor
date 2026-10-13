@@ -281,7 +281,13 @@ const mastery = createMasteryModel({ storageKey: 'chem-agent.mastery' })
 const masteryRouter = {
   summary() {
     const id = app && app.activeModule
-    const m = (id === 'crystal') ? mastery : (id === 'orbit' ? orbitMastery : null)
+    /**
+     * ★★ 2026-10-14：这里原先只认 crystal 与 orbit —— **点群模块的学情没接进来** ✗，
+     *   于是学生在点群板块练了半天，模型每轮的感知快照里还是"没有学情"（P1–P5 白练）。
+     *   三份学情各有其主，按当前模块选；没有对应学情就不带（返回空对象）。
+     */
+    const m = (id === 'crystal') ? mastery
+      : (id === 'orbit' ? orbitMastery : (id === 'symmetry' ? symMastery : null))
     try { return m ? m.summary() : {} } catch (e) { return {} }
   },
 }
@@ -548,7 +554,23 @@ const settings = createSettingsStore({
   //   交给 onClearAll —— convStore 在上面已经建好，所以这里可以闭包直接用。
   //   漏了这些的表现是"点了清除，学情与对话其实还在"，且不报错。
   clearKeys: ['chem-agent.mastery', 'chem-agent.panel.fabPos', 'chem-agent.demoFavorites'],
-  onClearAll: () => { try { convStore.clearAll() } catch (e) { /* 忽略 */ } },
+  /**
+   * ★★ 2026-10-14（用户："之前数据清理了，为什么也显示已掌握"）：
+   *
+   *   真因：三份学情用了**三个不同的键** —— 只有晶体那份由宿主注入了 `chem-agent.mastery`
+   *   （见上面 `createMasteryModel({storageKey})` 的说明），而 `orbit.mastery` 与
+   *   `symmetry.mastery` 是**模块自己的缺省键** ✗ ⇒ 上面那份静态 `clearKeys` 只清得掉晶体，
+   *   轨道与点群的学情**原地不动** ⇒ 清完数据再打开「练习」，P1 依然标着"已掌握"。
+   *
+   *   改：**让模块自己重置**（键归它所有，宿主不枚举键名 —— 枚举法漏一个就静默失效）。
+   *   静态 `clearKeys` 留着当兜底。
+   */
+  onClearAll: () => {
+    try { convStore.clearAll() } catch (e) { /* 忽略 */ }
+    for (const m of [mastery, orbitMastery, symMastery]) {
+      try { if (m && typeof m.reset === 'function') m.reset() } catch (e) { /* 忽略 */ }
+    }
+  },
 })
 
 const settingsPopup = createSettingsPopup({
