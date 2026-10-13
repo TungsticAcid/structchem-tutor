@@ -473,6 +473,44 @@ export function createSymmetryFacade(opts = {}) {
 
     // ---- 契约必需 ----
     getSnapshot,
+    /**
+     * 契约的 `restoreState`：**模块自己知道怎么还原自己**（宿主的说明见 agent-core/app.js）。
+     *
+     * ★★ 2026-10-14（用户："重播演示，没有回到演示前状态"）：
+     *   对称模块此前**没有实现**它 ✗ —— 而宿主的 restore 是**刻意**"未实现就禁用"的
+     *   （注释：降级路径永远不会被发现是错的）⇒ 本模块的演示**根本没有可回的"演示前"** ✗：
+     *   「↩ 回到演示前」点了报"恢复失败"，"重新演示"也无从"先回到演示前再播"（空操作）✗。
+     *
+     * 做法与晶体模块一致：把快照**翻译成一串本模块的动作**再套用 ——
+     * 这样"还原"与"正常操作"走**同一条通路**，不会出现第二份真源。
+     * @param {Object} state getSnapshot() 的返回值（或同形对象）
+     * @returns {{ok: boolean, error?: string}}
+     */
+    restoreState(state) {
+      if (!state || typeof state !== 'object') return { ok: false, error: tr('没有可还原的状态') }
+      const acts = []
+      // ① 分子（示例）：快照里的是 { id, title, formula }
+      const ex = state.example && state.example.id ? byId.get(state.example.id) : null
+      if (ex) acts.push({ action: 'loadExample', params: { id: ex.id } })
+      // ② 四个显示开关：**缺字段就不动**（别把无关状态改掉）
+      const switches = [
+        ['showSymmetry', 'setSymmetryVisible'], ['showLabels', 'setLabelsVisible'],
+        ['showAux', 'setAuxVisible'], ['showAtomLabels', 'setAtomLabelsVisible'],
+      ]
+      for (const [field, action] of switches) {
+        if (typeof state[field] === 'boolean') acts.push({ action, params: { visible: state[field] } })
+      }
+      // ③ 逐个元素的显隐：快照给的是"隐藏集合"（逗号分隔的标量）
+      if (typeof state.hiddenElements === 'string') {
+        const hidden = new Set(String(state.hiddenElements).split(',').filter(Boolean))
+        for (const key of elementKeys()) acts.push({ action: 'setElementVisible', params: { key, visible: !hidden.has(key) } })
+      }
+      // ④ 选中原子与正在播的操作：都回到"没选中、没在播"
+      acts.push({ action: 'selectAtom', params: { key: null } })
+      acts.push({ action: 'stopAnimation', params: {} })
+      const r = this.applyActions(acts)
+      return r.ok ? { ok: true } : { ok: false, error: (r.failed[0] || {}).error || tr('还原失败') }
+    },
     applyActions(actions) {
       const list = Array.isArray(actions) ? actions : [{ action: actions && actions.action, params: actions && actions.params }]
       const applied = []

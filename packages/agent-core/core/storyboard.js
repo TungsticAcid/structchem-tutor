@@ -272,7 +272,7 @@ export function createStoryboard(opts = {}) {
     if (typeof restore === 'function') restore(snapshots[qIndex])
     if (!playing) {
       playing = true
-      runQueue(generation, false, true)   // 先停在闸门上，不立刻执行
+      runQueue(generation, true, true)   // 先停在闸门上，不立刻执行；★ paced 必须 true（见下）
     }
     emitProgress({
       phase: 'back', index: qIndex, total: queue.length,
@@ -508,7 +508,7 @@ export function createStoryboard(opts = {}) {
     if (!playing) {
       playing = true
       const gen = generation
-      runQueue(gen, false)             // 后台播放，不 await
+      runQueue(gen, true)             // 后台播放，不 await；★ 同样要 paced（见下）
     } else {
       emitProgress({ phase: 'queued', index: qIndex, total: qTotal, added: taken.length })
     }
@@ -517,6 +517,18 @@ export function createStoryboard(opts = {}) {
     //   见 noteSteps 的注释：这是"分几次下发的同一条演示不会被拆成两条"的关键。
     const demoId = noteSteps(taken, origin, o.label)
     bindPerAction(startIndex, taken.length)
+
+    /**
+     * ★★ 2026-10-14（用户："重播演示，没有回到演示前状态"）：
+     *
+     *   把"演示开始前的快照"挂到**这条记录**上（`rec.before`）——
+     *   模块级的 `beforeSnap` 只有一份，重播历史里**较早**的那条时用它就会跳错状态 ✗。
+     *   挂到记录上之后，`replay(rec.id)` 才能"恢复它自己的演示前状态，再从头播"。
+     *   ★ 只在记录**还没有** before 时写入：长流程分几次下发（本函数会被调用多次）时，
+     *     真正的"演示前"是**第一次**那一下，后面几次不能覆盖它。
+     */
+    const recForSnap = demoId ? demos.get(String(demoId)) : null
+    if (recForSnap && !recForSnap.before && beforeSnap != null) recForSnap.before = beforeSnap
 
     return {
       executed: [],
@@ -808,11 +820,28 @@ export function createStoryboard(opts = {}) {
     if (!rec || !rec.steps || !rec.steps.length) {
       return { ok: false, error: t('agent.sb.noReplay') }
     }
+    /**
+     * ★★ 2026-10-14（用户："重播演示，没有回到演示前状态"）：
+     *
+     *   原先这里**直接重播步骤** ✗ —— 若演示里有"设置类"步骤（打开辅助几何 / 开标签 /
+     *   切分子），在**已经改过**的画面上它们就是**空操作** ⇒ 学生按「重新演示」，
+     *   头几步什么都不会发生（他报的正是这个）。
+     *   ⇒ 先恢复**这一条记录自己的**"演示前快照"，再从头播 —— 这才叫"重新演示"。
+     *   ★ 只在 `rec.before` 存在时才恢复（老记录 / 从收藏重建的记录没有快照 ⇒ 保持原行为），
+     *     并且把 `beforeSnap` 也指向它，这样播完仍能「↩ 回到演示前」。
+     */
+    let restoredBefore = false
+    if (rec.before && typeof restore === 'function') {
+      try {
+        restoredBefore = !!restore(rec.before)
+        if (restoredBefore) beforeSnap = rec.before
+      } catch (e) { restoredBefore = false }
+    }
     // ★ 把记录的**模块归属**一并传下去：切了板块再点「重播这个演示」时，
     //   宿主据此把该板块的页面叫回来，而不是把动作套到此刻的模块上
     //   （用户预感的那个"潜在问题"就是这个）。
     const r = loadDemo(rec.steps, { demoId: rec.id, origin: rec.origin, reason: 'replay', module: rec.module || null })
-    return r.ok ? Object.assign(r, { title: rec.label || '' }) : r
+    return r.ok ? Object.assign(r, { title: rec.label || '', restoredBefore }) : r
   }
 
   /** 就地改之后把队列写回记录（否则记录与画面不一致，重播会放回旧版本） */
@@ -833,7 +862,7 @@ export function createStoryboard(opts = {}) {
     if (typeof restore === 'function' && snapshots[n]) restore(snapshots[n])
     if (!playing) {
       playing = true
-      runQueue(generation, false, true)   // 先停在闸门上，与 prev() 同理
+      runQueue(generation, true, true)   // 先停在闸门上，与 prev() 同理
     }
     emitProgress({
       phase: 'back', index: n, total: queue.length,

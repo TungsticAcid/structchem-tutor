@@ -549,6 +549,9 @@ export const text = Object.assign(
       '— the key must come from elements[].key returned by queryPointGroup; never invent one',
     "setLanguage 需要 lang（'zh' 或 'en'）": "setLanguage needs lang ('zh' or 'en')",
     'selectAtom 的 key 需要字符串或 null': 'selectAtom needs key to be a string or null',
+    // 契约的 restoreState（"回到演示前"用）—— 见 facade.js 里那段说明
+    '没有可还原的状态': 'Nothing to restore',
+    '还原失败': 'Restore failed',
     '当前没有选中的结构（先用 listExamples 挑一个）':
       'No structure is selected yet (pick one with listExamples first)',
     '本宿主未接入空间群分析器（spaceGroup），无法识别晶体的空间群。':

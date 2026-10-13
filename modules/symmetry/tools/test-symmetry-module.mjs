@@ -717,6 +717,20 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
     /syncVisibility\(hidden, keyOfIndex\)/.test(info) && /currentInfoApi\.syncVisibility\(hidden, \(i\) =>/.test(page3))
   check('同步不读 el.key（那份对象没有 key，必须由页面给映射）',
     !/g\.items\[k\]\.el\.key/.test(info) && /keyOfIndex\(idx\)/.test(info))
+
+  // ★★ 2026-10-14（用户："重播演示，没有回到演示前状态"）：
+  //   宿主 `agent-core/app.js` 的 restore 是**刻意**"模块未实现 restoreState 就禁用"的
+  //   （注释：降级路径永远不会被发现是错的）—— 而对称模块此前**没有**它 ✗
+  //   ⇒ 本模块的演示根本没有可回的"演示前"：`↩ 回到演示前` 报"恢复失败"、
+  //      `replay()` 的"先恢复再播"也无从落地（设置类步骤变成空操作）。
+  //   守卫：必须导出 restoreState，且它**翻译成动作**再套用（不另立真源）。
+  const facadeSrc = readFileSync(new URL('../facade.js', import.meta.url), 'utf8')
+  const facadeCode = strip3(facadeSrc)
+  check('对称门面实现契约的 restoreState（否则"回到演示前"永远失败）',
+    /restoreState\(state\) \{/.test(facadeCode))
+  check('restoreState 把快照翻译成一串本模块动作（与正常操作同一条通路）',
+    /acts\.push\(\{ action: 'loadExample'/.test(facadeCode) && /this\.applyActions\(acts\)/.test(facadeCode)
+    && /hiddenElements/.test(facadeCode))
 }
 
 // ───────────────────────────────────────────────────────────────────────────

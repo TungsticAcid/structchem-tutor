@@ -322,12 +322,11 @@ let lastDemoId = null
     demoFav = null
     if (favorites) {
       /**
-       * ★ 文案走 `T()` 而不是靠 DOM 扫描补译：实测英文模式下这颗按钮的文本
-       *   **没被自动扫描换掉**（其它几颗是静态字面量、由扫描兜着，而这颗在面板构造后
-       *   才插入的部分时序里被漏掉），`check-i18n-live` 因此在每条路由上都报 1 条残留中文 ✗。
-       *   新加的文案一律显式 `T()`，别赌扫描时机。
+       * ★ 标签用短款「☆ 收藏」（与气泡上那颗同一文案）：演示条一行有 9 颗按钮，
+       *   长标签（"☆ 收藏这次演示"）在窄面板下会把这一行挤爆（实测溢出被裁 ✗）。
+       *   语义靠 tooltip 补齐，不必写进标签。
        */
-      demoFav = mkAct(T('☆ 收藏这次演示'), () => {
+      demoFav = mkAct(T('☆ 收藏'), () => {
         // ★ 先用手上攒的 id；没有就问分镜"最近一条是谁"（进度事件并非每个阶段都带 demoId）
         const id = lastDemoId || (SB && typeof SB.latestDemoId === 'function' ? SB.latestDemoId() : null)
         if (!id) return

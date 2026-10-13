@@ -1858,6 +1858,35 @@ console.log(`\n${'═'.repeat(60)}`)
   check('clearPracticeCards 取 .el（否则 remove 抛异常被吞、卡片清不掉却看不出）',
     /kept\.forEach\(\(it\) => \{ try \{ it\.el\.remove\(\) \}/.test(panelSrc))
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // ★★ 2026-10-14（用户："自动播放结束，回到第一步，再次点击连续播放时，会直接完成播放"）：
+  //
+  //   `runQueue(gen, paced, …)` 的**第二参数**决定"自动连播时要不要插停留"。实测发现
+  //   三条"重启循环"的路（`prev()` / `jumpTo()` / 追加步骤）都传了 `false` ✗ ⇒
+  //   学生播完 → 回第一步 → 再点「连续播放」，新循环**一个停留都没有**，几步瞬间播完 ✗
+  //   （实测修前：3 步共用 23 ms；修后：按 afterAnimatedMs/defaultDwellMs 逐步推进）。
+  //   守卫：不允许再出现 `runQueue(…, false …)` —— 停留只由 manual 决定，不由入队方式决定。
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    const sbSrc4 = readFileSync(new URL('../core/storyboard.js', import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    const calls = sbSrc4.match(/runQueue\([^)]*\)/g) || []
+    const pacedFalse = calls.filter((c) => /runQueue\(\s*[^,]+,\s*false/.test(c))
+    check('分镜里没有 paced=false 的 runQueue 调用（否则"回第一步再连播"会瞬间跑完）',
+      calls.length >= 4 && pacedFalse.length === 0, pacedFalse.join(' | '))
+
+    // ★★ 2026-10-14（用户："重播演示，没有回到演示前状态"）：
+    //   ① 每条演示记录要记住**自己的**"演示前快照"（模块级 beforeSnap 只有一份，
+    //      重播历史里较早的一条会跳错状态）；
+    //   ② `replay()` 要先恢复它再重播（否则"设置类"步骤在已改过的画面上是空操作 ✗）。
+    check('演示记录带上自己的"演示前快照"（rec.before）',
+      /recForSnap && !recForSnap\.before && beforeSnap != null/.test(sbSrc4))
+    // ★ 用朴素子串而不是正则：这条判据第一次用正则写，明明是同一行却 test() 为 false
+    //   （转义在多层引号里被吃掉），换成 includes 后一目了然 —— 判据写法本身也会骗人。
+    check('replay 先恢复 rec.before 再重播',
+      sbSrc4.includes("if (rec.before && typeof restore === 'function')") && sbSrc4.includes('restoredBefore'))
+  }
+
   // ★★ 2026-10-13（用户："演示的收藏、回放，应该在这里" —— 指着那张 5 个动作的气泡）：
   //
   //   动作气泡底部的「↻ 重播这个演示」「☆ 收藏」与**逐行的「引用」**，全靠工具回执里的
