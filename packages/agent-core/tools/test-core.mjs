@@ -1840,6 +1840,45 @@ console.log(`\n${'═'.repeat(60)}`)
   const sbSrc2 = readFileSync(new URL('../core/storyboard.js', import.meta.url), 'utf8')
   check('分镜导出 latestDemoId（面板的收藏按钮要用）', /latestDemoId,/.test(sbSrc2))
 
+  // ★★ 2026-10-13（用户："演示的收藏、回放，应该在这里" —— 指着那张 5 个动作的气泡）：
+  //
+  //   动作气泡底部的「↻ 重播这个演示」「☆ 收藏」与**逐行的「引用」**，全靠工具回执里的
+  //   `demoId` / `perAction`（见 ui/panel.js 的 enrichActionBubble）。而 `applySceneActions`
+  //   这一层原先**只转发计数、把这两个字段丢了** ✗ ⇒ 从动作气泡进入的演示永远没有
+  //   收藏/回放入口（用户报的就是这个）。playDemo / replayDemo 一直是带的 ——
+  //   典型的"同类处理器只改了一处"。
+  //   这里用**桩 storyboard** 直接调工具，断言回执真的带着这两个字段（不是看源码）。
+  {
+    const { createShellTools } = await import('../app.js')
+    const stubSb = {
+      async applySequence(actions) {
+        return {
+          demoId: 'd9', total: actions.length, queued: actions.length, accepted: actions.length,
+          failed: [], manual: true, note: '',
+          perAction: actions.map((a, i) => ({ i, action: a.action, ok: true })),
+        }
+      },
+    }
+    const shellTools = createShellTools({
+      t: (k) => k,
+      storyboard: stubSb,
+      sceneModuleId: () => 'symmetry',
+      ensureModuleReady: async () => true,
+      // ★ 中枢用的是 `ctx.getActive()`（回落"最近一个场景模块"）——桩里给一个带 facade 的模块，
+      //   否则工具会先回一句"当前没有激活任何模块"（第一次就栽在这）。
+      getActive: () => ({ id: 'symmetry', facade: { canApplyActions: () => true } }),
+      // ★ 中枢的规矩：**模块没提供 demos ⇒ 演示类工具压根不存在**（见 app.js 那段注释）。
+      demos: { list: () => [], byId: () => null, manifest: () => [] },
+    })
+    // ★ `createShellTools` 返回 { defs, handlers }：动作类工具在 **handlers** 里
+    //   （按能力分组只影响"给模型看的 defs"，实现都在 handlers）。
+    const res = await shellTools.handlers.applySceneActions({ actions: [{ action: 'loadExample', params: { id: 'h2o2' } }] })
+    check('动作回执带 demoId（否则气泡上没有「收藏 / 重播」入口）',
+      !!(res && res.demoId === 'd9'), JSON.stringify(res).slice(0, 140))
+    check('动作回执带 perAction（否则逐行「引用」没有落点）',
+      !!(res && Array.isArray(res.perAction) && res.perAction.length === 1))
+  }
+
   // ★ 运行时确认"只登记、不播放"（源码棘轮只能证明它没写 runQueue，这条证明它真的没动队列）
   const { createStoryboard } = await import('../core/storyboard.js')
   const calls = []

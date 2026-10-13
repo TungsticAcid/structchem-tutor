@@ -261,6 +261,20 @@ export function createShellTools(ctx) {
         overflow: r.overflow,
         manual: r.manual,
         totalSteps: r.total,
+        /**
+         * ★★ 2026-10-13（用户："演示的收藏、回放，应该在这里"）：
+         *
+         *   这一层原先只转发**计数**，把 `demoId`（以及 `perAction`）**丢了** ✗ ——
+         *   而面板的动作气泡是靠 `demoId` 才在底部挂「↻ 重播这个演示」「☆ 收藏」、
+         *   逐行挂「引用」的（见 ui/panel.js 的 enrichActionBubble）。
+         *   ⇒ 后果：**从动作气泡进入的演示永远没有这三个入口** ✗
+         *     （用户先前说"演示动作无法收藏"，这是其中一半原因；另一半是气泡折叠不易发现）。
+         *   ★ 演示的"可寻址 / 可收藏 / 可回放"整条链都指着这个 id，必须原样带出去。
+         *     （playDemo / replayDemo 两条路一直是带 `demoId` 的，只有这里漏了 —— 典型的
+         *      "同类处理器只改了一处"。）
+         */
+        demoId: r.demoId,
+        perAction: r.perAction,
         note: (r.note || '') + ' ' + t('agent.tool.applySceneActions.hint'),
       }
     },

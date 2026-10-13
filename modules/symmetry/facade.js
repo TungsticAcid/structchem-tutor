@@ -259,6 +259,19 @@ export function createSymmetryFacade(opts = {}) {
       case 'playOperation': {
         display.playingKey = p.key
         display.playToken += 1     // 页面比对 token，**新 token 才播**（防回声）
+        /**
+         * ★★ 2026-10-13（用户："点击原子后，对称操作无法播放"）：
+         *
+         *   选中原子与播放操作是**互斥**的两件事，而页面只在本地 `deselectAtom()` 了 ✗ ——
+         *   模块状态里的 `selectedAtomKey` 还留着 ⇒ 下一次 `renderFromState` 又把它**选回去** ✗
+         *   ⇒ `selectAtom()`（本轮起用 `freezeAnimation()`）**当场把刚启动的动画停掉** ✗。
+         *   实测：选中后播 C₂ —— `playToken` 从 1 到 2 ✓（动作受理）、
+         *   但进度条不出现、画布差异 **0** ✗（选中前是 15249 px ✓）。
+         *
+         *   ⇒ 互斥必须落在**真源**上：播操作就把选中清掉（面板上的"等价原子/稳定化子"随之收起，
+         *     页面也就不会再把它选回去）。原先只在页面本地清，属于"两处各管一半" ✗。
+         */
+        display.selectedAtomKey = null
         return
       }
       case 'stopAnimation': {
