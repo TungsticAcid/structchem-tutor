@@ -1840,6 +1840,24 @@ console.log(`\n${'═'.repeat(60)}`)
   const sbSrc2 = readFileSync(new URL('../core/storyboard.js', import.meta.url), 'utf8')
   check('分镜导出 latestDemoId（面板的收藏按钮要用）', /latestDemoId,/.test(sbSrc2))
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // ★★ 2026-10-13（用户："回答问题后，智能体给出小追问，但是几个板块的显示顺序有误"）：
+  //
+  //   练习类卡片（知识点选择器 / 题目卡 / 判定卡）只存在于 DOM 里，重画时要保住。
+  //   原先是"一律 appendChild 到**末尾**" ✗ ⇒ 中间但凡来了新消息（例如小追问那一轮），
+  //   它们就整块掉到最下面，面板顺序与发生顺序相反 ✗。
+  //   现在：收卡片时记下"前面最近一条消息的 mid"（addMsg 落的 dataset.mid），按锚点插回原位。
+  //   实测（真实浏览器，造一个"两轮消息 + 中间三张卡"的会话再重画）：
+  //     第一问 → 第一答 → ①知识点 → ②题目卡 → ③判定卡 → 小追问… ✓
+  // ─────────────────────────────────────────────────────────────────────────
+  check('重画时按锚点接回卡片（记下前面最近一条消息的 mid）',
+    /return \{ el, afterMid \}/.test(panelSrc) && /p\.dataset\.mid/.test(panelSrc))
+  check('接回走 restoreDomOnly（不再一律追加到末尾）',
+    /function restoreDomOnly\(/.test(panelSrc) && !/keep\.forEach\(\(el\) => msgBox\.appendChild\(el\)\)/.test(panelSrc)
+    && (panelSrc.match(/restoreDomOnly\(keep\)/g) || []).length >= 3)
+  check('clearPracticeCards 取 .el（否则 remove 抛异常被吞、卡片清不掉却看不出）',
+    /kept\.forEach\(\(it\) => \{ try \{ it\.el\.remove\(\) \}/.test(panelSrc))
+
   // ★★ 2026-10-13（用户："演示的收藏、回放，应该在这里" —— 指着那张 5 个动作的气泡）：
   //
   //   动作气泡底部的「↻ 重播这个演示」「☆ 收藏」与**逐行的「引用」**，全靠工具回执里的

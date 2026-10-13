@@ -1146,7 +1146,7 @@ let lastDemoId = null
     if (!path.length) {
       renderEmptyState()
       // 空路径时也要把卡片接回去（例如"新对话"之后仍想看到刚出的那道题）
-      keep.forEach((el) => msgBox.appendChild(el))
+      restoreDomOnly(keep)
       return
     }
 
@@ -1207,7 +1207,7 @@ let lastDemoId = null
      * 题目卡 / 讲评卡 / 提示条不在对话树里，不接回去就等于"学生答完题、模型一开口，
      * 判定与题目卡凭空消失"。★ 是**原节点**，所以按钮的 onclick 仍然有效。
      */
-    keep.forEach((el) => msgBox.appendChild(el))
+    restoreDomOnly(keep)
     scrollDown()
     // ★ 演示记录从历史重建（幂等）。**必须留在渲染路径末尾**：它正是"刷新后
     //   仍能重播 / 仍能引用某一步"的唯一来源。
@@ -1441,8 +1441,53 @@ let lastDemoId = null
    */
   function domOnlyNodes() {
     if (!msgBox) return []
-    return Array.from(msgBox.children).filter((el) =>
-      el.matches('.agent-chip-row') || el.querySelector('.agent-q, .agent-fb, .agent-opt, .agent-goto, .agent-pick-btn'))
+    /**
+     * ★★ 2026-10-13（用户："回答问题后，智能体给出小追问，但是几个板块的显示顺序有误"）：
+     *
+     *   卡片是**按时间**出现的（知识点选择器 → 题目卡 → 判定卡），而重画后原先一律
+     *   `appendChild` 到**末尾** ✗ ⇒ 中间但凡又来了新消息（比如小追问那一轮），
+     *   这些卡片就整块**掉到最下面**，面板顺序与发生顺序相反 ✗。
+     *
+     *   ⇒ 收的时候顺带记下"它**前面最近一条消息**的 mid"（`addMsg` 落的 `dataset.mid`），
+     *     重画后按这个锚点插回原位；锚点找不到（那条消息被删/换分支）才退回末尾。
+     */
+    const wrap = (el) => {
+      let afterMid = null
+      for (let p = el.previousElementSibling; p; p = p.previousElementSibling) {
+        if (p.dataset && p.dataset.mid) { afterMid = p.dataset.mid; break }
+      }
+      return { el, afterMid }
+    }
+    return Array.from(msgBox.children)
+      .filter((el) => el.matches('.agent-chip-row')
+        || el.querySelector('.agent-q, .agent-fb, .agent-opt, .agent-goto, .agent-pick-btn'))
+      .map(wrap)
+  }
+
+  /**
+   * 把 `domOnlyNodes()` 收下来的卡片**按原位**接回去（见它的注释）。
+   * ★ 不用 `querySelector` 拼属性选择器：mid 里可能带引号/方括号，直接遍历比对更稳。
+   * ★ 同一个锚点后面原本可能有多张卡（题目卡 + 判定卡）⇒ 依次插在**上一张之后**，
+   *   否则 `anchor.after()` 会把它们弄成倒序。
+   */
+  function restoreDomOnly(list) {
+    if (!msgBox) return
+    let cursor = null
+    for (const item of (list || [])) {
+      const el = item && item.el
+      if (!el) continue
+      let anchor = null
+      if (item.afterMid) {
+        for (const cand of msgBox.children) {
+          if (cand.dataset && cand.dataset.mid === item.afterMid) { anchor = cand; break }
+        }
+      }
+      if (!anchor) { msgBox.appendChild(el); cursor = el; continue }
+      const sameRun = cursor && cursor.parentNode === msgBox
+        && (cursor === anchor || (anchor.compareDocumentPosition(cursor) & Node.DOCUMENT_POSITION_FOLLOWING))
+      ;(sameRun ? cursor : anchor).after(el)
+      cursor = el
+    }
   }
 
   function renderEmptyState() {
@@ -1459,7 +1504,7 @@ let lastDemoId = null
     clear(msgBox)
     const g = typeof cfg.greeting === 'function' ? cfg.greeting() : cfg.greeting
     addMsg('<div class="agent-hello">' + (g || '') + '</div>', 'assistant')
-    keep.forEach((el) => msgBox.appendChild(el))
+    restoreDomOnly(keep)
   }
 
   // ---------------------------------------------------------------------------
@@ -1896,8 +1941,10 @@ let lastDemoId = null
      * @returns {number} 撤掉了几张
      */
     clearPracticeCards: () => {
+      // ★ domOnlyNodes() 现在返回 { el, afterMid }（为了按原位接回）—— 这里要取 `.el`，
+      //   否则 el.remove 会抛异常、被 catch 吞掉 ⇒ 卡片清不掉而**看起来没报错**。
       const kept = domOnlyNodes()
-      kept.forEach((el) => { try { el.remove() } catch (e) { /* 已脱落 */ } })
+      kept.forEach((it) => { try { it.el.remove() } catch (e) { /* 已脱落 */ } })
       return kept.length
     },
     /** 按当前板块换输入框提示（见 main.js 的分板块提示语） */
