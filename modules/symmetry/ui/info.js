@@ -186,31 +186,34 @@ export function renderInfo(info, callbacks = {}) {
     arrow.textContent = '▸'
     /**
      * ★★ 2026-10-13（用户："支持对同类对称元素全选"）：
-     *   组头加一个**同选**复选框（这一类 >1 个时才显示）：一下把 σᵥ(1)(2)(3) 一起勾上/取消 ✗
+     *   组头加一个**同选**复选框：一下把 σᵥ(1)(2)(3) 一起勾上/取消 ✗
      *   原先只能逐个点 ✗（NH₃ 的 3 个 σᵥ、D3h 的多个 C₂′ 都要点很多下）。
      *   · 走的是**同一批动作**（每个个体一次 `onToggle`）⇒ 与单个勾选同源，没有第二条真源；
      *   · 三态：全勾 = 勾、全不勾 = 空、混杂 = 半选（indeterminate），一眼能看出"这类没全开"。
+     *
+     * ★★ 2026-10-13 补（用户："左边一个有复选框一个没有，不太对称"）：
+     *   我第一版加了"这一类 >1 个才显示"的条件 ✗ —— 于是 C₃（×1）那一行少了这一格，
+     *   圆点/名字/计数整列**左移**，两行对不齐 ✗。用户看的就是这个。
+     *   ⇒ 改成**每行都留这一格**（×1 的那一行，勾上/取消就是选中它自己，语义仍然对）。
+     *     对不齐的根子不在"要不要控件"，而在"**有没有占位**" —— 布局别让内容决定。
      */
-    let groupCb = null
     const items = g.items || []
-    if (items.length > 1) {
-      groupCb = document.createElement('input')
-      groupCb.type = 'checkbox'
-      groupCb.className = 'elem-group-cb'
-      groupCb.title = t('elem.selectAllSame')
-      groupCb.checked = items.every(({ el }) => el.defaultVisible !== false)
-      groupCb.indeterminate = items.some(({ el }) => el.defaultVisible !== false) && !groupCb.checked
-      // ★ 点它不该顺手折叠/展开这一组（组头自己的 click 会做那件事）
-      groupCb.addEventListener('click', (e) => e.stopPropagation())
-      groupCb.addEventListener('change', () => {
-        const on = groupCb.checked
-        for (const { index } of items) {
-          if (callbacks.onToggle) callbacks.onToggle(index, on)
-        }
-        syncGroupCb()
-      })
-    }
-    header.append(...(groupCb ? [groupCb] : []), dot, nameSpan, count, arrow)
+    const groupCb = document.createElement('input')
+    groupCb.type = 'checkbox'
+    groupCb.className = 'elem-group-cb'
+    groupCb.title = t('elem.selectAllSame')
+    groupCb.checked = items.every(({ el }) => el.defaultVisible !== false)
+    groupCb.indeterminate = items.some(({ el }) => el.defaultVisible !== false) && !groupCb.checked
+    // ★ 点它不该顺手折叠/展开这一组（组头自己的 click 会做那件事）
+    groupCb.addEventListener('click', (e) => e.stopPropagation())
+    groupCb.addEventListener('change', () => {
+      const on = groupCb.checked
+      for (const { index } of items) {
+        if (callbacks.onToggle) callbacks.onToggle(index, on)
+      }
+      syncGroupCb()
+    })
+    header.append(groupCb, dot, nameSpan, count, arrow)
 
     // 组体（默认折叠，展开后每个个体 checkbox + 播放按钮）
     const body = document.createElement('div')

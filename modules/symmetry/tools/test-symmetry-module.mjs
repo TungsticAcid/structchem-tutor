@@ -706,8 +706,9 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
   const strip3 = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/^\s*\*.*$/gm, '')
   const info = strip3(infoSrc)
   const page3 = strip3(pageSrc3)
-  check('组头有同选复选框，且只在这一类不止一个时出现',
-    /elem-group-cb/.test(info) && /if \(items\.length > 1\)/.test(info))
+  check('组头有同选复选框，且**每一行都占这一格**（×1 的行也一样，否则整列对不齐）',
+    /elem-group-cb/.test(info) && !/if \(items\.length > 1\)/.test(info)
+    && /header\.append\(groupCb, dot, nameSpan, count, arrow\)/.test(info))
   check('同选走的是**同一批个体动作**（每个个体一次 onToggle，没有第二条真源）',
     /for \(const \{ index \} of items\)[\s\S]{0,90}?callbacks\.onToggle\(index, on\)/.test(info))
   check('组头三态：全勾 / 全不勾 / 半选',
