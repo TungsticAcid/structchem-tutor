@@ -103,7 +103,20 @@ export const zh = {
     + '因为 E 也是一个操作，而 E 不占任何对称元素"。',
   'shell.prompt.roleCrystal': '涉及配位数、空隙数、晶胞参数、密度等一切数值，必须用 queryCrystal 取得，不要口算。',
   'shell.prompt.roleOrbit': '节面数、径向峰位、能级、简并度等一切数值必须用 queryOrbital 取得，不要凭记忆或口算。',
-  'shell.prompt.roleSymmetry': '点群符号与对称元素清单一律用 queryPointGroup 取得；晶体示例走空间群（同一条命令）。',
+  /**
+   * ★★ 2026-10-14（用户两条）：① "甲烷对称元素全部显示出来有点乱，智能体应避免把对称元素
+   *   很多的点群的所有对称元素同时列出"；② 图 2 里"先切分子、再引用新分子的元素 key"被拒。
+   *
+   *   ②的真因（已实测复现）：演示是**整批**先校验、再执行的，而校验用的是**当前**分子 ——
+   *   所以 [切换分子 → 显示全部 → 播放 C5#1] 这一步会按**旧分子**（甲烷）的元素表校验 ✗
+   *   （可用列表正是甲烷的 C2#1..3 / C3#1..4 / S4#1..3 / sigma_d#1..6）。
+   *   ⇒ 解决办法是**分两批**：先切分子，等它真生效后再下发引用新分子元素的那几步。
+   */
+  'shell.prompt.roleSymmetry': '点群符号与对称元素清单一律用 queryPointGroup 取得；晶体示例走空间群（同一条命令）。'
+    + '★ 对称元素多的点群（甲烷 Td 有 16 个）**不要"一键全部显示"** —— 画面会糊成一片；'
+    + '按**族**演示（四根 C₃ → 三根 C₂ → 三根 S₄ → 六个 σ_d），或只显示正在讲的那一类。'
+    + '★ 同一条演示里**先"切换分子"、再引用该分子特有的元素 key** 会被拒（整批校验用的是**当前**分子的元素表）；'
+    + '要引用新分子的元素，请**分两批下发**：先切分子，确认生效后再排引用它元素的那几步。',
 
   // ---- 带变量的动态串（扫描替换做不到，必须走键） ----
   'shell.panel.switched': '已切到「{title}」模块',
@@ -238,7 +251,14 @@ export const en = {
   'shell.prompt.roleOrbit': 'For any number — node count, radial peak positions, energy levels, degeneracy — '
     + 'obtain it with queryOrbital. Never rely on memory or mental arithmetic.',
   'shell.prompt.roleSymmetry': 'Always obtain point-group symbols and symmetry-element lists with queryPointGroup; '
-    + 'crystal examples go through the space group (same command).',
+    + 'crystal examples go through the space group (same command). '
+    + '★ For element-rich point groups (methane Td has 16 elements) **never switch them all on at once** — '
+    + 'the view turns to mush; demonstrate **family by family** (four C₃ → three C₂ → three S₄ → six σ_d), '
+    + 'or show only the family you are talking about. '
+    + '★ Inside one demo, **switching molecule first and then referencing that molecule\'s element keys** '
+    + 'is rejected (a batch is validated against the **current** molecule\'s element table); to reference a '
+    + 'new molecule\'s elements, **send two batches**: switch molecule first, then queue the steps that use '
+    + 'its element keys.',
 
   'shell.panel.switched': 'Switched to the "{title}" module',
   'shell.panel.restored': 'Restored your previous conversation ({n} messages) — the top-right menu starts a new one',

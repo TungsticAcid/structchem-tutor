@@ -576,7 +576,9 @@ Object.assign(MESSAGES.zh, {
   'sym.err.unknownExampleStrict': '未知示例 id：{id}（id 必须来自 listExamples 的返回值）',
   'sym.err.noSelection': '当前没有选中的结构（先用 listExamples 挑一个，或让学生打开一个）',
   'sym.err.needKey': '{name} 需要 key（字符串），可用：{list}',
-  'sym.err.unknownElementKey': '未知对称元素 key：{key}（可用：{list}）',
+  'sym.err.unknownElementKey': '未知对称元素 key：{key}（可用：{list}）'
+    + '　★ 提示：若你刚在同一批里"切换分子"，请**分两批**下发 —— 先切分子，确认生效后再引用它的元素 key'
+    + '（整批校验用的是**当前**分子的元素表）。',
   'sym.err.unknownAtomKey': '未知原子 key：{key}（可用：{list}）——key 来自 queryPointGroup 的 atoms，不可编造',
   'sym.err.unsupportedAction': '当前模块不支持动作：{name}',
   'sym.err.notCrystal': '{title} 是分子，不是晶体——请用点群识别（不带 kind 的那条路）',
@@ -588,7 +590,10 @@ Object.assign(MESSAGES.en, {
   'sym.err.unknownExampleStrict': 'Unknown example id: {id} (the id must come from listExamples)',
   'sym.err.noSelection': 'No structure is selected yet (pick one with listExamples, or have the student open one)',
   'sym.err.needKey': '{name} needs key (a string); available: {list}',
-  'sym.err.unknownElementKey': 'Unknown symmetry-element key: {key} (available: {list})',
+  'sym.err.unknownElementKey': 'Unknown symmetry-element key: {key} (available: {list})'
+    + ' ★ Hint: if you switched molecule earlier in the same batch, **send two batches** — switch the molecule '
+    + 'first, then reference its element keys (a batch is validated against the element table of the '
+    + '**current** molecule).',
   'sym.err.unknownAtomKey': 'Unknown atom key: {key} (available: {list}) — keys come from queryPointGroup\'s atoms; never invent one',
   'sym.err.unsupportedAction': 'This module does not support the action: {name}',
   'sym.err.notCrystal': '{title} is a molecule, not a crystal — use point-group identification (the path without kind)',

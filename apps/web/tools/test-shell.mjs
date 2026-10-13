@@ -542,6 +542,26 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     //   本应用里"元素"指对称元素，隐去它们就什么都不剩。术语纪律必须钉在提示词里（中英各一份）。
     ok(shellSrc2.includes('"元素"一律指对称元素'), '中文角色提示要钉住"元素=对称元素"这条术语')
     ok(shellSrc2.includes('“元素” always means a symmetry element'), '英文角色提示要有同一条术语纪律')
+    // ★★ 2026-10-14（用户两条）：① 元素很多的点群别一键全显（甲烷 Td 16 个会糊）；
+    //   ② 同一条演示里"先切分子、再引用新分子的元素 key"会被整批校验拒掉 ⇒ 提示要分两批。
+    ok(shellSrc2.includes('不要"一键全部显示"'), '中文要点明"元素多的点群别一键全显"')
+    ok(shellSrc2.includes('never switch them all on at once'), '英文要有同一条')
+    ok(shellSrc2.includes('分两批下发'), '中文要点明"先切分子再引用其元素 key 要分两批"')
+    ok(shellSrc2.includes('send two batches'), '英文要有同一条')
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // ★★ 2026-10-14（用户："点击新会话后，部分内容未消失"，截图里留着练习知识点选择器与题目卡）：
+  //   那些卡片只存在于 DOM 里，靠"重画前摘下来、重画后接回去"活着（为了让判定卡不被抹掉）。
+  //   ⇒ **新会话 / 切换会话**必须先显式清掉它们，否则空态分支照样把它们接回来 ✗。
+  // ───────────────────────────────────────────────────────────────────────────
+  {
+    const mainSrc = readFileSync(resolve(REPO, 'apps/web/src/main.js'), 'utf8')
+    const newConv = mainSrc.slice(mainSrc.indexOf("label: '新对话'"), mainSrc.indexOf("label: '新对话'") + 1400)
+    ok(/panel\.clearPracticeCards\(\)[\s\S]{0,80}panel\.renderPath\(\)/.test(newConv),
+      '「新对话」必须先 clearPracticeCards() 再 renderPath()（否则练习卡片残留）')
+    ok(mainSrc.includes('if (panel && typeof panel.clearPracticeCards === \'function\') panel.clearPracticeCards()'),
+      '「切换/删除会话」也要清掉上一段对话的 DOM 卡片')
   }
   // ★★ 2026-10-12（用户："对比模式点击原子，没触发原子信息弹窗，反而使得鼠标一动晶体就跟着旋转"）：
   //   ① 对比页不许再用宿主里并不存在的 window.wx（它一抛异常就把画布的拖拽状态卡死）；

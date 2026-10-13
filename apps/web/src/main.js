@@ -970,6 +970,19 @@ panel = createPanel({
           // ★ 新会话要把演示一并收掉（否则演示条还挂着上一段对话的「演示已停止」，
           //   而且再点「重新演示」播的是上一段对话的演示 —— 用户报过这条）
           panel.resetDemo()
+          /**
+           * ★★ 2026-10-14（用户："点击新会话后，部分内容未消失"，截图里留着
+           *   "选择要练习的知识点"与上一道题卡）：
+           *
+           *   那些是**只存在于 DOM 里**的卡片（练习选择器/题目卡/判定卡/提示条）——
+           *   它们不在对话树里，靠"重画前摘下来、重画后接回去"活着（那条规则是为了
+           *   "学生答完题、模型一开口，判定与题目卡不能凭空消失"）。
+           *   可**新会话**是"从零开始"，把上一段对话的练习卡片接回来就成了残留 ✗
+           *   （空态分支同样会接回，所以 `renderPath()` 之前必须先把它们摘掉）。
+           *   ★ 这里用 `clearPracticeCards()`：它按 `domOnlyNodes()` 全清，
+           *     连提示条（`.agent-chip-row`）一起收，正是"新会话该有的样子"。
+           */
+          panel.clearPracticeCards()
           panel.renderPath()          // 路径为空 → 自动回到空态
         } catch (e) { console.warn('[agent] 新建会话失败：', e) }
       },
@@ -980,6 +993,12 @@ panel = createPanel({
     try {
       app.conversation.stop()
       app.conversation.setHistory(convStore.messages())
+      /**
+       * ★★ 2026-10-14（同上）：「切换会话」与「新会话」一样，**上一段对话的练习卡片不能跟过来**
+       *   —— 那些卡片只存在于 DOM 里，不显式收掉就会被"重画时接回"这条规则原样搬进新会话 ✗。
+       *   （删除会话走的是同一条通路。）
+       */
+      if (panel && typeof panel.clearPracticeCards === 'function') panel.clearPracticeCards()
     } catch (e) { console.warn('[agent] 同步会话历史失败：', e) }
   },
   /**
