@@ -96,7 +96,12 @@ function invertInterpMatrix(t) {
  * 对称操作插值矩阵（相对恒等 I 到操作；sign=+1 正向 / -1 逆向）
  * rotate/improper 的旋转分量按 sign 反向；reflect/invert 自逆，sign 无影响。
  */
-function opMatrixAt(progress, type, axis, rotN, sign, reflectStart) {
+/**
+ * 某个进度下的操作矩阵（四种类型的插值都在这里）。
+ * ★ 导出是为了让 Node 守卫能直接验证"**t=1 一定是刚体**"这条兜底所依赖的性质
+ *   （与 `operationAxisFor` 同一个理由：能被执行到，才守得住）。
+ */
+export function opMatrixAt(progress, type, axis, rotN, sign, reflectStart) {
   const twoPiN = 2 * Math.PI / rotN
   if (type === 'rotate') {
     return new THREE.Matrix4().makeRotationAxis(axis, sign * twoPiN * progress)
@@ -214,11 +219,40 @@ let currentAnim = null
 let lastPlay = null
 let lastState = null   // 'preparing' | 'finished' | 'stopped'
 
+/**
+ * 这个变换矩阵是不是**刚体**（三个列向量的长度都接近 1）。
+ *
+ * ★★ 2026-10-14（用户："一个动作播放一半时，被另一个动作打断，会出现 bug。
+ *   比如图中，分子被压扁了"）：
+ *   反射动画的插值是 `I - 2t·nnᵀ`（t:0→1），**t=0.5 时沿法向的那一维被压成 0** ✗
+ *   （"穿镜而过"是刻意的观感）；反演插值 `(1-2t)·I` 在 t=0.5 更是**零矩阵** ✗。
+ *   这些中间态**当画面看没问题**，但当"被打断后要烘焙下来的姿态"就是**退化矩阵** ——
+ *   分子从此永久压扁（用户截图正是它）。
+ *   ⇒ 判据：烘焙前必须验这一条；不是刚体就不能原样烘焙（见 `clearCurrentAnim`）。
+ *   ★ 导出是为了能被 Node 守卫直接调用（与 `operationAxisFor` 同一个理由）。
+ */
+export function isRigidMatrix(m) {
+  if (!m || !m.elements) return false
+  const e = m.elements
+  for (const c of [0, 4, 8]) {
+    const len = Math.hypot(e[c], e[c + 1], e[c + 2])
+    if (!(Math.abs(len - 1) < 1e-3)) return false
+  }
+  return true
+}
+
 /** 清除当前动画：把 animGroup 当前变换烘焙到各组（保留当前结构为下次起点），detach */
 function clearCurrentAnim() {
   const a = currentAnim
   if (!a) return
   if (a.raf) cancelAnimationFrame(a.raf)
+  /**
+   * ★★（见 `isRigidMatrix` 的说明）：退化姿态不能烘焙 —— 先把它**补完**
+   *   （`setMatrix(1)` 给出的才是真正的对称操作矩阵，刚性、det=∓1）。
+   *   刚体姿态则**原样保留**：旋转播到一半被打断仍停在当前角度，那是 2026-10-11
+   *   "选中原子与高亮必须一致"那条所依赖的行为，不能顺手改成"跳到最后"。
+   */
+  if (typeof a.setMatrix === 'function' && !isRigidMatrix(a.animGroup.matrix)) a.setMatrix(1)
   const m = a.animGroup.matrix.clone()
   if (a.moleculeGroup) setGroupMatrix(a.moleculeGroup, m.clone().multiply(a.moleculeGroup.matrix.clone()))
   detachToRoot(a)

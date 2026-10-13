@@ -465,9 +465,36 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
 // ───────────────────────────────────────────────────────────────────────────
 {
   const { operationAxisFor } = await import('../render/animation.js')
+  const { opMatrixAt, isRigidMatrix } = await import('../render/animation.js')
   const THREE = await import('three')
   const near = (v, want) => Math.abs(v.x - want[0]) < 1e-6
     && Math.abs(v.y - want[1]) < 1e-6 && Math.abs(v.z - want[2]) < 1e-6
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ★★ 2026-10-14（用户："一个动作播放一半时，被另一个动作打断，会出现 bug —— 分子被压扁了"）：
+  //
+  //   反射/反演的插值在**中途会退化**（t=0.5 时沿法向那一维被压成 0，反演更是一个零矩阵）✗
+  //   —— 当画面看没问题，但"被打断后要烘焙下来的姿态"就成了退化矩阵，分子从此永久压扁。
+  //   兜底是"烘焙前验刚体性，不刚体就补完（t=1）"，而这条兜底**依赖**一个性质：
+  //   **t=1 的矩阵一定是刚体**（那才是真正的对称操作）—— 下面就把这条性质钉住，
+  //   连"中途确实退化"一起记录（有它才能证明兜底不是多余的）。
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    const z = new THREE.Vector3(0, 0, 1)
+    const cases = [['rotate', 4], ['reflect', 4], ['invert', 4], ['improper', 4]]
+    for (const [type] of cases) {
+      check(`${type}：t=1 的矩阵是刚体（"补完"这条兜底才有意义）`,
+        isRigidMatrix(opMatrixAt(1, type, z, 4, 1, 0.5)))
+      check(`${type}：t=0 的矩阵是恒等（刚体）`,
+        isRigidMatrix(opMatrixAt(0, type, z, 4, 1, 0.5)))
+    }
+    check('记录成因：反射 t=0.5 本就退化（压扁的来源）',
+      !isRigidMatrix(opMatrixAt(0.5, 'reflect', z, 4, 1, 0.5)))
+    check('记录成因：反演 t=0.5 是零矩阵（更彻底）',
+      !isRigidMatrix(opMatrixAt(0.5, 'invert', z, 4, 1, 0.5)))
+    check('旋转全程都是刚体（所以"保留当前朝向"那条行为可以照旧）',
+      [0.1, 0.25, 0.5, 0.75, 0.9].every((t) => isRigidMatrix(opMatrixAt(t, 'rotate', z, 4, 1, 0.5))))
+  }
   const methaneEls = identifyPointGroup(
     EXAMPLES.find((e) => e.id === 'methane').structure).elements
   const c2_1 = methaneEls[0], c2_2 = methaneEls[1], c3_1 = methaneEls[3]
