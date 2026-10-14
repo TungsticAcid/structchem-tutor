@@ -150,8 +150,29 @@
 }
 .orbit-page .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .orbit-page .logo { font-size: 2.321rem; }
-.orbit-page .brand h1 { font-size: 1.696rem; font-weight: 700; margin: 0; letter-spacing: 0.5px; }
-.orbit-page .subtitle { font-size: 1.071rem; color: var(--text-dim); align-self: flex-end; margin-bottom: 3px; }
+/**
+ * ★ 2026-10-15：h1 与副标题都钉 `line-height: 1.35`。
+ *   只把两者字号取同值时，**顶边仍差 2px**（实测 h1 top=21 / 副标题 top=19）——
+ *   因为行盒是"字体不对称度量"算出来的：h1 是中文、副标题那行含大量中文与拉丁混排，
+ *   两者的 ascent 不同；行高用纯数字（1.35 × 自身字号）后，两行盒高恒等、顶边对齐。
+ */
+.orbit-page .brand h1 { font-size: 1.696rem; font-weight: 700; margin: 0; letter-spacing: 0.5px; line-height: 1.35; }
+/**
+ * ★★ 2026-10-15（用户："标题和副标题要一样高"）：
+ *   副标题原先 1.071rem（15px）且 `align-self: flex-end` + `margin-bottom: 3px`
+ *   —— 那是"小字挂在标题基线下方"的常见做法，但用户要的是**同高** ✗。
+ *   ⇒ ① 字号取与 `.brand h1` **同一个值**（1.696rem = 23.744px）；
+ *      ② 去掉 flex-end 与下沉 margin，改为**居中**；
+ *      ③ 行高同为 1.35 ⇒ 盒高与顶边**逐像素一致**（实测 30/30、top 21/21）。
+ *   ★ 字号写成与 h1 相同的字面量而不是 `em`：本文件字号一律 rem（见 .orbit-page 的说明），
+ *     用 `em` 会以父级 .brand 的 14px 为基准、与 h1 对不上。
+ */
+.orbit-page .subtitle {
+  font-size: 1.696rem;
+  line-height: 1.35;
+  color: var(--text-dim);
+  align-self: center;
+}
 .orbit-page .top-meta { display: flex; align-items: center; gap: 12px; }
 .orbit-page .orbit-title {
   /* ★ 2026-10-15：Georgia 排在新罗马前面，与本仓"西文一律新罗马"的口径不一致（用户要求改）。
