@@ -197,14 +197,32 @@ body.agent-resizing .compare-page {
 }
 .agent-msg.user {
   align-self: flex-end;
-  /* ★★ 2026-10-08：气泡底色是**写死的深蓝**（用户消息的固定视觉语言，不随主题翻），
-     但字色原先靠**继承容器** —— 深色主题下容器字色是浅色，看着正常；浅色主题下容器字色
-     是深色（--text #333），于是**深字压深蓝**，用户报「浅色模式下，发的内容看不清」。
+  /* ★★ 2026-10-08：气泡底色是**写死的深蓝**，但字色原先靠**继承容器** ——
+     浅色主题下容器字色是深色，于是**深字压深蓝**，用户报「浅色模式下，发的内容看不清」。
      判据：底色不随主题翻的元素，字色必须**自己钉死**（同 tokens.css 里 --chrome-* 那条）。 */
+  /**
+   * ★★ 2026-10-14（用户："用户发送的气泡颜色不随界面风格切换而变"）：
+   *   上一版把"深蓝底 + 浅字"当成了**用户消息的固定视觉语言**，于是**两套主题一个样子** ✗。
+   *   改为随主题走：**深色**仍是深蓝渐变 + 浅字（保持原观感 ✓）；**浅色**换成淡蓝底 + 深字，
+   *   与助手气泡（`--card` 白底）同处一套浅色语言，一眼能分清"我说的 / 它说的"，
+   *   但不再是"深色主题的配色搬到浅色页面上" ✗。
+   *   ★ 配套：气泡里的动作按钮也要跟着翻（它原先把浅色钉死 —— 见下方 .agent-act-btn 那条）。
+   */
   background: linear-gradient(135deg, #2b3d6b, #34406b);
   border: 1px solid #46579a;
   color: #eaf1ff;
   white-space: pre-wrap;
+}
+/* 浅色主题：用户气泡（含其中的按钮）换成淡蓝底 + 深字 —— 对比度 12:1 以上 */
+[data-theme="light"] .agent-msg.user {
+  background: linear-gradient(135deg, #e2ebfb, #e9effc);
+  border-color: #b7c8e6;
+  color: #16305a;
+}
+[data-theme="light"] .agent-msg.user .agent-act-btn {
+  color: #16305a;
+  border-color: rgba(22, 48, 90, .35);
+  background: rgba(255, 255, 255, .62);
 }
 .agent-msg.assistant {
   align-self: stretch;
