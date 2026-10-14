@@ -163,6 +163,8 @@ let demoFav
   let noTextNoteEl = null
 /** 在途气泡护栏的短重试状态（见 renderPath 里那段注释） */
 const pendingRetry = { n: 0, timer: 0 }
+/** 在途标记的看门狗（一次性；见 renderPath 里那段注释：按请求计数永远到不了上限） */
+let pendingWatchdog = 0
 /** 正文流式结束的时刻（用于给"演示阶段"留出重试窗口） */
 let finishedAt = 0
   let disposed = false
@@ -1166,11 +1168,25 @@ let lastDemoId = null
      */
     if (msgBox && typeof msgBox.querySelector === 'function' && msgBox.querySelector('[data-pending]')) {
       pendingRender = true
-      if (pendingRetry.n < 20 && !pendingRetry.timer) {
-        pendingRetry.timer = setTimeout(() => {
-          pendingRetry.timer = 0; pendingRetry.n += 1
-          if (!msgBox || !msgBox.querySelector('[data-pending]') || pendingRetry.n >= 20) renderPath()
-        }, 100)
+      if (!pendingWatchdog) {
+        /**
+         * ★★ 2026-10-14（验证查出 + 我第一版修法**不生效**的实测）：
+         *   在途标记有可能**没人来撤** —— `stopRunning()` 只在分支切换/新会话等路径被调用，
+         *   正常收尾不走它 ⇒ 标记长期留着 ⇒ 之后的重画被**永久**推迟（换会话、空态刷新都被挡住 ✗）。
+         *   第一版按"重画被请求了几次"给预算 ✗ —— 实测**永远到不了上限**（重画请求本来就少），
+         *   探针里预算用尽后气泡仍在、残留标记 1 ✗。⇒ 改成**与请求次数无关**的看门狗：
+         *   只挂一次，到期（12 秒）就把过期标记撤掉并重画。
+         *   为什么 12 秒安全：原来那个"重画抹掉回答"的窗口是**亚秒级**（store 异步落盘），
+         *   12 秒时回答早在 store 里 ⇒ 这次重画画的是**已落盘的回答**，不会再丢。
+         */
+        pendingWatchdog = setTimeout(() => {
+          pendingWatchdog = 0
+          if (msgBox && typeof msgBox.querySelectorAll === 'function') {
+            const stale = msgBox.querySelectorAll('[data-pending]')
+            for (let i = 0; i < stale.length; i++) if (stale[i].dataset) delete stale[i].dataset.pending
+          }
+          renderPath()
+        }, 12000)
       }
       return
     }
@@ -1630,11 +1646,25 @@ let lastDemoId = null
      */
     if (msgBox && typeof msgBox.querySelector === 'function' && msgBox.querySelector('[data-pending]')) {
       pendingRender = true
-      if (pendingRetry.n < 20 && !pendingRetry.timer) {
-        pendingRetry.timer = setTimeout(() => {
-          pendingRetry.timer = 0; pendingRetry.n += 1
-          if (!msgBox || !msgBox.querySelector('[data-pending]') || pendingRetry.n >= 20) renderPath()
-        }, 100)
+      if (!pendingWatchdog) {
+        /**
+         * ★★ 2026-10-14（验证查出 + 我第一版修法**不生效**的实测）：
+         *   在途标记有可能**没人来撤** —— `stopRunning()` 只在分支切换/新会话等路径被调用，
+         *   正常收尾不走它 ⇒ 标记长期留着 ⇒ 之后的重画被**永久**推迟（换会话、空态刷新都被挡住 ✗）。
+         *   第一版按"重画被请求了几次"给预算 ✗ —— 实测**永远到不了上限**（重画请求本来就少），
+         *   探针里预算用尽后气泡仍在、残留标记 1 ✗。⇒ 改成**与请求次数无关**的看门狗：
+         *   只挂一次，到期（12 秒）就把过期标记撤掉并重画。
+         *   为什么 12 秒安全：原来那个"重画抹掉回答"的窗口是**亚秒级**（store 异步落盘），
+         *   12 秒时回答早在 store 里 ⇒ 这次重画画的是**已落盘的回答**，不会再丢。
+         */
+        pendingWatchdog = setTimeout(() => {
+          pendingWatchdog = 0
+          if (msgBox && typeof msgBox.querySelectorAll === 'function') {
+            const stale = msgBox.querySelectorAll('[data-pending]')
+            for (let i = 0; i < stale.length; i++) if (stale[i].dataset) delete stale[i].dataset.pending
+          }
+          renderPath()
+        }, 12000)
       }
       return
     }
