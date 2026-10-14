@@ -1,91 +1,69 @@
 /**
- * home.js — 门户首页：导航栏 · Hero 主视觉（含自有渲染图拼贴）· 三张核心卡片 · 设置区 · 页脚
+ * home.js — 门户首页：编号列表 · 极简学术风
  *
  * ★ 为什么需要一个首页：统一壳的定位是「一个中枢 + N 个可插拔教学模块」。
  *   没有首页时，打开就直接进某一个模块的视图——那是"单模块应用"的形态，
  *   用户无从知道还有别的模块，将来接入新模块也无处安放入口。
  *
- * ★ 模块清单的来源是 **registry 的 descriptor**，不是 `app.listModules()`：
- *   前者回答「**将要**有什么」（声明过的，三个都在），后者只回答「现在能跑什么」。
+ * ★ 模块清单的来源是 **registry 的 descriptor**，不是 `app.listModules()`。
+ *   两者问的是不同的问题：
+ *     · `app.listModules()`      → 「现在**能跑**什么」（已装配的，今天只有一个）
+ *     · `registry.listModules()` → 「**将要**有什么」（声明过的，三个都在）
+ *   门户要回答后者，所以必须用后者——这也正是它显示三行而不是一行的原因。
  *
- * ★ 次序按 `teachingOrder`（结构化学授课顺序：原子结构 → 分子对称性 → 晶体结构）。
+ * ★ 次序按 `teachingOrder`（descriptor 里的字段），**不是** id 的字母序。
+ *   现在若按 id 排会得到 crystal → orbit → symmetry，那只是巧合；
+ *   正确的依据是结构化学的授课顺序（原子结构 → 分子对称性 → 晶体结构）。
  *
- * ★★ 2026-10-14 改版，两轮用户要求都在这里落地：
- *   第一轮：学术专业风、导航栏 + Hero + 三卡 + 设置 + 页脚、保留全部功能入口。
- *   第二轮（本轮）：① **字体要大**（面向各年龄段师生，最小 15.5px、大标题 70px）；
- *     ② **要有色彩与艺术性**（按模块给低饱和强调色 + 柔光背景 + 渐变大标题）；
- *     ③ **用自己的渲染图**（C₆₀ 含主轴与垂直轴 / 3d_xy 轨道 / 立方 ZnS-CPK，
- *        透明底 PNG 放 `apps/web/public/home/`，页面上以半透明错落拼贴呈现）；
- *     ④ **一屏显示完、不留大空白**（实测 1440×900 下页面高 = 视口高）。
- *
- * ★ 三条工程约束（沿用仓库既有判据）：
- *   · 配色写成**页面作用域令牌**（`--pt-*`，浅深两套写在一处），不散落字面量；
- *   · 文案**一律走 `t()`**（键在 apps/web/src/i18n/shell.js 的 zh/en 两张表）——
- *     不赌运行时 DOM 扫描的时机（`☆ 收藏这次演示` 那颗按钮栽过）；
- *   · **保留全部行为钩子**：`data-module` / `data-set`+`data-v` / `.pl-seg-btn` /
- *     `data-act` / `is-locked`+`is-nudged` ⇒ 宿主与既有守卫不用改。
- *   ★ 规范里的「帮助文档 / 关于我们」**没有渲染**：本应用没有这两个页面，
- *     渲染一个点了没反应的链接正是本仓库反复记为缺陷的形态。
+ * ★ 呈现：编号列表，不用卡片、不放缩略图与大图标。
+ *   那是与卡片式不同的一套语言——"高级"来自留白、对齐、层次，不是来自装饰。
+ *   未接入的模块**如实弱化标注**（而不是藏起来、也不是假可点）：
+ *   让人看得到完整蓝图，同时不误以为它已经能用。
  */
+// ★ 只有"带变量的提示语"走 t()（扫描替换对不了变量）；
+//   纯静态文案仍留在模板里交给扫描替换 —— 见文件内 onLangChange 的说明。
+//   ★ 这里用 `@i18n` 别名（与 main.js 一致）：本文件只被 vite 加载。
+//     守卫在 Node 里 import 的是**字典文件**，那些才必须走相对路径。
 import { t, tsrc } from '@i18n/index.js'
 
 /**
  * 模块 id → 一句话能力概述（展现层的内容）。
- * ★ 文案**取自参赛配图**（`比赛配图-1.pptx` 第 1 页的模块卡副标题），门户与配图口径一致。
+ *
+ * ★ 为什么不从 descriptor 的 `capabilities` 生成：
+ *   那是一份**路由用的关键词表**（"NaCl"、"CsCl"、"面心立方"…），
+ *   直接铺到界面上会变成一串名词。界面要的是一句人能读懂的话，
+ *   那是**表现层的职责**——所以放在这里，而不是塞进 descriptor。
+ *
+ * ★ 这一段文案**取自参赛配图**（`比赛配图-1.pptx` 第 1 页的模块卡副标题）：
+ *   轨道视界「类氢原子轨道三维可视化」· 点群观鉴「分子对称性与分子点群」·
+ *   晶典在线「晶体结构与点阵型式」。门户与配图口径一致，评审对照时不会两套说法。
  */
-const MODULE_BLURB_KEY = {
-  orbit: 'shell.home.orbit.sub',
-  symmetry: 'shell.home.symmetry.sub',
-  crystal: 'shell.home.crystal.sub',
-}
-
-/** 模块 id → "学完能做什么"（可观察 / 易剖析 / 得贯通） */
-const MODULE_TAGLINE_KEY = {
-  orbit: 'shell.home.orbit.tag',
-  symmetry: 'shell.home.symmetry.tag',
-  crystal: 'shell.home.crystal.tag',
-}
-
-/** 模块 id → 整句描述（卡片正文） */
-const MODULE_DESC_KEY = {
-  orbit: 'shell.home.orbit.desc',
-  symmetry: 'shell.home.symmetry.desc',
-  crystal: 'shell.home.crystal.desc',
+const MODULE_BLURB = {
+  orbit: '类氢原子轨道三维可视化',
+  symmetry: '分子对称性与分子点群',
+  crystal: '晶体结构与点阵型式',
 }
 
 /**
- * 模块 id → 卡片图标（内联 SVG 线稿，`currentColor` 上色 ⇒ 跟随该模块的强调色）。
- * ★ 不引第三方图标库：三种图标各十来行，引一个库只为三个图标不划算。
+ * 模块 id → 配图底部那句"学生得到什么"。
+ *
+ * ★ 与上面的副标题分工不同：副标题说的是"这里面有什么"，这一句说的是
+ *   **学完之后能做什么**（可观察 / 易剖析 / 得贯通）。行内两段并列显示。
  */
-const MODULE_ICON = {
-  orbit: '<circle cx="12" cy="12" r="2.4"/>'
-    + '<ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-28 12 12)"/>'
-    + '<ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(28 12 12)"/>',
-  symmetry: '<circle cx="12" cy="12" r="2.6"/>'
-    + '<circle cx="4.6" cy="6" r="1.7"/><circle cx="19.4" cy="18" r="1.7"/>'
-    + '<path d="M6 6.8 18 17.2M6 17.2 18 6.8"/>'
-    + '<path d="M12 2.5v19" stroke-dasharray="3 3"/>',
-  crystal: '<path d="M12 3.2 20 7.6v8.8L12 20.8 4 16.4V7.6z"/>'
-    + '<path d="M4 7.6 12 12l8-4.4M12 12v8.8"/>',
+const MODULE_TAGLINE = {
+  orbit: '微观世界可观察',
+  symmetry: '结构规律易剖析',
+  crystal: '构效关系得贯通',
 }
-
-/**
- * Hero 右侧的**自有渲染图**拼贴（透明底 PNG，由应用自己的查看器抓出来）。
- * ★ 放 `apps/web/public/home/`，用 `/home/xxx.png` 访问。
- * ★ `mount` 里给它们挂 error 监听：图不在就整块撤掉，绝不显示破图。
- */
-const HERO_ART = [
-  { src: '/home/3dxy.png', cls: 'pt-art-a' },
-  { src: '/home/c60.png', cls: 'pt-art-b' },
-  { src: '/home/zns.png', cls: 'pt-art-c' },
-]
 
 export class HomePage {
   /**
    * @param {Object} ctx
    * @param {Array<{id:string,title:string,teachingOrder?:number}>} ctx.modules
-   * @param {Set<string>|Array<string>} [ctx.available] 已接入（可在本应用里打开的）模块 id
-   * @param {string} [ctx.theme] 当前主题，仅用于日志诊断
+   *        全部模块（来自 `registry.listModules()`，已按 teachingOrder 排好或由此处再排一次）
+   * @param {Set<string>|Array<string>} [ctx.available]
+   *        已接入（可在本应用里打开的）模块 id
+   * @param {string} [ctx.theme] 当前主题（'dark' | 'light'），仅用于日志诊断
    */
   constructor(ctx = {}) {
     this._modules = Array.isArray(ctx.modules) ? ctx.modules.slice() : []
@@ -94,8 +72,13 @@ export class HomePage {
     this._container = null
     /**
      * 首页上的设置回调（都由宿主提供）。
-     * ★ 全部可选：没给就**不渲染那一行**，而不是渲染一个点了没反应的控件。
-     * ★ `onOpenAgent`：本轮加「问智能体」主按钮用（与右下角悬浮球同一入口）。
+     *
+     * ★ 为什么这些设置放在首页而不是只藏在智能体面板里：
+     *   「界面风格」与「界面语言」是**与具体模块无关**的偏好，用户第一次打开应用
+     *   就会想调；而面板（⚙）要先进对话、还只在一处。实测本仓库此前**根本没有**
+     *   主题的界面入口 —— 只有 `window.__chemAgent.theme` 这个调试把手。
+     * ★ 全部可选：没给就**不渲染那一行**，而不是渲染一个点了没反应的控件
+     *   （"看起来能用、其实没接"是本仓库反复记为缺陷的形态）。
      */
     this._ui = {
       getTheme: ctx.getTheme || null,
@@ -103,9 +86,8 @@ export class HomePage {
       getLang: ctx.getLang || null,
       onLang: ctx.onLang || null,
       onOpenSettings: ctx.onOpenSettings || null,
-      onOpenAgent: ctx.onOpenAgent || null,
     }
-    // ★ 按授课次序排（缺失的排到最后——"没标注"不该抢占首位）
+    // ★ 按授课次序排（缺失的排到最后，而不是排到最前——"没标注"不该抢占首位）
     this._modules.sort((a, b) => {
       const oa = typeof a.teachingOrder === 'number' ? a.teachingOrder : Number.MAX_SAFE_INTEGER
       const ob = typeof b.teachingOrder === 'number' ? b.teachingOrder : Number.MAX_SAFE_INTEGER
@@ -116,18 +98,6 @@ export class HomePage {
   mount(container) {
     this._container = container
     container.innerHTML = this._render()
-    /**
-     * `body.home-active`：首页在场时挂上，用来**只在这一页**放大智能体悬浮球
-     * （悬浮球是壳的元素，不在 .portal 里，作用域选择器够不着它）。
-     * ★ 不放进路由：路由只该知道"挂载了哪个页面"，加页面专属的身体类会让它知道太多。
-     */
-    try { document.body.classList.add('home-active') } catch (e) { /* 非浏览器环境 */ }
-
-    // ★ 自有渲染图缺失时整块撤掉（不显示破图）——见 HERO_ART 注释
-    container.querySelectorAll('.pt-shot').forEach((img) => {
-      img.addEventListener('error', () => { const w = img.closest('.pt-shot-wrap'); if (w) w.remove() })
-    })
-
     container.querySelectorAll('[data-module]').forEach((el) => {
       el.addEventListener('click', () => {
         const id = el.dataset.module
@@ -149,7 +119,8 @@ export class HomePage {
         const v = el.dataset.v
         if (kind === 'theme' && this._ui.onTheme) this._ui.onTheme(v)
         if (kind === 'lang' && this._ui.onLang) this._ui.onLang(v)
-        // 就地更新高亮，**不整页重渲** —— 重渲会把用户刚点的那一下的视觉反馈冲掉。
+        // 就地更新高亮，**不整页重渲** —— 重渲会把用户刚点的那一下的视觉反馈冲掉，
+        // 看着像"点了没反应"。主题/语言生效后页面自己会跟着变。
         el.parentElement.querySelectorAll('.pl-seg-btn')
           .forEach((b) => b.classList.toggle('is-on', b === el))
       })
@@ -158,409 +129,220 @@ export class HomePage {
     if (openBtn && this._ui.onOpenSettings) {
       openBtn.addEventListener('click', () => this._ui.onOpenSettings())
     }
-    // 「开始探索」：滚到功能卡片区（真实行为）
-    const cta = this._container.querySelector('[data-act="scroll-cards"]')
-    if (cta) {
-      cta.addEventListener('click', () => {
-        const cards = this._container.querySelector('.pt-cards')
-        if (cards && cards.scrollIntoView) cards.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      })
-    }
-    // 「问智能体」：打开智能体抽屉（与右下角悬浮球同一入口）
-    const ask = this._container.querySelector('[data-act="open-agent"]')
-    if (ask && this._ui.onOpenAgent) {
-      ask.addEventListener('click', () => {
-        try { this._ui.onOpenAgent() } catch (e) { console.warn('[agent] 打开智能体失败：', e) }
-      })
-    }
   }
 
   unmount() {
     if (this._container) this._container.innerHTML = ''
     this._container = null
-    // ★ 与 mount 成对：撤离时把"首页在场"这个标记拿掉（否则悬浮球一直保持首页放大样式）
-    try { document.body.classList.remove('home-active') } catch (e) { /* 非浏览器环境 */ }
   }
 
   /**
    * 语言变更时重挂自己。
-   * ★ 本页文案全程走 `t()`，值在渲染那一刻算出来（DOM 扫描够不着），所以语言一变必须重挂。
-   *   首页重挂只是拼一次 innerHTML，没有 WebGL、没有异步流水线（轨道页那种不能这么做）。
+   *
+   * ★ 静态文案（"界面风格""即将接入"…）不需要这一手 —— 运行时的 `restore` + `sweep`
+   *   已经把它们换好了。需要重挂的是**走 `t()` 取值**的那几处：
+   *   行的 `title` 提示（"进入晶体结构"/"…：尚未接入本应用"）与列表与提示语 ——
+   *   它们的值在渲染那一刻算出来，DOM 扫描够不着（见 packages/i18n 的两张表说明）。
+   * ★ 首页重挂的代价只是拼一次 innerHTML，没有 WebGL、没有异步流水线，所以直接重挂。
+   *   （轨道页那种"重建要十几秒"的页面**不能**这么做，见 router._notifyLang。）
    */
   onLangChange() {
     if (this._container) this.mount(this._container)
   }
 
   /**
-   * 设置区（界面与模型设置）：**一行装完**。
-   * ★ 2026-10-14 用户第二轮："字太多，这样就行"（附参考稿）——参考稿里三项并排在一行：
-   *   「界面风格：浅色 深色 · 界面语言：中文 English · 模型与教学偏好 [打开设置]」。
-   *   原来我按三行分组排版（占约 160px）；并成一行后省下的高度给了 Hero 里的自有渲染图。
-   * ★ 仍然只渲染**真的接上了**的那些段：回调没给就不出。
+   * 首页底部的设置区（界面风格 · 界面语言 · 打开完整设置）。
+   *
+   * ★ 只渲染**真的接上了**的行：回调没给就不出这一行，而不是给出一个
+   *   点了没反应的控件 —— 后者正是本仓库反复记为缺陷的形态。
    */
   _renderSettings() {
     const segOf = (kind, cur, pairs) => pairs.map(([v, label]) =>
       '<button type="button" class="pl-seg-btn' + (v === cur ? ' is-on' : '') +
       '" data-set="' + kind + '" data-v="' + v + '">' + label + '</button>').join('')
-    const groups = []
+    const rows = []
     if (this._ui.getTheme && this._ui.onTheme) {
-      groups.push('<span class="pl-set-group"><span class="pl-set-label">' + t('shell.home.setTheme')
-        + '</span><span class="pl-seg">' + segOf('theme', this._ui.getTheme() || 'system',
-          [['system', t('shell.home.themeSystem')], ['light', t('shell.home.themeLight')],
-            ['dark', t('shell.home.themeDark')]]) + '</span></span>')
+      rows.push('<div class="pl-set-row"><span class="pl-set-label">界面风格</span>'
+        + '<span class="pl-seg">' + segOf('theme', this._ui.getTheme() || 'system',
+          [['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']]) + '</span></div>')
     }
     if (this._ui.getLang && this._ui.onLang) {
-      groups.push('<span class="pl-set-group"><span class="pl-set-label">' + t('shell.home.setLang')
-        + '</span><span class="pl-seg">' + segOf('lang', this._ui.getLang() || 'zh',
-          [['zh', '中文'], ['en', 'English']]) + '</span></span>')
+      // ★ 这里原来还有一句「全站生效：切完页面与图表一起变，不会重算几何」——
+      //   已删。理由：它是**给实现者看的**（当初 i18n 刚落地时的必要说明），
+      //   对用户既不是选择依据、也不是操作指引；而"不会重算几何"这种话
+      //   用户本来就不该操心（重不重建是我们的实现细节）。
+      //   真正需要可发现性的是"**哪里**还能换语言" → 设置弹层里也放了一项。
+      rows.push('<div class="pl-set-row"><span class="pl-set-label">界面语言</span>'
+        + '<span class="pl-seg">' + segOf('lang', this._ui.getLang() || 'zh',
+          [['zh', '中文'], ['en', 'English']]) + '</span></div>')
     }
     if (this._ui.onOpenSettings) {
-      groups.push('<span class="pl-set-group"><span class="pl-set-label">' + t('shell.home.setModel')
-        + '</span><button type="button" class="pl-set-link" data-act="open-settings">'
-        + t('shell.home.openSettings') + '</button></span>')
+      rows.push('<div class="pl-set-row"><span class="pl-set-label">模型与教学偏好</span>'
+        + '<button type="button" class="pl-set-link" data-act="open-settings">'
+        + '打开设置（API Key · 模型 · 教学偏好）→</button></div>')
     }
-    if (!groups.length) return ''
-    return '<section class="pt-settings">' + groups.join('') + '</section>'
+    return rows.length ? '<div class="pl-settings">' + rows.join('') + '</div>' : ''
   }
 
   _render() {
-    const cards = this._modules.map((m) => {
+    const rows = this._modules.map((m, i) => {
+      const no = String(m.teachingOrder || (i + 1)).padStart(2, '0')
       const ok = this._available.has(m.id)
+      const blurb = MODULE_BLURB[m.id] || ''
+      const tagline = MODULE_TAGLINE[m.id] || ''
+      const badge = ok ? '' : '<span class="pl-badge">即将接入</span>'
+      // ★ 提示语里带模块名 ⇒ **必须走键**（扫描替换对不了变量）；
+      //   而 `即将接入` 之类的纯静态文案仍留在模板里，交给扫描替换 —— 少一处键。
+      // ★ 模块名（descriptor 的 `title`）本身是**中文原文**，虽然登记在 agent 区的
+      //   `text` 表里，但**嵌进句子之后就不再是独立的文本节点**，扫描替换够不着它 ——
+      //   不翻一道会得到 "Open「晶体结构」" 这种半英半中。
       const title = tsrc(m.title || m.id) || m.title || m.id
-      const tip = ok ? t('shell.home.enter', { title }) : t('shell.home.locked', { title })
-      const badge = ok ? '' : '<span class="pt-badge">' + t('shell.home.comingSoon') + '</span>'
-      const icon = MODULE_ICON[m.id] || MODULE_ICON.crystal
+      const tip = ok
+        ? t('shell.home.enter', { title })
+        : t('shell.home.locked', { title })
       return `
-        <button class="pt-card pt-card-${m.id}${ok ? '' : ' is-locked'}" type="button"
-                data-module="${m.id}" title="${tip}">
-          <span class="pt-card-head">
-            <span class="pt-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-                   stroke-linecap="round" stroke-linejoin="round">${icon}</svg>
-            </span>
-            <span class="pt-card-title">${title}${badge}</span>
-          </span>
-          <span class="pt-card-sub">${t(MODULE_BLURB_KEY[m.id] || '')}</span>
-          <span class="pt-card-tag">${t(MODULE_TAGLINE_KEY[m.id] || '')} →</span>
+        <button class="pl-row${ok ? '' : ' is-locked'}" type="button" data-module="${m.id}"
+                title="${tip}">
+          <span class="pl-no">${no}</span>
+          <span class="pl-name">${m.title || m.id}</span>
+          <span class="pl-blurb">${blurb}</span>
+          <span class="pl-tag">${tagline}</span>
+          ${badge}
+          <span class="pl-arrow">→</span>
         </button>`
     }).join('')
 
-    const shots = HERO_ART.map((a) =>
-      '<span class="pt-shot-wrap ' + a.cls + '">'
-      + '<img class="pt-shot" src="' + a.src + '" alt="" aria-hidden="true"></span>').join('')
-
     return `
       <div class="portal">
-        <header class="pt-bar">
-          <span class="pt-brand">
-            <svg class="pt-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="1.3" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 3.2 20 7.6v8.8L12 20.8 4 16.4V7.6z"/>
-              <path d="M4 7.6 12 12l8-4.4M12 12v8.8"/>
-              <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/>
-            </svg>
-            <span class="pt-brand-name">${t('shell.home.brand')}</span>
-          </span>
+        <header class="pl-head">
+          <h1>结构化学<br><span>教学智能体</span></h1>
+          <p class="pl-sub">场景感知式 AI 教学智能体 —— 揭秘微观结构 · 启发深度思考 · 引导自主学习</p>
         </header>
-
-        <section class="pt-hero">
-          <div class="pt-hero-text">
-            <h1 class="pt-title">
-              <span class="pt-title-sm">${t('shell.home.titleSm')}</span>
-              <span class="pt-title-lg">${t('shell.home.titleLg')}</span>
-            </h1>
-            <p class="pt-sub">${t('shell.home.sub')}</p>
-            <p class="pt-slogan">${t('shell.home.slogan')}</p>
-            <div class="pt-cta-row">
-              <button class="pt-cta pt-cta-agent" type="button" data-act="open-agent">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-5.1
-                           A8.3 8.3 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5z"/>
-                </svg>${t('shell.home.askAgent')}</button>
-              <button class="pt-cta" type="button" data-act="scroll-cards">${t('shell.home.cta')}</button>
-            </div>
-          </div>
-          <div class="pt-hero-art" aria-hidden="true">
-            <span class="pt-glow"></span>
-            ${shots}
-          </div>
-        </section>
-
-        <section class="pt-cards">${cards}</section>
-
+        <nav class="pl-list">${rows}</nav>
         ${this._renderSettings()}
-
-        <footer class="pt-foot">${t('shell.home.footer')}</footer>
+        <footer class="pl-foot">纯前端 · 数值由程序计算（防幻觉）· 模型由使用者自备（BYOK）</footer>
       </div>
       <style>
-        /**
-         * 配色：**页面作用域令牌**，浅深两套写在一处（本仓库栽过"同一份调色板写两处"）。
-         * 本轮按用户要求"要有色彩、有艺术性"：主色仍是深蓝，但**每个模块一个低饱和强调色**，
-         * 再加一层极淡的柔光背景与渐变大标题 —— 不出现高饱和艳色，保持科研工具的克制感。
-         */
+        /* ---- 极简学术风：留白、对齐、层次；不用卡片、不放装饰 ---- */
         .portal {
-          --pt-ink: #16305a;
-          --pt-ink-2: #5b8fc9;
-          --pt-bg: #f5f7fb;
-          --pt-body: #2f3640;
-          --pt-dim: #5b6472;
-          --pt-card: #ffffff;
-          --pt-line: rgba(22, 48, 90, .14);
-          --pt-line-soft: rgba(22, 48, 90, .08);
-          --pt-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 10px 26px rgba(16, 24, 40, .06);
-          --pt-shadow-hover: 0 2px 8px rgba(16, 24, 40, .08), 0 18px 44px rgba(16, 24, 40, .12);
-          --pt-orbit: #6a5acd;
-          --pt-symmetry: #1f9c8a;
-          --pt-crystal: #c1802c;
-
           min-height: 100vh; box-sizing: border-box;
-          display: flex; flex-direction: column;
-          /**
-           * ★★ 2026-10-14（用户："你的渐变底色位置也不对"）：
-           *   原先渐变写在 .pt-hero 上，而 hero 是 max-width:1320 + margin:0 auto
-           *   ⇒ 渐变被框在中间，**能看见一条块的边缘** ✗（截图里从 x≈280 开始的浅色块）。
-           *   参考稿是**整幅铺开**、只有柔和的光晕、看不到边界。
-           *   ⇒ 移到全宽的 .portal 上，并放大到超出视口（1200×560 / 900×480），
-           *     让边缘落在视口之外；右上一团压在自有配图下面，左下一团很淡。
-           * ★★ 注意：本注释位于**模板串内部** —— 里面**不许出现反引号** ✗
-           *   （2026-10-14 我在同一段注释里分两处写了反引号，模板串被截断：
-           *    语法**仍然合法**、node --check 照过，但导出的类已经废了 ⇒ 首页整页白屏。
-           *    教训：改完模板串只跑 --check 不够，必须**实机看 window.__chemAgent 有没有起来**。）
-           */
-          background:
-            radial-gradient(1200px 560px at 78% 4%, color-mix(in srgb, var(--pt-ink-2) 14%, transparent), transparent 68%),
-            radial-gradient(900px 480px at 8% 26%, color-mix(in srgb, var(--pt-orbit) 7%, transparent), transparent 70%),
-            var(--pt-bg);
-          color: var(--pt-body);
-          font-family: "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei",
-                       "Segoe UI", system-ui, -apple-system, sans-serif;
-          -webkit-font-smoothing: antialiased;
+          display: flex; flex-direction: column; justify-content: center;
+          max-width: 720px; margin: 0 auto;
+          padding: 96px 32px 64px;
+          /* 用令牌，随主题切换（见 ui-kit/theme.js） */
+          color: var(--text, #e8ecf7);
         }
-        [data-theme="dark"] .portal {
-          --pt-ink: #e3ecfb;
-          --pt-ink-2: #74a6e0;
-          --pt-bg: #141a22;
-          --pt-body: #e8ebf0;
-          --pt-dim: #a8b2c0;
-          --pt-card: #1b232e;
-          --pt-line: rgba(255, 255, 255, .16);
-          --pt-line-soft: rgba(255, 255, 255, .08);
-          --pt-shadow: 0 1px 2px rgba(0, 0, 0, .32), 0 10px 28px rgba(0, 0, 0, .3);
-          --pt-shadow-hover: 0 2px 8px rgba(0, 0, 0, .38), 0 18px 46px rgba(0, 0, 0, .44);
-          --pt-orbit: #9b8cf0;
-          --pt-symmetry: #4fc9b5;
-          --pt-crystal: #e0ab5e;
+        .pl-head { margin-bottom: 72px; }
+        .pl-head h1 {
+          font-size: 40px; line-height: 1.28; font-weight: 300;
+          letter-spacing: .14em; margin: 0;
+          color: var(--text, #e8ecf7);
         }
-
-        /* ---------- 顶部导航栏 ---------- */
-        .pt-bar {
-          display: flex; align-items: center; justify-content: space-between;
-          height: 52px; padding: 0 40px;
-          background: color-mix(in srgb, var(--pt-card) 86%, transparent);
-          border-bottom: 1px solid var(--pt-line-soft);
+        .pl-head h1 span { font-weight: 600; }
+        .pl-sub {
+          margin: 20px 0 0; font-size: 13px; line-height: 1.9;
+          letter-spacing: .04em; color: var(--text-dim, #9aa7c6);
         }
-        .pt-brand { display: inline-flex; align-items: center; gap: 12px; color: var(--pt-ink); }
-        .pt-logo { width: 30px; height: 30px; }
-        .pt-brand-name { font-size: 19px; font-weight: 700; letter-spacing: .02em; }
-
-        /* ---------- Hero ---------- */
-        .pt-hero {
-          position: relative;
-          flex: 1 1 auto;                 /* ★ 吸收页面余量：底部不留大片空白（见 .portal 的说明） */
-          display: grid; grid-template-columns: minmax(360px, 1fr) minmax(340px, 1fr);
-          gap: 20px; align-items: center;
-          max-width: 1320px; margin: 0 auto; padding: 10px 40px 8px;
-          /* ★ 渐变已上移到全宽的 .portal（见其注释）：hero 自己**不带底色**，
-             否则 max-width 会在中间切出一条可见的边缘。 */
-          border-radius: 0;
+        .pl-list { display: flex; flex-direction: column; }
+        /* 每一行：序号 / 名称 / 概述 / 箭头；用细线分隔，不用边框盒 */
+        .pl-row {
+          display: grid;
+          grid-template-columns: 3.2em minmax(6.5em, auto) 1fr auto auto auto;
+          align-items: baseline; gap: 20px;
+          padding: 22px 4px;
+          background: none; border: 0; font: inherit; text-align: left;
+          color: inherit; cursor: pointer;
+          border-top: 1px solid var(--line, rgba(255,255,255,.10));
+          transition: padding-left .22s ease, color .22s ease, opacity .22s ease;
         }
-        .pt-title { margin: 0; display: flex; flex-direction: column; line-height: 1.0; }
-        .pt-title-sm { font-size: 44px; font-weight: 700; color: var(--pt-ink); letter-spacing: .01em; }
-        .pt-title-lg {
-          font-size: 70px; font-weight: 800; letter-spacing: .01em; margin-top: 4px;
-          background: linear-gradient(96deg, var(--pt-ink) 0%, var(--pt-ink-2) 92%);
-          -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-          color: var(--pt-ink);
+        .pl-row:last-of-type { border-bottom: 1px solid var(--line, rgba(255,255,255,.10)); }
+        .pl-row:hover { padding-left: 14px; color: var(--accent, #7c9cf5); }
+        .pl-row:hover .pl-arrow { transform: translateX(6px); opacity: 1; }
+        .pl-row:hover .pl-blurb { color: var(--accent, #7c9cf5); }
+        .pl-no {
+          font-size: 12px; font-variant-numeric: tabular-nums;
+          letter-spacing: .12em; color: var(--text-dim, #9aa7c6);
+          transition: color .22s ease;
         }
-        .pt-sub { margin: 12px 0 0; font-size: 23px; font-weight: 600; color: var(--pt-ink); }
-        .pt-slogan { margin: 6px 0 0; font-size: 16.5px; color: var(--pt-dim); letter-spacing: .04em; }
-        .pt-desc { margin: 8px 0 0; font-size: 16px; line-height: 1.7; color: var(--pt-dim); max-width: 40em; }
-        .pt-cta-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
-        .pt-cta {
-          display: inline-flex; align-items: center; gap: 10px;
-          padding: 15px 34px; border-radius: 999px;
-          background: transparent; color: var(--pt-ink); border: 1.5px solid var(--pt-line);
-          font: inherit; font-size: 18px; font-weight: 700; letter-spacing: .03em;
-          cursor: pointer; transition: background .18s ease, transform .18s ease,
-            border-color .18s ease, box-shadow .18s ease;
+        .pl-row:hover .pl-no { color: var(--accent, #7c9cf5); }
+        .pl-name { font-size: 19px; font-weight: 500; letter-spacing: .04em; }
+        .pl-blurb {
+          font-size: 12.5px; letter-spacing: .02em;
+          color: var(--text-dim, #9aa7c6);
+          transition: color .22s ease;
         }
-        .pt-cta:hover { border-color: var(--pt-ink-2); transform: translateY(-1px); }
-        .pt-cta svg { width: 20px; height: 20px; }
-        .pt-cta-agent {
-          background: linear-gradient(96deg, #16305a 0%, #2f6ba8 100%);
-          color: #fff; border-color: transparent;
-          box-shadow: 0 10px 26px rgba(22, 48, 90, .3);
+        /* 「学生得到什么」那一句：比概述更弱一档（它是结论，不是内容清单）。
+           与配图底部三块一一对应：微观世界可观察 / 结构规律易剖析 / 构效关系得贯通。 */
+        .pl-tag {
+          font-size: 11.5px; letter-spacing: .08em;
+          color: var(--text-dim, #9aa7c6); opacity: .7;
+          white-space: nowrap;
         }
-        .pt-cta-agent:hover { filter: brightness(1.08); color: #fff; }
-        [data-theme="dark"] .portal .pt-cta-agent {
-          background: linear-gradient(96deg, #2b5b93 0%, #4f8fd0 100%);
+        .pl-row:hover .pl-tag { color: var(--accent, #7c9cf5); opacity: 1; }
+        .pl-arrow {
+          font-size: 15px; color: var(--accent, #7c9cf5); opacity: .5;
+          transition: transform .22s ease, opacity .22s ease;
         }
-
-        /* ---------- Hero 右侧：自有渲染图错落拼贴 ---------- */
-        .pt-hero-art { position: relative; height: 336px; }
-        .pt-glow {
-          position: absolute; inset: 6% 6% 10% 10%; border-radius: 50%;
-          background: radial-gradient(closest-side, color-mix(in srgb, var(--pt-ink-2) 16%, transparent), transparent);
+        /* 未接入：弱化 + 如实标注。可变淡，但**仍然可读**——它是蓝图的一部分 */
+        .pl-row.is-locked { cursor: default; }
+        .pl-row.is-locked .pl-name,
+        .pl-row.is-locked .pl-blurb,
+        .pl-row.is-locked .pl-no { opacity: .55; }
+        .pl-row.is-locked:hover { padding-left: 4px; color: inherit; }
+        .pl-row.is-locked:hover .pl-arrow { transform: none; opacity: .22; }
+        .pl-row.is-locked:hover .pl-blurb { color: var(--text-dim, #9aa7c6); }
+        .pl-badge {
+          font-size: 11px; letter-spacing: .08em; padding: 2px 8px;
+          border: 1px solid var(--line, rgba(255,255,255,.14));
+          border-radius: 999px; color: var(--text-dim, #9aa7c6);
+          white-space: nowrap;
         }
-        .pt-shot-wrap { position: absolute; display: block; }
-        /**
-         * ★★ 2026-10-14（用户第 3 轮："图片大一点，80%以上透明度即可，可以盖住文字"）：
-         *   ① 透明度提到 **80% 以上** ⇒ opacity ≤ .2（原先 .58 偏实）；
-         *   ② 图片**放大**，并允许**压到左侧文字上**（用户明确说可以盖住文字）——
-         *      所以拼贴块向左越出，靠低不透明度让标题仍然可读。
-         */
-        .pt-shot {
-          display: block; width: 100%; height: auto;
-          opacity: .2;
+        /* 点了未接入的行：轻微晃一下，给一个"这里现在还没有"的反馈 */
+        .pl-row.is-nudged { animation: pl-nudge .4s ease; }
+        @keyframes pl-nudge {
+          0%, 100% { padding-left: 4px; }
+          35% { padding-left: 12px; }
+          70% { padding-left: 7px; }
         }
-        /**
-         * ★★ 深色主题下给自有渲染图加一层**浅色外发光**：
-         *   C₆₀ 的碳球用的是元素 CPK 色（深灰，与主题无关），压在深色底 #141a22 上
-         *   明度太接近（子智能体抓图时如实报过这条）。发光比"改图的元素色"更安全 ——
-         *   像素仍然全部来自应用自己的渲染器，只补一层光晕。
-         */
-        [data-theme="dark"] .portal .pt-shot {
-          opacity: .18;
-          filter: drop-shadow(0 0 18px rgba(214, 232, 255, .38));
+        .pl-foot {
+          margin-top: 64px; font-size: 11.5px; letter-spacing: .06em;
+          color: var(--text-dim, #9aa7c6); opacity: .75;
         }
-        /**
-         * ★ 深色下 C₆₀ 单独**提亮**：它的碳球是元素 CPK 深灰，即使加了光晕也偏低
-         *   （实测最亮处相对底色只有 2.32:1，图形类建议 ≥ 3:1）。提亮的是同一张自有渲染图，
-         *   只加滤镜、不换像素，也不动元素配色本身。
-         */
-        [data-theme="dark"] .portal .pt-art-b .pt-shot {
-          filter: brightness(1.5) contrast(1.08) drop-shadow(0 0 20px rgba(214, 232, 255, .42));
+        /* ---- 设置区：与模块列表同一套"极简学术风"，不另做卡片 ---- */
+        .pl-settings {
+          margin-top: 56px; padding-top: 28px;
+          border-top: 1px solid var(--line-soft, rgba(255,255,255,.08));
+          display: flex; flex-direction: column; gap: 14px;
         }
-        /**
-         * ★★ 2026-10-14（用户："C60 改成现在的三倍大小"）：
-         *   原是 52%（实测 187×187）⇒ 三倍 = **156%**（≈561×561）。
-         *   横向定位按"右缘不动、向左生长"算：原 left −34% + width 52% ⇒ 右缘在 18%，
-         *   故新 left = 18% − 156% = **−138%**；top 略上移，避免整体压到卡片区。
-         *   ★ 本注释在模板串内部：不许出现反引号（本行以上已因此把首页弄白屏两次）。
-         */
-        .pt-art-a { right: -4%; top: 0; width: 96%; }
-        .pt-art-b { left: -138%; top: -26%; width: 156%; }
-        .pt-art-c { right: -6%; bottom: -14%; width: 50%; }
-        .pt-shot-wrap { animation: pt-float 7s ease-in-out infinite; }
-        .pt-art-b { animation-delay: -2.2s; }
-        .pt-art-c { animation-delay: -4.4s; }
-        @keyframes pt-float {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-7px); }
+        .pl-set-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .pl-set-label {
+          min-width: 7.5em; font-size: 12px; letter-spacing: .08em;
+          color: var(--text-dim, #9aa7c6);
         }
-        @media (prefers-reduced-motion: reduce) {
-          .pt-shot-wrap { animation: none; }
-        }
-
-        /* ---------- 三张核心卡片 ---------- */
-        .pt-cards {
-          display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-          gap: 16px; max-width: 1320px; margin: 2px auto 0; padding: 0 40px;
-        }
-        /**
-         * ★★ 2026-10-14（用户："仔细对照各个组件的布局、位置"）：
-         *   参考稿里三张卡是**居中排布**的：图标在上、标题、副标题、底部标签全部水平居中，
-         *   整卡文字不左对齐。原先我按左对齐做（那是"文档型"卡片语言），与稿子不一致 ✗。
-         */
-        .pt-card {
-          position: relative; overflow: hidden;
-          display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;
-          padding: 22px 22px 18px; border-radius: 16px;
-          background: var(--pt-card); border: 1px solid var(--pt-line-soft);
-          box-shadow: var(--pt-shadow); color: var(--pt-body); font: inherit; cursor: pointer;
-          transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-        }
-        /* 每张卡一条强调色顶边（"有色彩"用在这一处，克制且成体系） */
-        .pt-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; }
-        .pt-card-orbit::before { background: var(--pt-orbit); }
-        .pt-card-symmetry::before { background: var(--pt-symmetry); }
-        .pt-card-crystal::before { background: var(--pt-crystal); }
-        .pt-card-orbit .pt-icon { color: var(--pt-orbit); }
-        .pt-card-symmetry .pt-icon { color: var(--pt-symmetry); }
-        .pt-card-crystal .pt-icon { color: var(--pt-crystal); }
-        .pt-card:hover { transform: translateY(-3px); box-shadow: var(--pt-shadow-hover); }
-        .pt-card-orbit:hover { border-color: var(--pt-orbit); }
-        .pt-card-symmetry:hover { border-color: var(--pt-symmetry); }
-        .pt-card-crystal:hover { border-color: var(--pt-crystal); }
-        .pt-card.is-locked { opacity: .6; cursor: default; }
-        .pt-card.is-locked:hover { transform: none; box-shadow: var(--pt-shadow); border-color: var(--pt-line-soft); }
-        .pt-card.is-nudged { animation: pt-nudge .6s ease; }
-        @keyframes pt-nudge {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-4px); }
-          75% { transform: translateX(4px); }
-        }
-        .pt-card-head { display: flex; align-items: center; gap: 12px; }
-        .pt-icon svg { width: 34px; height: 34px; display: block; }
-        .pt-card-title {
-          display: inline-flex; align-items: center; gap: 10px;
-          font-size: 24px; font-weight: 700; color: var(--pt-ink);
-        }
-        .pt-badge {
-          font-size: 15.5px; font-weight: 500; padding: 3px 10px; border-radius: 999px;
-          color: var(--pt-dim); border: 1px solid var(--pt-line);
-        }
-        .pt-card-sub { font-size: 16px; font-weight: 600; color: var(--pt-dim); }
-        .pt-card-desc { font-size: 15.5px; line-height: 1.75; color: var(--pt-body); }
-        .pt-card-tag {
-          margin-top: auto; padding: 6px 14px; border-radius: 999px;
-          background: var(--pt-line-soft); color: var(--pt-ink); font-size: 15.5px;
-        }
-
-        /* ---------- 设置区（一行装完，参参考稿的并排排法） ---------- */
-        .pt-settings {
-          display: flex; align-items: center; justify-content: center;
-          gap: 34px; flex-wrap: wrap;
-          max-width: 1320px; margin: 12px auto 0; padding: 0 40px;
-        }
-        .pl-set-group { display: inline-flex; align-items: center; gap: 10px; }
-        .pl-set-label { font-size: 16px; color: var(--pt-dim); }
-        .pl-seg { display: inline-flex; gap: 8px; }
+        .pl-seg { display: inline-flex; border: 1px solid var(--line, #2a3558); border-radius: 8px; overflow: hidden; }
         .pl-seg-btn {
-          padding: 6px 15px; border-radius: 10px; cursor: pointer; font: inherit; font-size: 16px;
-          background: transparent; color: var(--pt-body); border: 1px solid var(--pt-line);
-          transition: background .16s ease, color .16s ease, border-color .16s ease;
+          appearance: none; background: transparent; border: 0; cursor: pointer;
+          color: var(--text-dim, #9aa7c6); font-size: 12.5px; padding: 6px 12px;
+          font-family: inherit; transition: background .15s, color .15s;
         }
-        .pl-seg-btn:hover { border-color: var(--pt-ink-2); color: var(--pt-ink); }
-        .pl-seg-btn.is-on {
-          background: var(--pt-ink); color: var(--pt-card); border-color: var(--pt-ink); font-weight: 700;
-        }
+        .pl-seg-btn + .pl-seg-btn { border-left: 1px solid var(--line, #2a3558); }
+        .pl-seg-btn:hover { color: var(--text, #e8ecf7); }
+        .pl-seg-btn.is-on { background: var(--active, #2b3d6b); color: var(--text, #e8ecf7); }
+        .pl-set-hint { font-size: 11.5px; color: var(--text-dim, #9aa7c6); opacity: .8; }
         .pl-set-link {
-          padding: 6px 15px; border-radius: 10px; cursor: pointer; font: inherit; font-size: 16px;
-          background: transparent; color: var(--pt-ink-2); border: 1px solid var(--pt-ink-2);
-          transition: background .16s ease, color .16s ease;
+          appearance: none; background: transparent; border: 0; padding: 0; cursor: pointer;
+          color: var(--accent, #55c2ff); font-size: 12.5px; font-family: inherit;
+          text-decoration: underline; text-underline-offset: 3px;
         }
-        .pl-set-link:hover { background: var(--pt-ink-2); color: #fff; }
-
-        /* ---------- 页脚 ---------- */
-        .pt-foot {
-          margin: auto auto 0;            /* ★ 钉在底部：内容不足一屏时空白落在中段，而不是页脚下面 */
-          max-width: 1320px; padding: 8px 40px 10px;
-          border-top: 1px solid var(--pt-line-soft);
-          font-size: 15px; color: var(--pt-dim); text-align: center;
-        }
-
-        /* ---------- 窄屏 ---------- */
-        @media (max-width: 1000px) {
-          .pt-bar { padding: 0 20px; }
-          .pt-hero { grid-template-columns: 1fr; padding: 18px 20px 16px; }
-          .pt-hero-art { height: 220px; order: -1; }
-          .pt-title-sm { font-size: 32px; }
-          .pt-title-lg { font-size: 46px; }
-          .pt-sub { font-size: 19px; }
-          .pt-cards { padding: 0 20px; }
-          .pt-settings, .pt-foot { padding-left: 20px; padding-right: 20px; }
+        .pl-set-link:hover { filter: brightness(1.2); }
+        @media (max-width: 560px) {
+          .portal { padding: 64px 22px 48px; }
+          .pl-head h1 { font-size: 30px; }
+          .pl-head { margin-bottom: 48px; }
+          .pl-row { grid-template-columns: 2.6em 1fr auto; row-gap: 6px; }
+          .pl-blurb { grid-column: 2 / -1; }
+          .pl-tag { display: none; }
+          .pl-badge { display: none; }
         }
       </style>`
   }
