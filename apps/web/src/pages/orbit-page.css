@@ -149,7 +149,22 @@
   z-index: 10;
 }
 .orbit-page .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.orbit-page .logo { font-size: 2.321rem; }
+/**
+ * ★★ 2026-10-15（用户："logo 部分、主标题部分、副标题部分，横向中轴线应一样高"）：
+ *
+ *   `align-items: center` 让三者的**盒中心**都落在 35.5 ✓，但**字形（墨迹）中心**并不齐：
+ *     实测  logo 38.0 · 标题 35.5 · 副标题 33.9 —— 差 4.1px（截图里就是"没对齐"）。
+ *   两处不对称是**字体度量**造成的，不是布局写错：
+ *     · ⚛（U+269B）由符号字体渲染，字形在行盒内**偏低**（盒中心 35.5，墨迹 38.0）；
+ *     · 中文行盒给 descender 留了空位，中文字形**偏上**（副标题盒中心 34.0，墨迹 33.9；
+ *       标题因 line-height:1.35 更宽松，恰好落在 35.5）。
+ *
+ *   ⇒ 按**实测差值**做像素级校正（`translateY` 不参与布局，不会牵动 topbar 高度）：
+ *       logo 上移 2.5px、副标题下移 1.6px ⇒ 三者墨迹中心同为 35.5。
+ *   ★ 这是"按度量做的微调"，换字体/换字号要重新量；数值与量法都写在注释里，便于复算。
+ *     （判据用 Range 取字形盒的 top/height 算中心，而不是元素盒 —— 见上面那组数字。）
+ */
+.orbit-page .logo { font-size: 2.321rem; transform: translateY(-2.5px); }
 /**
  * ★ 2026-10-15：h1 与副标题都钉 `line-height: 1.35`。
  *   行盒是"字体不对称度量"算出来的（h1 基本是中文、副标题中文与拉丁混排，ascent 不同），
@@ -172,6 +187,8 @@
   line-height: 1.35;
   color: var(--text-dim);
   align-self: center;
+  /* ★ 见 .logo 上方那段：中文字形在行盒内偏上 1.6px，按实测下移，使三者墨迹中心同为 35.5px */
+  transform: translateY(1.6px);
 }
 .orbit-page .top-meta { display: flex; align-items: center; gap: 12px; }
 .orbit-page .orbit-title {
