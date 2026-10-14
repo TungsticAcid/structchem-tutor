@@ -394,7 +394,7 @@ export class HomePage {
         }
 
         /* ---------- Hero 右侧：自有渲染图错落拼贴 ---------- */
-        .pt-hero-art { position: relative; height: 330px; }
+        .pt-hero-art { position: relative; height: 336px; }
         .pt-glow {
           position: absolute; inset: 6% 6% 10% 10%; border-radius: 50%;
           background: radial-gradient(closest-side, color-mix(in srgb, var(--pt-ink-2) 16%, transparent), transparent);
@@ -422,9 +422,9 @@ export class HomePage {
         [data-theme="dark"] .portal .pt-art-b .pt-shot {
           filter: brightness(1.5) contrast(1.08) drop-shadow(0 0 20px rgba(214, 232, 255, .42));
         }
-        .pt-art-a { right: 2%; top: 0; width: 72%; }
-        .pt-art-b { left: 0; top: 20%; width: 34%; }
-        .pt-art-c { right: 0; bottom: 0; width: 36%; }
+        .pt-art-a { right: 4%; top: 8%; width: 74%; }
+        .pt-art-b { left: -2%; top: 26%; width: 34%; }
+        .pt-art-c { right: -3%; bottom: -8%; width: 34%; }
         .pt-shot-wrap { animation: pt-float 7s ease-in-out infinite; }
         .pt-art-b { animation-delay: -2.2s; }
         .pt-art-c { animation-delay: -4.4s; }
@@ -441,10 +441,15 @@ export class HomePage {
           display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
           gap: 16px; max-width: 1320px; margin: 2px auto 0; padding: 0 40px;
         }
+        /**
+         * ★★ 2026-10-14（用户："仔细对照各个组件的布局、位置"）：
+         *   参考稿里三张卡是**居中排布**的：图标在上、标题、副标题、底部标签全部水平居中，
+         *   整卡文字不左对齐。原先我按左对齐做（那是"文档型"卡片语言），与稿子不一致 ✗。
+         */
         .pt-card {
           position: relative; overflow: hidden;
-          display: flex; flex-direction: column; align-items: flex-start; gap: 7px;
-          padding: 13px 20px 12px; border-radius: 16px; text-align: left;
+          display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;
+          padding: 22px 22px 18px; border-radius: 16px;
           background: var(--pt-card); border: 1px solid var(--pt-line-soft);
           box-shadow: var(--pt-shadow); color: var(--pt-body); font: inherit; cursor: pointer;
           transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
