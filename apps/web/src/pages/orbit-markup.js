@@ -10,7 +10,7 @@ export const ORBIT_HTML = `<div class="orbit-page">
     <div class="brand">
       <span class="logo">⚛</span>
       <h1>轨道视界</h1>
-      <span class="subtitle">类氢原子轨道三维可视化 · 等值面 / 球谐</span>
+      <span class="subtitle">类氢原子轨道三维可视化</span>
     </div>
     <div class="top-meta">
       <span id="orbitTitle" class="orbit-title">1s</span>
