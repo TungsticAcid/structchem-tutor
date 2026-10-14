@@ -463,9 +463,10 @@ const Orbit3D = (function () {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(
       pts.flatMap(v => [v.x, v.y, v.z]), 3));
-    const mat = new THREE.LineBasicMaterial({ color: 0x555f77, transparent: true, opacity: 0.5 });
+    const mat = new THREE.LineBasicMaterial({ color: decorLineColor(0), transparent: true, opacity: 0.5 });
     axesObj = new THREE.LineSegments(geo, mat);
-    scene.add(axesObj);
+    watchTheme(mat, 0)
+    scene.add(axesObj)
   }
 
   // 赤道参考圆环（在 xy 平面，z=0，帮助读方位角）
@@ -481,9 +482,47 @@ const Orbit3D = (function () {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(
       pts.flatMap(v => [v.x, v.y, v.z]), 3));
-    const mat = new THREE.LineBasicMaterial({ color: 0x39425c, transparent: true, opacity: 0.6 });
+    const mat = new THREE.LineBasicMaterial({ color: decorLineColor(1), transparent: true, opacity: 0.6 });
     gridObj = new THREE.LineSegments(geo, mat);
-    scene.add(gridObj);
+    watchTheme(mat, 1)
+    scene.add(gridObj)
+  }
+
+  /**
+   * 参考线（坐标轴 + 赤道环）的颜色 —— **随主题**。
+   *
+   * ★★ 2026-10-14（用户："暗色模式下，轨道视界的参考线应为白色或浅色"）：
+   *   原先两处写死深蓝（坐标轴 #555f77、赤道环 #39425c）✗ —— 那在浅色底上刚好，
+   *   压在深色底上几乎看不见。这里按当前主题给两档颜色，并让 `watchTheme` 在
+   *   用户切换主题时**当场改材质颜色**（线条是 init 时建一次的，不重新建场景）。
+   *
+   * @param {number} which 0 = 坐标轴（更亮一点）· 1 = 赤道环（稍暗一点）
+   */
+  function decorLineColor(which) {
+    // 主题写在 <html data-theme="dark|light">（见 ui-kit/theme.js）；非浏览器环境按浅色
+    let dark = false
+    try { dark = document.documentElement.getAttribute('data-theme') === 'dark' } catch (e) { dark = false }
+    if (dark) return which === 0 ? 0xdbe4f6 : 0xa9b8d6   // 暗色：近白 / 浅蓝灰
+    return which === 0 ? 0x555f77 : 0x39425c             // 浅色：保持原样
+  }
+
+  /** 参考线材质登记表：主题一变，全部重算颜色（线条是 init 建一次的，不重建场景） */
+  const decorMats = []
+
+  /**
+   * 登记一条参考线材质：主题切换时**当场**把颜色改成该主题的档位。
+   * @param {THREE.Material} mat
+   * @param {number} which 0 = 坐标轴 · 1 = 赤道环
+   */
+  function watchTheme(mat, which) {
+    decorMats.push({ mat: mat, which: which })
+    if (decorMats.length > 1) return   // 观察者只挂一次
+    try {
+      const obs = new MutationObserver(() => {
+        for (const d of decorMats) d.mat.color.setHex(decorLineColor(d.which))
+      })
+      obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    } catch (e) { /* 非浏览器环境 */ }
   }
 
   // ---------------------------------------------------------------------------
