@@ -191,31 +191,36 @@ export class HomePage {
     if (this._container) this.mount(this._container)
   }
 
-  /** 设置区（界面与模型设置）：只渲染**真的接上了**的行 */
+  /**
+   * 设置区（界面与模型设置）：**一行装完**。
+   * ★ 2026-10-14 用户第二轮："字太多，这样就行"（附参考稿）——参考稿里三项并排在一行：
+   *   「界面风格：浅色 深色 · 界面语言：中文 English · 模型与教学偏好 [打开设置]」。
+   *   原来我按三行分组排版（占约 160px）；并成一行后省下的高度给了 Hero 里的自有渲染图。
+   * ★ 仍然只渲染**真的接上了**的那些段：回调没给就不出。
+   */
   _renderSettings() {
     const segOf = (kind, cur, pairs) => pairs.map(([v, label]) =>
       '<button type="button" class="pl-seg-btn' + (v === cur ? ' is-on' : '') +
       '" data-set="' + kind + '" data-v="' + v + '">' + label + '</button>').join('')
-    const rows = []
+    const groups = []
     if (this._ui.getTheme && this._ui.onTheme) {
-      rows.push('<div class="pl-set-row"><span class="pl-set-label">' + t('shell.home.setTheme') + '</span>'
-        + '<span class="pl-seg">' + segOf('theme', this._ui.getTheme() || 'system',
+      groups.push('<span class="pl-set-group"><span class="pl-set-label">' + t('shell.home.setTheme')
+        + '</span><span class="pl-seg">' + segOf('theme', this._ui.getTheme() || 'system',
           [['system', t('shell.home.themeSystem')], ['light', t('shell.home.themeLight')],
-            ['dark', t('shell.home.themeDark')]]) + '</span></div>')
+            ['dark', t('shell.home.themeDark')]]) + '</span></span>')
     }
     if (this._ui.getLang && this._ui.onLang) {
-      rows.push('<div class="pl-set-row"><span class="pl-set-label">' + t('shell.home.setLang') + '</span>'
-        + '<span class="pl-seg">' + segOf('lang', this._ui.getLang() || 'zh',
-          [['zh', '中文'], ['en', 'English']]) + '</span></div>')
+      groups.push('<span class="pl-set-group"><span class="pl-set-label">' + t('shell.home.setLang')
+        + '</span><span class="pl-seg">' + segOf('lang', this._ui.getLang() || 'zh',
+          [['zh', '中文'], ['en', 'English']]) + '</span></span>')
     }
     if (this._ui.onOpenSettings) {
-      rows.push('<div class="pl-set-row"><span class="pl-set-label">' + t('shell.home.setModel') + '</span>'
-        + '<button type="button" class="pl-set-link" data-act="open-settings">'
-        + t('shell.home.openSettings') + '</button></div>')
+      groups.push('<span class="pl-set-group"><span class="pl-set-label">' + t('shell.home.setModel')
+        + '</span><button type="button" class="pl-set-link" data-act="open-settings">'
+        + t('shell.home.openSettings') + '</button></span>')
     }
-    if (!rows.length) return ''
-    return '<section class="pt-settings"><h2 class="pt-settings-title">'
-      + t('shell.home.settingsTitle') + '</h2>' + rows.join('') + '</section>'
+    if (!groups.length) return ''
+    return '<section class="pt-settings">' + groups.join('') + '</section>'
   }
 
   _render() {
@@ -236,7 +241,6 @@ export class HomePage {
             <span class="pt-card-title">${title}${badge}</span>
           </span>
           <span class="pt-card-sub">${t(MODULE_BLURB_KEY[m.id] || '')}</span>
-          <span class="pt-card-desc">${t(MODULE_DESC_KEY[m.id] || '')}</span>
           <span class="pt-card-tag">${t(MODULE_TAGLINE_KEY[m.id] || '')} →</span>
         </button>`
     }).join('')
@@ -276,7 +280,6 @@ export class HomePage {
                 </svg>${t('shell.home.askAgent')}</button>
               <button class="pt-cta" type="button" data-act="scroll-cards">${t('shell.home.cta')}</button>
             </div>
-            <p class="pt-desc">${t('shell.home.desc')}</p>
           </div>
           <div class="pt-hero-art" aria-hidden="true">
             <span class="pt-glow"></span>
@@ -312,6 +315,7 @@ export class HomePage {
           --pt-crystal: #c1802c;
 
           min-height: 100vh; box-sizing: border-box;
+          display: flex; flex-direction: column;
           background: var(--pt-bg);
           color: var(--pt-body);
           font-family: "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei",
@@ -348,6 +352,7 @@ export class HomePage {
         /* ---------- Hero ---------- */
         .pt-hero {
           position: relative;
+          flex: 1 1 auto;                 /* ★ 吸收页面余量：底部不留大片空白（见 .portal 的说明） */
           display: grid; grid-template-columns: minmax(360px, 1fr) minmax(340px, 1fr);
           gap: 20px; align-items: center;
           max-width: 1320px; margin: 0 auto; padding: 10px 40px 8px;
@@ -389,7 +394,7 @@ export class HomePage {
         }
 
         /* ---------- Hero 右侧：自有渲染图错落拼贴 ---------- */
-        .pt-hero-art { position: relative; height: 208px; }
+        .pt-hero-art { position: relative; height: 330px; }
         .pt-glow {
           position: absolute; inset: 6% 6% 10% 10%; border-radius: 50%;
           background: radial-gradient(closest-side, color-mix(in srgb, var(--pt-ink-2) 16%, transparent), transparent);
@@ -481,18 +486,14 @@ export class HomePage {
           background: var(--pt-line-soft); color: var(--pt-ink); font-size: 15.5px;
         }
 
-        /* ---------- 设置区 ---------- */
-        .pt-settings { max-width: 1320px; margin: 6px auto 0; padding: 0 40px; }
-        .pt-settings-title {
-          margin: 0 0 2px; font-size: 15.5px; font-weight: 700;
-          color: var(--pt-dim); letter-spacing: .06em;
+        /* ---------- 设置区（一行装完，参参考稿的并排排法） ---------- */
+        .pt-settings {
+          display: flex; align-items: center; justify-content: center;
+          gap: 34px; flex-wrap: wrap;
+          max-width: 1320px; margin: 12px auto 0; padding: 0 40px;
         }
-        .pl-set-row {
-          display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
-          padding: 3px 0; border-top: 1px solid var(--pt-line-soft);
-        }
-        .pl-set-row:first-of-type { border-top: 0; }
-        .pl-set-label { flex: 0 0 8.5em; font-size: 16px; color: var(--pt-dim); }
+        .pl-set-group { display: inline-flex; align-items: center; gap: 10px; }
+        .pl-set-label { font-size: 16px; color: var(--pt-dim); }
         .pl-seg { display: inline-flex; gap: 8px; }
         .pl-seg-btn {
           padding: 6px 15px; border-radius: 10px; cursor: pointer; font: inherit; font-size: 16px;
@@ -512,7 +513,8 @@ export class HomePage {
 
         /* ---------- 页脚 ---------- */
         .pt-foot {
-          max-width: 1320px; margin: 6px auto 0; padding: 8px 40px 10px;
+          margin: auto auto 0;            /* ★ 钉在底部：内容不足一屏时空白落在中段，而不是页脚下面 */
+          max-width: 1320px; padding: 8px 40px 10px;
           border-top: 1px solid var(--pt-line-soft);
           font-size: 15px; color: var(--pt-dim); text-align: center;
         }
