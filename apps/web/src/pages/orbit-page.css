@@ -619,15 +619,14 @@ body.agent-open .orbit-page .layout {
  * ★ 这一段刻意放在文件**末尾**：下面这些选择器与被覆盖的基础规则**特异性相同**，
  *   靠"后写者胜"生效 —— 中途加规则时别把它挤到前面去。
  * ========================================================================== */
-.orbit-page .orbit-title { font-size: 24px; }        /* 22 × 1.10（西文占比最高，按实测 −11.3% 补） */
-.orbit-page .se-chip { font-size: 11.5px; }          /* 11 × 1.05（−12.7%） */
-.orbit-page .orb-badge { font-size: 11px; }          /* 10.5 × 1.05 */
-.orbit-page .num-val { font-size: 14.5px; }          /* 14 × 1.05（数字框） */
+.orbit-page .orbit-title { font-size: 26px; }        /* 22 × 1.18（西文占比最高；2026-10-15 用户"西文字号还是需要大一点"再上调） */
+.orbit-page .se-chip { font-size: 12.5px; }          /* 11 × 1.14 */
+.orbit-page .orb-badge { font-size: 12px; }          /* 10.5 × 1.14 */
+.orbit-page .num-val { font-size: 15.5px; }          /* 14 × 1.11（数字框） */
 /**
- * ★ 分段按钮**刻意不补**：它在两处被更高特异性的规则定死
- *   （`.seg.small .seg-btn` 12px、`.seg.wrap .seg-btn` 12.5px，都是 (0,3,0)），
- *   一条 `.orbit-page .seg-btn`（0,2,0）压不过它们 —— 实测写成 13.1px 后
- *   计算值仍是 12.5px（"看着改了、其实没生效"的典型）。
- *   而它那两个尺寸本来就够读（12.5px 的西文按钮），强行提权只是为了数字好看，
- *   不值当为它把选择器搞复杂；真要统一，应该改那两条基础规则本身。
+ * ★ 分段按钮：这次**连它一起放大**（用户两轮都点到"西文要大一点"），
+ *   所以直接改**基础规则**而不是再加一条（`.seg.small` / `.seg.wrap` 那两条
+ *   (0,3,0) 特异性更高，加一条 (0,2,0) 的规则压不过它们 —— 见上一轮的教训）。
  */
+.orbit-page .seg.small .seg-btn { font-size: 13px; }   /* 12 → 13 */
+.orbit-page .seg.wrap .seg-btn { font-size: 13.5px; }  /* 12.5 → 13.5 */

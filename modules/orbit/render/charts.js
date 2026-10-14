@@ -29,6 +29,25 @@ import { t } from '../../../packages/i18n/index.js'
 const Charts = (function () {
   'use strict';
 
+  /**
+   * ★★ 2026-10-15（用户："底部三个图中的字母字体也需要改"）：
+   *   三张 2D 图是 **canvas 手绘**：图上的字母/数字/单位是 `ctx.fillText` 画上去的，
+   *   **不是 DOM 文本节点** ⇒ 页面把字体换成新罗马时它们一点没变，仍是
+   *   `system-ui, sans-serif`（无衬线），与页面正文、公式的衬线不一致 ✗。
+   *
+   *   ⇒ 统一用一个常量描述 canvas 的字体族，与仓里 `--font-ui` / `--font-math`
+   *     同口径：新罗马优先，Cambria Math / 符号字体兜底（新罗马没有的字符，
+   *     如 π 之外的某些算子与下标，落到兜底不会变豆腐块）。
+   *
+   *   ★ 字号一律**按 1.1 倍上调**：新罗马的字符比 Segoe UI 窄（同字号下径宽约 −9%），
+   *     原字号是照无衬线选的 ⇒ 直接沿用会显得更小。1.1 倍既补回观感，
+   *     又因为新罗马更窄、**占位不会比原来更宽**（详见注释里的对照表）。
+   *     原 `10/11/12/13px` → `11/12/13/14px`；`bold 12/15` → `bold 13/17`。
+   */
+  const CHART_FONT = '"Times New Roman", "Cambria Math", "Segoe UI Symbol", serif';
+  /** 生成 canvas 字体串：`CHART_FONT_OF(11)` / `CHART_FONT_OF(13, 'bold')` */
+  const CHART_FONT_OF = (px, weight) => (weight ? weight + ' ' : '') + Math.round(px * 1.1) + 'px ' + CHART_FONT;
+
   // --- Canvas 基础工具 --------------------------------------------------------
   function setup(canvas) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -354,7 +373,7 @@ const Charts = (function () {
     // 水平网格线 + 刻度（纵轴值，支持负值）
     ctx.strokeStyle = ink('rgba(120,135,170,0.18)');
     ctx.fillStyle = ink('rgba(170,185,215,0.7)');
-    ctx.font = '11px system-ui, sans-serif';
+    ctx.font = CHART_FONT_OF(11);
     ctx.lineWidth = 1;
     const yTicks = signed ? [-1, -0.5, 0, 0.5, 1] : [0, 0.2, 0.4, 0.6, 0.8, 1];
     yTicks.forEach((tv) => {
@@ -371,13 +390,31 @@ const Charts = (function () {
     }
     // 轴标签
     ctx.fillStyle = ink('rgba(200,210,235,0.9)');
-    ctx.font = '12px system-ui, sans-serif';
+    ctx.font = CHART_FONT_OF(12);
     // x 轴：钟标居中偏右、**压在刻度数字下面一行**（原先 x = w−pad.r−34 与最后一个
     // 刻度（如 41.4）横向重叠，看着挤在一起）
     fillMath(ctx, '*r* (*a*₀)', w - pad.r - 46, h - 4);
     // y 轴：原先写作 (pad.l − 68) = 负坐标 → 一半画到画布外被裁，看着像"数幅度"。
     // 改放在绘图区左上方的留白里（那里正好空着，图例在右上）
-    ctx.fillText(t('orbit.chart.normalized'), pad.l + 2, pad.t - 5);
+    /**
+     * ★★ 2026-10-15（用户："底部三个图中的字母字体也需要改"）——换字体+放大字号后**实测抓到的回归**：
+     *   标题从 `pad.l + 2` 起画（pad.l = 46 ⇒ x = 48），而它在 13px 下的**墨迹左端是 −1px**
+     *   （`measureText` 的 actualBoundingBoxLeft 为负 ⇒ 左侧过冲），第一个"归"被画布左缘切掉 ✗；
+     *   旧的 12px 系统字恰好是 0（刚好贴着边，没露馅）。
+     *   ⇒ 起点必须**按实测墨迹宽度夹住**：左端不早于 2px。
+     *     判据用 `actualBoundingBoxLeft/Right`（真实墨迹），不是 `width`（那是步进宽度，
+     *     拿它当"左端不会越界"的依据正是上面这个坑）。
+     */
+    {
+      const label = t('orbit.chart.normalized');
+      const m = ctx.measureText(label);
+      const inkLeft = (m.actualBoundingBoxLeft == null) ? 0 : m.actualBoundingBoxLeft;
+      const inkRight = (m.actualBoundingBoxRight == null) ? m.width : m.actualBoundingBoxRight;
+      const x = Math.max(2 + inkLeft, pad.l + 2);
+      ctx.fillText(label, x, pad.t - 5);
+      // 记一笔，供实机探针核对（canvas 上的字不在 DOM 里，没有别的办法断言）
+      ctx.__radialLabelBox = { x: x, left: x - inkLeft, right: x + inkRight, canvasW: w };
+    }
 
     // 绘制各曲线（按其峰值归一化，便于比较节点结构）
     curves.forEach((c) => {
@@ -398,7 +435,7 @@ const Charts = (function () {
     if (marks.length) {
       ctx.save();
       ctx.lineWidth = 1.6;
-      ctx.font = '10px system-ui, sans-serif';
+      ctx.font = CHART_FONT_OF(10);
       let row = 0;
       marks.forEach((m) => {
         if (!(m.r >= 0) || m.r > rEnd) return;
@@ -422,7 +459,7 @@ const Charts = (function () {
       ctx.fillStyle = 'rgb(' + col.join(',') + ')';
       ctx.fillRect(lx, pad.t + 2, 12, 3);
       ctx.fillStyle = ink('rgba(220,228,245,0.9)');
-      ctx.font = '11px system-ui, sans-serif';
+      ctx.font = CHART_FONT_OF(11);
       fillMath(ctx, RADIAL_NAME[c.key], lx + 15, pad.t + 6);
       lx += 64;
     });
@@ -543,7 +580,7 @@ const Charts = (function () {
           const rLab = Rho * (1.12 + (k % 2) * 0.11);
           ctx.save();
           ctx.fillStyle = ink('rgba(255,190,235,0.95)');
-          ctx.font = '11px system-ui, sans-serif';
+          ctx.font = CHART_FONT_OF(11);
           ctx.textAlign = 'center';
           fillMath(ctx, '*' + g.sym + '*=' + Math.round((ang * 180) / Math.PI) + '°',
             g.cx + rLab * dx, cy + rLab * dy + 4);
@@ -641,19 +678,19 @@ const Charts = (function () {
     // ---- 标注 ----
     ctx.textAlign = 'center';
     ctx.fillStyle = ink('rgba(200,210,235,0.95)');
-    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.font = CHART_FONT_OF(12, 'bold');
     fillMath(ctx, '*Θ*(*θ*)', cxT, 14);
     fillMath(ctx, '*Φ*(*φ*)', cxP, 14);
     // 中间的乘号 —— 整张卡的论点就是它
     ctx.fillStyle = ink('rgba(150,170,210,0.9)');
-    ctx.font = 'bold 15px system-ui, sans-serif';
+    ctx.font = CHART_FONT_OF(15, 'bold');
     ctx.fillText('×', w * 0.5, cy + 5);
 
     // 极角基准：两幅不同，各自标出。
     // ★ 位置取"圆内、离描边约 14px"（贴边写会被描边压住）；并且**先描一圈底色再填字** ——
     //   浅色文字直接压在橙/青填充上对比度不够，实测 −z 几乎看不出来。光晕让它在任何
     //   瓣色下都读得清，代价只是多一次 strokeText。
-    ctx.font = '10px system-ui, sans-serif';
+    ctx.font = CHART_FONT_OF(10);
     const axisLabel = function (t, x, y, align) {
       ctx.textAlign = align || 'center';
       ctx.lineWidth = 3;
@@ -672,7 +709,7 @@ const Charts = (function () {
     //   必在两个峰值处同时取到 —— 这是**恒等式而非近似**（验证脚本会与网格实测的
     //   max|Y| 对照，见 README 的验证一节）。
     ctx.textAlign = 'center';
-    ctx.font = '10px system-ui, sans-serif';
+    ctx.font = CHART_FONT_OF(10);
     ctx.fillStyle = ink('rgba(170,190,225,0.9)');
     const f3 = function (x) { return x.toFixed(3); };
     fillMath(ctx, 'max:  *Θ* ' + f3(mxT) + '  ×  *Φ* ' + f3(mxP) + '  =  *Y* ' + f3(mxT * mxP),
@@ -775,7 +812,7 @@ const Charts = (function () {
     if (x0 >= 0 && x0 <= w) { ctx.beginPath(); ctx.moveTo(x0, 0); ctx.lineTo(x0, h); ctx.stroke(); }
     if (y0 >= 0 && y0 <= h) { ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(w, y0); ctx.stroke(); }
     ctx.fillStyle = ink('rgba(220,228,245,0.92)');
-    ctx.font = '12px system-ui, sans-serif';
+    ctx.font = CHART_FONT_OF(12);
     fillMath(ctx, t(PLANES[plane]), 8, 18);
     // 轴名固定贴在**绘图区边缘**：它说明的是"横/纵轴各是什么"，与视窗位置无关
     const lab = plane === 'xy' ? ['x', 'y'] : plane === 'xz' ? ['x', 'z'] : ['y', 'z'];
@@ -830,7 +867,7 @@ const Charts = (function () {
     const PALETTE = contourPalette();
     if (nodalPlane) {                          // 整面为节面
       ctx.fillStyle = ink('rgba(255,170,90,0.95)');
-      ctx.font = '13px system-ui, sans-serif';
+      ctx.font = CHART_FONT_OF(13);
       ctx.textAlign = 'center';
       fillMath(ctx, t('orbit.chart.nodalPlane'), w / 2, h / 2 - 6);
       ctx.textAlign = 'left';
@@ -912,14 +949,14 @@ const Charts = (function () {
     }
     // 说明
     ctx.fillStyle = ink('rgba(200,215,240,0.8)');
-    ctx.font = '10px system-ui, sans-serif';
+    ctx.font = CHART_FONT_OF(10);
     fillMath(ctx, t('orbit.chart.contourTitle'), 8, h - 6);
   }
 
   // 在等高线上标数值：深色底板 + 同层色文字，居中于 (x,y)
   function drawContourLabel(ctx, text, x, y, col) {
     ctx.save();
-    ctx.font = '10px system-ui, sans-serif';
+    ctx.font = CHART_FONT_OF(10);
     const tw = ctx.measureText(text).width;
     ctx.fillStyle = ink('rgba(8,12,24,0.85)');
     ctx.fillRect(x - tw / 2 - 3, y - 7, tw + 6, 14);
@@ -1052,7 +1089,7 @@ const Charts = (function () {
           // ★ 用**画布坐标**（不随绘图区平移）：这一行起于左侧留白，只有尾端压在绘图区左下角。
           const pf = levelFraction * 100;
           ctx.fillStyle = ink('rgba(255,255,255,0.9)');
-          ctx.font = '11px system-ui, sans-serif';
+          ctx.font = CHART_FONT_OF(11);
           ctx.textAlign = 'left';
           fillMath(ctx, t('orbit.chart.isoLine', { pct: (pf >= 10 ? pf.toFixed(1) : pf.toFixed(2)) }), 8, h - 8);
         }
@@ -1062,7 +1099,7 @@ const Charts = (function () {
     // 节面提示（填色模式下，把"空白"变成教学点）—— 分两行居中，避开右边缘的 `x` 轴名
     if (nodalPlane) {
       ctx.fillStyle = ink('rgba(255,170,90,0.95)');
-      ctx.font = '13px system-ui, sans-serif';
+      ctx.font = CHART_FONT_OF(13);
       ctx.textAlign = 'center';
       fillMath(ctx, t('orbit.chart.nodalPlaneShort'), w / 2, h / 2 - 4);
       fillMath(ctx, '|*ψ*|² ≈ 0', w / 2, h / 2 + 16);
@@ -1095,7 +1132,7 @@ const Charts = (function () {
     }
     // 标注
     ctx.fillStyle = ink('rgba(220,228,245,0.9)');
-    ctx.font = '10px system-ui, sans-serif';
+    ctx.font = CHART_FONT_OF(10);
     // ★ 说明文字一律画在色条**上方、右对齐**（原先：相位档画在 y + bh + 15，而色条是
     //   贴底摆的（y = h − bh − 14），那一行落在画布**外**，整句被裁掉只剩半个字；
     //   密度档画在 x − 8 左对齐，一路向右铺过去，压到右边缘的横轴标签 x 上）。
