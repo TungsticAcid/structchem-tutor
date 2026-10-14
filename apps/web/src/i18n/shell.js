@@ -146,7 +146,12 @@ export const zh = {
   'shell.home.setModel': '模型与教学偏好',
   'shell.home.openSettings': '打开设置（API Key · 模型 · 教学偏好）→',
   'shell.home.comingSoon': '即将接入',
-  'shell.home.footer': '© 2026 结构化学教学智能体 | 面向结构化学课程教学科研工具',
+  /**
+   * ★★ 2026-10-14（用户："现在还没有申请下软著"）：
+   *   原先页脚写的是「© 2026 结构化学教学智能体 | …」——`©` 容易被读成"已登记/已获著作权"，
+   *   而软件著作权**尚未申请下来**。改成像"署名 + 年份"那样的中性表述，不暗示任何登记状态。
+   */
+  'shell.home.footer': '结构化学教学智能体 · 2026 | 面向结构化学课程的教学科研工具',
   'shell.home.orbit.sub': '类氢原子轨道三维可视化',
   'shell.home.orbit.desc': '直观观测 s/p/d/f 轨道的三维形态、相位与截面，把抽象波函数可视化。',
   'shell.home.orbit.tag': '微观世界可观察',
@@ -318,7 +323,7 @@ export const en = {
   'shell.home.setModel': 'Model & teaching preferences',
   'shell.home.openSettings': 'Open settings (API key · model · teaching preferences) →',
   'shell.home.comingSoon': 'Coming soon',
-  'shell.home.footer': '© 2026 Structural Chemistry Teaching AI Agent | A teaching and research '
+  'shell.home.footer': 'Structural Chemistry Teaching AI Agent · 2026 | A teaching and research '
     + 'tool for structural chemistry courses',
   'shell.home.orbit.sub': '3D visualization of hydrogenic orbitals',
   'shell.home.orbit.desc': 'Observe the 3D shapes, phases and cross-sections of s/p/d/f orbitals — '
