@@ -151,6 +151,8 @@ let demoFav
   let pendingRender = false
 /** 在途气泡护栏的短重试状态（见 renderPath 里那段注释） */
 const pendingRetry = { n: 0, timer: 0 }
+/** 正文流式结束的时刻（用于给"演示阶段"留出重试窗口） */
+let finishedAt = 0
   let disposed = false
   let offProgress = null
   /**
@@ -575,9 +577,14 @@ let lastDemoId = null
         o = o || {}
         // ★ 先掐掉排队中的那一帧再收尾，否则它随后会用空串再刷一次 → 空泡
         if (rafId) { caf(rafId); rafId = 0 }
-        // ★ 在途标记到此为止：这一轮已经结束，对话树随后（异步）写入 ⇒ 允许重画。
-        //   ★ renderPath 里还有一层"等 store 落盘"的重试，专门吸收这段异步时间差。
-        if (wrap.dataset) delete wrap.dataset.pending
+        /**
+         * ★★ 2026-10-14 更正（用户实测截图：第一张有思考块 + 切换提示，第二张只剩动作条与演示）：
+         *   **不能在这里撤标记** ✗ —— 正文流式结束 ≠ 这一轮结束：紧接着还有**动作/演示阶段**
+         *   （用户图上「已完成 1/2 步」）。若此时撤标记，演示期间任何一次重画（从对话树重建，
+         *   而 store 里可能还没有这条回答）仍会把思考块与回答抹掉 —— 正是「只剩演示」。
+         *   标记改由 stopRunning() 撤（那一处才是"这一轮/这条队列真的结束"的出口）。
+         */
+        finishedAt = Date.now()
         // 收尾时用**非流式**渲染兜一次：万一最后一条公式没闭合（被截断），
         // 流式模式会把它整段吞掉，这里补显
         if (pendingText) { flush(false); pendingText = '' }
@@ -937,6 +944,16 @@ let lastDemoId = null
    *   会按**新的**叶指针把尾巴接上去——接错线且不报错。
    */
   function stopRunning() {
+    /**
+     * ★★ 2026-10-14（方案 B 的更正）：**这里才是撤"在途标记"的地方** —— 正文流式结束后
+     *   还有动作/演示阶段（用户截图里的「已完成 1/2 步」），标记必须撑到这条队列真的结束。
+     *   撤掉之后，随后的一次 renderPath 就会把 store 里的回答正常画出来。
+     *   ★ 外层还有重试上限兜底：万一某个流程没走到这里，也不会让界面一直不重画。
+     */
+    if (msgBox && typeof msgBox.querySelectorAll === 'function') {
+      const live = msgBox.querySelectorAll('[data-pending]')
+      for (let i = 0; i < live.length; i++) if (live[i].dataset) delete live[i].dataset.pending
+    }
     try { if (cfg.onStop) cfg.onStop() } catch (e) { /* 停不下来也不该阻断后续操作 */ }
   }
 
