@@ -128,7 +128,7 @@ section('工具定义：模块只提供专属工具')
 
   const q = T.defs.query.find((d) => d.function.name === 'queryCrystal')
   check('queryCrystal 的 kind 是枚举（模型不必猜）', Array.isArray(q.function.parameters.properties.kind.enum))
-  check('queryCrystal 的描述里点明"一律由程序计算，不得口算"',
+  check('queryCrystal 的描述里点明「一律由程序计算，不得口算」',
     /程序计算|不得口算/.test(q.function.description))
   check('listCrystals 的描述要求 id 原样使用（禁止编造）', /原值/.test(T.defs.query.find((d) => d.function.name === 'listCrystals').function.description))
 
@@ -170,12 +170,12 @@ section('工具执行：错误归一化为结果，不抛异常')
 
   const list = T.handlers.listCrystals({})
   check('listCrystals 返回 id 与元信息', list.crystals.length > 0 && !!list.crystals[0].id)
-  check('listCrystals 明确提示"id 请原样使用，不要改写或推断"', /原样|不要改写/.test(list.note))
+  check('listCrystals 明确提示「id 请原样使用，不要改写或推断」', /原样|不要改写/.test(list.note))
 
   const det = T.handlers.getCrystalDetail({ crystalId: 'fcc' })
   check('getCrystalDetail 原样返回数据字段（不推导）',
     det.latticeType === DATA.fcc.latticeType && det.coordination === DATA.fcc.coordination)
-  check('字段原文字段都带"未做推导"的说明', /未做推导/.test(det.note))
+  check('字段原文字段都带「未做推导」的说明', /未做推导/.test(det.note))
 
   const sum = T.handlers.queryCrystal({ crystalId: 'fcc', kind: 'summary' })
   check('summary 同时给出数据原文与程序算出的量，并标明哪些是算的',
@@ -229,7 +229,7 @@ section('与 descriptor 对账：声明的工具必须真的实现')
 
   const declared = Object.values(descriptor.tools || {}).flat()
   const notImplemented = declared.filter((n) => !actual.has(n))
-  check('crystal descriptor 的 tools 里没有"声明了却没实现"的名字',
+  check('crystal descriptor 的 tools 里没有「声明了却没实现」的名字',
     notImplemented.length === 0, '未实现：' + notImplemented.join(','))
   // 反向：实现了却没声明 → 模型看不到它（功能存在却不可用）
   const undeclared = [...actual].filter((n) => !declared.includes(n))

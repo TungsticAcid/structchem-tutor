@@ -123,7 +123,7 @@ console.log('\n【⑥ 晶体示例走空间群（此前答出来的是假的"ERR
 {
   // ---- 未注入分析器：必须如实说"未接入"，且**不给任何假的点群符号** ----
   const bare = await mod.handlers.queryPointGroup({ id: 'nacl' })
-  check('未注入空间群分析器时，晶体示例如实回"未接入"',
+  check('未注入空间群分析器时，晶体示例如实回「未接入」',
     !!(bare.error && /未接入/.test(bare.error)), JSON.stringify(bare).slice(0, 120))
   check('★ 不会返回一个假的点群符号（此前是 symbol:"ERR"，模型会把它当真）',
     bare.pointGroup == null && bare.spaceGroup == null, JSON.stringify(bare.pointGroup))
@@ -233,7 +233,7 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
     f2.applyActions([{ action: 'setElementVisible', params: { key: k0, visible: true } }])
     const afterShow = f2.getSnapshot().hiddenElements.split(',').filter(Boolean)
     check('setElementVisible(true) 把它从隐藏集里去掉', !afterShow.includes(k0), afterShow.join(','))
-    check('初始隐藏集来自"默认显隐策略"（有主轴的群默认只显示主轴）',
+    check('初始隐藏集来自「默认显隐策略」（有主轴的群默认只显示主轴）',
       st.hiddenElements.length > 0 || st.symmetryElementCount <= 1,
       `点群 ${st.pointGroup}：隐藏 ${st.hiddenElements || '（无）'}`)
   }
@@ -298,7 +298,7 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
     const s = f3.getSnapshot()
     const nowKeys = new Set(f3.listSymmetryElements().map((e) => e.key))
     const stale = s.hiddenElements.split(',').filter(Boolean).filter((k) => !nowKeys.has(k))
-    check('换分子后隐藏集里没有"上一个结构才有的 key"（脏状态）',
+    check('换分子后隐藏集里没有「上一个结构才有的 key」（脏状态）',
       stale.length === 0, stale.join(','))
     check('换分子后隐藏集重置为新结构的**默认策略**（不是简单清空）',
       s.hiddenElements.length > 0, s.hiddenElements)
@@ -492,7 +492,7 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
       !isRigidMatrix(opMatrixAt(0.5, 'reflect', z, 4, 1, 0.5)))
     check('记录成因：反演 t=0.5 是零矩阵（更彻底）',
       !isRigidMatrix(opMatrixAt(0.5, 'invert', z, 4, 1, 0.5)))
-    check('旋转全程都是刚体（所以"保留当前朝向"那条行为可以照旧）',
+    check('旋转全程都是刚体（所以「保留当前朝向」那条行为可以照旧）',
       [0.1, 0.25, 0.5, 0.75, 0.9].every((t) => isRigidMatrix(opMatrixAt(t, 'rotate', z, 4, 1, 0.5))))
   }
   const methaneEls = identifyPointGroup(
@@ -509,7 +509,7 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
     near(conj, [0, 1, 0]), conj.toArray().map((v) => v.toFixed(2)).join(','))
 
   // 现在的约定：**不接受累计矩阵**，永远是元素自己的轴
-  check('现在：C₂(1) 的轴不受"之前播过什么"影响，仍是 x̂',
+  check('现在：C₂(1) 的轴不受「之前播过什么」影响，仍是 x̂',
     near(operationAxisFor(c2_1), [1, 0, 0]))
   check('现在：C₂(2) 的轴不受影响，仍是 ŷ',
     near(operationAxisFor(c2_2), [0, 1, 0]))
@@ -575,8 +575,8 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
       }
     }
   }
-  check('有限群里任何元素都不是"无穷多个"（含 C₃ᵥ 的 σᵥ）', finiteBad.length === 0, finiteBad.slice(0, 5).join(', '))
-  check('线型群里 σᵥ / C₂′ 是无穷多、C∞ / S∞ 是"一根"', linearBad.length === 0, linearBad.slice(0, 5).join(', '))
+  check('有限群里任何元素都不是「无穷多个」（含 C₃ᵥ 的 σᵥ）', finiteBad.length === 0, finiteBad.slice(0, 5).join(', '))
+  check('线型群里 σᵥ / C₂′ 是无穷多、C∞ / S∞ 是「一根」', linearBad.length === 0, linearBad.slice(0, 5).join(', '))
 
   // 直接钉住用户那条：氨 = C3v，σᵥ 三个、不许有 ∞
   probe.facade.applyActions([{ action: 'loadExample', params: { id: 'ammonia' } }])
@@ -584,15 +584,15 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
   const nh3Sigma = nh3.filter((e) => e.type === 'sigma_v')
   check('氨的 σᵥ 个数是 3（有限个）', nh3Sigma.length === 3, String(nh3Sigma.length))
   check('氨的 σᵥ 计数是 ×3 而不是 ×∞', !isInfiniteFamily('sigma_v', nh3))
-  check('氨里没有任何"无穷多"的族', nh3.every((e) => !isInfiniteFamily(e.type, nh3)))
+  check('氨里没有任何「无穷多」的族', nh3.every((e) => !isInfiniteFamily(e.type, nh3)))
 
   // 线型群：σᵥ 记 ×∞ 并给出特征标表写法；C∞ / S∞ 记 ×1 且不给 ∞ 记号
   probe.facade.applyActions([{ action: 'loadExample', params: { id: 'co2' } }])
   const co2 = probe.facade.listSymmetryElements()
   check('D∞h 的 C₂′ 是无穷多（计数 ×∞）', isInfiniteFamily('C2', co2))
   check('D∞h 的 σᵥ 是无穷多（计数 ×∞）', isInfiniteFamily('sigma_v', co2))
-  check('C∞ 是"一根"（计数 ×1，不是 ×∞）', !isInfiniteFamily('C∞', co2))
-  check('S∞ 是"一根"（计数 ×1，不是 ×∞）', !isInfiniteFamily('S∞', co2))
+  check('C∞ 是「一根」（计数 ×1，不是 ×∞）', !isInfiniteFamily('C∞', co2))
+  check('S∞ 是「一根」（计数 ×1，不是 ×∞）', !isInfiniteFamily('S∞', co2))
   check('σh 与 i 在 D∞h 里各只有一个（不算无穷多）',
     !isInfiniteFamily('sigma_h', co2) && !isInfiniteFamily('i', co2))
   check('特征标表写法：σᵥ → ∞σᵥ、C₂ → ∞C₂′、C∞ → 无（符号自带 ∞）',
@@ -760,7 +760,7 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
   //   守卫：必须导出 restoreState，且它**翻译成动作**再套用（不另立真源）。
   const facadeSrc = readFileSync(new URL('../facade.js', import.meta.url), 'utf8')
   const facadeCode = strip3(facadeSrc)
-  check('对称门面实现契约的 restoreState（否则"回到演示前"永远失败）',
+  check('对称门面实现契约的 restoreState（否则「回到演示前」永远失败）',
     /restoreState\(state\) \{/.test(facadeCode))
   check('restoreState 把快照翻译成一串本模块动作（与正常操作同一条通路）',
     /acts\.push\(\{ action: 'loadExample'/.test(facadeCode) && /this\.applyActions\(acts\)/.test(facadeCode)

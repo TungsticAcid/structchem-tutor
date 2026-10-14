@@ -129,7 +129,7 @@ export function createSymmetryTools(facade, opts = {}) {
         note: '点群符号与对称元素清单均由程序识别所得，可直接引用。'
           + '要让画面动起来，用 applySceneActions 下发动作，元素/原子的 key 就取上面的 '
           + 'elementKeys / atoms —— **不要自己编造 key**。'
-          + '若要向学生解释"为什么是这个点群"，可结合 elements 里各元素的类型与方向来讲。',
+          + '若要向学生解释「为什么是这个点群」，可结合 elements 里各元素的类型与方向来讲。',
       }
     },
   }

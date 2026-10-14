@@ -113,7 +113,7 @@ near(Observables.deltaR(1, 0, 0), Math.sqrt(3) / 2, 1e-9, '1s 的 Δr = √3/2 a
 near(Observables.meanInvR(2, 0, 0), 0.25, 1e-6, '2s 的 ⟨1/r⟩ = 1/(4) a₀⁻¹')
 
 // ---------------------------------------------------------------- ⑦ 端点与形状
-console.log('【⑦ 数值端点（防"跑得动但全 NaN"）】')
+console.log('【⑦ 数值端点（防「跑得动但全 NaN」）】')
 for (const [n, l] of [[1, 0], [3, 2], [4, 3]]) {
   const v = OM.shellPeakFractions(n, l)
   ok(Array.isArray(v) && v.every((x) => isFinite(x)), `shellPeakFractions(${n},${l}) 全为有限数`)
@@ -122,7 +122,7 @@ const iso = OM.isoLevelAbs(2, 1, 0, 'real', 1, 1, 0.9)
 ok(isFinite(iso) && iso > 0, 'isoLevelAbs(2p, 90%) 为正的有限数', String(iso))
 
 // ---------------------------------------------------------------- ⑧ 导出面
-console.log('【⑧ 各模块的导出面（防止"加载成功但少了东西"）】')
+console.log('【⑧ 各模块的导出面（防止「加载成功但少了东西」）】')
 ok(typeof OM.psi === 'function' || typeof OM.psiReal === 'function' || Object.keys(OM).length > 40,
   `OM 导出 ${Object.keys(OM).length} 项`, String(Object.keys(OM).length))
 ok(Object.keys(Formula).length > 5, `Formula 导出 ${Object.keys(Formula).length} 项`)
@@ -130,7 +130,7 @@ ok(Object.keys(Sched).length >= 3, `Sched 导出 ${Object.keys(Sched).length} �
 ok(Object.keys(Observables).length >= 10, `Observables 导出 ${Object.keys(Observables).length} 项`)
 
 // ---------------------------------------------------------------- ⑨ 注入端口
-console.log('【⑨ 注入端口：未注入要"降级"而不是抛错】')
+console.log('【⑨ 注入端口：未注入要「降级」而不是抛错】')
 ok(typeof ErrorDiagnosis.configure === 'function', 'ErrorDiagnosis.configure 存在')
 ok(typeof Perception.configure === 'function', 'Perception.configure 存在')
 try {
@@ -229,7 +229,7 @@ console.log('【⑪ 轨道模型：氢型 / Slater 型（STO），以及它为�
   //   这正是同一组 sp³ 系数画出来形状不同的原因（也是"教材那个干净的定向瓣
   //   从哪来"的答案）。谁改了 radialR 或系数约定，这里会先红。
   ok(OM.getRadialModel().model === 'hydrogenic',
-    '默认是氢型轨道（与知识条目里"2s 有一个径向节点"一致）', OM.getRadialModel().model)
+    '默认是氢型轨道（与知识条目里「2s 有一个径向节点」一致）', OM.getRadialModel().model)
 
   // ① 氢型 2s 的径向节点在 r = 2a₀
   {
@@ -288,7 +288,7 @@ console.log('【⑪ 轨道模型：氢型 / Slater 型（STO），以及它为�
     ok(z.length === 1 && Math.abs(z[0] - 2) < 1e-6,
       '★ 切回氢型后径向节点回来了（切换不留残留状态）', JSON.stringify(z))
     ok(Math.abs(OM.radialR(2, 0, 2, 1)) < 1e-12,
-      '切回后 R₂₀ 在节点处确实为 0（不是"看起来像"）', String(OM.radialR(2, 0, 2, 1)))
+      '切回后 R₂₀ 在节点处确实为 0（不是「看起来像」）', String(OM.radialR(2, 0, 2, 1)))
   }
 
   // ⑥ ζ 可手工覆盖（想用 Slater 规则的值时直接填）
@@ -305,7 +305,7 @@ console.log('【⑪ 轨道模型：氢型 / Slater 型（STO），以及它为�
 }
 
 // ---------------------------------------------------------------- ⑫ 等价轨道互为旋转
-console.log('【⑫ 等价杂化轨道互为旋转 —— "多轨道同屏只需算一份标量场"的全部依据】')
+console.log('【⑫ 等价杂化轨道互为旋转 —— 「多轨道同屏只需算一份标量场」的全部依据】')
 {
   // ★ 这一节守的不是"某个数对不对"，而是一条**被拿来做性能优化的物理主张**：
   //   四个 sp³ 等值面同屏，若老老实实算 4 份 68³ 标量场、抽 4 次面，

@@ -108,11 +108,11 @@ export const en = Object.assign({
 export const text = Object.assign({
   // ★ 守卫改成"按行切片段 + 只把 `<字母` 当标签"之后，这一行从"被当成 HTML 标签吞掉"
   //   变成必须登记（它是宿主注入清单里的说明，装配期给人看）。
-  '() => Set<图层名>：练习未作答时不许打开的图层。★ 缺省时**没有这道闸**——这是刻意的：它不是"能力"，是宿主自己要不要设的纪律。但宿主应当知道，不给它就没有结构性防护（提示词劝不住模型）。':
+  '() => Set<图层名>：练习未作答时不许打开的图层。★ 缺省时**没有这道闸**——这是刻意的：它不是「能力」，是宿主自己要不要设的纪律。但宿主应当知道，不给它就没有结构性防护（提示词劝不住模型）。':
     '() => Set<layer name>: layers that must not be opened while a practice question is unanswered. ★ When absent there is **no such gate** — deliberately: it is not a "capability" but a discipline the host chooses to impose. The host should know, however, that without it there is no structural protection (prompts do not stop the model).',
-  '晶体索引（crystalIndex：[{id, name, ...}]）。模块用它校验 id 合法性、生成 id 清单（listIds）。缺了它，openCrystal 会把每一个 id 都判为"未知"，模块看起来在跑，其实一句都答不上来。':
+  '晶体索引（crystalIndex：[{id, name, ...}]）。模块用它校验 id 合法性、生成 id 清单（listIds）。缺了它，openCrystal 会把每一个 id 都判为「未知」，模块看起来在跑，其实一句都答不上来。':
     'The crystal index (crystalIndex: [{id, name, ...}]). The module uses it to validate ids and to build the id list (listIds). Without it, openCrystal judges every id "unknown": the module looks like it is running but cannot answer a single question.',
-  '答案已由程序算定并冻结在本地。请把题干与 4 个选项原样呈现给学生，**不要猜测或提示答案**；学生作答后调用 checkAnswer({questionId, chosenIndex})，判定与解析由本地完成。★ questionView 可以下发作"题境演示"（它只切晶体、开原子与线框）；但**作答前不得打开对称元素 / 空隙 / 点阵点 / 辅助几何等图层**——那会让学生从画面上直接读出答案，等于泄题。':
+  '答案已由程序算定并冻结在本地。请把题干与 4 个选项原样呈现给学生，**不要猜测或提示答案**；学生作答后调用 checkAnswer({questionId, chosenIndex})，判定与解析由本地完成。★ questionView 可以下发作「题境演示」（它只切晶体、开原子与线框）；但**作答前不得打开对称元素 / 空隙 / 点阵点 / 辅助几何等图层**——那会让学生从画面上直接读出答案，等于泄题。':
     'The answer has been computed in code and frozen locally. Present the stem and the 4 options to the student exactly as given — **do not guess or hint at the answer**; once the student answers, call checkAnswer({questionId, chosenIndex}) and the marking and explanation are done locally. ★ questionView may be sent as a "question-setting demonstration" (it only switches crystal and shows atoms and bonds); but **before the student answers you must not open layers such as symmetry elements / interstices / lattice points / auxiliary geometry** — that would let them read the answer straight off the screen, which gives it away.',
   // ★ 周期表分区的位置表标签（`periodic-layout.js` 的 PERIODIC_ROW_LABELS）
   '镧系': 'Lanthanides',

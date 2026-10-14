@@ -167,7 +167,7 @@ export function createQuizUI(deps = {}) {
         panel.runAgent(
           tr('学生刚刚答错了一道题。')
           + t('crystal.t.ui.3', { p1: (r.causeType || t('crystal.quiz.uncategorized')), p2: (r.causeLabel || '') })
-          + tr('请按 grade 节点的纪律引导他：先下发诊断动作让他自己看出矛盾，**不要直接说出正确答案**，也不要用"你错了"开头。')
+          + tr('请按 grade 节点的纪律引导他：先下发诊断动作让他自己看出矛盾，**不要直接说出正确答案**，也不要用「你错了」开头。')
           + t('crystal.t.ui.4', { p1: (r.followUp) }),
         )
       }
@@ -351,9 +351,9 @@ export function createQuizUI(deps = {}) {
 
   /** 提示文本：选择题给"看哪个量"的指引，判断/问答题由题库自带或按需生成 */
   function hintFor(q) {
-    if (q.kind === 'choice') return '回到题目里找出"要求的是哪个量"，注意区分"晶胞内含"与"每个球周围"。'
+    if (q.kind === 'choice') return '回到题目里找出「要求的是哪个量」，注意区分「晶胞内含」与「每个球周围」。'
     if (q.kind === 'judge') return '先找出这句话里**最关键的术语**，再想它的定义是否真如这句话所说。'
-    return '先想清楚涉及的概念定义，再按"定义 → 应用到本题"的顺序组织回答。'
+    return '先想清楚涉及的概念定义，再按「定义 → 应用到本题」的顺序组织回答。'
   }
 
   /** 展开参考答案 / 解析（选择与判断题即判分） */

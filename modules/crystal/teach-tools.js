@@ -89,7 +89,7 @@ export function createTeachTools(opts = {}) {
       }, ['kp']),
 
       def('startFeynmanCheck',
-        '发起一次**费曼式复述**：请学生用自己的话讲一遍某个知识点。返回邀请语与**评分要点（rubric）**——请照邀请语提问，并记住这些要点，等学生讲完后用 evaluateFeynman 评估。★ 复述的价值在于暴露理解缺口（而非记忆缺口），故邀请语要强调"别背公式"。', {
+        '发起一次**费曼式复述**：请学生用自己的话讲一遍某个知识点。返回邀请语与**评分要点（rubric）**——请照邀请语提问，并记住这些要点，等学生讲完后用 evaluateFeynman 评估。★ 复述的价值在于暴露理解缺口（而非记忆缺口），故邀请语要强调「别背公式」。', {
         kp: { type: 'string', description: '要复述的知识点 id' },
       }, ['kp']),
 
@@ -130,8 +130,8 @@ export function createTeachTools(opts = {}) {
       //   而不是等模型自由发挥
       return Object.assign({}, r, {
         instruction: r.correct
-          ? '学生答对了。**不要**只说"答对了"就结束——建议用费曼式复述（loadSkill 取 feynman 技能）请他用自己的话讲一遍，把识别性掌握推进到生成性掌握。'
-          : '学生答错了。按 grade 节点纪律：先把 diagnosticActions 下发到视图上，引导他自己看出矛盾，**不要直接说出正确答案**；也不要用"你错了"开头。然后可用 generateVariant 出一道变式题检验是否真正纠正。',
+          ? '学生答对了。**不要**只说「答对了」就结束——建议用费曼式复述（loadSkill 取 feynman 技能）请他用自己的话讲一遍，把识别性掌握推进到生成性掌握。'
+          : '学生答错了。按 grade 节点纪律：先把 diagnosticActions 下发到视图上，引导他自己看出矛盾，**不要直接说出正确答案**；也不要用「你错了」开头。然后可用 generateVariant 出一道变式题检验是否真正纠正。',
       })
     },
 
@@ -189,7 +189,7 @@ export function createTeachTools(opts = {}) {
       if (!kp || !t) return { error: '需要 kp 与 transcript（学生复述的原文）' }
       const r = evaluateTranscript(kp, t)
       return Object.assign({}, r, {
-        instruction: '请结合语义给出**最终评价**（下面的关键词匹配只是参考，可能漏判同义表述）：① 先明确说出"你讲对了哪一点"——正向确认比泛泛表扬有效；② 再针对确实缺失的要点**追问**，不要直接说出答案；③ 评价完调用 recordLearningEvent 记录（复述通过传 delta: 2）。',
+        instruction: '请结合语义给出**最终评价**（下面的关键词匹配只是参考，可能漏判同义表述）：① 先明确说出「你讲对了哪一点」——正向确认比泛泛表扬有效；② 再针对确实缺失的要点**追问**，不要直接说出答案；③ 评价完调用 recordLearningEvent 记录（复述通过传 delta: 2）。',
       })
     },
 

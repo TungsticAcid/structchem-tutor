@@ -59,9 +59,9 @@ export const text = {
   'max（强）': 'max (strongest)',
   '可选；部分服务不支持则忽略': 'Optional; ignored by services that do not support it',
   '输出上限 max_tokens': 'Max output tokens',
-  '思考 + 正文共用。推理模型提问较长时若出现"没有正文"，把它调大':
+  '思考 + 正文共用。推理模型提问较长时若出现「没有正文」，把它调大':
     'Shared by reasoning and answer text. If a reasoning model shows "no answer text" on longer prompts, raise it.',
-  '显示"思考中"过程': 'Show the "thinking" process',
+  '显示「思考中」过程': 'Show the "thinking" process',
   '启用主动服务（在检测到困惑时主动介入）': 'Enable proactive help (step in when confusion is detected)',
   '动画速度': 'Animation speed',
   '演示播放方式': 'Demonstration playback',

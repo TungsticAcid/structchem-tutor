@@ -317,7 +317,7 @@ export const text = {
   '空间波函数': 'Spatial wavefunction',
   '球谐判据': 'Spherical-harmonic criterion',
   '|² 的曲面比 |': '|² draws a surface thinner than |',
-  '| 的"瘦"': '| — the textbook "slimmer" pair',
+  '| 的「瘦」': '| — the textbook "slimmer" pair',
   '波函数形式': 'Wavefunction form',
   '波函数的实数解：由 ±m 两个复数解组合而来，不再是 L̂z 的本征函数；用实轨道名标记（p_x、d_xy…）':
     'Real solution of the wavefunction: formed by combining the two complex solutions ±m; no longer '

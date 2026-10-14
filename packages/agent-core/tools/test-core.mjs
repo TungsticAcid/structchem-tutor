@@ -51,7 +51,7 @@ const orbit = (p) => join(UPSTREAM, p)
  */
 if (!existsSync(join(UPSTREAM, 'js/agent/knowledge.js'))) {
   console.log('═══════════════════════════════════════════════════════════════')
-  console.log('⚠ 跳过"共享核 ↔ orbit 上游"的比对：未找到上游 checkout')
+  console.log('⚠ 跳过「共享核 ↔ orbit 上游」的比对：未找到上游 checkout')
   console.log(`   期望路径：${UPSTREAM}`)
   console.log('   换机器时用环境变量指定：ORBIT_UPSTREAM=<path-to>/orbit/H5')
   console.log('   （这一节是**开发期**验证，依赖上游仓库；跳过后本层不再被守卫）')
@@ -948,7 +948,7 @@ section('conversation：循环机制 + 与 orbit 原循环的等价性')
     const A = await runCase(() => setupOrbit(script, toolExec).deps, () => {}, script)
     const B = await runCase(() => setupMine(script, toolExec).deps, () => {}, script)
     check('轮数上限：参考实现停在 6 轮', A.events.done.rounds === 6, `原 ${A.events.done.rounds}`)
-    check('轮数上限：我们多要一轮"只写正文"的收尾（刻意分叉，不再逐字等价）',
+    check('轮数上限：我们多要一轮「只写正文」的收尾（刻意分叉，不再逐字等价）',
       B.events.done.rounds === A.events.done.rounds + 1,
       `原 ${A.events.done.rounds} / 新 ${B.events.done.rounds}`)
     check('收尾那一轮发出了 no_text_final_round 通知',
@@ -1006,14 +1006,14 @@ section('conversation：循环机制 + 与 orbit 原循环的等价性')
       { toolCalls: [tc('t3', {})], finishReason: 'tool_calls' },
     ]
     const B1 = await runCase(() => setupMine(script1, async () => ({ ok: true })).deps, () => {}, script1)
-    check('中间回合写过正文 ⇒ 不补"只写正文"的收尾',
+    check('中间回合写过正文 ⇒ 不补「只写正文」的收尾',
       B1.events.notices.indexOf('no_text_final_round') < 0 && B1.events.done.rounds === 6,
       `notices=${JSON.stringify(B1.events.notices)} rounds=${B1.events.done.rounds}`)
 
     // ② 一次工具都不动（脚本无 toolCalls）
     const script2 = [{ content: '', finishReason: 'stop' }]
     const B2 = await runCase(() => setupMine(script2, async () => ({ ok: true })).deps, () => {}, script2)
-    check('整轮没动过手 ⇒ 也不补（那不是"预算花在排演示上"的形态）',
+    check('整轮没动过手 ⇒ 也不补（那不是「预算花在排演示上」的形态）',
       B2.events.notices.indexOf('no_text_final_round') < 0 && B2.events.done.rounds === 1,
       `notices=${JSON.stringify(B2.events.notices)} rounds=${B2.events.done.rounds}`)
   }
@@ -1666,7 +1666,7 @@ section('module-contract：模块接入契约')
     JSON.stringify(assertModuleContract(oneArgOnAction).warnings))
 
   const applyNoSnap = { applyActions: () => ({}) }
-  check('提醒"有 applyActions 但没有 getSnapshot"（分镜无法抓快照回退）',
+  check('提醒「有 applyActions 但没有 getSnapshot」（分镜无法抓快照回退）',
     assertModuleContract(applyNoSnap).warnings.some((w) => /快照/.test(w)))
 
   const noVocab = { getSnapshot: () => ({}), applyActions: () => ({}) }
@@ -1805,7 +1805,7 @@ section('module-contract：模块接入契约')
     check('onDegrade 收到降级清单', Array.isArray(got) && got.join(',') === 'quiz')
     let called = false
     enforceHostRequirements('demo', { view: {}, quiz: {} }, reqs, () => { called = true })
-    check('没有降级时不调 onDegrade（否则会报出"少了 0 样"，纯噪声）', called === false)
+    check('没有降级时不调 onDegrade（否则会报出「少了 0 样」，纯噪声）', called === false)
   }
 
   // ---- 「三个模块都满足契约」曾在这里被**错报**过一次，记下来 ----
@@ -1889,7 +1889,7 @@ console.log(`\n${'═'.repeat(60)}`)
 {
   const sbSrc = readFileSync(new URL('../core/storyboard.js', import.meta.url), 'utf8')
   const reg = (sbSrc.match(/function registerDemo\(steps, o\) \{[\s\S]*?\n  \}/) || [''])[0]
-  check('分镜提供了"只登记"的 registerDemo', reg.length > 0 && /demos\.set\(/.test(reg))
+  check('分镜提供了「只登记」的 registerDemo', reg.length > 0 && /demos\.set\(/.test(reg))
   check('registerDemo 不碰队列、不开始播放（补记录 ≠ 播放；否则重画历史会自己播一遍）',
     reg.length > 0 && !/runQueue\(/.test(reg) && !/playing = true/.test(reg) && !/\bstop\(\)/.test(reg))
   check('registerDemo 已导出（面板补记录要用到）', /registerDemo,/.test(sbSrc))
@@ -1907,7 +1907,7 @@ console.log(`\n${'═'.repeat(60)}`)
   //      （回执原文必须留给模型读 —— 第 9 轮实测"把要求放进回执"才改得动模型行为）
   // ─────────────────────────────────────────────────────────────────────────
   const doneFn = (panelSrc.match(/function renderDone\([\s\S]*?\n  \}/) || [''])[0]
-  check('演示完成时保留最后一步的旁白（"第 N 步说了什么"不能消失）',
+  check('演示完成时保留最后一步的旁白（「第 N 步说了什么」不能消失）',
     /lastDemoSpeech/.test(panelSrc) && /demoText\.textContent = lastDemoSpeech/.test(doneFn))
   check('演示条上有「收藏这次演示」，且 id 有兜底（问分镜最近一条）',
     /☆ 收藏这次演示/.test(panelSrc) && /latestDemoId/.test(panelSrc))
@@ -1936,7 +1936,7 @@ console.log(`\n${'═'.repeat(60)}`)
    */
   check('重画时按锚点接回卡片（记下前面最近一条消息的 mid）',
     /return \{ el, afterMid, committedBefore, chipOrder/.test(panelSrc) && /p\.dataset\.mid/.test(panelSrc))
-  check('中途提示条还有第二个锚点（创建时记"已落盘消息条数"，否则必然掉到最下面）',
+  check('中途提示条还有第二个锚点（创建时记「已落盘消息条数」，否则必然掉到最下面）',
     /chipsAfterMid/.test(panelSrc) && /committedBefore/.test(panelSrc)
     && /dataset\.chipsAfterMid !== undefined/.test(panelSrc))
   check('接回走 restoreDomOnly（不再一律追加到末尾）',
@@ -1959,14 +1959,14 @@ console.log(`\n${'═'.repeat(60)}`)
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
     const calls = sbSrc4.match(/runQueue\([^)]*\)/g) || []
     const pacedFalse = calls.filter((c) => /runQueue\(\s*[^,]+,\s*false/.test(c))
-    check('分镜里没有 paced=false 的 runQueue 调用（否则"回第一步再连播"会瞬间跑完）',
+    check('分镜里没有 paced=false 的 runQueue 调用（否则「回第一步再连播」会瞬间跑完）',
       calls.length >= 4 && pacedFalse.length === 0, pacedFalse.join(' | '))
 
     // ★★ 2026-10-14（用户："重播演示，没有回到演示前状态"）：
     //   ① 每条演示记录要记住**自己的**"演示前快照"（模块级 beforeSnap 只有一份，
     //      重播历史里较早的一条会跳错状态）；
     //   ② `replay()` 要先恢复它再重播（否则"设置类"步骤在已改过的画面上是空操作 ✗）。
-    check('演示记录带上自己的"演示前快照"（rec.before）',
+    check('演示记录带上自己的「演示前快照」（rec.before）',
       /recForSnap && !recForSnap\.before && beforeSnap != null/.test(sbSrc4))
     // ★ 用朴素子串而不是正则：这条判据第一次用正则写，明明是同一行却 test() 为 false
     //   （转义在多层引号里被吃掉），换成 includes 后一目了然 —— 判据写法本身也会骗人。
@@ -2047,12 +2047,12 @@ console.log(`\n${'═'.repeat(60)}`)
     // ★ 只取 renderPath 的 assistant 分支：整份源码里 `agent-warn` 在 finish() 里是**合法**的
     //   （空正文的实时诊断），拿全文判"不许出现"会当场误报 —— 判据的范围必须与它的语义对齐。
     const asstBranch = (code.match(/else if \(n\.role === 'assistant'\) \{[\s\S]*?\n      \} else if/) || [''])[0]
-    check('panel 不再用 n.content 一刀切跳过整条 assistant 节点（否则"只有思考"的回合全丢）',
+    check('panel 不再用 n.content 一刀切跳过整条 assistant 节点（否则「只有思考」的回合全丢）',
       !/if \(n\.content\)\s*\{/.test(code))
     check('有思考就渲染：正文为空也建气泡（hasBody || hasReasoning || isLast）',
       /hasBody \|\| hasReasoning \|\| isLast/.test(code)
       && /hasReasoning\) el\.insertBefore\(thinkBlock\(n\.reasoning\), el\.firstChild\)/.test(code))
-    check('assistant 分支里空正文不补占位（那句"没有正文"是 finish() 的实时诊断，只该有一处）',
+    check('assistant 分支里空正文不补占位（那句「没有正文」是 finish() 的实时诊断，只该有一处）',
       asstBranch.length > 0 && !/agent-warn/.test(asstBranch))
     check('看门狗只在 running 为假时才撤标记/重建（还在跑就顺延）',
       /function armPendingWatchdog\(\)/.test(code) && /if \(running\) \{ armPendingWatchdog\(\); return \}/.test(code))

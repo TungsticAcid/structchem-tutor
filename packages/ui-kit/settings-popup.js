@@ -75,9 +75,9 @@ export const DEFAULT_SCHEMA = [
   },
   {
     key: 'maxTokens', label: '输出上限 max_tokens', type: 'number', min: 1024, max: 65536, step: 1024,
-    hint: '思考 + 正文共用。推理模型提问较长时若出现"没有正文"，把它调大',
+    hint: '思考 + 正文共用。推理模型提问较长时若出现「没有正文」，把它调大',
   },
-  { key: 'showReasoning', label: '显示"思考中"过程', type: 'checkbox' },
+  { key: 'showReasoning', label: '显示「思考中」过程', type: 'checkbox' },
   { key: 'proactive', label: '启用主动服务（在检测到困惑时主动介入）', type: 'checkbox' },
   { key: 'animSpeed', label: '动画速度', type: 'range', min: 0.5, max: 2, step: 0.25, unit: '×' },
   {

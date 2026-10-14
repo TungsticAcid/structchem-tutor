@@ -39,9 +39,9 @@ export const VISUAL_COLOR_KEYS = [
   { key: 'wireframeColor', label: '晶胞线框色', hint: '晶胞棱的颜色' },
   { key: 'octahedralColor', label: '八面体空隙色', hint: '打开「八面体空隙」图层后看到的多面体' },
   { key: 'tetrahedralColor', label: '四面体空隙色', hint: '打开「四面体空隙」图层后看到的多面体' },
-  { key: 'latticePointColor', label: '点阵点色', hint: '只有"点"没有"球"的那一层——点阵型式的直观来源' },
+  { key: 'latticePointColor', label: '点阵点色', hint: '只有「点」没有「球」的那一层——点阵型式的直观来源' },
   { key: 'auxiliaryLineBodyColor', label: '体对角线色', hint: '立方晶系判定的关键线' },
-  { key: 'auxiliaryLineFaceColor', label: '面对角线色', hint: '面心立方的"面对角线相切"靠它讲' },
+  { key: 'auxiliaryLineFaceColor', label: '面对角线色', hint: '面心立方的「面对角线相切」靠它讲' },
   { key: 'hydrogenBondColor', label: '氢键色', hint: '冰、氢氟酸等分子晶体里的虚线' },
 ]
 

@@ -31,7 +31,7 @@ export const HOST_REQUIREMENTS = [
       + 'crystalSystem, pearsonSymbol, operations}>，外加可选的 operationsToElements。'
       + '★ 为什么必须是注入：实现它的 modules/symmetry/space-group.js 依赖 @spglib/moyo-wasm，'
       + '且用 `…moyo_wasm_bg.wasm?url` 这种 **Vite 专有的导入后缀**，在 Node 里无法静态导入。'
-      + '缺省时不报错，但**晶体示例只能回"未接入"**——'
+      + '缺省时不报错，但**晶体示例只能回「未接入」**——'
       + '（此前缺省的表现更糟：identify() 返回 {symbol:"ERR"}，模型会把它当成一个真的点群符号。）',
   },
 ]

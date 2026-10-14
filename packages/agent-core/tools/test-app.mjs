@@ -202,7 +202,7 @@ section('端到端：分镜队列（applySceneActions 立即返回受理回执�
   await app.send('演示一下 NaCl 的八面体空隙', { onToolResult: (i) => { toolResult = i.result } })
 
   check('工具返回受理回执（含 totalSteps）', toolResult && toolResult.totalSteps === 2, JSON.stringify(toolResult))
-  check('回执里告诉模型"用户点下一步后才会有下一步动作"', /下一步/.test(toolResult.note || ''))
+  check('回执里告诉模型「用户点下一步后才会有下一步动作」', /下一步/.test(toolResult.note || ''))
   check('★ 第一步立即执行（模型的第一笔立刻可见）', view.props.showOctahedral === true)
   check('★ 第二步**没有**执行（在闸门上等用户点下一步）', view.props.showAtoms === true,
     'showAtoms 应仍为 true（第二步尚未执行）')
@@ -240,7 +240,7 @@ section('演示记录层与「回到演示前」（M2 回流带来的新能力�
   ])
   check('applySequence 返回 demoId（演示可寻址）', !!r.demoId, JSON.stringify(r))
   check('演示被记进记录层', app.storyboard.listRecords().length === 1)
-  check('★ 可按 id 取回该记录（不是只有一份"最近演示"）',
+  check('★ 可按 id 取回该记录（不是只有一份「最近演示」）',
     !!app.storyboard.getDemo(r.demoId))
   check('记录里带上步骤数与来源', (() => {
     const rec = app.storyboard.getDemo(r.demoId)
@@ -261,7 +261,7 @@ section('演示记录层与「回到演示前」（M2 回流带来的新能力�
 
   // 重放：用记录重建一次
   const rp = app.storyboard.replay(r.demoId)
-  check('replay 能按记录重放（此前"stop() 之后无法回放"是这个记录层缺失导致的）',
+  check('replay 能按记录重放（此前「stop() 之后无法回放」是这个记录层缺失导致的）',
     rp && rp.ok !== false, JSON.stringify(rp))
 
   // 回到演示前
@@ -346,7 +346,7 @@ section('切模块：词汇表与工具一并更换，在播分镜中止')
 
   app.setActiveModule(null)
   check('★ 切模块会中止在播分镜（跨模块继续播没有意义）', app.storyboard.state().total === 0)
-  check('切换后 getSnapshot 明确报"没有激活模块"而**不是**编造状态',
+  check('切换后 getSnapshot 明确报「没有激活模块」而**不是**编造状态',
     /没有激活/.test((await app.registry.execute('getSnapshot', '{}')).error))
 }
 
@@ -462,7 +462,7 @@ section('契约在装配期强制上岗（缺必需方法就拒绝启动）')
   const { app } = buildApp([{ content: 'x' }])
   const rr = app.contractReport()[0]
   check('真实晶体模块通过契约校验', rr.ok === true, JSON.stringify(rr.missingRequired))
-  check('★ 晶体模块现在提供 canApplyActions（替代"中枢猜 crystal 字段"）',
+  check('★ 晶体模块现在提供 canApplyActions（替代「中枢猜 crystal 字段」）',
     rr.present.includes('canApplyActions'))
   check('★ 晶体模块现在提供 listIds（此前是隐形契约）',
     rr.present.includes('listIds'))
@@ -551,7 +551,7 @@ section('三个真实模块 · 契约合规与宿主需求对账')
   check('对称性只向宿主索取空间群分析器这一项（它不需要视图：动作落在自己的状态上）',
     SYMMETRY_HOST_REQS.length === 1 && SYMMETRY_HOST_REQS[0].key === 'spaceGroup',
     SYMMETRY_HOST_REQS.map((r) => r.key).join(','))
-  check('空间群分析器是**可选项**（不注入时晶体示例如实回"未接入"，而不是拒绝启动）',
+  check('空间群分析器是**可选项**（不注入时晶体示例如实回「未接入」，而不是拒绝启动）',
     SYMMETRY_HOST_REQS.every((r) => r.required === false))
   check('对称性模块在没注入分析器时仍能建起来，并把缺的那项记进 degraded',
     !!built[1][1].facade && built[1][1].hostReport.degraded.join(',') === 'spaceGroup',

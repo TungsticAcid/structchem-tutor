@@ -365,7 +365,7 @@ console.log('【⑥ 多轨道同屏：任意轨道 / 任意数量 / 逐轨道配
       const e = r(name, {})
       if (/未知动作|不支持动作/.test(e)) noCase.push(name)
     }
-    ok(noCase.length === 0, 'VOCAB 里每个动作在 validate 里都有 case（空参数不会回落到"不支持该动作"）',
+    ok(noCase.length === 0, 'VOCAB 里每个动作在 validate 里都有 case（空参数不会回落到「不支持该动作」）',
       noCase.join(','))
   }
 }

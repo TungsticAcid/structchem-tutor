@@ -306,14 +306,14 @@ export function createSymmetryFacade(opts = {}) {
     setLabelsVisible: {
       label: '显示/隐藏对称元素标签',
       group: '显示',
-      desc: 'C₂、σv 这类文字标签的开关。讲"哪个是主轴"时打开更有用。',
+      desc: 'C₂、σv 这类文字标签的开关。讲「哪个是主轴」时打开更有用。',
       params: { visible: 'boolean' },
       animated: false,
     },
     setAuxVisible: {
       label: '显示/隐藏辅助几何',
       group: '显示',
-      desc: '立方体/二面角等辅助线框——用来展示"四面体方向""二面角"这类空间关系。',
+      desc: '立方体/二面角等辅助线框——用来展示「四面体方向」「二面角」这类空间关系。',
       params: { visible: 'boolean' },
       animated: false,
     },
@@ -328,7 +328,7 @@ export function createSymmetryFacade(opts = {}) {
       label: '逐个显隐对称元素',
       group: '显示',
       desc: '显示或隐藏**某一个**对称元素。key 必须来自 queryPointGroup 返回的 elements[].key'
-        + '（形如 C2#1、sigma#2），**不可编造**。讲"只留主轴"时用它逐个关掉其余的。',
+        + '（形如 C2#1、sigma#2），**不可编造**。讲「只留主轴」时用它逐个关掉其余的。',
       params: { key: 'string', visible: 'boolean' },
       animated: false,
     },
@@ -733,8 +733,8 @@ export function createSymmetryFacade(opts = {}) {
       if (typeof analyzeCrystal !== 'function') {
         return {
           error: tr('本宿主未接入空间群分析器（spaceGroup），无法识别晶体的空间群。')
-            + tr('★ 这**不是**"该结构没有对称性"，而是能力未接入——')
-            + tr('请如实告诉学生"晶体空间群识别在当前环境不可用"，不要凭记忆给一个空间群符号。'),
+            + tr('★ 这**不是**「该结构没有对称性」，而是能力未接入——')
+            + tr('请如实告诉学生「晶体空间群识别在当前环境不可用」，不要凭记忆给一个空间群符号。'),
         }
       }
       const r = await analyzeCrystal(ex.structure)

@@ -81,7 +81,7 @@ const ErrorDiagnosis = (function () {
       ],
       speech: '先不急着说答案。我把 R(r) 和 D(r) 画在同一张图上了——你看它们的峰顶是不是不在同一个位置？再想想：球壳的体积随半径怎么变？',
       avoid: '不要直接说出正确答案；不要一次给出全部解释。',
-      followUp: '要不要我把这个半径对应的一层"球壳"在三维里标出来？',
+      followUp: '要不要我把这个半径对应的一层「球壳」在三维里标出来？',
     }),
 
     'radial-nodes': lazyFields({
@@ -93,8 +93,8 @@ const ErrorDiagnosis = (function () {
         { action: 'setIsosurfaceLevel', params: { fraction: 0.05 } },   // 降阈值显套娃
         { action: 'spotlightNodes', params: { type: 'radial', on: true } },
       ],
-      speech: '我把等值面阈值降下来，你看这个"套娃"结构——每两层壳之间就是一层径向节点。数一数有几层？对照公式 n−l−1 看看。',
-      avoid: '不要只说"公式是 n−l−1"，要让学生**数出来**。',
+      speech: '我把等值面阈值降下来，你看这个「套娃」结构——每两层壳之间就是一层径向节点。数一数有几层？对照公式 n−l−1 看看。',
+      avoid: '不要只说「公式是 n−l−1」，要让学生**数出来**。',
       followUp: '那角度节面呢？换个平面看看。',
     }),
 
@@ -107,7 +107,7 @@ const ErrorDiagnosis = (function () {
         { action: 'setAutoRotate', params: { on: true } },
       ],
       speech: '我打开等高线和角度节面高亮。注意看节面的形状——它是平的一个面，还是绕着 z 轴转出来的一圈？',
-      avoid: '不要用"锥面"这个词直接提示，先让学生描述看到的形状。',
+      avoid: '不要用「锥面」这个词直接提示，先让学生描述看到的形状。',
       followUp: '想想 P_l^{|m|}(cosθ)=0 解出来的 θ 是常数还是 φ 是常数？',
     }),
 
@@ -137,7 +137,7 @@ const ErrorDiagnosis = (function () {
         { action: 'setWavefunctionMode', params: { mode: 'real' } },
       ],
       speech: '你看，切到复函数时密度是个环，切回实函数变成两个瓣。但它们的**能量**变了吗？想想为什么能量不变，形状却变了。',
-      avoid: '不要直接说"线性组合"，先让学生注意到能量没变这个事实。',
+      avoid: '不要直接说「线性组合」，先让学生注意到能量没变这个事实。',
       followUp: '既然能量一样，它们的任意组合是不是也是合法状态？',
     }),
   };

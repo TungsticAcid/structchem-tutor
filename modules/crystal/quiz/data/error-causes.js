@@ -91,7 +91,7 @@ export const ERROR_CAUSES = [
       { action: 'setLayers', params: { layers: { atoms: true, wireframe: true, bonds: false } }, speech: '注意第三层与第一层的相对位置。' },
       { action: 'setView', params: { direction: 'front' }, speech: '从侧面看密置层的堆叠。' },
     ],
-    avoid: '不要用"你记反了"这种否定式开头',
+    avoid: '不要用「你记反了」这种否定式开头',
     followUp: '如果把第三层盖上去，它与第一层是对齐的还是错开的？',
   },
   {
@@ -99,13 +99,13 @@ export const ERROR_CAUSES = [
     type: 'E-A',
     kps: ['crystal:C1'],
     label: '把点阵型式与晶系混为一谈',
-    wrongBelief: '立方晶系就是面心立方；"面心立方"是一种晶系',
+    wrongBelief: '立方晶系就是面心立方；「面心立方」是一种晶系',
     distractor: null,
     oneLine: '晶系说的是**晶胞形状**（a、b、c 与三个夹角的关系），点阵型式说的是**点阵点怎么排布**——同一晶系可以有多种点阵型式。',
     diagnosticActions: [
       { action: 'setLayers', params: { layers: { latticePoints: true, wireframe: true } }, speech: '打开点阵点图层：现在画面里只剩点阵点，晶系对应的晶胞形状还看得见吗？' },
     ],
-    avoid: '不要只说"这是两个不同的概念"就结束',
+    avoid: '不要只说「这是两个不同的概念」就结束',
     followUp: '立方晶系一共有几种点阵型式？它们都属于同一个晶系吗？',
   },
   {
@@ -113,7 +113,7 @@ export const ERROR_CAUSES = [
     type: 'E-A',
     kps: ['crystal:C4', 'crystal:C5'],
     label: '把配位数与空隙数混淆',
-    wrongBelief: '配位数和"每个球周围的空隙数"是同一个量',
+    wrongBelief: '配位数和「每个球周围的空隙数」是同一个量',
     distractor: 12,
     oneLine: '配位数数的是**近邻原子**的个数，空隙数数的是**球与球之间的空位**——两者都在球周围，但数的是不同的东西。',
     diagnosticActions: [
@@ -121,7 +121,7 @@ export const ERROR_CAUSES = [
       { action: 'setLayers', params: { layers: { interstices: true, octahedral: true } }, speech: '现在打开空隙：这些位置上一个原子都没有，它们在球与球之间的凹陷处。' },
     ],
     avoid: '不要在没有区分两者的前提下直接给数值',
-    followUp: '一个是"有几个球"，一个是"有几个空位"，分别数一数。',
+    followUp: '一个是「有几个球」，一个是「有几个空位」，分别数一数。',
   },
   {
     id: 'E-A5',
@@ -130,36 +130,36 @@ export const ERROR_CAUSES = [
     label: '★ 把 CsCl 型说成体心立方',
     wrongBelief: 'CsCl 是体心立方结构，所以点阵型式是体心立方(cI)',
     distractor: '体心立方(cI)',
-    oneLine: 'Cs⁺ 与 Cl⁻ 是**不同种**离子——体心点阵要求顶点与体心的**环境完全相同**（能靠平移互相重合），而 Cs⁺ 与 Cl⁻ 显然不满足。所以它的点阵型式是**简单立方(cP)**，"体心"只是这一组离子的排列外观。',
+    oneLine: 'Cs⁺ 与 Cl⁻ 是**不同种**离子——体心点阵要求顶点与体心的**环境完全相同**（能靠平移互相重合），而 Cs⁺ 与 Cl⁻ 显然不满足。所以它的点阵型式是**简单立方(cP)**，「体心」只是这一组离子的排列外观。',
     diagnosticActions: [
       { action: 'loadCrystal', params: { crystalId: 'csCl' }, speech: '看 CsCl 型：顶点上是 Cs⁺，体心是 Cl⁻。' },
       { action: 'setLayers', params: { layers: { latticePoints: true, atoms: false } }, speech: '打开点阵点图层——请注意点阵点只落在顶点上，体心**没有**点阵点。' },
-      { action: 'setView', params: { direction: 'iso' }, speech: '点阵点是"能靠平移互相重合的位置"，Cs⁺ 与 Cl⁻ 之间不能这样重合。' },
+      { action: 'setView', params: { direction: 'iso' }, speech: '点阵点是「能靠平移互相重合的位置」，Cs⁺ 与 Cl⁻ 之间不能这样重合。' },
     ],
-    avoid: '不要只说"答案错了"——要让学生看见点阵点的分布',
+    avoid: '不要只说「答案错了」——要让学生看见点阵点的分布',
     followUp: '如果把体心的 Cl⁻ 换成 Cs⁺，点阵型式会变成什么？（对照 bcc 晶体）',
   },
   {
     id: 'E-A6',
     type: 'E-A',
     kps: ['crystal:C2'],
-    label: '★ 把"原子环境相同"当成"被点阵平移联系"',
+    label: '★ 把「原子环境相同」当成「被点阵平移联系」',
     wrongBelief: '金刚石晶胞里 8 个碳原子完全等效，所以结构基元就是一个碳原子',
     distractor: 'C（1 个原子）',
-    oneLine: '"环境相同"与"被点阵平移联系"不是一回事。金刚石的 8 个碳**确实**环境相同，但点阵平移只能联系其中一半——结构基元是 **C₂**，不是 C。',
+    oneLine: '「环境相同」与「被点阵平移联系」不是一回事。金刚石的 8 个碳**确实**环境相同，但点阵平移只能联系其中一半——结构基元是 **C₂**，不是 C。',
     diagnosticActions: [
       { action: 'loadCrystal', params: { crystalId: 'diamond' }, speech: '看金刚石：晶胞里 8 个碳。' },
       { action: 'setLayers', params: { layers: { latticePoints: true, atoms: true } }, speech: '打开点阵点：点阵点数只有 4 个（面心立方），而原子有 8 个。' },
     ],
-    avoid: '不要说"你概念不清"，要说"这两个说法差在哪里"',
+    avoid: '不要说「你概念不清」，要说「这两个说法差在哪里」',
     followUp: '8 个原子 ÷ 4 个点阵点 = 每个点阵点代表几个原子？',
   },
   {
     id: 'E-A7',
     type: 'E-A',
     kps: ['crystal:C4'],
-    label: '★ 把石墨的层内配位数当成"无经典配位数"',
-    wrongBelief: '石墨和干冰一样是分子晶体，所以也"无经典配位数"',
+    label: '★ 把石墨的层内配位数当成「无经典配位数」',
+    wrongBelief: '石墨和干冰一样是分子晶体，所以也「无经典配位数」',
     distractor: '无经典配位数（分子晶体）',
     oneLine: '干冰是**分子间**靠范德华力结合的**分子晶体**；石墨层内是**共价键**，每个碳在层内连 3 个碳——它有明确的层内配位数 3，只是层与层之间靠范德华力。两者不是一回事。',
     diagnosticActions: [
@@ -167,7 +167,7 @@ export const ERROR_CAUSES = [
       { action: 'setLayers', params: { layers: { bonds: true, atoms: true, wireframe: false } }, speech: '打开化学键：层内每个碳连着三个碳，这是共价键。' },
       { action: 'loadCrystal', params: { crystalId: 'co2' }, speech: '再对比干冰：分子之内是共价键，分子之间没有化学键。' },
     ],
-    avoid: '不要把"无经典配位数"当成分子晶体的统一定义',
+    avoid: '不要把「无经典配位数」当成分子晶体的统一定义',
     followUp: '石墨层内、层间的结合力分别是什么？',
   },
 
@@ -178,10 +178,10 @@ export const ERROR_CAUSES = [
     id: 'E-B1',
     type: 'E-B',
     kps: ['crystal:C5'],
-    label: '★ 用晶胞内总数代替"每个球周围"的数目',
+    label: '★ 用晶胞内总数代替「每个球周围」的数目',
     wrongBelief: 'Cu 型晶胞里有 4 个八面体空隙，所以每个球周围有 4 个八面体空隙',
     distractor: 4,
-    oneLine: '"晶胞内共有几个"与"每个球周围有几个"是**两个问题**：前者是晶胞这个盒子里的总数（4），后者是盯着一个球看它周围（6）。同一个晶体，答案不同。',
+    oneLine: '「晶胞内共有几个」与「每个球周围有几个」是**两个问题**：前者是晶胞这个盒子里的总数（4），后者是盯着一个球看它周围（6）。同一个晶体，答案不同。',
     diagnosticActions: [
       { action: 'loadCrystal', params: { crystalId: 'fcc' }, speech: '看 Cu 型，先数晶胞内一共有几个八面体空隙。' },
       { action: 'setLayers', params: { layers: { interstices: true, octahedral: true } }, speech: '打开八面体空隙——晶胞内共 4 个位置。' },
@@ -197,11 +197,11 @@ export const ERROR_CAUSES = [
     label: '忘记除以结构基元的原子数',
     wrongBelief: '结构基元数 = 晶胞内原子数',
     distractor: null,
-    oneLine: '结构基元数 = 晶胞原子数 ÷ 每个基元含的原子数。这两个数只在"基元恰好含 1 个原子"时才相等。',
+    oneLine: '结构基元数 = 晶胞原子数 ÷ 每个基元含的原子数。这两个数只在「基元恰好含 1 个原子」时才相等。',
     diagnosticActions: [
       { action: 'setLayers', params: { layers: { atoms: true, latticePoints: true } }, speech: '同时打开原子与点阵点，对照着数。' },
     ],
-    avoid: '不要跳过"每个基元含几个原子"这一步',
+    avoid: '不要跳过「每个基元含几个原子」这一步',
     followUp: '一个点阵点代表几个原子？',
   },
   {
@@ -211,11 +211,11 @@ export const ERROR_CAUSES = [
     label: '把顶点/棱/面上的原子整个算作晶胞内的',
     wrongBelief: '晶胞里有 8 个顶点原子 + 6 个面心原子 = 14 个原子',
     distractor: 14,
-    oneLine: '顶点上的原子被 8 个晶胞共有、面上的被 2 个共有——先按"分摊"折算，再相加。',
+    oneLine: '顶点上的原子被 8 个晶胞共有、面上的被 2 个共有——先按「分摊」折算，再相加。',
     diagnosticActions: [
       { action: 'setLayers', params: { layers: { atoms: true, wireframe: true, auxiliaryBody: true } }, speech: '看晶胞线框：顶点这个球，其实伸到了相邻晶胞里。' },
     ],
-    avoid: '不要只给折算结果，要让学生看到"共享"这件事',
+    avoid: '不要只给折算结果，要让学生看到「共享」这件事',
     followUp: '顶点原子有几个晶胞共用？面心呢？',
   },
 
@@ -232,9 +232,9 @@ export const ERROR_CAUSES = [
     oneLine: '公式里的 Z 是**化学式单位数**，不是晶胞里的原子个数。NaCl 晶胞含 8 个原子，但只有 **4 个** NaCl 单位——取 8 会算出接近两倍的密度。',
     diagnosticActions: [
       { action: 'loadCrystal', params: { crystalId: 'naCl' }, speech: '看 NaCl 晶胞：4 个 Na⁺ + 4 个 Cl⁻ = 8 个原子。' },
-      { action: 'setLayers', params: { layers: { atoms: true, bonds: true } }, speech: '但"一个 NaCl 单位"包含 1 个 Na 和 1 个 Cl——所以是 8 ÷ 2 = 4 个单位。' },
+      { action: 'setLayers', params: { layers: { atoms: true, bonds: true } }, speech: '但「一个 NaCl 单位」包含 1 个 Na 和 1 个 Cl——所以是 8 ÷ 2 = 4 个单位。' },
     ],
-    avoid: '不要只说"公式代错了"',
+    avoid: '不要只说「公式代错了」',
     followUp: '每个化学式单位里含几个原子？',
   },
   {
@@ -263,7 +263,7 @@ export const ERROR_CAUSES = [
     diagnosticActions: [
       { action: 'setLayers', params: { layers: { atoms: true, auxiliaryFace: true } }, speech: '看面对角线：相切的两个球，其中一个的邻居在盒子的外侧。' },
     ],
-    avoid: '不要说"要考虑周期性"就结束',
+    avoid: '不要说「要考虑周期性」就结束',
     followUp: '这个球在晶胞边界上，它对面的那个球在盒子里面还是外面？',
   },
 
@@ -283,7 +283,7 @@ export const ERROR_CAUSES = [
       { action: 'setLayers', params: { layers: { bonds: true, auxiliaryBody: true } }, speech: '打开辅助体——注意这 4 个位置构成的是四面体，不是平面。' },
       { action: 'setView', params: { direction: 'iso' }, speech: '转一下视角，看它们是否共面。' },
     ],
-    avoid: '不要断言"就是四面体"，让学生自己看出不共面',
+    avoid: '不要断言「就是四面体」，让学生自己看出不共面',
     followUp: '把这 4 个原子连起来，得到的是什么形状？',
   },
   {
@@ -293,12 +293,12 @@ export const ERROR_CAUSES = [
     label: '把层间距离当成了最近邻',
     wrongBelief: '石墨中碳的最近邻是层间相对的那个碳',
     distractor: null,
-    oneLine: '最近邻要看**实际距离**，不是"看起来正对着"。层间是范德华力，距离比层内的共价键长得多。',
+    oneLine: '最近邻要看**实际距离**，不是「看起来正对着」。层间是范德华力，距离比层内的共价键长得多。',
     diagnosticActions: [
       { action: 'loadCrystal', params: { crystalId: 'graphite' }, speech: '看石墨：层内与层间的距离明显不同。' },
       { action: 'setView', params: { direction: 'front' }, speech: '从侧面看，层与层的间隙比层内原子间距大得多。' },
     ],
-    avoid: '不要说"那是范德华力所以不算"，要先让他看出距离差异',
+    avoid: '不要说「那是范德华力所以不算」，要先让他看出距离差异',
     followUp: '哪个距离更短？',
   },
 ]

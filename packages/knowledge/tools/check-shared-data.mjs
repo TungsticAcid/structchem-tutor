@@ -199,16 +199,40 @@ ok(ENTRIES.every((e) => !String(e.kp).includes(':')),
   } else {
   const origS = loadOrbitGlobal(UPSTREAM_SKILLS, 'Skills')
 
+  /**
+   * ★★ 2026-10-15（用户："中文段落的引号要用中文引号"）：**引号这一维刻意分叉**。
+   *
+   *   全仓中文文案的引号统一成 「」（原先是直引号 "），包括 `packages/skills` 这份
+   *   与上游逐字同源的技能文案；而上游仍写直引号 ⇒ 逐字比对必然报 12 处差异，
+   *   它们**只差引号**，一个字都没改内容。
+   *
+   *   ⇒ 比较时把「引号形态」归一化（直引号、弯引号、全角引号 → 「/」），其余**逐字严格**。
+   *     这样"引号风格"是我们自己的选择、不再冒充缺陷，而**真正的改写仍会红** ——
+   *     没有把守卫放宽成"什么都不比"（那是本仓反复警惕的那种假绿）。
+   */
+  const normQuotes = (s) => String(s == null ? '' : s)
+    .replace(/[\u201c\u201d\u2018\u2019\u0022\u0027\u300c\u300d\u300e\u300f]/g, '\u300c')
+  const normDeep = (v) => {
+    if (typeof v === 'string') return normQuotes(v)
+    if (Array.isArray(v)) return v.map(normDeep)
+    if (v && typeof v === 'object') {
+      const o = {}
+      for (const k of Object.keys(v)) o[k] = normDeep(v[k])
+      return o
+    }
+    return v
+  }
+
   let sdiffs = []
   for (let i = 0; i < origS.length && i < SKILLS.length; i++) {
     const o = origS[i]
     const n = SKILLS[i]
-    for (const f of ['name', 'title', 'desc', 'when', 'exit']) if (o[f] !== n[f]) sdiffs.push(`${o.name}.${f}`)
+    for (const f of ['name', 'title', 'desc', 'when', 'exit']) if (normQuotes(o[f]) !== normQuotes(n[f])) sdiffs.push(`${o.name}.${f}`)
     for (const f of ['steps', 'phrases', 'cautions']) {
-      if (JSON.stringify(o[f] || []) !== JSON.stringify(n[f] || [])) sdiffs.push(`${o.name}.${f}`)
+      if (JSON.stringify(normDeep(o[f] || [])) !== JSON.stringify(normDeep(n[f] || []))) sdiffs.push(`${o.name}.${f}`)
     }
   }
-  ok(sdiffs.length === 0, '通用技能与上游逐字一致', sdiffs.join('; '))
+  ok(sdiffs.length === 0, '通用技能与上游一致（引号形态按「」归一化后逐字比对）', sdiffs.join('; '))
   }
 }
 

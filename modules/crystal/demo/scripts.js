@@ -50,7 +50,7 @@ export const DEMO_SCRIPTS = [
     title: '最密堆积里的空隙分布',
     kp: 'crystal:C5',
     crystalId: 'fcc',
-    desc: '打开空隙图层并区分"晶胞内"与"每个球周围"两种数法（C5 的最高危混淆）',
+    desc: '打开空隙图层并区分「晶胞内」与「每个球周围」两种数法（C5 的最高危混淆）',
     steps: [
       { action: 'loadCrystal', params: { crystalId: 'fcc' }, speech: '以 Cu 型（立方最密堆积）为例看空隙。' },
       { action: 'setLayers', params: { layers: { atoms: true, wireframe: true, bonds: false, interstices: true, octahedral: true, tetrahedral: false } }, speech: '打开空隙图层与八面体空隙——注意空隙有个总开关，只开子层是不显示的。' },
@@ -77,7 +77,7 @@ export const DEMO_SCRIPTS = [
       { action: 'setView', params: { direction: 'iso' }, speech: '为什么？点阵点必须是能靠**平移**互相重合的位置，而 Cs⁺ 与 Cl⁻ 之间做不到。' },
       { action: 'loadCrystal', params: { crystalId: 'bcc' }, speech: '对照 α-Fe 型（真正的体心立方）：顶点与体心都是**同一种**原子。' },
       { action: 'setLayers', params: { layers: { latticePoints: true } }, speech: '它的点阵点才既在顶点、又在体心——这才是体心立方。' },
-      { action: 'loadCrystal', params: { crystalId: 'csCl' }, speech: '回到 CsCl：所以它的点阵型式是**简单立方(cP)**，"体心"只是这一组离子排列的外观。' },
+      { action: 'loadCrystal', params: { crystalId: 'csCl' }, speech: '回到 CsCl：所以它的点阵型式是**简单立方(cP)**，「体心」只是这一组离子排列的外观。' },
     ],
   },
 
@@ -95,7 +95,7 @@ export const DEMO_SCRIPTS = [
       { action: 'setView', params: { direction: 'iso' }, speech: '平移操作只能把点阵点映到点阵点，所以 8 个碳被分成**两组**，每组 4 个。' },
       { action: 'setAppearance', params: { atomScale: 0.5 }, speech: '把球缩小，看出两组原子在空间里是交错的两套面心立方。' },
       { action: 'setAppearance', params: { atomScale: 1.0 }, speech: '恢复。' },
-      { action: 'setView', params: { direction: 'front' }, speech: '所以结构基元含 8÷4 = **2** 个原子，即 C₂。"环境相同"不等于"被平移联系"。' },
+      { action: 'setView', params: { direction: 'front' }, speech: '所以结构基元含 8÷4 = **2** 个原子，即 C₂。「环境相同」不等于「被平移联系」。' },
     ],
   },
 
@@ -112,7 +112,7 @@ export const DEMO_SCRIPTS = [
       { action: 'setView', params: { direction: 'front' }, speech: '从侧面看，层与层之间**没有**化学键，只有较弱的范德华力。' },
       { action: 'setView', params: { direction: 'top' }, speech: '从上方看层内：密排的六元环网，剩余的 p 电子形成离域 π 键——所以石墨能导电。' },
       { action: 'setAppearance', params: { atomScale: 0.6 }, speech: '把球缩小，层的结构更清楚。' },
-      { action: 'setView', params: { direction: 'iso' }, speech: '层内强、层间弱，这个"强—弱交替"就是石墨润滑性与导电各向异性的根源。' },
+      { action: 'setView', params: { direction: 'iso' }, speech: '层内强、层间弱，这个「强—弱交替」就是石墨润滑性与导电各向异性的根源。' },
       { action: 'setAppearance', params: { atomScale: 1.0 }, speech: '恢复原子大小。' },
     ],
   },

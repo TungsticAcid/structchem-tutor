@@ -46,7 +46,7 @@ export const REQUIRED_METHODS = [
     name: 'getSnapshot',
     kind: 'function',
     sig: '() => Object',
-    why: '感知的入口。智能体每轮对话前都要知道"用户此刻在看什么"。'
+    why: '感知的入口。智能体每轮对话前都要知道「用户此刻在看什么」。'
       + '返回值会被 core/perception.js 深拷贝后差分，故可返回活引用或嵌套对象。'
       + '★ 返回值必须**足以还原**当前状态（见 restoreState）——'
       + '演示的「上一步」靠它。只返回人类可读的摘要会在还原时静默失效。',
@@ -55,9 +55,9 @@ export const REQUIRED_METHODS = [
     name: 'applyActions',
     kind: 'function',
     sig: '(actions: Array<{action, params, speech?}>) => { ok, error?, accepted? } | Promise<同>',
-    why: '唯一的"动手"途径。动作**必须**经此方法进入模块，才能被分镜队列编排、'
+    why: '唯一的「动手」途径。动作**必须**经此方法进入模块，才能被分镜队列编排、'
       + '被快照回退、被 speech 旁白串起来。模块内部直接改视图而不走这里，'
-      + '学生就会看到"画面莫名跳了一下"，而且用户收不掉它——'
+      + '学生就会看到「画面莫名跳了一下」，而且用户收不掉它——'
       + '见 DESIGN_PRINCIPLES 的 agent-action-must-be-reversible。',
   },
   {
@@ -67,15 +67,15 @@ export const REQUIRED_METHODS = [
     why: '入队动作前的**前置条件**：此刻能否受理动作。'
       + '★ 没有它，中枢只能靠猜快照里的字段——晶体线正是这么栽的：'
       + '它的 app.js 用 `!!(snap && snap.crystal && snap.crystal.id)` 判断'
-      + '"有没有可驱动视图"，而那是**晶体的字段名**。接第二个模块时它恒为假'
+      + '「有没有可驱动视图」，而那是**晶体的字段名**。接第二个模块时它恒为假'
       + '（orbit 的快照里没有 crystal），于是 orbit 的动作永远被拒，'
-      + '报的还是"没有可驱动的三维视图"这种**指向错误的原因**。'
+      + '报的还是「没有可驱动的三维视图」这种**指向错误的原因**。'
       + '★ 语义是「此刻能否受理动作」，不是「有没有三维视图」：'
       + '纯计算模块恒返回 true，画面类模块在拿不到视图适配器时返回 false。'
       + '名字必须描述契约层的事实，不是实现层的事实。'
       + '★ 为什么不复用 getSnapshot 里的一个标志位：core/perception.js 的'
       + 'diffStates() 遍历 Object.keys(cur)，任何字段变化都会被写进'
-      + 'recentActions 并**重置 lastChangeAt**。而"有没有视图"是**路由态**，'
+      + 'recentActions 并**重置 lastChangeAt**。而「有没有视图」是**路由态**，'
       + '每次进出查看器都翻转一次——那会挤占 recentActions（上限 12，模型只看这个），'
       + '并把 idleMs 假重置，直接弄哑「空闲超过 45 秒才提示」这类主动介入规则。',
   },
@@ -94,14 +94,14 @@ export const OPTIONAL_METHODS = [
     name: 'highlightAtoms',
     kind: 'function',
     sig: '(ids: string[]) => { ok }',
-    why: '错因诊断要用（"高亮这几个原子让学生自己看出矛盾"）。'
+    why: '错因诊断要用（「高亮这几个原子让学生自己看出矛盾」）。'
       + 'grade 节点的诊断动作依赖它。',
   },
   {
     name: 'navigateTo',
     kind: 'function',
     sig: '(target: {route: string, params?: Object}) => { ok }',
-    why: '跨视图跳转（如出题后"去看结构"）。compare 节点与 presetView 依赖它。'
+    why: '跨视图跳转（如出题后「去看结构」）。compare 节点与 presetView 依赖它。'
       + '★ 目标的取值范围由 descriptor 的 `routes` 声明（中枢据此生成工具 schema）；'
       + 'id 类参数由 `listIds()` 在运行期校验——见 CLAUDE.md §一.2「数值一律程序算」。',
   },
@@ -129,18 +129,18 @@ export const OPTIONAL_METHODS = [
       + 'applyIntent，每次触发控件同步与场景重建 → 「回到演示前」变成一次可见的抖动；'
       + '模块整体回设可以一次到位。且还原**不是用户行为**，不该记进交互痕迹。'
       + '★ 它的实现约束（务必遵守）：必须走与用户操作**相同的通路**，'
-      + '不得直接写视图实例字段——否则会出现"智能体恢复得了、用户的控件收不掉"，'
+      + '不得直接写视图实例字段——否则会出现「智能体恢复得了、用户的控件收不掉」，'
       + '见 DESIGN_PRINCIPLES 的 state-restore-must-share-user-path。'
       + '★ 未提供时中枢**禁用**回退能力（「上一步」按钮置灰），而不是降级成猜：'
-      + '降级路径永远不会被发现是错的（它"看起来在工作"），'
-      + '而禁用路径第一天就会有人报"上一步点不了"。',
+      + '降级路径永远不会被发现是错的（它「看起来在工作」），'
+      + '而禁用路径第一天就会有人报「上一步点不了」。',
   },
   {
     name: 'setViewState',
     kind: 'function',
     sig: '(state: Object) => boolean',
     why: '回设视角（相机朝向/缩放）。此前它是**隐形依赖**：晶体线的 app.js 一直在调'
-      + '`facade.setViewState`，而契约里没有这个名字——于是"是否支持"只能靠运行时试。'
+      + '`facade.setViewState`，而契约里没有这个名字——于是「是否支持」只能靠运行时试。'
       + '显式化之后，中枢可以据此决定快照里要不要带视角。',
   },
   {
@@ -173,7 +173,7 @@ export const OPTIONAL_METHODS = [
     kind: 'value',
     sig: '{ role?: string, nodeOverrides?: Object }',
     why: '模块的系统提示片段（人格、动作速查、示范脚本）。'
-      + '节点约束由 constraints.js 保证，提示里只补"此刻该怎么做"。'
+      + '节点约束由 constraints.js 保证，提示里只补「此刻该怎么做」。'
       + '★ 双语：`{ zh: {...}, en: {...} }`，由中枢按当前语言取用。',
   },
   {
@@ -182,11 +182,11 @@ export const OPTIONAL_METHODS = [
     sig: '{ fieldLabels?, dwellFields?, describeState?, formatCompact? }',
     why: '感知层的**模块配置**。core/perception.js 的接口是 '
       + 'createPerception({getState, fieldLabels, dwellFields, describeState, formatCompact})，'
-      + '其中 getState 由中枢提供（它知道"当前是哪个模块"），后四项**只有模块知道**'
+      + '其中 getState 由中枢提供（它知道「当前是哪个模块」），后四项**只有模块知道**'
       + '（字段名来自模块自己的快照形状、dwellFields 是有教学意义的少数几个、'
       + 'formatCompact 要读模块自己的字段）。'
       + '★ 键必须是**快照里真实存在的字段名**——晶体线第一版写了 `crystalId`，'
-      + '而快照字段叫 `crystal`（对象），于是"用户换了晶体"不被识别，'
+      + '而快照字段叫 `crystal`（对象），于是「用户换了晶体」不被识别，'
       + '痕迹里只会出现一堆原始字段名；**字段名对不上不报错**，'
       + '只是痕迹变得不可读，这类错极难发现。',
   },
@@ -195,10 +195,10 @@ export const OPTIONAL_METHODS = [
     kind: 'value',
     sig: '{ list: () => Array, byId: (id) => Object|null, manifest: () => Array }',
     why: '模块自己的**预置演示脚本**（零 token 的分镜脚本：每步是 {action, params, speech}）。'
-      + '★ 为什么脚本在模块、而播放能力在中枢：脚本内容（"NaCl 六步演示"、"以 Cu 型看空隙"）'
+      + '★ 为什么脚本在模块、而播放能力在中枢：脚本内容（「NaCl 六步演示」、「以 Cu 型看空隙」）'
       + '是学科专属的，播放（分镜队列、逐步闸门、回放、整改）与学科无关。'
       + '晶体线的 app.js 把 DEMO_SCRIPTS 直接 import 进中枢，它自己的注释也承认'
-      + '"接入第二个模块时应下移到模块层"——否则中枢每接一个模块就要多带一份脚本。'
+      + '「接入第二个模块时应下移到模块层」——否则中枢每接一个模块就要多带一份脚本。'
       + '★ 提供它，中枢的 listDemos / playDemo / replayDemo / reviseDemo 才存在；'
       + '不提供则这四个工具**不出现**（而不是出现后报错）。',
   },
@@ -231,10 +231,10 @@ export const HOST_REQUIREMENTS_SHAPE = {
     + '走同一条通路"这条既有约定在新宿主里仍然成立（晶体线由 page.applyIntent 保证）。',
   storage: '存储命名空间。★ 必须是宿主注入的参数，且**缺省值不得指向任何具体命名空间**'
     + '（应直接 throw）。理由：晶体线两份装配各自写了白名单式的「清除本机数据」，'
-    + '两个模块在同一壳里跑时必然"清了一半"，且互不知道对方存在；'
+    + '两个模块在同一壳里跑时必然「清了一半」，且互不知道对方存在；'
     + '而 ui/panel.js 的缺省值 `chem-agent.panel.fabPos` 恰好等于壳实际用的键，'
     + '会与壳共享悬浮球位置。',
-  navigate: '导航能力。模块不 import 路由；它只声明"我需要能跳到这些目标"。',
+  navigate: '导航能力。模块不 import 路由；它只声明「我需要能跳到这些目标」。',
   loadData: '数据加载。宿主决定数据从哪来（动态 import / fetch / 内存）。',
   theme: '主题与配色。★ 契约：模块给**默认值**，宿主给**用户覆盖**，'
     + '宿主绝不把模块默认值写回用户存储——晶体线的 apps/web 曾每次打开都强制覆盖'
@@ -343,7 +343,7 @@ export const DESIGN_PRINCIPLES = [
     id: 'agent-action-must-be-reversible',
     title: '智能体下发的可见状态，必须能被用户撤回',
     detail: '动作改变了用户看得见的东西时，**必须同时更新该状态的界面表征**。'
-      + '否则会出现"智能体画得出来，用户却收不掉"——界面上明明看得见那条标注，'
+      + '否则会出现「智能体画得出来，用户却收不掉」——界面上明明看得见那条标注，'
       + '但没有任何控件反映它、也没有入口关掉它。',
     origin: 'orbit 的 highlightRadialFeature 原先直接调 Charts.setRadialHighlight()，'
       + '绕过了界面状态；智能体标出峰值线后就再没人能取消。'
@@ -353,7 +353,7 @@ export const DESIGN_PRINCIPLES = [
     id: 'geometric-annotation-follows-series',
     title: '几何标注要跟随它所标注的系列显隐',
     detail: '图上的标注线（节点、极值）与它所标注的曲线，若显隐各自独立，'
-      + '就会出现"关了曲线却还留着它的标注"。标注的可见性应由所属系列的可见性派生。',
+      + '就会出现「关了曲线却还留着它的标注」。标注的可见性应由所属系列的可见性派生。',
     origin: 'orbit 的径向图：曲线能开关，标线却只由动作驱动、界面上没有入口。'
       + '修正为 computeMarks() 只标**当前可见曲线**的半径，并对 R 与 D 的重复零点去重'
       + '（D = r²R²，两者零点完全相同，画两遍只会叠成一条）。',
@@ -362,7 +362,7 @@ export const DESIGN_PRINCIPLES = [
     id: 'multi-mesh-appearance-update',
     title: '几何若由多块网格构成，任何全局外观变更都必须遍历全部网格',
     detail: '同一个可见物体可能由多块网格拼成（例如全局粗网格 + 局部精细化补片）。'
-      + '改着色 / 材质 / 可见性时只遍历主网格，表现是"只改了一半"——'
+      + '改着色 / 材质 / 可见性时只遍历主网格，表现是「只改了一半」——'
       + '一部分变色、另一部分保持旧色，看起来像渲染坏了。',
     origin: 'orbit 的 4pz + 等值面阈值=1：切三维着色后外层壳变色、内层壳不变。'
       + '根因是局部精细化的补片是另一块网格（fineObj），着色时漏了重涂它。',
@@ -370,7 +370,7 @@ export const DESIGN_PRINCIPLES = [
   {
     id: 'one-control-many-scenes',
     title: '同一个视觉开关若作用于多处场景，必须一并作用',
-    detail: '页面上有多个三维小场景时，"绕着自己转"这类开关应由**一个**控件统一控制，'
+    detail: '页面上有多个三维小场景时，「绕着自己转」这类开关应由**一个**控件统一控制，'
       + '而不是各自写死。写死的那一个用户永远关不掉。',
     origin: 'orbit 的角度分布小场景在 init 时写死 setAutoRotate(true)，'
       + '用户没有任何入口关掉它。改为一个开关同时作用于主视图与小场景。',
@@ -378,12 +378,12 @@ export const DESIGN_PRINCIPLES = [
   {
     id: 'state-restore-must-share-user-path',
     title: '整体回设必须与用户操作走同一条通路',
-    detail: '模块的 restoreState 内部只能经"用户操作也会经"的那个入口'
+    detail: '模块的 restoreState 内部只能经「用户操作也会经」的那个入口'
       + '（applyIntent / setProps 所在的同一层）写状态，不得直接改视图实例字段。'
       + '否则回退之后控件显示与实际画面分叉：智能体恢复得了、用户的控件收不掉。',
     origin: '晶体线 viewer-page-adapter 的核心设计（"用户的操作与智能体的操作'
       + '走同一条通路"），以及 restore 漏掉视角与外观两次真实故障——'
-      + '每次都表现为"回退后留下一个半新半旧的视图，比完全不回退更难察觉"。',
+      + '每次都表现为「回退后留下一个半新半旧的视图，比完全不回退更难察觉」。',
   },
 ]
 

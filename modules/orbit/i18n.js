@@ -147,14 +147,14 @@ export const text = {
     'Let us not rush to the answer. I have drawn R(r) and D(r) on the same plot — do you see that their peaks are not at the same place? Now think again: how does the volume of a spherical shell change with radius?',
   '不要直接说出正确答案；不要一次给出全部解释。':
     'Do not state the correct answer directly; do not give the whole explanation at once.',
-  '要不要我把这个半径对应的一层"球壳"在三维里标出来？':
+  '要不要我把这个半径对应的一层「球壳」在三维里标出来？':
     'Shall I mark the shell at that radius in the 3D view?',
   'E2 公式误用': 'E2 Misuse of a formula',
   '节点计数公式记错（径向 / 角 / 总数的混淆）':
     'Node-counting formula misremembered (radial / angular / total mixed up)',
-  '我把等值面阈值降下来，你看这个"套娃"结构——每两层壳之间就是一层径向节点。数一数有几层？对照公式 n−l−1 看看。':
+  '我把等值面阈值降下来，你看这个「套娃」结构——每两层壳之间就是一层径向节点。数一数有几层？对照公式 n−l−1 看看。':
     'I lower the isosurface threshold, and you can see the "nesting doll" structure — between every two shells lies one radial node. Count the shells and check against the formula n−l−1.',
-  '不要只说"公式是 n−l−1"，要让学生**数出来**。':
+  '不要只说「公式是 n−l−1」，要让学生**数出来**。':
     'Do not just say "the formula is n−l−1"; make the student **count** them.',
   '那角度节面呢？换个平面看看。':
     'And the angular nodal surfaces? Switch to another plane and look.',
@@ -163,7 +163,7 @@ export const text = {
     'Treating every angular nodal surface as a plane (ignoring the cones)',
   '我打开等高线和角度节面高亮。注意看节面的形状——它是平的一个面，还是绕着 z 轴转出来的一圈？':
     'I turn on the contours and the angular-node highlight. Look at the shape of the nodal surface — is it a flat plane, or a ring swept out around the z axis?',
-  '不要用"锥面"这个词直接提示，先让学生描述看到的形状。':
+  '不要用「锥面」这个词直接提示，先让学生描述看到的形状。':
     'Do not hint with the word "cone"; let the student describe the shape they see first.',
   '想想 P_l^{|m|}(cosθ)=0 解出来的 θ 是常数还是 φ 是常数？':
     'Think: when P_l^{|m|}(cosθ)=0 is solved, is θ constant or is φ constant?',
@@ -179,7 +179,7 @@ export const text = {
     'Treating real and complex orbitals as two different physics',
   '你看，切到复函数时密度是个环，切回实函数变成两个瓣。但它们的**能量**变了吗？想想为什么能量不变，形状却变了。':
     'Look: in the complex solution the density is a ring, and back in the real solution it becomes two lobes. But did their **energy** change? Think about why the shape changes while the energy does not.',
-  '不要直接说"线性组合"，先让学生注意到能量没变这个事实。':
+  '不要直接说「线性组合」，先让学生注意到能量没变这个事实。':
     'Do not say "linear combination" right away; first let the student notice that the energy did not change.',
   '既然能量一样，它们的任意组合是不是也是合法状态？':
     'Since the energies are equal, is any combination of them also a legal state?',
@@ -249,7 +249,7 @@ export const text = {
     'R(r) and D(r) always peak at the same radius',
   'D(r) 的最大值一定在 r = 0': 'the maximum of D(r) is always at r = 0',
   '概率最大的半径与 n 无关': 'the most probable radius does not depend on n',
-  'R(r) 在原点最大（对 l=0），但 D(r) = r²R² 含球壳体积因子 r²，其峰值在 **r ≈ n²a₀**。\n★ "概率幅最大"与"概率最大"是两件事。':
+  'R(r) 在原点最大（对 l=0），但 D(r) = r²R² 含球壳体积因子 r²，其峰值在 **r ≈ n²a₀**。\n★ 「概率幅最大」与「概率最大」是两件事。':
     'R(r) is largest at the origin (for l=0), but D(r) = r²R² contains the shell-volume factor r², so its peak is at **r ≈ n²a₀**.\n★ "largest amplitude" and "largest probability" are two different things.',
   '某氢原子波函数有 **一个径向节面**、**两个角度节面**。不查表，它的主量子数 n 与角量子数 l 分别是？':
     'A certain hydrogen wavefunction has **one radial nodal surface** and **two angular nodal surfaces**. Without looking anything up, what are its principal quantum number n and azimuthal quantum number l?',
@@ -266,7 +266,7 @@ export const text = {
   '|Y_l^m|² = N²·P²·|e^{imφ}|² = N²·P²，与 φ 无关 → 绕 z 轴旋转对称。\n实函数含 cos(mφ)/sin(mφ)，取模后仍依赖 φ → 呈定向的瓣。':
     '|Y_l^m|² = N²·P²·|e^{imφ}|² = N²·P², independent of φ → axially symmetric about z.\nA real function contains cos(mφ)/sin(mφ), which still depends on φ after taking the modulus → directed lobes.',
   '未能生成变式题': 'could not generate a variant question',
-  '讲解时请按条目顺序组织，并配套 applySceneActions 把关键结论"演示"出来，而不是只念文字。':
+  '讲解时请按条目顺序组织，并配套 applySceneActions 把关键结论「演示」出来，而不是只念文字。':
     'When explaining, follow the order of the entries and use applySceneActions to **demonstrate** the key conclusions instead of only reading them out.',
 
   // ---- 费曼复述的**关键词**（匹配数据：要和学生自己打的字比）----
@@ -325,13 +325,13 @@ export const zh = {
   'orbit.roleHint': [
     '你正在使用**原子轨道**模块。',
     '★ 一切数值（节点数、径向峰位、能级、简并度、力学量）**必须用 queryOrbital 取得**，',
-    '  不要凭记忆或口算——"3d 有几个节面"你当然答得出，但"5g 的径向节点半径是多少"',
+    '  不要凭记忆或口算——「3d 有几个节面」你当然答得出，但「5g 的径向节点半径是多少」',
     '  正是本模块要解决的问题，而它与你的记忆不一致时，正确的一方永远是从结构算出来的那个。',
     '演示优先：能用 setQuantumNumbers / setIsosurfaceLevel / setSectionPlane 讲清楚的，',
     '  就不要只用文字描述。化学约定 **z 轴是量化轴**——讲角度节面时先说清这一点。',
     '讲实轨道与复轨道的区别时，切到球谐档（setViewTarget: spherical）；',
-    '  讲"角度分布的 Y 与 Y² 差在哪"时用 setAngularView。',
-    '★ 叠加态（setSuperposition）的教学要点是 |ψ|² 里的**干涉项**——它与"概率简单相加"的本质区别。',
+    '  讲「角度分布的 Y 与 Y² 差在哪」时用 setAngularView。',
+    '★ 叠加态（setSuperposition）的教学要点是 |ψ|² 里的**干涉项**——它与「概率简单相加」的本质区别。',
     'id 必须来自工具返回值，不可编造。',
   ].join('\n'),
 
@@ -415,7 +415,7 @@ export const zh = {
   // ---- 动作 desc（给模型看的词汇表；**不进常驻上下文**，由 listSceneActions 按需下发）----
   'orbit.act.setQuantumNumbers.desc':
     '设置主量子数 n / 角量子数 l / 磁量子数 m。指定的量子数会被自动夹紧到合法范围'
-    + '（l ≤ n−1、|m| ≤ l）。**给了任一量子数即意味着"要看这个单一本征态"**，会自动退出叠加态。',
+    + '（l ≤ n−1、|m| ≤ l）。**给了任一量子数即意味着「要看这个单一本征态」**，会自动退出叠加态。',
   'orbit.act.setNuclearCharge.desc':
     '设置核电荷数 Z（1..36，类氢离子）。★ 与量子数不同，换 Z **不退出**叠加态。',
   'orbit.act.setWavefunctionMode.desc':
@@ -463,17 +463,17 @@ export const zh = {
     '主三维视图画什么：spherical = 球谐曲面（角度部分），wave = 完整波函数（电子云/等值面）。'
     + '★ 切到球谐档会收起量子态入口（叠加态只对完整波函数有意义）。',
   'orbit.act.setSectionPlane.desc':
-    '截面图取哪个坐标面：xy / xz / yz（化学约定 z 为量化轴，xz 面最常用来讲"角度节面"）。',
+    '截面图取哪个坐标面：xy / xz / yz（化学约定 z 为量化轴，xz 面最常用来讲「角度节面」）。',
   'orbit.act.setSectionMode.desc':
     '截面图画什么：intensity（|ψ|² 强度）/ phase（相位，正负用颜色区分）/ contour（等值线）。',
   'orbit.act.showRadial.desc':
     '径向图显示哪几条曲线（**多选**）：R（径向波函数，有正负）、R²（径向概率密度）、'
-    + 'D = r²R²（径向分布函数，讲"电子最常出现在哪"用它）。至少保留一条，否则图表空白。',
+    + 'D = r²R²（径向分布函数，讲「电子最常出现在哪」用它）。至少保留一条，否则图表空白。',
   'orbit.act.setRadialMarks.desc':
     '在径向图上标出 peak（峰值）或 zeros（节点）。**feature 可为数组**（两者同屏）；'
     + '传 null 表示清除标注。标的线**只画在当前可见的曲线**上。',
   'orbit.act.setAutoRotate.desc':
-    '三维视图是否自动旋转。讲"这个轨道长什么样"时开着，方便学生看清整体形状。',
+    '三维视图是否自动旋转。讲「这个轨道长什么样」时开着，方便学生看清整体形状。',
   // 动作标签（原文即键，走 t() 的 text 回退）：参考线显隐
   '参考线': '参考线',
   'orbit.act.setAxesVisible.desc':
@@ -487,26 +487,26 @@ export const zh = {
     + '这是三维—公式—图表三向联动的中枢：讲哪一项就点亮哪一项。传 null 取消高亮。',
   'orbit.act.setSuperposition.desc':
     '把电子态设为若干本征态的线性组合。terms 是数组，每项 {n,l,m,c:{re,im}}（c 缺省为 1）。'
-    + '★ 教学要点：叠加态 |ψ|² 里**有干涉项**，这正是它与"概率简单相加"的本质区别。',
+    + '★ 教学要点：叠加态 |ψ|² 里**有干涉项**，这正是它与「概率简单相加」的本质区别。',
   'orbit.act.clearSuperposition.desc': '回到单一本征态。',
   'orbit.act.setChartTerm.desc':
     '二维图表画叠加态的哪一份：\'super\' = 整体（**只有截面图支持**），数字 = 第 i 个分量（从 0 起）。',
   'orbit.act.linkRadialTo3D.desc':
-    '在三维视图里画一个半径 = `radius`（a₀）的参考环，用来把"径向分布图上的某个半径"'
-    + '**落到画面上的位置**。讲"这个峰在离核多远"时用它把二维读数与三维尺度对上。'
+    '在三维视图里画一个半径 = `radius`（a₀）的参考环，用来把「径向分布图上的某个半径」'
+    + '**落到画面上的位置**。讲「这个峰在离核多远」时用它把二维读数与三维尺度对上。'
     + '传 0 表示清除。',
   'orbit.act.focusChart.desc':
     '把页面底部那张图放大到**浮窗**里讲（径向分布 / 截面密度 / 角度分布），'
     + '`none` 表示关掉浮窗。★ 讲底部图表时**先用它**——否则图在页面下方、'
     + '而讲解在别处，学生看不到你在说哪张。'
-    + '还要注意顺序：**先换轨道、再 focusChart**；浮窗放大的是"当前"那张图。',
+    + '还要注意顺序：**先换轨道、再 focusChart**；浮窗放大的是「当前」那张图。',
   'orbit.act.animateIsosurfaceLevel.desc':
     '把等值面阈值从 from 平滑推过到 to（各取 0.003..0.8 的比值）。'
-    + '★ 这是讲"同心壳层"的核心手法：阈值一路降下去，内层壳依次冒出来。'
+    + '★ 这是讲「同心壳层」的核心手法：阈值一路降下去，内层壳依次冒出来。'
     + '**但要在截面图里讲**——三维是实体渲染，外层壳会把内层整个包住，'
     + '降阈值只会让颜色变、形状看上去还是同一个球。',
   'orbit.act.setRelPhase.desc':
-    '叠加态分量的相对相位（弧度）。改变它会让干涉图样旋转/变形——是"相位是物理的"最直观的演示。',
+    '叠加态分量的相对相位（弧度）。改变它会让干涉图样旋转/变形——是「相位是物理的」最直观的演示。',
   'orbit.act.restoreState.desc':
     '写回一整套快照（供分镜的「上一步」回退）。**不经用户通路**，是严格可逆的还原。',
   'orbit.act.recomputeOnly.desc':
@@ -603,11 +603,11 @@ export const zh = {
 
   // ---- 态编辑器（state-editor.js）：带变量、或经 mdInline 渲染过的那些 ----
   'orbit.se.preset.pure.note':
-    '单一本征态（定态）。叠加态编辑器的"原点"——任何时候都可回到这里。',
+    '单一本征态（定态）。叠加态编辑器的「原点」——任何时候都可回到这里。',
   'orbit.se.preset.degenerate.note':
     '同 n 同 l → 能量**简并** → 组合态**仍是定态**：密度是静态干涉图样，不随时间变化。',
   'orbit.se.preset.nonStationary.note':
-    '能量**不同** → 非定态：密度随时间"呼吸"。★ 动画参数是**相对相位**而非真实时间'
+    '能量**不同** → 非定态：密度随时间「呼吸」。★ 动画参数是**相对相位**而非真实时间'
     + '（ΔE≈10.2 eV ⇒ ν≈2.5×10¹⁵ Hz，不可可视化）。',
   'orbit.se.preset.twoP.note':
     '同 n 同 l → 简并 → 定态。两个正交的 p 轨道组合出**斜向的瓣**——杂化轨道的雏形。',
@@ -653,7 +653,7 @@ export const zh = {
   'orbit.se.modeTipReal':
     '该分量为**实数解**（不是 L̂z 的本征函数，用实轨道名标记）—— 点击改为复数解',
   'orbit.se.modeTitle':
-    '该分量取波函数的实数解还是复数解。**逐项可选** —— 所以"全实""全复""实复混合"三种都表达得出来。',
+    '该分量取波函数的实数解还是复数解。**逐项可选** —— 所以「全实」「全复」「实复混合」三种都表达得出来。',
   'orbit.se.pickTitle':
     '复数解用磁量子数 m 标记（m 是 L̂z 的本征值指标，对它才有意义）；'
     + '实数解用实轨道名标记（实解不是 L̂z 的本征函数，m 对它没有意义）。',
@@ -693,7 +693,7 @@ export const zh = {
   'orbit.r3d.err.duplicate': '已经有这个轨道了：{key}',
   'orbit.r3d.err.noSuchOrbital': '没有这个轨道：{key}（可用：{list}）',
   'orbit.r3d.err.mainNotRemovable': '主轨道不能移除；要收起全部请用 setOrbitals({set:"off"})',
-  'orbit.r3d.err.building': '这一张正在生成中，等它建完再移除（界面上会显示"生成中…"）',
+  'orbit.r3d.err.building': '这一张正在生成中，等它建完再移除（界面上会显示「生成中…」）',
   'orbit.r3d.err.itemsEmpty': 'items 必须是非空数组',
   'orbit.r3d.err.unknownSet': '未知的轨道集合 {setId}（可用：{list}）',
   'orbit.r3d.err.colorTriple': 'color 必须是 0..1 的三元数组',
@@ -732,7 +732,7 @@ export const zh = {
   'orbit.tool.note.normalization': '归一化系数由 formula.js 计算并已显示在公式区',
   'orbit.tool.note.observables': '全部由解析式给出（长度单位 a₀，角动量单位 ħ）',
   'orbit.tool.formula.meanR': '⟨r⟩ = (a₀/2)[3n² − l(l+1)]；⟨1/r⟩ = 1/(n²a₀)（与 l 无关）',
-  'orbit.tool.note.meanR': '⟨r⟩ 是对全空间加权的平均距离，比"概率最大半径"(≈n²a₀) 小',
+  'orbit.tool.note.meanR': '⟨r⟩ 是对全空间加权的平均距离，比「概率最大半径」(≈n²a₀) 小',
   'orbit.tool.note.angleToZ': '常见错误是用 cosθ = m/l（分母应为 √(l(l+1))）',
   'orbit.tool.generateQuestion.desc':
     '针对某个知识点出一道题。返回的题目**不含答案**——判定与解析由本地完成，你无法看到答案，也不要猜测。',
@@ -778,30 +778,30 @@ export const zh = {
   'orbit.demo.nodeDistribution.s2': "换成 3p。看三维：球变成了**哑铃形**，有方向性了——角度节面出现了 1 个，就是把上下两瓣分开的那个平面。再看浮窗里的剖面：同心圆少了一圈，**内层壳只剩一层**，径向节点只剩 1 个。n 没变，径向节点少了 1 个，正好补到角度上去。",
   'orbit.demo.nodeDistribution.s3': "再到 3d。三维里形状更复杂——两个瓣外面套一个环，角度节面变成 2 个（两个锥面）。剖面里呢？**内层壳一个也没有了**，径向节点 0 个。注意这三个轨道：径向节点 2、1、0，角度节面 0、1、2——**总数恒为 n − 1 = 2**。它们只是在这两者之间来回搬家。",
   'orbit.demo.nodeDistribution.s4': "那两层内壳，在径向分布函数上长什么样？回到 3s，把 D(r) = r²R(r)² 画出来：**它两次碰到零线**——这两个零点正是刚才那两层壳的分界。径向节点就是 D(r) 的零点个数，一步不多、一步不少。（3d 那边则是一次也不碰零，刚才剖面上已经看到了。）",
-  'orbit.demo.nodeDistribution.s5': "小结：3s 是径向 2 个、角度 0 个；3p 是径向 1 个、角度 1 个；3d 是径向 0 个、角度 2 个。**总数恒为主量子数减一**。这就是\"同一层里 l 越大，径向节点越少、角度节面越多\"的来源。操作与讲解不再互相打断——讲快了可以点「上一步」退回重讲。",
+  'orbit.demo.nodeDistribution.s5': "小结：3s 是径向 2 个、角度 0 个；3p 是径向 1 个、角度 1 个；3d 是径向 0 个、角度 2 个。**总数恒为主量子数减一**。这就是「同一层里 l 越大，径向节点越少、角度节面越多」的来源。操作与讲解不再互相打断——讲快了可以点「上一步」退回重讲。",
   'orbit.demo.rVsD.title': "R(r) 与 D(r)：为什么峰值不在同一个地方",
-  'orbit.demo.rVsD.s0': "先看 1s 的径向波函数 R(r)。它是一条从原点开始单调下降的曲线——**r = 0 处最大**，越往外越小。物理上这是\"离核越近越容易出现\"，听起来很合理。但这条曲线本身还不是概率：它只是波函数在径向上的那一部分。",
+  'orbit.demo.rVsD.s0': "先看 1s 的径向波函数 R(r)。它是一条从原点开始单调下降的曲线——**r = 0 处最大**，越往外越小。物理上这是「离核越近越容易出现」，听起来很合理。但这条曲线本身还不是概率：它只是波函数在径向上的那一部分。",
   'orbit.demo.rVsD.s1': "现在把 D(r) = r²R(r)² 也画上去。注意峰值挪地方了：**R 的峰在原点，D 的峰却在 r = 1 a₀**——整条曲线在原点附近反而是零。为什么会这样？看下去。",
-  'orbit.demo.rVsD.s2': "我把 D 的峰值半径——1 a₀——在三维里标出来。为了让这层壳露在外面，我顺手把等值面阈值收高了一点，球就缩进去了。你看：径向图上横坐标的**一个点**，在三维里就是薄薄的一层**球壳**。原子的\"层\"就是这么来的。",
-  'orbit.demo.rVsD.s3': "为什么差一个 r²？因为**概率**要拿概率密度乘上这一层的体积，而球壳体积正比于 r²。原点处密度虽然最大，但那一层几乎不占体积。于是\"最密的地方\"和\"最可能待的地方\"分了家——这正是 R(r) 与 D(r) 必须分开讲的原因。",
+  'orbit.demo.rVsD.s2': "我把 D 的峰值半径——1 a₀——在三维里标出来。为了让这层壳露在外面，我顺手把等值面阈值收高了一点，球就缩进去了。你看：径向图上横坐标的**一个点**，在三维里就是薄薄的一层**球壳**。原子的「层」就是这么来的。",
+  'orbit.demo.rVsD.s3': "为什么差一个 r²？因为**概率**要拿概率密度乘上这一层的体积，而球壳体积正比于 r²。原点处密度虽然最大，但那一层几乎不占体积。于是「最密的地方」和「最可能待的地方」分了家——这正是 R(r) 与 D(r) 必须分开讲的原因。",
   'orbit.demo.complexReal.title': "实轨道与复轨道：同一个能量，两种长相",
   'orbit.demo.complexReal.s0': "先看复函数下的 2p，取 m = +1。它的密度是一个**环**——为什么是环？复解的相位是 e^{imφ}，取模之后 |e^{imφ}| = 1，方位角 φ 被彻底消掉了。绕着 z 轴转一圈，密度什么都没变，所以它一定是个轴对称的环。",
   'orbit.demo.complexReal.s1': "但 φ 并没有真的消失——它藏在**相位**里。切到 xy 截面的相位图：绕原点走一圈，颜色连续循环了一整轮，相位正好走完 **1** 个整周期。这就是 |m| = 1 的含义。不过 l = 1 的轨道里 m 只能取到 ±1，想看更大的缠绕，得换一个轨道。",
   'orbit.demo.complexReal.s2': "换成 3d，取 m = +2。还是 xy 截面、还是相位图——绕一圈，颜色循环了**两**轮。**|m| 就是绕一圈的周期数**。这里能量虽然跟着主量子数变了，但同一个 l 下 m 取几是不影响能量的：3d 的 m = 1 与 m = 2 能量完全相同，差别只在绕 z 轴的节拍。",
   'orbit.demo.complexReal.s3': "现在把这个轨道的复解切成实解。环消失了，变成有明确方向性的**瓣**。注意：**能量一点没变**（n = 3、l = 2 都没动，换掉的只是基底）。相位图上也看得出来：实解的相位只有 0 与 π 两个值、两种颜色，不再是连续缠绕的彩虹。",
-  'orbit.demo.complexReal.s4': "既然能量相同（简并），它们的任意线性组合就还是同一个能量的状态。所以\"实轨道是复轨道的线性组合\"——它们不是两种不同的物理，而是同一片空间里的两组基底，看你按什么方向去切它。",
+  'orbit.demo.complexReal.s4': "既然能量相同（简并），它们的任意线性组合就还是同一个能量的状态。所以「实轨道是复轨道的线性组合」——它们不是两种不同的物理，而是同一片空间里的两组基底，看你按什么方向去切它。",
   'orbit.demo.sectionModes.title': "同一张截面，三种看法：密度 / ψ / 等高线",
   'orbit.demo.sectionModes.s0': "三维视图给的是**外部形状**，截面给的是**内部结构**。现在固定住 3d_z² 在 xz 平面上的一刀，只看截面卡上的三个档位怎么各说各的话。第一档是**密度图**：颜色越亮，|ψ|² 越大。上下两个瓣、中间一个环，看得很清楚；但正负号被平方吃掉了——这上面分不出哪块是正、哪块是负。",
-  'orbit.demo.sectionModes.s1': "第二档是 **ψ 图**：直接画 ψ 本身，正负立刻分开——相邻两块**异色**。而两种颜色的交界线就是**节面**：在这个剖面上，它们是几条从原点射出去的直线。异色的地方是\"波函数在这里翻了符号\"，不是\"这里没有电子\"。",
-  'orbit.demo.sectionModes.s2': "第三档是**等高线**：把等值线一条条画出来，像地形图。看这些从原点出发的直线——每一条都是一层节面。数一数就能验证节点公式：这是三个档里最适合\"数节面\"的一种看法。",
-  'orbit.demo.sectionModes.s3': "同一份数据，三种画法：密度图回答\"哪里多、哪里少\"，ψ 图回答\"正负怎么分、节面在哪里\"，等高线回答\"结构分成几块几层\"。这也正是要开一个浮窗的原因——三维与剖面同屏，形状和内部才对照得起来。",
+  'orbit.demo.sectionModes.s1': "第二档是 **ψ 图**：直接画 ψ 本身，正负立刻分开——相邻两块**异色**。而两种颜色的交界线就是**节面**：在这个剖面上，它们是几条从原点射出去的直线。异色的地方是「波函数在这里翻了符号」，不是「这里没有电子」。",
+  'orbit.demo.sectionModes.s2': "第三档是**等高线**：把等值线一条条画出来，像地形图。看这些从原点出发的直线——每一条都是一层节面。数一数就能验证节点公式：这是三个档里最适合「数节面」的一种看法。",
+  'orbit.demo.sectionModes.s3': "同一份数据，三种画法：密度图回答「哪里多、哪里少」，ψ 图回答「正负怎么分、节面在哪里」，等高线回答「结构分成几块几层」。这也正是要开一个浮窗的原因——三维与剖面同屏，形状和内部才对照得起来。",
   'orbit.demo.sp3Tetrahedron.title': "杂化：为什么甲烷是正四面体",
   'orbit.demo.sp3Tetrahedron.s0': "先说一句容易被忽略的：杂化轨道**不需要新的数学**。它用的还是解氢原子那套波函数，只是把同一原子上的几个轨道按特定比例加起来。先看 2s：等值面是一个球，朝哪个方向看都一样——s 分量**完全没有方向性**。",
   'orbit.demo.sp3Tetrahedron.s1': "再看 2p_z：一个沿 z 轴的**哑铃**。方向性来自 p。那么，把一个球（s）和一个哑铃（p）按固定比例加起来，会得到什么？答案是**一瓣大、一瓣小的不对称形状**——指向被加强，背向被抵消。这就是杂化。",
   'orbit.demo.sp3Tetrahedron.s2': "这就是第一个 sp³：ψ = ½(s + p_x + p_y + p_z)。看两件事：① 大瓣指向 (1,1,1) 那个斜方向；② 背后还拖着一个小瓣，符号相反，同一半径处大小比正好 **2 : 1**。两者之间隔着一个**圆锥形节面**，半张角 109.47°——记住这个角。（这里切到 Slater 型：它的 2s 与 2p 共用径向函数、没有径向节点，形状是纯角度的，也就是教材上那个干净的瓣。氢型下 s 会把轨道撑得很胖。）",
   'orbit.demo.sp3Tetrahedron.s3': "另外三个 sp³ 是同样的组合，只把 p 的正负号换一换，指向正四面体的另外三个顶点。四个一起画出来——**正四面体**。任意两个的夹角是 109.47°，和刚才那个节锥的半张角**是同一个数**：一个杂化轨道的节锥，正好穿过另外三个的方向。这不是巧合，可以当堂用系数验算。",
   'orbit.demo.sp3Tetrahedron.s4': "关掉两个，只留一对看得更清楚：两个瓣的夹角 109.47°。四个轨道完全**等价**（s 的系数都是 +½，谁也不是特殊的那一个），而且两两**正交**——这正是它们能各自容纳一个电子、彼此不冲突的原因。甲烷的 109.5° 键角，就是这四个方向。",
-  'orbit.demo.sp3Tetrahedron.s5': "同一套办法还能给出别的方向数：用一个 s 配两个 p 得到三个共面、互成 120° 的 sp²（这就是石墨与乙烯的平面）；配一个 p 得到两个成 180° 的 sp（乙炔的直线）。**s 与 p 的比例决定方向数**：1+3 得四，1+2 得三，1+1 得二。所谓\"杂化方式\"，本质上就是这个配比。",
+  'orbit.demo.sp3Tetrahedron.s5': "同一套办法还能给出别的方向数：用一个 s 配两个 p 得到三个共面、互成 120° 的 sp²（这就是石墨与乙烯的平面）；配一个 p 得到两个成 180° 的 sp（乙炔的直线）。**s 与 p 的比例决定方向数**：1+3 得四，1+2 得三，1+1 得二。所谓「杂化方式」，本质上就是这个配比。",
 
   // ===========================================================================
   // core/ 的文案（**带变量**的那些：只能走键，登记原文换不掉）
@@ -824,7 +824,7 @@ export const zh = {
   'orbit.formula.super.note':
     '系数按 Σ|<i>c</i>ᵢ|² = 1 等比归一化（本程序基组正交归一，故只需这一条），'
     + '因此只有比值有物理意义；|<i>c</i>ᵢ|² 是投影到该分量的概率，'
-    + '只有该分量是所测力学量的本征态时才等于"测到该本征值"的概率 —— {comps}',
+    + '只有该分量是所测力学量的本征态时才等于「测到该本征值」的概率 —— {comps}',
   'orbit.formula.mSuffix': '（{m}）',
   'orbit.formula.title': '{orb} 轨道{m} · {mode}',
   'orbit.formula.note.ls': '{n}s：球对称分布，没有角度节面；径向节点 {nodes} 个。',
@@ -832,7 +832,7 @@ export const zh = {
   'orbit.formula.orient.cos': 'cos({am}<i>φ</i>) 型：瓣在 <i>xy</i> 面内沿一个方向张开。',
   'orbit.formula.orient.sin':
     'sin({am}<i>φ</i>) 型：瓣与同 |<i>m</i>| 的 cos({am}<i>φ</i>) 型绕 <i>z</i> 轴相差 {deg}°。',
-  'orbit.formula.orient.m0': '<i>m</i>=0 型：沿 <i>z</i> 轴的"橄榄"形。',
+  'orbit.formula.orient.m0': '<i>m</i>=0 型：沿 <i>z</i> 轴的「橄榄」形。',
   'orbit.formula.naming.highL':
     '（{sub} 支壳层没有公认的通名 —— 高角动量轨道在文献里只按对称性分类。'
     + '这里用角度部分的直角坐标多项式标记：<i>Y</i> = {poly} / <i>r</i>{pow}。）',
@@ -873,7 +873,7 @@ export const zh = {
   'orbit.qe.totalNodes.stem': '**{name}** 轨道的**总节点数**是多少？',
   'orbit.qe.totalNodes.exp':
     '总节点数 = n − 1 = **{total}**，**与 l 无关**。\n'
-    + '这正是"同一层内 l 增大时，径向节点减少、角度节面增多，总数不变"的来源。',
+    + '这正是「同一层内 l 增大时，径向节点减少、角度节面增多，总数不变」的来源。',
   'orbit.qe.energy.stem': '氢原子 **{n}s** 轨道的能量约为多少 eV？（E_n = −13.6/n²）',
   'orbit.qe.energy.exp': 'E_{n} = −13.6 / {n}² = **{E} eV**。能量只依赖 n（氢原子）。',
   'orbit.qe.degeneracy.stem': '第 **n = {n}** 层共有多少个**轨道**（不计自旋）？',
@@ -882,7 +882,7 @@ export const zh = {
   'orbit.qe.radialPeak.exp':
     '**注意**：要用径向分布函数 D(r) = r²R(r)² 求极值，其主峰在 **r ≈ {main} a₀**。\n'
     + '若误用 R(r) 的峰值会得到 r=0（R 在原点最大），但那里球壳体积趋于零、概率反而最小——'
-    + '这正是"概率幅最大 ≠ 概率最大"的经典陷阱。',
+    + '这正是「概率幅最大 ≠ 概率最大」的经典陷阱。',
   'orbit.qe.angGeo.both': '{cones} 个锥面 + {planes} 个平面',
   'orbit.qe.angGeo.cones': '{cones} 个锥面',
   'orbit.qe.angGeo.planes': '{planes} 个平面',
@@ -892,7 +892,7 @@ export const zh = {
   'orbit.qe.angGeo.wAllCones': '{n} 个锥面',
   'orbit.qe.angGeo.exp':
     '由 math.js 计算：该轨道有 **{shape}**。\n'
-    + '★ 常见误解是"角度节面一律是平面"——但 P_l^{|m|}(cosθ)=0 给出的是**锥面**，'
+    + '★ 常见误解是「角度节面一律是平面」——但 P_l^{|m|}(cosθ)=0 给出的是**锥面**，'
     + '只有 cos(mφ)/sin(mφ)=0 才给出平面。',
   'orbit.qe.rVsD.stem': '对 **{name}** 轨道，下面哪句话是对的？',
   'orbit.qe.nodesReverse.opt': 'n = {n}，l = {l}',
@@ -907,14 +907,14 @@ export const zh = {
   'orbit.qe.meanRadius.stem': '氢原子 **{name}** 态电子离核的**平均距离 ⟨r⟩** 约为多少？（单位 a₀）',
   'orbit.qe.meanRadius.exp':
     '⟨r⟩ = (a₀/2)[3n² − l(l+1)] = (1/2)[3×{n}² − {l}×{l1}] = **{v} a₀**。\n'
-    + '注意它比"概率最大半径"（≈n²a₀）小——因为 D(r) 的峰在远处，而 ⟨r⟩ 是对全空间加权的平均。',
+    + '注意它比「概率最大半径」（≈n²a₀）小——因为 D(r) 的峰在远处，而 ⟨r⟩ 是对全空间加权的平均。',
   'orbit.qe.angleToZ.stem': '**复函数解** {psi} 中，电子的轨道角动量矢量与 z 轴的夹角约为？',
   'orbit.qe.angleToZ.exp':
     'cosθ = m / √(l(l+1)) = {m} / √({l}×{l1}) ⇒ θ = **{correct}**。\n'
     + '★ 常见错误是用 cosθ = m/l（把 $L_z/L$ 当成了 m/l），正确的分母是 √(l(l+1)) 而非 l。\n'
     + '特别地：m = ±l 时夹角最小但不为 0（角动量不可能与 z 轴重合）；m = 0 时夹角为 90°。\n'
     + '★ 这一问**只对复函数解成立**：L̂z 的本征态是 ψ_{n,l,m}（复解），而实解由 ±m 两个复解'
-    + '组合而来，不再是 L̂z 的本征函数，谈"它的 L_z 是多少"没有意义。',
+    + '组合而来，不再是 L̂z 的本征函数，谈「它的 L_z 是多少」没有意义。',
   'orbit.qe.energySplit.stem': '氢原子 **{n}s** 态电子的**势能平均值 ⟨V⟩** 约为多少 eV？（维里定理）',
   'orbit.qe.energySplit.exp':
     '维里定理（库仑势）：2⟨T⟩ = −⟨V⟩，且 ⟨E⟩ = ⟨T⟩ + ⟨V⟩。\n'
@@ -933,7 +933,7 @@ export const zh = {
     + '而是把视图切到能揭示错误根源的状态并引导学生自己看出来。',
   'orbit.qe.agent.right':
     '学生答对了这道题（questionId={id}）。请先调用 startFeynmanCheck 邀请他用自己的话复述，'
-    + '以把"识别性掌握"推进到"生成性掌握"。',
+    + '以把「识别性掌握」推进到「生成性掌握」。',
 
   // ---- core/question-engine.js：通道 B 概念题（存的是键，出题时现取）----
   'orbit.qe.c.k6px.stem': '**$p_x$** 轨道可以由哪两个复轨道线性组合得到？',
@@ -952,7 +952,7 @@ export const zh = {
   'orbit.qe.c.k6sym.exp':
     '|Y_l^m|² = N²P²·|e^{imφ}|² = N²P²，与 φ 无关 → 绕 z 轴旋转对称。\n'
     + '实函数含 cos(mφ)/sin(mφ)，取模后仍依赖 φ → 呈定向的瓣。',
-  'orbit.qe.c.k7phase.stem': '为什么说**相位**不是"多余的数学"？',
+  'orbit.qe.c.k7phase.stem': '为什么说**相位**不是「多余的数学」？',
   'orbit.qe.c.k7phase.correct': '相位决定波函数如何叠加：同相增强、反相抵消，是成键/反键的根源',
   'orbit.qe.c.k7phase.w1': '相位只是计算中间量，没有物理意义',
   'orbit.qe.c.k7phase.w2': '相位对应电子的自旋方向',
@@ -968,7 +968,7 @@ export const zh = {
   'orbit.qe.c.k7sign.exp':
     '实函数的相位只有 0 与 π 两种，故表现为正负两色。\n'
     + '中间隔开的那个面就是节面——相位在那里翻转。\n'
-    + '它不是"两个电子"，而是同一个波函数的不同符号区域。',
+    + '它不是「两个电子」，而是同一个波函数的不同符号区域。',
   'orbit.qe.c.k7wind.stem': '复轨道 e^{imφ} 的相位绕 z 轴转一圈（φ: 0→2π）会怎样？',
   'orbit.qe.c.k7wind.correct': '相位增加 2πm，即缠绕 m 圈',
   'orbit.qe.c.k7wind.w1': '相位不变（因为 |e^{imφ}|=1）',
@@ -977,7 +977,7 @@ export const zh = {
   'orbit.qe.c.k7wind.exp':
     'arg = mφ，φ 走完 2π 时 arg 增加 2πm。\n'
     + '★ 用**截面卡的相位图**可以直接看到：xy 截面上绕原点一周，m=1 相位走完一周，m=2 走两周。',
-  'orbit.qe.c.k7bond.stem': '为什么只用 |ψ|² 讲不清"化学键为什么形成"？',
+  'orbit.qe.c.k7bond.stem': '为什么只用 |ψ|² 讲不清「化学键为什么形成」？',
   'orbit.qe.c.k7bond.correct': '因为成键与否取决于相位关系，|ψ|² 把相位信息丢掉了',
   'orbit.qe.c.k7bond.w1': '因为 |ψ|² 计算太复杂',
   'orbit.qe.c.k7bond.w2': '因为 |ψ|² 只适用于 s 轨道',

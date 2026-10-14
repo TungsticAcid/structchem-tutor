@@ -55,7 +55,7 @@ export function createCompareTools(opts = {}) {
   const defs = {
     query: [
       def('compareCrystals',
-        '对比两个晶体的**结构化差异**，含逐字段对照（晶系/空间群/点阵型式/结构基元/配位数/堆积方式）与由程序计算的数值对照（晶胞体积/密度/最近邻/晶胞原子数）。返回里 `differences` 列出**不相同的字段**，那是"有什么区别"的直接答案。两个 id 必须来自 listCrystals 的返回值，禁止编造。', {
+        '对比两个晶体的**结构化差异**，含逐字段对照（晶系/空间群/点阵型式/结构基元/配位数/堆积方式）与由程序计算的数值对照（晶胞体积/密度/最近邻/晶胞原子数）。返回里 `differences` 列出**不相同的字段**，那是「有什么区别」的直接答案。两个 id 必须来自 listCrystals 的返回值，禁止编造。', {
         a: { type: 'string', description: '第一个晶体的 id' },
         b: { type: 'string', description: '第二个晶体的 id' },
       }, ['a', 'b']),
@@ -130,7 +130,7 @@ export function createCompareTools(opts = {}) {
            *   指令要**具体到"把 rows / differences 组织成表"**，否则模型只会再复述一句"已算好"。
            *   ★ 写成**单个字面量**：拼成两段会让扫描替换按节点查不到（本仓库的老坑）。
            */
-          + tr('★ 请把上面的 rows 与 differences 组织成一张对照表放进回复正文（左边字段、右边 A/B 两列，并点明哪几项不同），演示只作为补充；不要只回一句"演示已排好"。'),
+          + tr('★ 请把上面的 rows 与 differences 组织成一张对照表放进回复正文（左边字段、右边 A/B 两列，并点明哪几项不同），演示只作为补充；不要只回一句「演示已排好」。'),
         tip: tr('若需并排观察，可用 openCompareView 动作打开对比视图。'),
       }
     },

@@ -84,7 +84,7 @@ export const ORBIT_HTML = `<div class="orbit-page">
               <button class="seg-btn" data-k="Y2">|<i>Y</i>|²</button>
             </div>
           </div>
-<div class="hint" id="yCritHint">|<i>Y</i>|² 的曲面比 |<i>Y</i>| 的"瘦"</div>
+<div class="hint" id="yCritHint">|<i>Y</i>|² 的曲面比 |<i>Y</i>| 的「瘦」</div>
         </div>
         <div class="divider"><span>波函数形式</span></div>
         <div class="seg center" id="modeSeg">

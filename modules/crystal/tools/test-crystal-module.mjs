@@ -105,7 +105,7 @@ section('getSnapshot：必须现读视图，不能维护副本')
   check('带上晶体元信息（名称/化学式/晶系）',
     s1.crystal && s1.crystal.name === 'Cu型晶体' && s1.crystal.formula === 'Cu' && s1.crystal.crystalSystem === 'cubic')
   check('图层只列开着的', s1.layersOn.includes('atoms') && s1.layersOn.includes('wireframe') && !s1.layersOn.includes('octahedral'))
-  check('带上原子数与元素（用于"这个晶胞里有几个原子"这类问题）',
+  check('带上原子数与元素（用于「这个晶胞里有几个原子」这类问题）',
     s1.atoms && s1.atoms[0].element === 'Cu' && s1.atoms[0].count === 4)
   check('带上视角状态', !!s1.view && typeof s1.view.theta === 'number')
   check('惯用晶胞有说明', /惯用晶胞/.test(s1.cellDisplayModeNote))
@@ -123,7 +123,7 @@ section('getSnapshot：必须现读视图，不能维护副本')
 
   // 空隙总开关关着时单列出来（否则 octal/tetra 为真却看不见，容易被误读）
   view.userChanges({ showInterstices: false, showOctahedral: true })
-  check('空隙总开关单独标明（避免"以为开着其实看不见"）',
+  check('空隙总开关单独标明（避免「以为开着其实看不见」）',
     F.getSnapshot().intersticesMasterOn === false)
 }
 
@@ -199,7 +199,7 @@ section('onAction：必须支持多订阅（crystal 自身的 _events 是单槽�
   check('取消订阅后不再收到，另一个仍收到', got1.length === 1 && got2.length === 2)
 
   view.fire('atomTap', { element: 'Na' })
-  check('原子拾取事件也转发（用于"点哪个原子"这类追问）', got2.includes('atomTap'))
+  check('原子拾取事件也转发（用于「点哪个原子」这类追问）', got2.includes('atomTap'))
   check('非函数订阅者被安全忽略', typeof F.onAction(null) === 'function')
 }
 
@@ -310,7 +310,7 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
 {
   const { default: crystalDesc } = await import('../../../packages/agent-core/registry/descriptors/crystal.js')
   const rule = (crystalDesc.proactiveRules || []).find((r) => r.id === 'crystal-idle-structure')
-  check('晶体描述符里有"停留久 → 建议空隙图层"这条规则', !!rule)
+  check('晶体描述符里有「停留久 → 建议空隙图层」这条规则', !!rule)
   if (rule) {
     const idle = { idleMs: 60000, recentActions: [] }
     check('CaF₂（无空隙层）不提示',

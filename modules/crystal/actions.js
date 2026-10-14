@@ -150,7 +150,7 @@ export const VOCAB = {
   setAtomVisibility: {
     label: '按元素显隐',
     group: '图层',
-    desc: '按元素显示或隐藏原子（讲"A 离子在哪些位置"时很有用）',
+    desc: '按元素显示或隐藏原子（讲「A 离子在哪些位置」时很有用）',
     params: { element: 'string（元素符号，如 Na）', visible: 'boolean' },
   },
   setAppearance: {
@@ -202,7 +202,7 @@ export const VOCAB = {
   setEquivalentOrigin: {
     label: '切换晶胞原点',
     group: '结构',
-    desc: '切换等价的晶胞原点表示（如 CsCl 的「顶点为 Cs⁺」/「顶点为 Cl⁻」）。★ 要数某个离子的配位时，先把它**切到体心**再数——中心那个原子才是"被数的那个"',
+    desc: '切换等价的晶胞原点表示（如 CsCl 的「顶点为 Cs⁺」/「顶点为 Cl⁻」）。★ 要数某个离子的配位时，先把它**切到体心**再数——中心那个原子才是「被数的那个」',
     params: { index: 'int ≥ 0（equivalentSettings 的下标，0 起）' },
   },
 }

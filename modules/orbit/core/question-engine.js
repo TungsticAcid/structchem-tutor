@@ -230,7 +230,7 @@ const QuestionEngine = (function () {
       return assemble(stem, t('R(r) 的最大值出现在 r = 0，但概率最大的半径不是 0'),
         [t('R(r) 与 D(r) 的峰值半径总是相同'), t('D(r) 的最大值一定在 r = 0'),
          t('概率最大的半径与 n 无关')],
-        t('R(r) 在原点最大（对 l=0），但 D(r) = r²R² 含球壳体积因子 r²，其峰值在 **r ≈ n²a₀**。\n★ "概率幅最大"与"概率最大"是两件事。'),
+        t('R(r) 在原点最大（对 l=0），但 D(r) = r²R² 含球壳体积因子 r²，其峰值在 **r ≈ n²a₀**。\n★ 「概率幅最大」与「概率最大」是两件事。'),
         { kp: 'K3', difficulty: 'core', diagnosticHint: 'R-vs-D',
           presetView: { n: n, l: l, m: 0, radial: ['R', 'D'] } });
     },
@@ -548,7 +548,7 @@ const QuestionEngine = (function () {
       entries: entries.map((e) => ({ id: e.id, title: e.title, body: e.body, source: e.source,
         misconceptions: e.misconceptions })),
       presetView: opts && opts.presetView ? opts.presetView : (meta && meta.orbital ? meta.orbital[0] : null),
-      tip: t('讲解时请按条目顺序组织，并配套 applySceneActions 把关键结论"演示"出来，而不是只念文字。'),
+      tip: t('讲解时请按条目顺序组织，并配套 applySceneActions 把关键结论「演示」出来，而不是只念文字。'),
     };
   }
 

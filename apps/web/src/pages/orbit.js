@@ -554,7 +554,7 @@ let offTheme = null;
           + it.key + '"'
           // 顶点数从界面上撤掉之后，仍放在 title 里（需要排查时悬停即见）
           + (hasVerts ? ' title="' + hostT('pages.orbit.vertexCount', { n: state0.verts || 0 }) + '"' : '') + '>'
-          + '<label class="orb-eye" title="点一下：显示 / 隐藏这个轨道">'
+          + '<label class=「orb-eye」 title=「点一下：显示 / 隐藏这个轨道」>'
           + '<input type="checkbox" data-act="vis"' + (it.visible === false ? '' : ' checked')
           + '></label>'
           + '<input type="color" class="orb-color" data-act="color" value="'
@@ -570,7 +570,7 @@ let offTheme = null;
           //   `!state.orbitals.length` 成立 ⇒ 整组被切到 off）。要减少预设里的某个，
           //   正确做法是用左边的眼睛**隐藏**它。
           + ((i === 0 || setId !== 'custom') ? ''
-            : '<button class="orb-del" data-act="del" title="从同屏里移除">×</button>')
+            : '<button class=「orb-del」 data-act=「del」 title=「从同屏里移除」>×</button>')
           + '</div>');
       });
     }

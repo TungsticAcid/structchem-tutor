@@ -105,13 +105,13 @@ export const MESSAGES = {
     'symmetry.q2.order.stem': '分子「{title}」属于 {symbol} 点群，这个群的阶是多少？（阶 = 对称操作的总数）',
     'symmetry.q2.order.exp': '{symbol} 的阶是 **{n}**，它的操作是：{ops}。',
     'symmetry.q3.linear.stem': '在 {symbol} 点群的特征标表里，沿 {axis} 方向的一次函数（例如 p_{axis} 轨道）属于哪个不可约表示？',
-    'symmetry.q3.linear.exp': '{symbol} 的特征标表里，只有 **{label}** 这一行的"线性"栏包含 {axis} —— "某函数属于哪个不可约表示"就是这么查出来的。',
+    'symmetry.q3.linear.exp': '{symbol} 的特征标表里，只有 **{label}** 这一行的「线性」栏包含 {axis} —— 「某函数属于哪个不可约表示」就是这么查出来的。',
     'symmetry.q3.char.stem': '{symbol} 的特征标表里，{label} 这一行在 {cls} 这一列上的特征标是多少？',
-    'symmetry.q3.char.exp': '{symbol} 的特征标表：{label} 行 × {cls} 列 = **{v}**。特征标记的是"这个操作把该不可约表示的基函数变成了什么样"。',
+    'symmetry.q3.char.exp': '{symbol} 的特征标表：{label} 行 × {cls} 列 = **{v}**。特征标记的是「这个操作把该不可约表示的基函数变成了什么样」。',
     'symmetry.q4.ir.stem': '{symbol} 点群里，下列哪个不可约表示是**红外活性**的？',
-    'symmetry.q4.ir.exp': '红外活性的判据是"与 x、y、z 之一同类"。{symbol} 里 **{label}** 的线性栏非空，所以它红外活性。',
+    'symmetry.q4.ir.exp': '红外活性的判据是「与 x、y、z 之一同类」。{symbol} 里 **{label}** 的线性栏非空，所以它红外活性。',
     'symmetry.q4.raman.stem': '{symbol} 点群里，下列哪个不可约表示是**拉曼活性**的？',
-    'symmetry.q4.raman.exp': '拉曼活性的判据是"与二次项（x²、xy、xz…）之一同类"。{symbol} 里 **{label}** 的二次函数栏非空，所以它拉曼活性。',
+    'symmetry.q4.raman.exp': '拉曼活性的判据是「与二次项（x²、xy、xz…）之一同类」。{symbol} 里 **{label}** 的二次函数栏非空，所以它拉曼活性。',
     'symmetry.q4.mutex.stem': '分子「{title}」属于 {symbol} 点群。它的红外活性与拉曼活性是什么关系？',
     'symmetry.q4.mutex.yes': '互斥：红外活性的模式拉曼不活性，反之亦然',
     'symmetry.q4.mutex.no': '不互斥：同一个模式可以既红外活性又拉曼活性',
@@ -120,23 +120,23 @@ export const MESSAGES = {
     'symmetry.q4.mutex.expYes': '{symbol} **含有反演中心 i**（程序在它的对称元素里查到了 i）—— 有 i 时红外与拉曼互不相容，这就是互斥规则。',
     'symmetry.q4.mutex.expNo': '{symbol} **不含反演中心 i**（程序在它的对称元素里没查到 i）—— 没有 i 时互斥规则不适用，同一个模式可以既红外活性又拉曼活性。',
     'symmetry.q5.trans.stem': '晶体结构中比分子多出的那一类对称操作是什么？',
-    'symmetry.q5.trans.opt.ok': '平移（以及"平移＋旋转/反映"的复合操作）',
+    'symmetry.q5.trans.opt.ok': '平移（以及「平移＋旋转/反映」的复合操作）',
     'symmetry.q5.trans.opt.a': '反演',
     'symmetry.q5.trans.opt.b': '反映',
     'symmetry.q5.trans.opt.c': '旋转',
-    'symmetry.q5.trans.exp': '分子是有限的、晶体是无限周期的 —— 所以晶体的对称操作里**包含平移**；而平移没有不动点，分子点群那套"所有元素交于一点"的描述就不够用了（知识条目 P5-1）。',
+    'symmetry.q5.trans.exp': '分子是有限的、晶体是无限周期的 —— 所以晶体的对称操作里**包含平移**；而平移没有不动点，分子点群那套「所有元素交于一点」的描述就不够用了（知识条目 P5-1）。',
     'symmetry.q5.point.stem': '把一个空间群里的平移操作全部去掉，剩下的操作集合构成什么？',
     'symmetry.q5.point.opt.ok': '该晶体的点群',
     'symmetry.q5.point.opt.a': '晶系',
     'symmetry.q5.point.opt.b': '布拉维点阵型式',
     'symmetry.q5.point.opt.c': '另一个空间群',
-    'symmetry.q5.point.exp': '空间群里每个操作都能写成"点式部分 + 平移部分"；丢掉平移部分后，剩下的点式部分所成的群就是该晶体的**点群**（知识条目 P5-2）。',
+    'symmetry.q5.point.exp': '空间群里每个操作都能写成「点式部分 + 平移部分」；丢掉平移部分后，剩下的点式部分所成的群就是该晶体的**点群**（知识条目 P5-2）。',
     'symmetry.q5.screw.stem': '空间群符号里的 2₁ 表示什么？',
     'symmetry.q5.screw.opt.ok': '二重螺旋轴：转 180° 之后沿轴平移半个周期',
     'symmetry.q5.screw.opt.a': '纯二重旋转轴（不带平移）',
     'symmetry.q5.screw.opt.b': '垂直于该轴的镜面',
     'symmetry.q5.screw.opt.c': '反演中心',
-    'symmetry.q5.screw.exp': '螺旋轴 nₘ 是"转 360°/n 再沿轴平移 m/n 个周期"；2₁ 就是转 180° 再平移 1/2 周期，**丢掉平移之后**才是纯 C₂ 轴（知识条目 P5-3）。',
+    'symmetry.q5.screw.exp': '螺旋轴 nₘ 是「转 360°/n 再沿轴平移 m/n 个周期」；2₁ 就是转 180° 再平移 1/2 周期，**丢掉平移之后**才是纯 C₂ 轴（知识条目 P5-3）。',
     'anim.playTitle': '播放对称操作动画',
     'anim.toggle': '播放/暂停',
     'anim.reset': '重置变换',
@@ -413,17 +413,17 @@ export const text = Object.assign(
     '对称元素的**总开关**。关掉后所有轴/面/中心都不画（逐个显隐见 setElementVisible）。':
       'Master switch for symmetry elements. When off, no axis/plane/center is drawn (per-element control: setElementVisible).',
     '显示/隐藏对称元素标签': 'Show/hide symmetry element labels',
-    'C₂、σv 这类文字标签的开关。讲"哪个是主轴"时打开更有用。':
+    'C₂、σv 这类文字标签的开关。讲「哪个是主轴」时打开更有用。':
       'Toggles text labels such as C₂ and σv. Useful when explaining which axis is the principal one.',
     '显示/隐藏辅助几何': 'Show/hide auxiliary geometry',
-    '立方体/二面角等辅助线框——用来展示"四面体方向""二面角"这类空间关系。':
+    '立方体/二面角等辅助线框——用来展示「四面体方向」「二面角」这类空间关系。':
       'Auxiliary wireframes (cube / dihedral planes) for showing spatial relations such as tetrahedral directions and dihedral angles.',
     '显示/隐藏原子标签': 'Show/hide atom labels',
     '在原子球心显示元素符号。': 'Show element symbols at the centre of each atom.',
     '逐个显隐对称元素': 'Show/hide one symmetry element',
     '显示或隐藏**某一个**对称元素。key 必须来自 queryPointGroup 返回的 elements[].key':
       'Show or hide **one** symmetry element. The key must come from elements[].key returned by queryPointGroup',
-    '（形如 C2#1、sigma#2），**不可编造**。讲"只留主轴"时用它逐个关掉其余的。':
+    '（形如 C2#1、sigma#2），**不可编造**。讲「只留主轴」时用它逐个关掉其余的。':
       '(of the form C2#1, sigma#2) — never invent one. Use it to turn off all but the principal axis.',
     '一键全显/全隐': 'Show/hide all at once',
     '把所有对称元素一起显示或隐藏。比逐个下发省一轮。':
@@ -485,7 +485,7 @@ export const text = Object.assign(
     '你正在使用**点群观鉴**模块。': 'You are working in the **Point Group Explorer** module.',
     '★ 点群符号与对称元素清单**一律用 queryPointGroup 取得**，不要凭记忆判断——':
       '★ Always obtain point-group symbols and symmetry-element lists with queryPointGroup; never decide from memory —',
-    '"水是 C2v"你当然记得，但"联苯是 D2h 还是 D2d"这类正是本模块要解决的问题，':
+    '「水是 C2v」你当然记得，但「联苯是 D2h 还是 D2d」这类正是本模块要解决的问题，':
       'you of course remember that water is C2v, but questions like "is biphenyl D2h or D2d" are exactly what this module settles,',
     '而它与你的记忆不一致时，正确的一方永远是从结构算出来的那个。':
       'and when it disagrees with your memory, the one computed from the structure is always right.',
@@ -526,7 +526,7 @@ export const text = Object.assign(
       'To make the view move, send actions with applySceneActions; take element/atom keys from the',
     'elementKeys / atoms —— **不要自己编造 key**。':
       'elementKeys / atoms above — **never invent keys**.',
-    '若要向学生解释"为什么是这个点群"，可结合 elements 里各元素的类型与方向来讲。':
+    '若要向学生解释「为什么是这个点群」，可结合 elements 里各元素的类型与方向来讲。':
       'To explain "why this point group" to a student, use the type and direction of each element in elements.',
 
     // ---- 宿主注入要求（装配期诊断，给宿主/开发者看）----
@@ -538,7 +538,7 @@ export const text = Object.assign(
       '★ Why it must be injected: the implementation in modules/symmetry/space-group.js depends on @spglib/moyo-wasm',
     '且用 `…moyo_wasm_bg.wasm?url` 这种 **Vite 专有的导入后缀**，在 Node 里无法静态导入。':
       'and uses the **Vite-only import suffix** `…moyo_wasm_bg.wasm?url`, which Node cannot import statically.',
-    '缺省时不报错，但**晶体示例只能回"未接入"**——':
+    '缺省时不报错，但**晶体示例只能回「未接入」**——':
       'It does not error when absent, but **crystal examples can only answer "not wired up"** —',
     '（此前缺省的表现更糟：identify() 返回 {symbol:"ERR"}，模型会把它当成一个真的点群符号。）':
       '(the previous default was worse: identify() returned {symbol:"ERR"}, which the model took for a real point-group symbol.)',
@@ -556,9 +556,9 @@ export const text = Object.assign(
       'No structure is selected yet (pick one with listExamples first)',
     '本宿主未接入空间群分析器（spaceGroup），无法识别晶体的空间群。':
       'This host has no space-group analyser (spaceGroup) injected, so the crystal space group cannot be identified.',
-    '★ 这**不是**"该结构没有对称性"，而是能力未接入——':
+    '★ 这**不是**「该结构没有对称性」，而是能力未接入——':
       '★ This is **not** "the structure has no symmetry" — the capability is simply not wired up —',
-    '请如实告诉学生"晶体空间群识别在当前环境不可用"，不要凭记忆给一个空间群符号。':
+    '请如实告诉学生「晶体空间群识别在当前环境不可用」，不要凭记忆给一个空间群符号。':
       'Tell the student honestly that "crystal space-group identification is unavailable in this environment"; never give a space-group symbol from memory.',
     '识别失败': 'Identification failed',
     '（当前无对称元素）': '(no symmetry elements at present)',
@@ -577,7 +577,7 @@ Object.assign(MESSAGES.zh, {
   'sym.err.noSelection': '当前没有选中的结构（先用 listExamples 挑一个，或让学生打开一个）',
   'sym.err.needKey': '{name} 需要 key（字符串），可用：{list}',
   'sym.err.unknownElementKey': '未知对称元素 key：{key}（可用：{list}）'
-    + '　★ 提示：若你刚在同一批里"切换分子"，请**分两批**下发 —— 先切分子，确认生效后再引用它的元素 key'
+    + '　★ 提示：若你刚在同一批里「切换分子」，请**分两批**下发 —— 先切分子，确认生效后再引用它的元素 key'
     + '（整批校验用的是**当前**分子的元素表）。',
   'sym.err.unknownAtomKey': '未知原子 key：{key}（可用：{list}）——key 来自 queryPointGroup 的 atoms，不可编造',
   'sym.err.unsupportedAction': '当前模块不支持动作：{name}',

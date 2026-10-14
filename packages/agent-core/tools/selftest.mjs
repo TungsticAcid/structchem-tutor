@@ -127,7 +127,7 @@ ok(toolsFor('crystal', 'quiz').includes('generateQuiz'),
    '★ crystal 在 quiz 节点拿得到出题工具（generateQuiz）',
    '实际：' + toolsFor('crystal', 'quiz').join(', '))
 ok(toolsFor('orbit', 'teach').includes('updateMastery'),
-   '★ orbit 在 teach 节点拿得到"记学情"（它的名字是 updateMastery，不是 recordLearningEvent）',
+   '★ orbit 在 teach 节点拿得到「记学情」（它的名字是 updateMastery，不是 recordLearningEvent）',
    '实际：' + toolsFor('orbit', 'teach').join(', '))
 
 // ── G1：每个已实现的工具都要**可达**（否则它永远调不到）──
@@ -383,7 +383,7 @@ function moduleBuilt(id) {
     })
   } else {
     throw new Error(`moduleBuilt：未知模块 ${id}——`
-      + '新模块必须在这里给出"按壳的接法建出来"的构造方式，'
+      + '新模块必须在这里给出「按壳的接法建出来」的构造方式，'
       + '否则它的 descriptor 与角色映射都无人对账')
   }
   const defsByClass = {}

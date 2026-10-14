@@ -169,7 +169,7 @@ export function createCrystalTools(opts = {}) {
   const defs = {
     read: [],
     query: [
-      def('listCrystals', '列出全部可用的晶体（id / 名称 / 化学式 / 晶系 / 类别）。用于回答"有哪些晶体"以及**取得合法 id**——id 必须来自本工具返回的原值，禁止编造。', {
+      def('listCrystals', '列出全部可用的晶体（id / 名称 / 化学式 / 晶系 / 类别）。用于回答「有哪些晶体」以及**取得合法 id**——id 必须来自本工具返回的原值，禁止编造。', {
         category: { type: 'string', description: '可选：按类别筛选（metal/ionic/covalent/molecular）' },
       }),
       def('getCrystalDetail', '取某个晶体的结构化字段：点阵型式、空间群、配位、结构基元、空间利用率等。这些是**数据里既有的字段**，原样返回，不做推导。', {
@@ -249,7 +249,7 @@ export function createCrystalTools(opts = {}) {
             octahedral: oct.length, tetrahedral: tet.length,
             positions: { octahedral: oct, tetrahedral: tet },
             unit: '分数坐标',
-            note: '数量为该晶胞内的位置条目数；"每个球周围有几个空隙"是另一个量，见 C5 的辨析',
+            note: '数量为该晶胞内的位置条目数；「每个球周围有几个空隙」是另一个量，见 C5 的辨析',
           }
         }
         default:
