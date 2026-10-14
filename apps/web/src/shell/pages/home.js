@@ -316,7 +316,18 @@ export class HomePage {
 
           min-height: 100vh; box-sizing: border-box;
           display: flex; flex-direction: column;
-          background: var(--pt-bg);
+          /**
+           * ★★ 2026-10-14（用户："你的渐变底色位置也不对"）：
+           *   原先渐变写在 .pt-hero 上，而 hero 是 max-width:1320 + margin:0 auto
+           *   ⇒ 渐变被框在中间，**能看见一条块的边缘** ✗（截图里从 x≈280 开始的浅色块）。
+           *   参考稿是**整幅铺开**、只有柔和的光晕、看不到边界。
+           *   ⇒ 移到全宽的 `.portal` 上，并放大到超出视口（1200×560 / 900×480），
+           *     让边缘落在视口之外；右上一团压在自有配图下面，左下一团很淡。
+           */
+          background:
+            radial-gradient(1200px 560px at 78% 4%, color-mix(in srgb, var(--pt-ink-2) 14%, transparent), transparent 68%),
+            radial-gradient(900px 480px at 8% 26%, color-mix(in srgb, var(--pt-orbit) 7%, transparent), transparent 70%),
+            var(--pt-bg);
           color: var(--pt-body);
           font-family: "Source Han Sans SC", "Noto Sans CJK SC", "Microsoft YaHei",
                        "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -356,10 +367,9 @@ export class HomePage {
           display: grid; grid-template-columns: minmax(360px, 1fr) minmax(340px, 1fr);
           gap: 20px; align-items: center;
           max-width: 1320px; margin: 0 auto; padding: 10px 40px 8px;
-          background:
-            radial-gradient(720px 320px at 82% 8%, color-mix(in srgb, var(--pt-ink-2) 12%, transparent), transparent 70%),
-            radial-gradient(560px 300px at 12% 92%, color-mix(in srgb, var(--pt-orbit) 9%, transparent), transparent 72%);
-          border-radius: 0 0 22px 22px;
+          /* ★ 渐变已上移到全宽的 .portal（见其注释）：hero 自己**不带底色**，
+             否则 max-width 会在中间切出一条可见的边缘。 */
+          border-radius: 0;
         }
         .pt-title { margin: 0; display: flex; flex-direction: column; line-height: 1.0; }
         .pt-title-sm { font-size: 44px; font-weight: 700; color: var(--pt-ink); letter-spacing: .01em; }
@@ -402,8 +412,12 @@ export class HomePage {
         .pt-shot-wrap { position: absolute; display: block; }
         .pt-shot {
           display: block; width: 100%; height: auto;
-          /* PNG 已是透明底，这里再压一档不透明度，做"淡入背景"的观感 */
-          opacity: .84;
+          /**
+           * ★★ 2026-10-14（用户："图片透明度高一点"）：
+           *   原先 .84 —— 三张图在 Hero 里偏"实"，压过了标题。按用户要求**调透**到 .58，
+           *   作为背景级装饰（文字仍是主角）；深色下再降一档（.52），配合补光仍看得清轮廓。
+           */
+          opacity: .58;
         }
         /**
          * ★★ 深色主题下给自有渲染图加一层**浅色外发光**：
@@ -412,6 +426,7 @@ export class HomePage {
          *   像素仍然全部来自应用自己的渲染器，只补一层光晕。
          */
         [data-theme="dark"] .portal .pt-shot {
+          opacity: .52;
           filter: drop-shadow(0 0 18px rgba(214, 232, 255, .38));
         }
         /**
