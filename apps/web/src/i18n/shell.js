@@ -129,7 +129,19 @@ export const zh = {
     + '★ 你话里描述的画面元素**必须真的存在、并且已经显示**。例如要用"两块半透明面"来讲二面角'
     + '（目前只有 **H₂O₂** 有这种辅助几何），就必须同时下发 setAuxVisible（visible=true）；'
     + '**没有辅助几何的分子不要这样描述**（乙烷就没有 —— 讲它的交叉式请用 C₃′ / σ 这类对称元素'
-    + '或换视角说明）。一般地：不确定某个图层有没有数据时，先看快照/示例，别描述画面上不存在的东西。',
+    + '或换视角说明）。一般地：不确定某个图层有没有数据时，先看快照/示例，别描述画面上不存在的东西。'
+    /**
+     * ★★ 2026-10-15（用户截图：**思考链里写了"播放 C₂ 操作"，而下发的动作里根本没有这一步**）：
+     *   `applySceneActions` 一次调用是**整批**动作，回执里的「已排好 N 步」指的就是这一批；
+     *   思考里那句"然后播放绕轴 180° 的旋转"只是**草稿/计划**，它不是下发的动作 ✗。
+     *   学生读的是**正文**，若正文照抄草稿（"已排好…含播放 C₂ 操作"），他就会去演示条上找这一步，
+     *   找不到就以为坏了 —— 他报的正是这个。故：正文里"排了什么"必须与**本轮真的下发的
+     *   动作清单**逐项对得上；只在思考里写过、没真下发的，不能对学生说"已排好"。
+     *   ★ 与上一条同源：**描述与事实不符**比不描述更伤。
+     */
+    + '★ 正文里说"已排好哪些动作"时，只能提**你这一轮真的下发过的动作**；'
+    + '思考里的计划不算动作 —— 想播放某个对称操作，就必须把它写进这一轮的 applySceneActions'
+    + '（受整批校验限制时，分两批下发），否则不要对学生说"已排好播放"。',
 
   // ---- 带变量的动态串（扫描替换做不到，必须走键） ----
   'shell.panel.switched': '已切到「{title}」模块',
@@ -296,7 +308,15 @@ export const en = {
     + '“hide all the elements and only one element is left” (hiding the symmetry elements leaves nothing — '
     + 'the sentence contradicts itself). Say instead: “only **one** symmetry element is drawn (the C₂ '
     + 'axis), yet the group order is **2** — because E is an operation too, and E occupies no symmetry '
-    + 'element.”',
+    + 'element.”'
+    /**
+     * ★★ 2026-10-15 英文侧同一条（与中文侧逐条对应）：
+     *   思考里的"计划"不是动作；正文里说"已排好"必须与**本轮真的下发的动作**一致。
+     */
+    + ' ★ When the reply says which actions are queued, name only the actions you actually '
+    + 'dispatched this round. A plan written in your reasoning is not an action: if you want to '
+    + 'play a symmetry operation, it must be in this round\'s applySceneActions (split into two '
+    + 'batches if whole-batch validation blocks it) — otherwise do not tell the student it is queued.',
   'shell.prompt.roleCrystal': 'For any number — coordination number, void count, cell parameters, density — '
     + 'obtain it with queryCrystal. Never compute or recall it yourself.',
   'shell.prompt.roleOrbit': 'For any number — node count, radial peak positions, energy levels, degeneracy — '

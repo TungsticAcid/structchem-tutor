@@ -1,4 +1,4 @@
-/**
+﻿/**
  * i18n.js —— 智能体面板（packages/agent-core/ui）的中英词典
  *
  * ---------------------------------------------------------------------------
@@ -219,6 +219,13 @@ export const en = {
   '模型这次没有返回正文（连思考内容也没有，可能是服务端返回异常）。可以再问一次，或换一个模型试试。':
     'The model returned no text this time (no reasoning either — the server response may be faulty). '
     + 'Ask again, or try a different model.',
+  /**
+   * ★★ 2026-10-15：整轮额度全花在"看画面 + 排演示"上、一次正文都没写（真机复现的形态）。
+   *   ★ 键与值都写成**单行字面量**（不做 `+` 拼接）：本仓库的 i18n 守卫是按源码扫字典的，
+   *     多行拼接既难读、又给扫描器留了坑 —— 单行最稳。
+   */
+  '模型这一轮把精力都花在了查看画面与排演示上，没写正文回答。可以点上面的「下一步」先看演示，再追问一句要结论；或者把问题问得更直接（例如「直接告诉我答案是…」）。':
+    'The model spent its whole budget inspecting the view and queueing demos this time and never wrote a text answer. You can step through the demo above and then ask again for the conclusion, or ask a more direct question (e.g. "just tell me the answer").',
   '输出 {n} tokens': 'output {n} tokens',
   '（其中思考 {n}）': ' ({n} of them reasoning)',
   '输入 {n} tokens': 'input {n} tokens',
@@ -285,6 +292,12 @@ export const text = {
   '（该模型或这一轮没有返回思考内容——换一个会输出思考的模型，或再问一次，就可能有了）':
     '(this model, or this turn, returned no reasoning content — another model or another try may produce some)',
   '模型实际输出的思考内容（点击展开）': "The model's actual reasoning output (click to expand)",
+  /**
+   * ★★ 2026-10-15：整轮额度全花在"看画面 + 排演示"上、一次正文都没写的说明。
+   *   ★ 单行字面量（不做 `+` 拼接）——本仓库的 i18n 守卫按源码扫字典，多行拼接是自找麻烦。
+   */
+  '模型这一轮把精力都花在了查看画面与排演示上，没写正文回答。可以点上面的「下一步」先看演示，再追问一句要结论；或者把问题问得更直接（例如「直接告诉我答案是…」）。':
+    'The model spent its whole budget inspecting the view and queueing demos this time and never wrote a text answer. You can step through the demo above and then ask again for the conclusion, or ask a more direct question (e.g. "just tell me the answer").',
   '输出触发长度上限，正在接着写…': 'Output hit the length limit; continuing…',
   '输出仍被截断，已停止续写；可在「设置 → 输出上限」调大后重试':
     'The output is still truncated, so continuation stopped. Raise "Settings → max output tokens" and try again',

@@ -929,16 +929,93 @@ section('conversation：循环机制 + 与 orbit 原循环的等价性')
 
   // ---------------------------------------------------------------------
   // 用例 7：轮数上限
+  //
+  // ★★ 2026-10-15（用户报："回复很多只有思考"）——**本用例的断言改了**：
+  //   原先要求两侧完全一致（都 6 轮）。而真机复现了一个更严重的故障：模型把 6 个回合
+  //   全用在工具调用上、一个回合都没写正文 ⇒ 循环到上限就结束，面板上只剩一排折叠的
+  //   「已思考」，学生看不到任何答案 ✗（实测 6 轮 / 9 次工具调用 / 5780 字思考）。
+  //   现在我们的循环在"轮数用尽 + 整轮没写过正文 + 确实动过手"时会**再要一轮**，
+  //   并明确要求"只写正文、不要再调用工具"。
+  //   ⇒ 我们比 orbit 参考实现**多一个回合、多一次 LLM 调用**，这是**刻意的分叉**，
+  //     所以这里从"完全一致"改成"钉住这个差值"，同时钉住两条不变式：
+  //       · 多出来的那一轮**不执行任何工具**（它只要文字）；
+  //       · 它返回的 tool_calls 仍然**补了配对的 tool 消息**（否则下次请求 400）。
   // ---------------------------------------------------------------------
   {
     const script = [{ toolCalls: [tc('t1', {})], finishReason: 'tool_calls' }]   // 永远要调工具
-    const toolExec = async () => ({ ok: true })
+    let execCount = 0
+    const toolExec = async () => { execCount++; return { ok: true } }
     const A = await runCase(() => setupOrbit(script, toolExec).deps, () => {}, script)
     const B = await runCase(() => setupMine(script, toolExec).deps, () => {}, script)
-    check('轮数上限一致（不让循环无限跑）',
-      A.events.done.rounds === B.events.done.rounds && B.events.done.rounds === 6,
+    check('轮数上限：参考实现停在 6 轮', A.events.done.rounds === 6, `原 ${A.events.done.rounds}`)
+    check('轮数上限：我们多要一轮"只写正文"的收尾（刻意分叉，不再逐字等价）',
+      B.events.done.rounds === A.events.done.rounds + 1,
       `原 ${A.events.done.rounds} / 新 ${B.events.done.rounds}`)
-    check('轮数上限用例：LLM 调用次数一致', A.calls.length === B.calls.length)
+    check('收尾那一轮发出了 no_text_final_round 通知',
+      B.events.notices.indexOf('no_text_final_round') >= 0,
+      JSON.stringify(B.events.notices))
+    check('LLM 调用次数 = 轮数（收尾那一轮也真的发了请求）',
+      A.calls.length === A.events.done.rounds && B.calls.length === B.events.done.rounds,
+      `原 ${A.calls.length}/${A.events.done.rounds} · 新 ${B.calls.length}/${B.events.done.rounds}`)
+    check('收尾那一轮**不执行**工具（它只要文字）',
+      A.events.done.tools.length === 6 && B.events.done.tools.length === 6,
+      `原 ${A.events.done.tools.length} / 新 ${B.events.done.tools.length}`)
+    check('两侧各执行 6 次工具，收尾那轮一次都没有', execCount === 12, '实际 ' + execCount)
+    /**
+     * ★ 收尾那一轮的 tool_calls 必须**补上配对的 tool 消息**：否则历史里
+     *   `assistant(tool_calls)` 后面没有对应的 `tool`，下一次请求会被服务端判格式非法。
+     * ★ 判据不能写成"全局 Map 里有没有未配对的 id"：**本用例每轮复用同一个 id**
+     *   （`call_t1`），那样写会被后面的重复 id 重置，报出并不存在的悬空（实测踩到）。
+     *   配对是**位置**关系 —— 这里按"每条 tool 消息的 id 必须出现在它**之前**的
+     *   assistant.tool_calls 里，且条数相当"来判，与 store 的 `ensureValid` 同一口径。
+     */
+    const hist = B.history
+    const seenIds = []
+    let orphanTools = 0
+    let callCount = 0
+    for (const m of hist) {
+      if (m.role === 'assistant' && Array.isArray(m.tool_calls)) {
+        for (const c of m.tool_calls) if (c && c.id) { seenIds.push(c.id); callCount++ }
+      } else if (m.role === 'tool' && m.tool_call_id) {
+        const k = seenIds.indexOf(m.tool_call_id)
+        if (k >= 0) seenIds.splice(k, 1)
+        else orphanTools++
+      }
+    }
+    check('收尾（未执行）的 tool_calls 也补了配对的 tool 消息',
+      orphanTools === 0 && seenIds.length === 0,
+      `孤儿 tool 消息 ${orphanTools} 条 / 未配对的 tool_call ${seenIds.length} 条`)
+    check('tool_calls 与 tool 消息数量相当（7 : 7）',
+      callCount === 7 && hist.filter((m) => m.role === 'tool').length === 7,
+      `tool_calls ${callCount} / tool 消息 ${hist.filter((m) => m.role === 'tool').length}`)
+  }
+
+  // ---------------------------------------------------------------------
+  // 用例 7b：上面那道"补要正文"的闸门**不得误触发**（有对照才算验过）
+  //
+  // 两半，各对应一种正常形态：
+  //   ① 中间某个回合写过正文、最后一轮只调工具 ⇒ 整轮**已经回答过了**，不该再补；
+  //   ② 整轮一次工具都没动过（模型直接说"我不知道"）⇒ 不是"把预算花在排演示上"
+  //      那个形态，补一轮只会白花钱。
+  // ---------------------------------------------------------------------
+  {
+    // ① 第 1 轮写正文 + 调工具，第 2 轮只调工具，第 3 轮无工具（脚本最后一条会被复用）
+    const script1 = [
+      { content: '先给结论：这是 C₂。', toolCalls: [tc('t1', {})], finishReason: 'tool_calls' },
+      { toolCalls: [tc('t2', {})], finishReason: 'tool_calls' },
+      { toolCalls: [tc('t3', {})], finishReason: 'tool_calls' },
+    ]
+    const B1 = await runCase(() => setupMine(script1, async () => ({ ok: true })).deps, () => {}, script1)
+    check('中间回合写过正文 ⇒ 不补"只写正文"的收尾',
+      B1.events.notices.indexOf('no_text_final_round') < 0 && B1.events.done.rounds === 6,
+      `notices=${JSON.stringify(B1.events.notices)} rounds=${B1.events.done.rounds}`)
+
+    // ② 一次工具都不动（脚本无 toolCalls）
+    const script2 = [{ content: '', finishReason: 'stop' }]
+    const B2 = await runCase(() => setupMine(script2, async () => ({ ok: true })).deps, () => {}, script2)
+    check('整轮没动过手 ⇒ 也不补（那不是"预算花在排演示上"的形态）',
+      B2.events.notices.indexOf('no_text_final_round') < 0 && B2.events.done.rounds === 1,
+      `notices=${JSON.stringify(B2.events.notices)} rounds=${B2.events.done.rounds}`)
   }
 
   // ---------------------------------------------------------------------
@@ -1850,8 +1927,18 @@ console.log(`\n${'═'.repeat(60)}`)
   //   实测（真实浏览器，造一个"两轮消息 + 中间三张卡"的会话再重画）：
   //     第一问 → 第一答 → ①知识点 → ②题目卡 → ③判定卡 → 小追问… ✓
   // ─────────────────────────────────────────────────────────────────────────
+  /**
+   * ★★ 2026-10-15 更新（用户："'已切到点群观鉴模块'被放到了最下面"）：
+   *   原先只断言 `{ el, afterMid }`。现在还需要**第二个锚点**：中途产生的提示条
+   *   前面一条落盘消息都没有（本轮提问还没 mid、在途气泡也还没 mid）⇒ 只靠 afterMid
+   *   一定落到末尾 ✗。故这里同时钉住 `committedBefore`（创建时刻记下的"已落盘消息条数"）
+   *   与它的读取处 `chipsAfterMid`。
+   */
   check('重画时按锚点接回卡片（记下前面最近一条消息的 mid）',
-    /return \{ el, afterMid \}/.test(panelSrc) && /p\.dataset\.mid/.test(panelSrc))
+    /return \{ el, afterMid, committedBefore, chipOrder/.test(panelSrc) && /p\.dataset\.mid/.test(panelSrc))
+  check('中途提示条还有第二个锚点（创建时记"已落盘消息条数"，否则必然掉到最下面）',
+    /chipsAfterMid/.test(panelSrc) && /committedBefore/.test(panelSrc)
+    && /dataset\.chipsAfterMid !== undefined/.test(panelSrc))
   check('接回走 restoreDomOnly（不再一律追加到末尾）',
     /function restoreDomOnly\(/.test(panelSrc) && !/keep\.forEach\(\(el\) => msgBox\.appendChild\(el\)\)/.test(panelSrc)
     && (panelSrc.match(/restoreDomOnly\(keep\)/g) || []).length >= 3)

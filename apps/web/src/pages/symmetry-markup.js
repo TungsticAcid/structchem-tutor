@@ -163,9 +163,17 @@ export const SYMMETRY_CSS = `    .sym-page {
      *   ★ 陷阱：元素行**不在**本段 —— 组内子行被下面那条
      *     （#info-panel .elem-group-body .elem-item）压着（特异性更高），
      *     分组标题也另有其规则，见那两处的注释。
+     * ★★ 2026-10-15 再上调一次（用户两条：分子式与标题同号、对称操作符号大一点）：
+     *   分子式 14.5 → **18**（与 .struct-title 同号）· 元素行（组头/子行/身份行）16 → **17.5**。
      */
     #info-panel .struct-title { font-size: 18px; font-weight: 700; margin-bottom: 2px; }
-    #info-panel .struct-formula { font-size: 14.5px; color: var(--panel-dim, #9aa3b5); margin-bottom: 10px; }
+    /**
+     * ★★ 2026-10-15（用户："分子式字体大小要跟'甲烷'一样大"）：
+     *   分子式（CH₄）原先 14.5px，而标题（甲烷）是 18px，两行读起来一大一小。
+     *   按用户要求**与标题同号**（18px）。★ 字重不跟：标题 700、这里保持常规 ——
+     *   两行同号同粗会互相抢视线，分子式靠颜色（--panel-dim）与标题区分。
+     */
+    #info-panel .struct-formula { font-size: 18px; color: var(--panel-dim, #9aa3b5); margin-bottom: 10px; }
     #info-panel .group-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
     #info-panel .group-symbol {
       font-size: 28px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;
@@ -176,9 +184,13 @@ export const SYMMETRY_CSS = `    .sym-page {
       font-size: 13.5px; color: var(--panel-dim, #9aa3b5); font-weight: 600;
       margin: 12px 0 6px; text-transform: uppercase; letter-spacing: 1px;
     }
+    /* ★ 身份行（恒等元素 E、"没有对称元素"这类顶层 .elem-item）与组头/子行同号 ——
+       16 → **17.5**（2026-10-15 用户："对称操作的符号字体也大一点"）。
+       ★ 与下面那条 .elem-group-body .elem-item 必须**一起改**：只改这条，
+         组内子行（特异性更高）不受影响，就会出现"组头 17.5、子行 16"的分叉。 */
     #info-panel .elem-item {
       display: flex; align-items: center; gap: 8px;
-      padding: 6px 6px; font-size: 16px;
+      padding: 6px 6px; font-size: 17.5px;
       border-radius: 5px; cursor: default;
     }
     #info-panel .elem-item:hover { background: var(--panel-item-bg); }
@@ -241,7 +253,7 @@ export const SYMMETRY_CSS = `    .sym-page {
        真正生效的三处一起上调：分组标题 13 → 14、子行 12 → 16、入口 12 → 13.5。 */
     #info-panel .elem-group-header {
       display: flex; align-items: center; gap: 8px;
-      padding: 4px 6px; font-size: 14px;
+      padding: 4px 6px; font-size: 17.5px;
       border-radius: 5px; cursor: pointer; user-select: none;
     }
     #info-panel .elem-group-header:hover { background: var(--panel-item-bg); }
@@ -259,8 +271,11 @@ export const SYMMETRY_CSS = `    .sym-page {
     #info-panel .elem-arrow { margin-left: auto; color: var(--panel-dim, #9aa3b5); font-size: 12px; }
     #info-panel .elem-group-body { padding-left: 14px; margin-bottom: 2px; }
     /* ★★ 这一条是**真正生效**的"元素行"字号（特异性高于上面那条 .elem-item 基础规则）：
-       12 → 16。身份行（.elem-item 顶层）与组内子行从此一致，不再一大一小。 */
-    #info-panel .elem-group-body .elem-item { display: flex; align-items: center; gap: 8px; padding: 3px 6px; font-size: 16px; }
+       12 → 16 → **17.5**（2026-10-15 用户："对称操作的符号字体也大一点"）。
+       身份行（.elem-item 顶层）与组内子行保持**同号**，不再一大一小。
+       ★ 只动 font-size，不动行高与 padding —— 面板固定宽度，字号变化不会引起换行；
+         实测同屏截图确认 ×N 计数列仍然上下对齐。 */
+    #info-panel .elem-group-body .elem-item { display: flex; align-items: center; gap: 8px; padding: 3px 6px; font-size: 17.5px; }
     #info-panel .elem-group-body input[type="checkbox"] { accent-color: var(--accent); }
     #info-panel .elem-label { flex: 1; min-width: 0; }
     #info-panel .elem-play {

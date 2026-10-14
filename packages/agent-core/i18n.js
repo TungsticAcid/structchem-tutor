@@ -36,6 +36,15 @@ export const zh = {
   'agent.continue.truncated':
     '（上一条回复因长度上限被截断，请从中断处继续写完，不要重复已经写过的内容。'
     + '公式务必写成：行内 $…$ 不跨行，独立成行的 $$…$$ 独占一行。）',
+  /**
+   * ★★ 2026-10-15：轮数用尽而整轮没写过正文时，补要的"只写正文"收尾指令。
+   *   真机复现：模型连走 6 个回合全是"看画面 + 排演示"，一次正文都没写 ⇒
+   *   面板上只剩一排折叠的「已思考」，学生拿不到任何回答。
+   */
+  'agent.continue.finalAnswer':
+    '（你刚才一直在查看视图与排演示，但**还没有写出正文回答**。现在请直接用文字回答我的问题：'
+    + '先给结论，再给关键依据。**不要再调用任何工具、也不要再排演示** —— 我需要的是文字答案。）',
+  'agent.tool.skippedNote': '本轮只需文字回答，该调用被跳过（未执行）',
 
   // ==========================================================================
   // core/feynman.js
@@ -462,6 +471,11 @@ export const en = {
     '(The previous reply was cut off by the length limit. Continue from where it stopped and '
     + 'do not repeat what you already wrote. Write every formula as: inline $…$ without a line '
     + 'break, and a display $$…$$ on its own line.)',
+  'agent.continue.finalAnswer':
+    '(You have been inspecting the view and queueing demos, but you have **not written the text '
+    + 'answer yet**. Answer my question in words now: give the conclusion first, then the key '
+    + 'evidence. **Do not call any more tools and do not queue more demos** — I need a written answer.)',
+  'agent.tool.skippedNote': 'Only a written answer was needed this round, so this call was skipped (not executed)',
 
   // ==========================================================================
   // core/feynman.js

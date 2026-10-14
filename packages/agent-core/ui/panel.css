@@ -340,6 +340,29 @@ body.agent-resizing .compare-page {
   max-height: 200px;
   overflow-y: auto;
 }
+/**
+ * ★★ 2026-10-15（用户报："询问问题后，智能体的回复很多只有思考"）：**思考与正文要分得开**。
+ *
+ *   现象：思考块展开时，那段几百到几千字的推理与**正文回答**在同一个气泡里上下紧贴
+ *   （`.agent-think-body` 只有一条左侧竖线），学生读到的是一大团字，看不出
+ *   "哪一段是模型想的、哪一段是给我的回答"——他描述的就是"思考与回复的拆分异常"。
+ *
+ *   判据：展开的思考下面必须有**一条分隔线**，正文才读得出"这是答案"。
+ *   ★ 只在 `[open]` 时加：收起状态下紧跟着的就是正文，本来就不该有别人的线。
+ *   ★ 不选 `:first-child`（流式气泡里正文前面还有一个 `.agent-text` 外壳，位置不固定），
+ *     改用"正文块紧跟思考块"这个结构事实，重画路径与流式路径同样成立。
+ */
+.agent-think[open] ~ .md-line,
+.agent-think[open] ~ .md-gap,
+.agent-think[open] ~ .md-h,
+.agent-think[open] ~ .md-table,
+.agent-think[open] ~ .md-math-block,
+.agent-think[open] ~ .md-quote,
+.agent-think[open] ~ ul {
+  border-top: 1px solid var(--line-soft, #202b48);
+  margin-top: 8px;
+  padding-top: 8px;
+}
 
 /* 动作气泡 */
 .agent-action {

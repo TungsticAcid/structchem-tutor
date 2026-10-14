@@ -685,6 +685,21 @@ let lastDemoId = null
             why = T('模型这次只在后台查了资料，没写正文。可以直接追问要结论，或再发一条让它把讲解补上。')
           } else if (o.finishReason === 'tool_calls') {
             why = T('模型这次只发起了动作调用，没写正文（动作已排进上面的演示队列）。可以直接追问要结论，或再发一条让它把讲解补上。')
+          } else if (o.hadAction) {
+            /**
+             * ★★ 2026-10-15（用户报："询问问题后，智能体的回复很多只有思考"）——真机复现的这一支：
+             *   模型整轮都在排演示/看画面，一个回合都没写正文（实测有 6 轮 / 9 次调用 /
+             *   5780 字思考、0 个回合写正文的形态），面板上只剩折叠的「已思考」。
+             *   原先这里落到最后那句通用文案（"只输出了思考内容…换一个模型试试"），
+             *   它**说错了原因**：不是模型不会写，而是它把这一轮花在演示上了。
+             *   ⇒ 如实说清 + 给出学生真正能做的下一步。
+             * ★ 判据用 `o.hadAction`（本轮确实下发过动作）而不是猜 finish_reason：
+             *   `finish_reason` 在流式实现里可能缺失，而"有没有动手"是我们自己数出来的事实。
+             * ★ 措辞只断言**我们真的知道的事**（这一轮排了演示、没写正文），
+             *   **不**声称"额度已经用尽" —— 面板看不到轮数的真实消耗，
+             *   而"轮数用尽"这一支已经由对话循环**结构性地**补了一轮（见 conversation.js）。
+             */
+            why = T('模型这一轮把精力都花在了查看画面与排演示上，没写正文回答。可以点上面的「下一步」先看演示，再追问一句要结论；或者把问题问得更直接（例如「直接告诉我答案是…」）。')
           } else {
             // ★ 有思考 / 连思考都没有：两条都是**完整句子**，不拼半截
             //   （拼半截的话译文语序会错位，而且扫描替换也对不上）
@@ -1690,9 +1705,64 @@ let lastDemoId = null
     return label
   }
 
+  /**
+   * 提示条的**创建序**（单调递增）。
+   * ★ 只用于"同一锚点上的多条提示条"排序 —— 它们在重画后共享同一个落点，
+   *   没有它就分不出谁先谁后（真机实测：先切点群、后切轨道，屏上轨道那条反而在下）。
+   */
+  let chipOrder = 0
+
   function addChip(text, cls) {
+    /**
+     * ★★ 2026-10-15（用户："'已切到点群观鉴模块'被放到了最下面"）：
+     *   **锚点必须在"创建这一刻"记下来**，不能等重画时再回头推断。
+     *
+     *   为什么：重画前会先把在途标记（`data-pending`）撤掉、或先把气泡摘下来，
+     *   那些"这一刻"的信息在快照时**已经不存在了** —— 实测：把判据写成"快照时还有没有
+     *   在途气泡"，探针里只要先撤标记就整条失效（提示条照样落到最下面）。
+     *
+     *   记什么：`chipsAfterMid` = "我出现时**已经落盘**的消息条数"。
+     *   这个数在一轮之内是常量（本轮的消息要等本轮结束才落盘），而重画之后
+     *   "已落盘的消息"恰好就是**前 N 条** ⇒ 提示条插在第 N 条之后，
+     *   就落在"提交过的内容之后、本轮回答之前"，顺序与发生顺序一致。
+     *
+     *   ★ 只在**确实有在途气泡**时记（说明这一轮还没落盘、才有"要越过的回答"）；
+     *     回合结束后才产生的提示条没有这个语境，留末尾才是对的（老语义）。
+     */
+    const el = addMsg('<span class="agent-chip ' + (cls || '') + '">' + escapeHtml(text) + '</span>', 'chip-row')
+    try {
+      if (el && el.dataset) {
+        /**
+         * ★ 这一步只**内部计算**：先数一遍"此刻已落盘的消息条数"。
+         *   `hasPending` 决定**要不要把这个位置当锚点用**：
+         *     · 有在途气泡（这一轮已经在跑）⇒ 用它 —— 提示条要落在本轮回答之前；
+         *     · 没有在途气泡但**存在一条还没落盘的提问气泡**（例：模型调 navigateTo
+         *       切板块发生在 doSend 之后、runAgent 之前）⇒ 也必须用 ——
+         *       否则它会落到"提问 → 回答"之后，读起来像回答完了才切板块（真机实测）。
+         *     · 两者都没有（回合结束后才产生的通知）⇒ 不记，留末尾才是老语义。
+         */
+        let committed = 0
+        for (const cand of msgBox.children) {
+          if (cand !== el && cand.dataset && cand.dataset.mid) committed++
+        }
+        const hasPending = !!(msgBox && typeof msgBox.querySelector === 'function' && msgBox.querySelector('[data-pending]'))
+        const tail = el.previousElementSibling
+        const openUserBubble = !!(tail && tail.dataset && !tail.dataset.mid
+          && tail.classList && tail.classList.contains('agent-msg') && tail.classList.contains('user'))
+        if (hasPending || openUserBubble) {
+          el.dataset.chipsAfterMid = String(committed)
+          /**
+           * ★★ 2026-10-15（真机实测抓到）：**同一个锚点上会有多条提示条**——
+           *   例如"已切到「点群观鉴」模块"与"已切到「轨道视界」模块"都发生在
+           *   "还没有任何落盘消息"的时刻（并列在第一问下面），只有锚点就**分不出先后**，
+           *   后插的那条会挤到前面。⇒ 再记一个单调递增的**创建序**，同锚点时按它排序。
+           */
+          el.dataset.chipOrder = String(++chipOrder)
+        }
+      }
+    } catch (e) { /* 拿不到位置就退回老行为（末尾），不影响提示本身 */ }
     // ★ 返回元素：调用方常需要给它挂标记/绑定（本仓库踩过"只为了副作用的函数被当返回值用"）。
-    return addMsg('<span class="agent-chip ' + (cls || '') + '">' + escapeHtml(text) + '</span>', 'chip-row')
+    return el
   }
 
   /**
@@ -1760,12 +1830,48 @@ let lastDemoId = null
      *   ⇒ 收的时候顺带记下"它**前面最近一条消息**的 mid"（`addMsg` 落的 `dataset.mid`），
      *     重画后按这个锚点插回原位；锚点找不到（那条消息被删/换分支）才退回末尾。
      */
+    /**
+     * ★★ 2026-10-15（用户："'已切到点群观鉴模块'被放到了最下面"）：
+     *   `afterMid`（"插在某条已落盘消息之后"）只覆盖"前面已有落盘消息"的情形。
+     *   **中途产生的提示条**前面**一条落盘消息都没有**：本轮的用户提问（面板不传 mid）
+     *   与正在流式的助手气泡（mid 要等这一轮结束才有）都还没有 mid ⇒ 向后扫一无所获，
+     *   重画后一律 appendChild 到末尾 —— 顺序成了"…回答 → 提示条"，
+     *   而事实是"…→ 切换板块 → 回答" ✗（用户截图里它就在最下面）。
+     *
+     *   ⇒ 再取一个**逻辑位置**：`committedBefore` = "创建这一刻已落盘的消息条数"
+     *     （由 `addChip` 在创建时算好、挂在 `data-chipsAfterMid` 上，见那里的说明）。
+     *     这个数在一轮之内是**常量**（本轮的消息要等本轮结束才落盘），而重画之后
+     *     "已落盘的消息"恰好就是**前 `committedBefore` 条** ⇒ 把提示条插在第
+     *     `committedBefore` 条消息**之后**，就落在"提交过的内容之后、本轮回答之前"，
+     *     顺序与发生顺序一致。
+     *
+     *   ★ 为什么要"创建时记"而不是"快照时现推"：重画前会先撤在途标记/摘气泡，
+     *     那些信息到快照时刻**已经不存在了** —— 实测：写成"快照时还有没有在途气泡"，
+     *     只要先撤标记就整条判据失效，提示条照样落到最下面。
+     */
     const wrap = (el) => {
       let afterMid = null
       for (let p = el.previousElementSibling; p; p = p.previousElementSibling) {
         if (p.dataset && p.dataset.mid) { afterMid = p.dataset.mid; break }
       }
-      return { el, afterMid }
+      /**
+       * ★ 位置优先取**创建时**记下的 `data-chipsAfterMid`（见 addChip 的说明）；
+       *   没有这个标记（老节点，或提示条创建时本来就没有"要越过的回答"）时，
+       *   才退回"快照时现推"——两条路都拿不到就留末尾（老语义）。
+       */
+      let committedBefore = NaN
+      if (!afterMid && el.dataset && el.dataset.chipsAfterMid !== undefined) {
+        committedBefore = Number(el.dataset.chipsAfterMid)
+      } else if (!afterMid) {
+        const hasPending = !!(msgBox && typeof msgBox.querySelector === 'function' && msgBox.querySelector('[data-pending]'))
+        if (hasPending) {
+          committedBefore = 0
+          for (let p = el.previousElementSibling; p; p = p.previousElementSibling) {
+            if (p.dataset && p.dataset.mid) committedBefore++
+          }
+        }
+      }
+      return { el, afterMid, committedBefore, chipOrder: (el.dataset && el.dataset.chipOrder) ? Number(el.dataset.chipOrder) : NaN }
     }
     return Array.from(msgBox.children)
       /**
@@ -1788,21 +1894,85 @@ let lastDemoId = null
    */
   function restoreDomOnly(list) {
     if (!msgBox) return
+    /**
+     * ★★ 2026-10-15：游标必须**记住它属于哪个锚点**（`cursorKey`），不能只记元素。
+     *
+     *   原先只留 `cursor`，于是"上一张卡"与"本张卡"的锚点**不同**时也会拿它当参照
+     *   （注释里那条 `cursor === anchor || FOLLOWING` 是"同一锚点连续多张卡"的优化）。
+     *   现在锚点有**两类**（afterMid 向后 / beforeMid 向前），混在一起会出现
+     *   "本题的提示条被插到上一条锚点旁边"这类静默错位。用 key 一比就不会串。
+     */
     let cursor = null
+    let cursorKey = null
+    /** 最近一次"按创建序插入"的那条的创建序（同锚点排序用，见 addChip 的 chipOrder） */
+    let lastOrder = NaN
+    const findMid = (mid) => {
+      if (!mid) return null
+      for (const cand of msgBox.children) {
+        if (cand.dataset && cand.dataset.mid === mid) return cand
+      }
+      return null
+    }
     for (const item of (list || [])) {
       const el = item && item.el
       if (!el) continue
-      let anchor = null
-      if (item.afterMid) {
+      const afterKey = item.afterMid ? 'a:' + item.afterMid : null
+      /**
+       * ★ 逻辑位置兜底（见 domOnlyNodes 里 committedBefore 的说明）：
+       *   插在"重画后的第 `committedBefore` 条已落盘消息**之后**"——
+       *   也就是**本轮回答之前**。用户报的"提示条掉到最下面"正是靠它复原顺序。
+       */
+      const posKey = (!afterKey && Number.isFinite(item.committedBefore)) ? 'm:' + item.committedBefore : null
+      const key = afterKey || posKey
+      const anchor = afterKey ? findMid(item.afterMid) : null
+      if (!anchor && posKey) {
+        /**
+         * ★ 先按"落盘消息"数：第 `committedBefore` 条**已落盘**消息之后，
+         *   就是"提交过的内容之后、本轮回答之前"。
+         */
+        let seen = 0
+        let pre = null
         for (const cand of msgBox.children) {
-          if (cand.dataset && cand.dataset.mid === item.afterMid) { anchor = cand; break }
+          if (cand.dataset && cand.dataset.mid) {
+            if (seen === item.committedBefore) { pre = cand; break }
+            seen++
+          }
+        }
+        /**
+         * ★ 一条落盘消息都还没有时（例如**全新会话里的第一问**：面板给用户气泡不传
+         *   mid，本轮回答也还没落盘）⇒ 退到"**提问气泡**"（`.agent-msg.user`）——
+         *   它在本轮回答之前，正是提示条该待的位置。实测：不做这一步，提示条会掉到
+         *   本轮回答**下面**（用户截图里的样子）。
+         */
+        if (!pre) {
+          for (const cand of msgBox.children) {
+            if (cand.classList && cand.classList.contains('user') && cand.classList.contains('agent-msg')) { pre = cand; break }
+          }
+        }
+        /**
+         * ★ 同一位置的多条提示条要**接在上一张之后**（`after()` 会把它们弄成倒序）。
+         * ★ `pre` 仍为空 ⇒ 退回落末尾，与老行为一致。
+         */
+        if (pre && pre.parentNode === msgBox) {
+          /**
+           * ★ 同一落点上的多条提示条要**按创建序**排（真机实测：先切点群、后切轨道，
+           *   两条都落在"第一问下面"，只看锚点会分不出先后、后插的挤到前面）。
+           *   当前游标落在同一锚点上、且游标的创建序更小 ⇒ 接在它后面；
+           *   否则退到"锚点之后"（不同锚点/乱序时不会串）。
+           */
+          const sameRun = cursor && cursorKey === key && cursor.parentNode === msgBox
+            && Number.isFinite(item.chipOrder) && Number.isFinite(lastOrder)
+            && item.chipOrder > lastOrder
+          ;(sameRun ? cursor : pre).after(el)
+          cursor = el; cursorKey = key; lastOrder = item.chipOrder
+          continue
         }
       }
-      if (!anchor) { msgBox.appendChild(el); cursor = el; continue }
-      const sameRun = cursor && cursor.parentNode === msgBox
+      if (!anchor) { msgBox.appendChild(el); cursor = el; cursorKey = null; continue }
+      const sameRun = cursor && cursorKey === key && cursor.parentNode === msgBox
         && (cursor === anchor || (anchor.compareDocumentPosition(cursor) & Node.DOCUMENT_POSITION_FOLLOWING))
       ;(sameRun ? cursor : anchor).after(el)
-      cursor = el
+      cursor = el; cursorKey = key
     }
   }
 

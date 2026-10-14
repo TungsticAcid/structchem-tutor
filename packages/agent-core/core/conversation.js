@@ -46,6 +46,24 @@ export const DEFAULT_MAX_ROUNDS = 6
  * 给 2 次足够补完一段长推导，又不至于把一轮对话拖成没完没了的续写。
  */
 export const DEFAULT_MAX_CONTINUES = 2
+/**
+ * 轮数用尽而整轮**一个字正文都没写**时，是否允许再要一轮"只写正文"的收尾。
+ *
+ * ★★ 2026-10-15（用户报："询问问题后，智能体的回复很多只有思考"）——真机复现：
+ *   问"把甲烷 Td 的对称元素全部演示给我看，同时逐个解释"，模型连走 **6 个** LLM 回合
+ *   （9 次工具调用，5780 字思考），**0 个回合写了正文**，正好撞上 maxRounds=6 ⇒
+ *   循环结束。面板上因此只剩 5 个「已思考（点击展开）」折叠块，学生看不到任何回答 ✗。
+ *
+ *   这是"循环的出口"的问题，不是模型不会写：它只是把预算全花在"看画面/排演示"上。
+ *   所以出口必须先要一句结论 —— 与提示词里那条"先答案后演示"是同一条铁律，
+ *   只是这里用**结构**保证它（提示词管不住的，就得由循环兜住）。
+ *
+ * ★ 这一轮是**最后的**一轮：`while (rounds < maxRounds)` 已经为假，不会再循环，
+ *   所以既不会无限续下去，也没有"多给几轮工具调用"的副作用。
+ * ★ 给这一轮发的指令显式要求**不要调用任何工具**：否则模型很可能又去调一个工具，
+ *   拿到 `tool_calls` 后历史里就要配上 tool 消息，而循环已经结束 —— 学生仍然没有正文。
+ */
+const FINAL_ANSWER_ROUNDS = 1
 
 /**
  * 组装「清单」部分：知识库与技能库只放索引，正文由模型按需拉取。
@@ -170,11 +188,45 @@ export function createConversation(opts = {}) {
     const executedTools = []
     let rounds = 0
     let continues = 0                    // 因长度截断而「接着写」的次数（有上限）
+    /**
+     * 整轮是否已经写过正文（任何一个回合都算）。
+     * ★ 判据是"**整轮**"而不是"最后一轮"：中间回合写过讲解、最后那个回合只调了工具，
+     *   是完全正常的形态（见 panel.js 的 roundTextChars 同一条判据）。
+     */
+    let wroteText = false
     // 留证据：空正文到底是怎么来的，靠这两个字段才能说清，而不是猜
     let lastFinishReason = null
     let lastUsage = null
 
     try {
+      /**
+       * 发一次 LLM 请求并把流式增量转给面板。
+       *
+       * ★ 抽出来是为了让"正常回合"与"补要正文的收尾回合"**只有一处**实现：
+       *   两处各写一遍的话，`streamedReasoning` 的累加口径、onNotice 的抑制、aborted
+       *   的短路只要有一样漂了，就会变成"某一条路下思考凭空多出一段/少一段"这种
+       *   静默差别（本仓库最怕的那类）。
+       *
+       * @returns {Promise<{out: Object, streamedReasoning: string}>}
+       */
+      async function askOnce(msgs) {
+        let streamedReasoning = ''
+        const out = await llm.chat({
+          settings,
+          maxTokens: settings.maxTokens,
+          messages: msgs,
+          tools: getTools(),
+          signal: abortCtrl.signal,
+          onNotice: (n) => { if (!aborted) H.onNotice(n) },
+          onDelta: (ev) => {
+            if (aborted) return
+            if (ev.type === 'reasoning') streamedReasoning += ev.text
+            H.onDelta(ev)
+          },
+        })
+        return { out, streamedReasoning }
+      }
+
       while (rounds < maxRounds) {
         if (aborted) break
         rounds++
@@ -197,25 +249,14 @@ export function createConversation(opts = {}) {
 
         // ③ 调用（流式）
         // 记录本轮"流式吐出来的"思考长度，供第 ④ 步按差额补发
-        let streamedReasoning = ''
-        const out = await llm.chat({
-          settings,
-          maxTokens: settings.maxTokens,
-          messages: msgs,
-          tools: getTools(),
-          signal: abortCtrl.signal,
-          onNotice: (n) => { if (!aborted) H.onNotice(n) },
-          onDelta: (ev) => {
-            if (aborted) return
-            if (ev.type === 'reasoning') streamedReasoning += ev.text
-            H.onDelta(ev)
-          },
-        })
+        const { out, streamedReasoning } = await askOnce(msgs)
 
         if (aborted) break
 
         lastFinishReason = out.finishReason
         lastUsage = out.usage
+        // ★ 只要**任何**一个回合写了非空白正文，整轮就算"回答过了"（尾部收尾判据用）
+        if (out.content && out.content.trim()) wroteText = true
 
         // 补发没流式吐出来的思考内容（只补差额，避免与已流出的部分重复）
         if (out.reasoning && out.reasoning.length > streamedReasoning.length) {
@@ -314,6 +355,67 @@ export function createConversation(opts = {}) {
         }
 
         // 继续下一轮，让模型看到工具结果后再决定
+      }
+
+      /**
+       * ★★ 2026-10-15：**轮数用尽却一个字正文都没写** ⇒ 再要一轮"只写正文"的收尾。
+       *
+       * 真机复现（见 FINAL_ANSWER_ROUNDS 的说明）：模型 6 个回合全用在工具调用上，
+       * 循环到上限就结束，面板上只剩一排折叠的「已思考」，学生拿不到任何回答。
+       *
+       * ★ 只在"整轮都没写过正文 **且** 这一轮确实动过手"时补：什么都不做就结束的
+       *   （比如模型直接说"我不懂"）不是这个形态，不该再补一轮。
+       * ★ 补的这一轮**不写进 while 条件**，而是给历史追加一条明确的收尾指令后
+       *   再判一次 —— 条件写在 while 里会让"每次都不写正文"的模型把轮数无限拖长。
+       */
+      if (!aborted && !wroteText && executedTools.length) {
+        H.onNotice({ kind: 'no_text_final_round' })
+        history.push({ role: 'user', origin: 'continuation', content: t('agent.continue.finalAnswer') })
+        rounds++
+        let snapshotText = ''
+        if (typeof getSnapshotText === 'function') {
+          const snapText = getSnapshotText()
+          if (snapText) snapshotText = t('agent.snapshot.header') + '\n' + snapText
+        }
+        const msgs = [{ role: 'system', content: buildSystem() }].concat(history)
+        if (snapshotText) msgs.splice(1, 0, { role: 'system', content: snapshotText })
+        /**
+         * ★ 工具定义**照旧**交给模型，但收尾指令明确禁止调用它们。
+         *   为什么不干脆传空数组：那样服务端对"openai 兼容"的实现要求各不相同
+         *   （有的把空 tools 当成格式错误），而指令＋下面的处理已经足够兜住。
+         */
+        const { out, streamedReasoning } = await askOnce(msgs)
+        if (!aborted) {
+          lastFinishReason = out.finishReason
+          lastUsage = out.usage
+          const roundReasoning = streamedReasoning || out.reasoning || ''
+          const asstMsg = { role: 'assistant', content: out.content || '', reasoning: roundReasoning }
+          if (out.toolCalls.length) {
+            /**
+             * ★ 模型还是去调工具了（指令没能拦住）。这里**必须**为每个 tool_call
+             *   补一条 tool 结果消息：否则历史里 tool_calls 与 tool 消息不配对，
+             *   下一次请求会被服务端判为格式非法（见文件头第 4 条）。
+             *   ★ 但**不执行**这些调用 —— 这一轮的目的就是"要一句正文"，
+             *     真去改画面反而是学生没要的副作用。（指令里已要求不要调用。）
+             */
+            asstMsg.tool_calls = out.toolCalls.map((call) => ({
+              id: call.id, type: 'function',
+              function: { name: call.function.name, arguments: call.function.arguments },
+            }))
+            history.push(asstMsg)
+            for (const call of out.toolCalls) {
+              history.push({
+                role: 'tool', tool_call_id: call.id,
+                content: JSON.stringify({ skipped: true, note: t('agent.tool.skippedNote') }),
+              })
+            }
+          } else {
+            history.push(asstMsg)
+          }
+          if (out.content || roundReasoning) {
+            H.onMessage({ role: 'assistant', content: out.content || '', reasoning: roundReasoning })
+          }
+        }
       }
 
       running = false
