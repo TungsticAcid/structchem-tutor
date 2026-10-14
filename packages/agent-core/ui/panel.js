@@ -149,6 +149,8 @@ let demoFav
    */
   let running = false
   let pendingRender = false
+/** 在途气泡护栏的短重试状态（见 renderPath 里那段注释） */
+const pendingRetry = { n: 0, timer: 0 }
   let disposed = false
   let offProgress = null
   /**
@@ -540,6 +542,15 @@ let lastDemoId = null
     wrap.appendChild(think)
     wrap.appendChild(body)
     msgBox.appendChild(wrap)
+    /**
+     * ★★ 2026-10-14（用户选方案 B："保护在途气泡"）：
+     *   这个气泡**只存在于 DOM 里** —— 对话树要等一轮结束才写入。在此之前任何一次
+     *   `renderPath()`（从树重建整个消息区）都会把它连同思考块一起抹掉；而演示条与动作
+     *   气泡是 DOM-only 节点、会被 `restoreDomOnly()` 接回 ⇒ 屏幕上"只剩演示"。
+     *   所以打一个**在途标记**：`renderPath` 见到它就只记待办、不重画（见那里的护栏）；
+     *   本轮回调 finish() 里撤掉标记，标记撤掉后再重画。
+     */
+    wrap.dataset.pending = '1'
     scrollDown()
 
     let pendingText = ''
@@ -564,6 +575,9 @@ let lastDemoId = null
         o = o || {}
         // ★ 先掐掉排队中的那一帧再收尾，否则它随后会用空串再刷一次 → 空泡
         if (rafId) { caf(rafId); rafId = 0 }
+        // ★ 在途标记到此为止：这一轮已经结束，对话树随后（异步）写入 ⇒ 允许重画。
+        //   ★ renderPath 里还有一层"等 store 落盘"的重试，专门吸收这段异步时间差。
+        delete wrap.dataset.pending
         // 收尾时用**非流式**渲染兜一次：万一最后一条公式没闭合（被截断），
         // 流式模式会把它整段吞掉，这里补显
         if (pendingText) { flush(false); pendingText = '' }
@@ -1101,6 +1115,28 @@ let lastDemoId = null
      *     它会紧接着在本轮结束时执行一次（见 runAgent 末尾）。
      */
     if (running) { pendingRender = true; return }
+    /**
+     * ★★ 2026-10-14（用户第 3 次报："刚发完消息显示思考中和思维链，但出现演示后其他部分就看不到了；
+     *   切换板块后新输出不显示，演示出来之后连之前的输出和切换提示也不见了"）—— 方案 B。
+     *
+     *   `running` 那条护栏只挡住"运行**期间**"的重画 ✗；真正的空档在本轮**刚结束**那一下：
+     *   收尾会 renderPath()，而回答要等对话层**异步**写进 store ⇒ 两者赛跑，store 里还没有那条
+     *   回答时重画就把它抹掉；演示条/动作气泡是 DOM-only、会被 restoreDomOnly() 接回 ⇒ 屏幕只剩演示 ✗。
+     *
+     *   判据：消息区里只要还有**带在途标记**的气泡（正在流式的那条，见它的创建处），就先不重画 ——
+     *   记待办 + **短重试**（最多约 2 秒），标记一撤（finish）或超时即正常重画。绝不会卡死。
+     */
+    if (msgBox && msgBox.querySelector('[data-pending]')) {
+      pendingRender = true
+      if (pendingRetry.n < 20 && !pendingRetry.timer) {
+        pendingRetry.timer = setTimeout(() => {
+          pendingRetry.timer = 0; pendingRetry.n += 1
+          if (!msgBox || !msgBox.querySelector('[data-pending]') || pendingRetry.n >= 20) renderPath()
+        }, 100)
+      }
+      return
+    }
+    pendingRetry.n = 0
     if (!store && !tree) return
     const t = tree || { path: store.path(), forks: store.forkPoints() }
     const path = t.path || []
@@ -1499,6 +1535,22 @@ let lastDemoId = null
      *   推迟到这一轮收尾再画。
      */
     if (running) { pendingRender = true; return }
+    /**
+     * ★★ 2026-10-14（方案 B 的另一半）：空态刷新是"清空 + 画问候语"，同样是**整片重画**。
+     *   用户报的那条路径（提问中途切板块 → 路由挂载钩子 → 空态刷新）走的正是这里 ⇒
+     *   在途气泡护栏必须**两条路都装**，只装 renderPath 等于没修（用户第 3 次报的就是它）。
+     */
+    if (msgBox && msgBox.querySelector('[data-pending]')) {
+      pendingRender = true
+      if (pendingRetry.n < 20 && !pendingRetry.timer) {
+        pendingRetry.timer = setTimeout(() => {
+          pendingRetry.timer = 0; pendingRetry.n += 1
+          if (!msgBox || !msgBox.querySelector('[data-pending]') || pendingRetry.n >= 20) renderPath()
+        }, 100)
+      }
+      return
+    }
+    pendingRetry.n = 0
     const keep = domOnlyNodes()          // 卡片/提示条不在树里，见 domOnlyNodes 的说明
     clear(msgBox)
     const g = typeof cfg.greeting === 'function' ? cfg.greeting() : cfg.greeting
