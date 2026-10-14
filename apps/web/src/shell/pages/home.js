@@ -270,7 +270,7 @@ export class HomePage {
          *     标签与箭头就被逐行推走 ✗（实测三行箭头 x 各不相同）。所以概述列也必须**固定宽度**。
          */
         .portal.lang-zh { max-width: 780px; }
-        .portal.lang-zh .pl-row { grid-template-columns: 3.4em 7.5em 12em 14em auto; }
+        .portal.lang-zh .pl-row { grid-template-columns: 3.4em 7.5em 13.5em 14em auto; }
         /* 每一行：序号 / 名称 / 概述 / 箭头；用细线分隔，不用边框盒 */
         /**
          * ★★ 2026-10-14（用户："中英文模式下，按钮位置不一致了，应基本上一致"）：
