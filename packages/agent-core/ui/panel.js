@@ -550,7 +550,7 @@ let lastDemoId = null
      *   所以打一个**在途标记**：`renderPath` 见到它就只记待办、不重画（见那里的护栏）；
      *   本轮回调 finish() 里撤掉标记，标记撤掉后再重画。
      */
-    wrap.dataset.pending = '1'
+    if (wrap.dataset) wrap.dataset.pending = '1'   // ★ 无 DOM 桩（test-core）里没有 dataset ⇒ 必须防
     scrollDown()
 
     let pendingText = ''
@@ -577,7 +577,7 @@ let lastDemoId = null
         if (rafId) { caf(rafId); rafId = 0 }
         // ★ 在途标记到此为止：这一轮已经结束，对话树随后（异步）写入 ⇒ 允许重画。
         //   ★ renderPath 里还有一层"等 store 落盘"的重试，专门吸收这段异步时间差。
-        delete wrap.dataset.pending
+        if (wrap.dataset) delete wrap.dataset.pending
         // 收尾时用**非流式**渲染兜一次：万一最后一条公式没闭合（被截断），
         // 流式模式会把它整段吞掉，这里补显
         if (pendingText) { flush(false); pendingText = '' }
@@ -1126,7 +1126,7 @@ let lastDemoId = null
      *   判据：消息区里只要还有**带在途标记**的气泡（正在流式的那条，见它的创建处），就先不重画 ——
      *   记待办 + **短重试**（最多约 2 秒），标记一撤（finish）或超时即正常重画。绝不会卡死。
      */
-    if (msgBox && msgBox.querySelector('[data-pending]')) {
+    if (msgBox && typeof msgBox.querySelector === 'function' && msgBox.querySelector('[data-pending]')) {
       pendingRender = true
       if (pendingRetry.n < 20 && !pendingRetry.timer) {
         pendingRetry.timer = setTimeout(() => {
@@ -1540,7 +1540,7 @@ let lastDemoId = null
      *   用户报的那条路径（提问中途切板块 → 路由挂载钩子 → 空态刷新）走的正是这里 ⇒
      *   在途气泡护栏必须**两条路都装**，只装 renderPath 等于没修（用户第 3 次报的就是它）。
      */
-    if (msgBox && msgBox.querySelector('[data-pending]')) {
+    if (msgBox && typeof msgBox.querySelector === 'function' && msgBox.querySelector('[data-pending]')) {
       pendingRender = true
       if (pendingRetry.n < 20 && !pendingRetry.timer) {
         pendingRetry.timer = setTimeout(() => {
