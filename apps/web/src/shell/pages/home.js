@@ -236,29 +236,44 @@ export class HomePage {
         .portal {
           min-height: 100vh; box-sizing: border-box;
           display: flex; flex-direction: column; justify-content: center;
-          max-width: 720px; margin: 0 auto;
-          padding: 96px 32px 64px;
+          max-width: 1016px; margin: 0 auto;
+          padding: 32px 32px 24px;
           /* 用令牌，随主题切换（见 ui-kit/theme.js） */
           color: var(--text, #e8ecf7);
         }
         .pl-head { margin-bottom: 72px; }
+        /**
+         * ★★ 2026-10-14（用户："字体大一点，特别是右边三句"）：
+         *   原先这套字号偏小（序号 12 / 概述 12.5 / **右边那三句只有 11.5px** ✗），
+         *   用户点名右边三句 —— 它们是"学生得到什么"的结论句，不该是最弱的一档。
+         *   本轮整体上调：名称 19→24、概述 12.5→16、**右边三句 11.5→19**（一次涨 65%），
+         *   并把它的透明度从 .7 提到 .92（大了也要看得清）；层级仍靠颜色弱于"概述"。
+         */
         .pl-head h1 {
-          font-size: 40px; line-height: 1.28; font-weight: 300;
+          font-size: 46px; line-height: 1.28; font-weight: 300;
           letter-spacing: .14em; margin: 0;
           color: var(--text, #e8ecf7);
         }
         .pl-head h1 span { font-weight: 600; }
         .pl-sub {
-          margin: 20px 0 0; font-size: 13px; line-height: 1.9;
+          margin: 20px 0 0; font-size: 15px; line-height: 1.9;
           letter-spacing: .04em; color: var(--text-dim, #9aa7c6);
         }
         .pl-list { display: flex; flex-direction: column; }
         /* 每一行：序号 / 名称 / 概述 / 箭头；用细线分隔，不用边框盒 */
+        /**
+         * ★★ 2026-10-14（用户："中英文模式下，按钮位置不一致了，应基本上一致"）：
+         *   原先是 minmax(6.5em, auto) + 自适应列 ⇒ 英文名（Orbital Horizon）与英文概述
+         *   更长，把列**撑开**，于是"标签 + 箭头"整体右移，中英文两套位置对不上 ✗。
+         *   ⇒ 序号 / 名称 / 标签 三列改成**固定宽度**（1fr 只留给最长的概述列），
+         *     这样不管哪种语言，箭头都落在同一 x 上；概述列长了就自己换行。
+         *   ★ 本注释在模板串内部：不许出现反引号（今天已因此白屏三次）。
+         */
         .pl-row {
           display: grid;
-          grid-template-columns: 3.2em minmax(6.5em, auto) 1fr auto auto auto;
+          grid-template-columns: 3.4em 18em minmax(0, 1fr) 16em auto;
           align-items: baseline; gap: 20px;
-          padding: 22px 4px;
+          padding: 17px 4px;
           background: none; border: 0; font: inherit; text-align: left;
           color: inherit; cursor: pointer;
           border-top: 1px solid var(--line, rgba(255,255,255,.10));
@@ -269,27 +284,29 @@ export class HomePage {
         .pl-row:hover .pl-arrow { transform: translateX(6px); opacity: 1; }
         .pl-row:hover .pl-blurb { color: var(--accent, #7c9cf5); }
         .pl-no {
-          font-size: 12px; font-variant-numeric: tabular-nums;
+          font-size: 14px; font-variant-numeric: tabular-nums;
           letter-spacing: .12em; color: var(--text-dim, #9aa7c6);
           transition: color .22s ease;
         }
         .pl-row:hover .pl-no { color: var(--accent, #7c9cf5); }
-        .pl-name { font-size: 19px; font-weight: 500; letter-spacing: .04em; }
+        .pl-name { font-size: 24px; font-weight: 500; letter-spacing: .04em; }
         .pl-blurb {
-          font-size: 12.5px; letter-spacing: .02em;
+          font-size: 16px; letter-spacing: .02em;
           color: var(--text-dim, #9aa7c6);
           transition: color .22s ease;
         }
-        /* 「学生得到什么」那一句：比概述更弱一档（它是结论，不是内容清单）。
-           与配图底部三块一一对应：微观世界可观察 / 结构规律易剖析 / 构效关系得贯通。 */
+        /* 「学生得到什么」那一句：与配图底部三块一一对应
+           （微观世界可观察 / 结构规律易剖析 / 构效关系得贯通）。
+           ★ 2026-10-14 用户："右边三句和中间三句字体一样大即可" ⇒ 与 .pl-blurb 同为 16px。
+             字重与不透明度保持 500 / .92（层级仍靠颜色弱一档，只是不再更小）。 */
         .pl-tag {
-          font-size: 11.5px; letter-spacing: .08em;
-          color: var(--text-dim, #9aa7c6); opacity: .7;
+          font-size: 16px; letter-spacing: .04em; font-weight: 500;
+          color: var(--text-dim, #9aa7c6); opacity: .92;
           white-space: nowrap;
         }
         .pl-row:hover .pl-tag { color: var(--accent, #7c9cf5); opacity: 1; }
         .pl-arrow {
-          font-size: 15px; color: var(--accent, #7c9cf5); opacity: .5;
+          font-size: 18px; color: var(--accent, #7c9cf5); opacity: .5;
           transition: transform .22s ease, opacity .22s ease;
         }
         /* 未接入：弱化 + 如实标注。可变淡，但**仍然可读**——它是蓝图的一部分 */
