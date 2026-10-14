@@ -118,14 +118,18 @@ export const zh = {
     + '★ 同一条演示里**先"切换分子"、再引用该分子特有的元素 key** 会被拒（整批校验用的是**当前**分子的元素表）；'
     + '要引用新分子的元素，请**分两批下发**：先切分子，确认生效后再排引用它元素的那几步。'
     /**
-     * ★★ 2026-10-14（用户："提问'过氧化氢的结构'，回复'这本放开的书'，但是并没有打开辅助几何"）：
-     *   文字提到的画面元素必须**真的在画面上** —— 说"半开书/二面角"时，指的就是那两块半透明面，
-     *   而它们属于**辅助几何**图层 ⇒ 不同时打开，学生照着话在画面上找不到东西 ✗。
-     *   （这是"讲了就要看得见"的一个具体形态，与仓库里"排演示不等于回答"是同一类纪律。）
+     * ★★ 2026-10-14（用户报："提问'过氧化氢的结构'，回复'这本放开的书'，但是并没有打开辅助几何"；
+     *   随后纠正："不一定讲构象就要打开它。并且乙烷没有辅助几何"）。
+     *
+     *   我第一版写成"讲构象就必须打开辅助几何" ✗ —— **过度一般化**，而且举的乙烷例子是错的 ✗
+     *   （全库只有 CH₄ 的 cube 与 H₂O₂ 的 dihedral 有辅助几何，**乙烷没有**）。
+     *   真正该守的不变式是：**你话里描述的画面元素，必须真的存在、并且已经显示** ——
+     *   说"两块半透明面"，就得有那个图层且打开；没有这个图层的分子，不要那样描述。
      */
-    + '★ 讲到**构象 / 二面角**（如 H₂O₂ 的"半开书/扭曲构象"、乙烷的交叉式）时，'
-    + '必须同时下发 setAuxVisible（visible=true）**打开辅助几何** —— 那两块半透明面就是"二面角"的可视化；'
-    + '不打开图层，学生照着你的话在画面上什么都找不到。',
+    + '★ 你话里描述的画面元素**必须真的存在、并且已经显示**。例如要用"两块半透明面"来讲二面角'
+    + '（目前只有 **H₂O₂** 有这种辅助几何），就必须同时下发 setAuxVisible（visible=true）；'
+    + '**没有辅助几何的分子不要这样描述**（乙烷就没有 —— 讲它的交叉式请用 C₃′ / σ 这类对称元素'
+    + '或换视角说明）。一般地：不确定某个图层有没有数据时，先看快照/示例，别描述画面上不存在的东西。',
 
   // ---- 带变量的动态串（扫描替换做不到，必须走键） ----
   'shell.panel.switched': '已切到「{title}」模块',
@@ -306,10 +310,13 @@ export const en = {
     + 'is rejected (a batch is validated against the **current** molecule\'s element table); to reference a '
     + 'new molecule\'s elements, **send two batches**: switch molecule first, then queue the steps that use '
     + 'its element keys. '
-    + '★ When you talk about **conformation / dihedral angle** (H₂O₂\'s "open book / skewed" shape, the '
-    + 'staggered ethane), you must also queue setAuxVisible (visible=true) to **turn on the auxiliary '
-    + 'geometry** — those two translucent planes *are* the visualisation of the dihedral angle. Without '
-    + 'that layer, students cannot find on screen what your text describes.',
+    + '★ Any on-screen element you describe **must actually exist and already be shown**. For instance, '
+    + 'if you use "two translucent planes" to explain a dihedral angle (only **H₂O₂** has that kind of '
+    + 'auxiliary geometry today), you must also queue setAuxVisible (visible=true); for molecules that '
+    + 'have **no** auxiliary geometry, do not describe it that way (ethane has none — explain its '
+    + 'staggered conformation with symmetry elements such as C₃′ / σ, or by moving the view). In general: '
+    + 'if you are unsure whether a layer has data, check the snapshot or the example first, and never '
+    + 'describe something that is not on screen.',
 
   'shell.panel.switched': 'Switched to the "{title}" module',
   'shell.panel.restored': 'Restored your previous conversation ({n} messages) — the top-right menu starts a new one',
