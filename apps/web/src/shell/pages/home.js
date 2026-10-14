@@ -414,14 +414,15 @@ export class HomePage {
           background: radial-gradient(closest-side, color-mix(in srgb, var(--pt-ink-2) 16%, transparent), transparent);
         }
         .pt-shot-wrap { position: absolute; display: block; }
+        /**
+         * ★★ 2026-10-14（用户第 3 轮："图片大一点，80%以上透明度即可，可以盖住文字"）：
+         *   ① 透明度提到 **80% 以上** ⇒ opacity ≤ .2（原先 .58 偏实）；
+         *   ② 图片**放大**，并允许**压到左侧文字上**（用户明确说可以盖住文字）——
+         *      所以拼贴块向左越出，靠低不透明度让标题仍然可读。
+         */
         .pt-shot {
           display: block; width: 100%; height: auto;
-          /**
-           * ★★ 2026-10-14（用户："图片透明度高一点"）：
-           *   原先 .84 —— 三张图在 Hero 里偏"实"，压过了标题。按用户要求**调透**到 .58，
-           *   作为背景级装饰（文字仍是主角）；深色下再降一档（.52），配合补光仍看得清轮廓。
-           */
-          opacity: .58;
+          opacity: .2;
         }
         /**
          * ★★ 深色主题下给自有渲染图加一层**浅色外发光**：
@@ -430,7 +431,7 @@ export class HomePage {
          *   像素仍然全部来自应用自己的渲染器，只补一层光晕。
          */
         [data-theme="dark"] .portal .pt-shot {
-          opacity: .52;
+          opacity: .18;
           filter: drop-shadow(0 0 18px rgba(214, 232, 255, .38));
         }
         /**
@@ -441,9 +442,9 @@ export class HomePage {
         [data-theme="dark"] .portal .pt-art-b .pt-shot {
           filter: brightness(1.5) contrast(1.08) drop-shadow(0 0 20px rgba(214, 232, 255, .42));
         }
-        .pt-art-a { right: 4%; top: 8%; width: 74%; }
-        .pt-art-b { left: -2%; top: 26%; width: 34%; }
-        .pt-art-c { right: -3%; bottom: -8%; width: 34%; }
+        .pt-art-a { right: -4%; top: 0; width: 96%; }
+        .pt-art-b { left: -34%; top: 26%; width: 52%; }
+        .pt-art-c { right: -6%; bottom: -14%; width: 50%; }
         .pt-shot-wrap { animation: pt-float 7s ease-in-out infinite; }
         .pt-art-b { animation-delay: -2.2s; }
         .pt-art-c { animation-delay: -4.4s; }
