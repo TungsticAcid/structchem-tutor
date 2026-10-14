@@ -229,7 +229,6 @@ export class HomePage {
         </header>
         <nav class="pl-list">${rows}</nav>
         ${this._renderSettings()}
-        <footer class="pl-foot">纯前端 · 数值由程序计算（防幻觉）· 模型由使用者自备（BYOK）</footer>
       </div>
       <style>
         /* ---- 极简学术风：留白、对齐、层次；不用卡片、不放装饰 ---- */
@@ -335,14 +334,22 @@ export class HomePage {
           color: var(--text-dim, #9aa7c6); opacity: .75;
         }
         /* ---- 设置区：与模块列表同一套"极简学术风"，不另做卡片 ---- */
+        /**
+         * ★★ 2026-10-14（用户："放一排吧。如果放不了一排，那界面风格和语言可以放一排"）：
+         *   原先是 flex-direction: column，三组各占一行 ✗。改成**一行 flex + 可换行**：
+         *   宽度够就把三组排成一排；不够时换行（那时"界面风格 + 界面语言"仍会并排在同一行 ✓）。
+         *   ★ 顺带把"纯前端 · 数值由程序计算（防幻觉）· 模型由使用者自备（BYOK）"那行页脚删掉
+         *     （用户要求）。.pl-foot 的样式先留着，免得动了别处；实际已无元素引用它。
+         */
         .pl-settings {
-          margin-top: 56px; padding-top: 28px;
+          margin-top: 40px; padding-top: 22px;
           border-top: 1px solid var(--line-soft, rgba(255,255,255,.08));
-          display: flex; flex-direction: column; gap: 14px;
+          display: flex; flex-direction: row; flex-wrap: wrap;
+          align-items: center; gap: 12px 30px;
         }
-        .pl-set-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .pl-set-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
         .pl-set-label {
-          min-width: 7.5em; font-size: 12px; letter-spacing: .08em;
+          font-size: 12px; letter-spacing: .08em;
           color: var(--text-dim, #9aa7c6);
         }
         .pl-seg { display: inline-flex; border: 1px solid var(--line, #2a3558); border-radius: 8px; overflow: hidden; }
