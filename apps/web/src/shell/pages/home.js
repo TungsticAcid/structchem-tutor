@@ -223,7 +223,7 @@ export class HomePage {
     }).join('')
 
     return `
-      <div class="portal">
+      <div class="portal lang-${(this._ui.getLang && this._ui.getLang()) || 'zh'}">
         <header class="pl-head">
           <h1>结构化学<br><span>教学智能体</span></h1>
           <p class="pl-sub">场景感知式 AI 教学智能体 —— 揭秘微观结构 · 启发深度思考 · 引导自主学习</p>
@@ -260,6 +260,14 @@ export class HomePage {
           letter-spacing: .04em; color: var(--text-dim, #9aa7c6);
         }
         .pl-list { display: flex; flex-direction: column; }
+        /**
+         * ★★ 2026-10-14（用户："可以紧凑一点。中英文宽度可以不同，中文稍微窄一点"）：
+         *   列宽按**语言**给两套 —— 中文模块名只有 4 个字（约 7.5em 足够），若沿用英文的
+         *   18em 会在名字后面留一大块空隙 ✗。版心也随之收窄（中文 780px / 默认 1016px）。
+         *   ★ 判断依据是 portal 上的 lang-zh / lang-en（由 _render 按当前界面语言写上）。
+         */
+        .portal.lang-zh { max-width: 780px; }
+        .portal.lang-zh .pl-row { grid-template-columns: 3.4em 7.5em max-content 14em auto; }
         /* 每一行：序号 / 名称 / 概述 / 箭头；用细线分隔，不用边框盒 */
         /**
          * ★★ 2026-10-14（用户："中英文模式下，按钮位置不一致了，应基本上一致"）：
@@ -302,6 +310,7 @@ export class HomePage {
         .pl-tag {
           font-size: 16px; letter-spacing: .04em; font-weight: 500;
           color: var(--text-dim, #9aa7c6); opacity: .92;
+          text-align: right;      /* ★ 右边三句右对齐：列有固定宽度，右端因此能对齐、贴着箭头 */
           white-space: nowrap;
         }
         .pl-row:hover .pl-tag { color: var(--accent, #7c9cf5); opacity: 1; }
