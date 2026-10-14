@@ -1943,6 +1943,70 @@ console.log(`\n${'═'.repeat(60)}`)
     rr.ok === true && !!sb2.getDemo('hist-1') && sb2.state().playing !== true && calls.length === 0,
     `ok=${rr.ok} rec=${!!sb2.getDemo('hist-1')} playing=${sb2.state().playing} calls=${calls.length}`)
 
+  // ★★ 2026-10-14（task-2 用户第二/第三次报"问题仍然存在"）—— 两条都只能靠**读数**守：
+  //
+  //   ① 重建丢掉"只有思考"的回合：`renderPath` 的 assistant 分支原先写成 `if (n.content)`
+  //      ⇒ content 为空的节点**整条不渲染**（连它的思考块一起丢）。而"一个 LLM 回合一个
+  //      思考块"之后，一轮里的前几个回合本来就没有正文 ⇒ 任何一次从对话树重建都会把这些
+  //      思考块丢掉。用户看到的是"用户气泡 + 动作条 + 演示条都在，思考块一个都没有"。
+  //   ② 看门狗在回合中途触发（4032e1e）：到期就撤 `[data-pending]` 并强制重画，**不看**
+  //      这一轮还在不在跑 ⇒ 演示阶段（可以很长）把在途气泡抹掉。
+  //
+  //   ★ 判据一律**先剥注释再比对源码**：这两段判断的注释里都写着旧写法，不剥就会拿注释里的
+  //     提及当代码（本仓库第五次踩这个坑）。同时必须把「有思考就渲染」这条**正向**断言也写下来，
+  //     否则"删掉整段分支"也能让负向断言变绿。
+  {
+    const code = panelSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    // ★ 只取 renderPath 的 assistant 分支：整份源码里 `agent-warn` 在 finish() 里是**合法**的
+    //   （空正文的实时诊断），拿全文判"不许出现"会当场误报 —— 判据的范围必须与它的语义对齐。
+    const asstBranch = (code.match(/else if \(n\.role === 'assistant'\) \{[\s\S]*?\n      \} else if/) || [''])[0]
+    check('panel 不再用 n.content 一刀切跳过整条 assistant 节点（否则"只有思考"的回合全丢）',
+      !/if \(n\.content\)\s*\{/.test(code))
+    check('有思考就渲染：正文为空也建气泡（hasBody || hasReasoning || isLast）',
+      /hasBody \|\| hasReasoning \|\| isLast/.test(code)
+      && /hasReasoning\) el\.insertBefore\(thinkBlock\(n\.reasoning\), el\.firstChild\)/.test(code))
+    check('assistant 分支里空正文不补占位（那句"没有正文"是 finish() 的实时诊断，只该有一处）',
+      asstBranch.length > 0 && !/agent-warn/.test(asstBranch))
+    check('看门狗只在 running 为假时才撤标记/重建（还在跑就顺延）',
+      /function armPendingWatchdog\(\)/.test(code) && /if \(running\) \{ armPendingWatchdog\(\); return \}/.test(code))
+    check('看门狗顺延用的是**同一个**函数（不是又写一份到期回调，两份迟早漂开）',
+      (code.match(/armPendingWatchdog\(\)/g) || []).length >= 4
+      && !/pendingWatchdog = setTimeout\(/.test(code.replace(/function armPendingWatchdog\(\) \{[\s\S]*?\n  \}/, '')))
+  }
+
+  // ★★ 2026-10-14（task-2 第二个真因的行为侧）：**每一个 assistant 回合都要回传面板**。
+  //   行为断言（不是看源码）：两回合的脚本里"只有思考、没有正文"的那一回合也必须触发
+  //   onMessage —— 否则它没有气泡承载自己的思考块，重建时无节点可渲染。
+  {
+    // ★ 这里**自己造**一个最小 LLM 桩与工具调用：本文件里的 mkLLM / tc 都定义在上面那个
+    //   `conversation：循环机制` 的块作用域里，拿不到（第一版就是这么写出 ReferenceError 的）。
+    const call = { id: 'call_1', type: 'function', function: { name: 'getSnapshot', arguments: '{}' } }
+    let n = 0
+    const llm = {
+      chat: async (o) => {
+        n++
+        // 第 1 回合：只想一下、没写正文，然后调一个工具 ⇒ 正是"只有思考的回合"
+        if (n === 1) return { content: '', reasoning: '第一回合只想不写', toolCalls: [call], finishReason: 'tool_calls', usage: {} }
+        return { content: '正文在这里', reasoning: '第二回合', toolCalls: [], finishReason: 'stop', usage: {} }
+      },
+    }
+    const conv = createConversation({
+      llm,
+      buildSystem: () => 'ROLE',
+      getSettings: () => ({ apiKey: 'test-key', maxTokens: 512, model: 'm' }),
+      getTools: () => [{ type: 'function', function: { name: 'getSnapshot' } }],
+      executeTool: async () => ({ ok: true }),
+      getSnapshotText: () => '',
+    })
+    const msgs = []
+    await conv.send('学生提问', { onMessage: (m) => msgs.push(m) })
+    check('只有思考、没有正文的回合也回传面板（否则重建时思考块无节点可渲染）',
+      msgs.length === 2 && (msgs[0].reasoning || '').length > 0,
+      JSON.stringify(msgs))
+    check('回传的 assistant 消息 content 用空串而不是 undefined（投影侧约定）',
+      msgs[0] && msgs[0].content === '')
+  }
+
   // ★★ 2026-10-12（用户："进入新对话后，仍然残留演示信息"）：
   //   新会话必须把演示一并收掉（停 + 隐藏演示条），否则新对话里点「重新演示」
   //   播的是上一段对话的演示 —— 学生根本不知道它从哪来。

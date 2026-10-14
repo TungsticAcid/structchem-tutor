@@ -222,7 +222,15 @@ export function createConversation(opts = {}) {
           const rest = out.reasoning.slice(streamedReasoning.length)
           H.onDelta({ type: 'reasoning', text: rest })
         }
-
+        /**
+         * ★★ 2026-10-14（task-2）：**本回合的思考以"最少丢"为准**——
+         *   `streamedReasoning` 只装了**流式吐出来**的那部分；有些服务端不在流里给思考，
+         *   只在最终 payload 的 `reasoning` 里给（本文件第 6 条坑说的就是它）。
+         *   原先只取 `streamedReasoning`，于是那种服务下"只有思考、没有正文"的回合
+         *   存档里是一片空白 ⇒ 刷新后连"本轮没有思考内容"都无处可依 ✗。
+         *   ⇒ 流式那份为空时退回 payload 那份（两者都有时以流式为准，避免重复计数）。
+         */
+        const roundReasoning = streamedReasoning || out.reasoning || ''
         // 记录 assistant 消息（含工具调用），保持历史完整
         const asstMsg = { role: 'assistant', content: out.content || '' }
         // ★ 思考内容只**存档、不上行**（projection 会剥掉它）：存下来是为了刷新之后
@@ -231,7 +239,7 @@ export function createConversation(opts = {}) {
         //   "没有这个字段" = 老数据/没记录过；"空串" = 这一轮**确实没有思考内容**。
         //   界面据此如实说明"本轮没有思考内容"，而不是默默什么都不显示
         //   （用户报"设置了显示思考中，实际却不显示"，根因正是这里没记录 + 重渲染丢块）。
-        asstMsg.reasoning = streamedReasoning || ''
+        asstMsg.reasoning = roundReasoning
         if (out.toolCalls.length) {
           asstMsg.tool_calls = out.toolCalls.map((t) => ({
             id: t.id, type: 'function',
@@ -239,7 +247,25 @@ export function createConversation(opts = {}) {
           }))
         }
         history.push(asstMsg)
-        if (out.content) H.onMessage({ role: 'assistant', content: out.content })
+        /**
+         * ★★ 2026-10-14（task-2 用户"问题仍然存在"的第二个真因）：
+         *   **每一条 assistant 回合都要回传面板**，不能只在"有正文"时才回传。
+         *
+         *   原先这里是 `if (out.content) H.onMessage(...)`，注释上半句的理由是"只发工具调用时
+         *   content 为空，此时面板只显示动作气泡"——那在"整轮共用一个气泡"的时代成立 ✗。
+         *   108583e 改成"一个 LLM 回合一个思考块"之后，**只有最后一个回合才有正文**：
+         *   前面那些"只想一下、再调工具"的回合**必须**各自有一个气泡承载自己的思考块，
+         *   否则它们只活在流式时的 DOM 里，任何一次从对话树重建就全没了。
+         *
+         *   ★ 为什么"有思考"也要回传：`content` 为空但 `reasoning` 非空的回合正是上面那种
+         *     回合的主要形态（它不是"什么都没有"）。面板据此画"只含思考块的气泡"，
+         *     而不是空气泡 —— 空正文的说明由 finish() 那一侧负责（见 panel.js）。
+         *   ★ 判据用"有正文或有思考"，而不是无条件回传：两者都没有的回合没有可展示的内容，
+         *     回传只会让面板多一个空气泡。
+         */
+        if (out.content || roundReasoning) {
+          H.onMessage({ role: 'assistant', content: out.content || '', reasoning: roundReasoning })
+        }
 
         // ⑤ 无工具调用 → 结束（截断的情况见第 ⑥ 步，要先处理掉）
         const truncated = out.finishReason === 'length'

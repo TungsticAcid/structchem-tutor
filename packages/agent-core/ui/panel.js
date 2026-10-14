@@ -962,6 +962,44 @@ let lastDemoId = null
   }
 
   /**
+   * ★★ 2026-10-14（task-2 的第二半 —— 用户"问题仍然存在"的真因之一）：
+   *   在途标记的看门狗改为**只在回合已经不在跑的时候才动手**。
+   *
+   * 为什么需要它：在途标记有可能**没人来撤** —— stopRunning() 只在分支切换/新会话等路径
+   *   被调用，正常收尾不走它 ⇒ 标记长期留着 ⇒ 之后的重画被永久推迟（换会话、空态刷新都被
+   *   挡住）。上一版因此加了一个 12 秒一次性看门狗。
+   *
+   * 上一版的错（4032e1e 引入，实测复现）：它**不看这一轮是否还在跑**，到期就撤标记并强制
+   *   renderPath()。而演示阶段可以很长（用户截图里的"已完成 1/3 步"），那时 running 仍为
+   *   真、回答还在 DOM 里 ⇒ 这次强制重建把它抹掉；重建是从对话树读的，于是屏幕上只剩
+   *   用户气泡 + 动作条 + 演示条（正是用户报的那张图）。
+   *
+   * 改法（两条判据，都有对照）：
+   *   · running === true（这一轮还在跑，含动作/演示阶段）⇒ **不撤标记、不重建**，把到期
+   *     时间往后顺延一个周期（不是取消保护，只是别在回合中途动手）。
+   *   · running === false 且标记仍过期 ⇒ 撤标记并重建（"标记永远没人撤"的兜底仍然有效）。
+   *
+   * 为什么顺延后不会卡死：running 只由 runAgent 的开头/收尾改，而收尾**一定会执行**
+   *   （cfg.send 无论正常返回还是抛错都走到那两行）⇒ 顺延有限次后必然有一次看见 running 为假。
+   */
+  function armPendingWatchdog() {
+    if (pendingWatchdog) return          // 已经挂上了，不重复挂
+    pendingWatchdog = setTimeout(() => {
+      pendingWatchdog = 0
+      /**
+       * ★ 还在跑 ⇒ 只顺延，不动标记、不重建。这一条是本轮修的核心：
+       *   "标记过期"与"可以重建"是两件事，前者成立不代表后者成立。
+       */
+      if (running) { armPendingWatchdog(); return }
+      if (msgBox && typeof msgBox.querySelectorAll === 'function') {
+        const stale = msgBox.querySelectorAll('[data-pending]')
+        for (let i = 0; i < stale.length; i++) if (stale[i].dataset) delete stale[i].dataset.pending
+      }
+      renderPath()
+    }, 12000)
+  }
+
+  /**
    * 有回合在跑就先停掉。
    * ★ 切分支 / 编辑重问 / 重答**都必须先停**：否则旧回合结束时的那次"整体落盘"，
    *   会按**新的**叶指针把尾巴接上去——接错线且不报错。
@@ -1169,24 +1207,7 @@ let lastDemoId = null
     if (msgBox && typeof msgBox.querySelector === 'function' && msgBox.querySelector('[data-pending]')) {
       pendingRender = true
       if (!pendingWatchdog) {
-        /**
-         * ★★ 2026-10-14（验证查出 + 我第一版修法**不生效**的实测）：
-         *   在途标记有可能**没人来撤** —— `stopRunning()` 只在分支切换/新会话等路径被调用，
-         *   正常收尾不走它 ⇒ 标记长期留着 ⇒ 之后的重画被**永久**推迟（换会话、空态刷新都被挡住 ✗）。
-         *   第一版按"重画被请求了几次"给预算 ✗ —— 实测**永远到不了上限**（重画请求本来就少），
-         *   探针里预算用尽后气泡仍在、残留标记 1 ✗。⇒ 改成**与请求次数无关**的看门狗：
-         *   只挂一次，到期（12 秒）就把过期标记撤掉并重画。
-         *   为什么 12 秒安全：原来那个"重画抹掉回答"的窗口是**亚秒级**（store 异步落盘），
-         *   12 秒时回答早在 store 里 ⇒ 这次重画画的是**已落盘的回答**，不会再丢。
-         */
-        pendingWatchdog = setTimeout(() => {
-          pendingWatchdog = 0
-          if (msgBox && typeof msgBox.querySelectorAll === 'function') {
-            const stale = msgBox.querySelectorAll('[data-pending]')
-            for (let i = 0; i < stale.length; i++) if (stale[i].dataset) delete stale[i].dataset.pending
-          }
-          renderPath()
-        }, 12000)
+        armPendingWatchdog()
       }
       return
     }
@@ -1246,15 +1267,39 @@ let lastDemoId = null
         if (n.origin === 'continuation' || n.origin === 'internal') continue
         attachActs(addUser(n.content, n.id), n.id, 'user', n.content)
       } else if (n.role === 'assistant') {
-        if (n.content) {
+        /**
+         * ★★ 2026-10-14（task-2 用户"问题仍然存在"截图的核心真因）：
+         *   **有思考就必须渲染，不能因为"正文为空"整条跳过。**
+         *
+         *   原先这里是 `if (n.content)` 一刀切：content 为空的 assistant 节点**整条不渲染**
+         *   （连它的思考块一起丢）。而 108583e 改成"一个 LLM 回合一个思考块"之后，一轮里的
+         *   前几个回合（只想一下、再调工具）**本来就没有正文** ⇒ 任何一次从对话树重建
+         *   （收尾落盘后、刷新、切分支、看门狗到期的强制重画）都会把这些思考块丢掉 ✗。
+         *   用户看到的就是"用户气泡 + 动作条 + chip + 演示条都在，思考块一个都没有、
+         *   正文也没有"（正文那一轮常常也是"只排了演示、还没写讲解"，见 showNoTextNote）。
+         *
+         *   判据（三条，逐一对应一种节点）：
+         *     · 有正文 → 正文气泡（照旧）
+         *     · 无正文但有思考 → **只画思考块的气泡**（这正是修复点）
+         *     · 都为空 → 只在**路径末条**上如实说明"本轮没有思考内容"（老语义保留：
+         *       免得整段历史每轮都挂一句废话），其余不渲染，免得留一屏空气泡
+         *
+         *   ★ 刻意**不**写"没有正文"之类的空正文占位：那句话是 finish() 的实时诊断
+         *     （见 showNoTextNote 的注释与 onDone 的 hasContent 判定），重建路径不该再补一份 ——
+         *     它会把"这一轮其实只是先排了演示"渲染成一屏假报错。
+         */
+        const hasBody = !!(n.content && String(n.content).trim())
+        const hasReasoning = !!n.reasoning
+        const isLast = n === path[path.length - 1]
+        if (hasBody || hasReasoning || isLast) {
           /**
            * ★★ 注意 `attachActs` **没有返回值**（它只往气泡里挂按钮条）。
            *   本轮实测：写成 `const el = attachActs(...)` 得到 undefined，
            *   随后 `el.insertBefore` 抛 TypeError —— 异常被上层吞掉，界面看起来一切正常，
            *   只有思考块永远不出现（"改了但没生效"的典型）。所以要**先拿元素、再挂按钮**。
            */
-          const el = addMsg(renderRich(n.content), 'assistant', n.id)
-          attachActs(el, n.id, 'assistant', n.content)
+          const el = addMsg(hasBody ? renderRich(n.content) : '', 'assistant', n.id)
+          if (hasBody) attachActs(el, n.id, 'assistant', n.content)
           /**
            * ★★ 2026-10-08：**重渲染路径也要还原思考块**。
            *
@@ -1262,13 +1307,13 @@ let lastDemoId = null
            *   思考块**当场消失**：流式时能看到、回答一完成就没了。用户报的
            *   「设置了显示思考中，实际却不显示」就是这个（不是设置没生效，是块被重建掉了）。
            *   · 有思考内容 + 设置为显示 → 展开的折叠块
-           *   · 没有思考内容（`reasoning === ''`，见 conversation.js 的说明）+ 设置为显示
+           *   · 没有思考内容（reasoning 为空串，见 conversation.js 的说明）+ 设置为显示
            *     → 只在**最后一条**助手消息上如实说明，免得整段历史每轮都挂一句废话
            *   · 设置为不显示 → 一律不加
            */
           if (getShowReasoning() && el) {
-            if (n.reasoning) el.insertBefore(thinkBlock(n.reasoning), el.firstChild)
-            else if (n === path[path.length - 1]) el.insertBefore(thinkBlock(''), el.firstChild)
+            if (hasReasoning) el.insertBefore(thinkBlock(n.reasoning), el.firstChild)
+            else if (isLast) el.insertBefore(thinkBlock(''), el.firstChild)
           }
         }
       } else if (n.role === 'tool') {
@@ -1647,24 +1692,7 @@ let lastDemoId = null
     if (msgBox && typeof msgBox.querySelector === 'function' && msgBox.querySelector('[data-pending]')) {
       pendingRender = true
       if (!pendingWatchdog) {
-        /**
-         * ★★ 2026-10-14（验证查出 + 我第一版修法**不生效**的实测）：
-         *   在途标记有可能**没人来撤** —— `stopRunning()` 只在分支切换/新会话等路径被调用，
-         *   正常收尾不走它 ⇒ 标记长期留着 ⇒ 之后的重画被**永久**推迟（换会话、空态刷新都被挡住 ✗）。
-         *   第一版按"重画被请求了几次"给预算 ✗ —— 实测**永远到不了上限**（重画请求本来就少），
-         *   探针里预算用尽后气泡仍在、残留标记 1 ✗。⇒ 改成**与请求次数无关**的看门狗：
-         *   只挂一次，到期（12 秒）就把过期标记撤掉并重画。
-         *   为什么 12 秒安全：原来那个"重画抹掉回答"的窗口是**亚秒级**（store 异步落盘），
-         *   12 秒时回答早在 store 里 ⇒ 这次重画画的是**已落盘的回答**，不会再丢。
-         */
-        pendingWatchdog = setTimeout(() => {
-          pendingWatchdog = 0
-          if (msgBox && typeof msgBox.querySelectorAll === 'function') {
-            const stale = msgBox.querySelectorAll('[data-pending]')
-            for (let i = 0; i < stale.length; i++) if (stale[i].dataset) delete stale[i].dataset.pending
-          }
-          renderPath()
-        }, 12000)
+        armPendingWatchdog()
       }
       return
     }

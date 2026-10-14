@@ -155,28 +155,37 @@ export const SYMMETRY_CSS = `    .sym-page {
       padding: 14px;
       z-index: 10;
     }
-    #info-panel .struct-title { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
-    #info-panel .struct-formula { font-size: 12px; color: var(--panel-dim, #9aa3b5); margin-bottom: 10px; }
+    /**
+     * ★★ 2026-10-14（用户："点群观鉴里分子式、对称元素等字体太小"）：
+     *   这一栏原先偏小（分子式 12 · 元素行 13 · ×N 计数 12 · 群名 13 · 小标题 12），
+     *   在实际屏幕上读着吃力。整体上调一档：分子式 14.5 · 元素行 16 · 计数 14 ·
+     *   群名 15 · 小标题 13.5 · 群符号 26→28；行/圆点也相应加大一点，保持视觉比例。
+     *   ★ 陷阱：元素行**不在**本段 —— 组内子行被下面那条
+     *     （#info-panel .elem-group-body .elem-item）压着（特异性更高），
+     *     分组标题也另有其规则，见那两处的注释。
+     */
+    #info-panel .struct-title { font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+    #info-panel .struct-formula { font-size: 14.5px; color: var(--panel-dim, #9aa3b5); margin-bottom: 10px; }
     #info-panel .group-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
     #info-panel .group-symbol {
-      font-size: 26px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;
+      font-size: 28px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;
     }
-    #info-panel .group-name { font-size: 13px; color: var(--panel-fg, #c2c9d8); }
-    #info-panel .meta { font-size: 12px; color: var(--panel-dim, #9aa3b5); margin: 4px 0 10px; }
+    #info-panel .group-name { font-size: 15px; color: var(--panel-fg, #c2c9d8); }
+    #info-panel .meta { font-size: 13.5px; color: var(--panel-dim, #9aa3b5); margin: 4px 0 10px; }
     #info-panel h4 {
-      font-size: 12px; color: var(--panel-dim, #9aa3b5); font-weight: 600;
+      font-size: 13.5px; color: var(--panel-dim, #9aa3b5); font-weight: 600;
       margin: 12px 0 6px; text-transform: uppercase; letter-spacing: 1px;
     }
     #info-panel .elem-item {
       display: flex; align-items: center; gap: 8px;
-      padding: 4px 6px; font-size: 13px;
+      padding: 6px 6px; font-size: 16px;
       border-radius: 5px; cursor: default;
     }
     #info-panel .elem-item:hover { background: var(--panel-item-bg); }
     #info-panel .elem-dot {
-      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+      width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
     }
-    #info-panel .elem-count { margin-left: auto; color: var(--panel-dim, #9aa3b5); font-size: 12px; }
+    #info-panel .elem-count { margin-left: auto; color: var(--panel-dim, #9aa3b5); font-size: 14px; }
 
     /* 设置面板 */
     #settings-panel {
@@ -225,9 +234,14 @@ export const SYMMETRY_CSS = `    .sym-page {
     }
 
     /* 对称元素列表（可展开分组） */
+    /* ★★ 2026-10-14（用户："点群观鉴里分子式、对称元素等字体太小"）：
+       实测发现"元素行"根本不是 .elem-item 那条基础规则 —— 子行被下面
+       #info-panel .elem-group-body .elem-item（多一层类 ⇒ 特异性更高）压到 12px，
+       所以只改基础规则看不到效果。分组标题这一行也是 13px。
+       真正生效的三处一起上调：分组标题 13 → 14、子行 12 → 16、入口 12 → 13.5。 */
     #info-panel .elem-group-header {
       display: flex; align-items: center; gap: 8px;
-      padding: 4px 6px; font-size: 13px;
+      padding: 4px 6px; font-size: 14px;
       border-radius: 5px; cursor: pointer; user-select: none;
     }
     #info-panel .elem-group-header:hover { background: var(--panel-item-bg); }
@@ -242,34 +256,43 @@ export const SYMMETRY_CSS = `    .sym-page {
        本文件是模板串：注释里不能出现反引号。 */
     #info-panel .elem-group-header > span, #info-panel .elem-label { line-height: 1.35; }
     #info-panel .elem-group-header sub, #info-panel .elem-item sub { line-height: 0; }
-    #info-panel .elem-arrow { margin-left: auto; color: var(--panel-dim, #9aa3b5); font-size: 11px; }
+    #info-panel .elem-arrow { margin-left: auto; color: var(--panel-dim, #9aa3b5); font-size: 12px; }
     #info-panel .elem-group-body { padding-left: 14px; margin-bottom: 2px; }
-    #info-panel .elem-group-body .elem-item { display: flex; align-items: center; gap: 8px; padding: 3px 6px; font-size: 12px; }
+    /* ★★ 这一条是**真正生效**的"元素行"字号（特异性高于上面那条 .elem-item 基础规则）：
+       12 → 16。身份行（.elem-item 顶层）与组内子行从此一致，不再一大一小。 */
+    #info-panel .elem-group-body .elem-item { display: flex; align-items: center; gap: 8px; padding: 3px 6px; font-size: 16px; }
     #info-panel .elem-group-body input[type="checkbox"] { accent-color: var(--accent); }
     #info-panel .elem-label { flex: 1; min-width: 0; }
     #info-panel .elem-play {
       width: 20px; height: 20px; flex-shrink: 0; margin-left: auto;
       background: rgba(124,156,245,0.18); color: var(--accent);
       border: 1px solid rgba(124,156,245,0.4); border-radius: 50%;
-      font-size: 10px; line-height: 1; cursor: pointer; padding: 0;
+      font-size: 11px; line-height: 1; cursor: pointer; padding: 0;
     }
     #info-panel .elem-play:hover { background: rgba(124,156,245,0.35); }
     #info-panel .orb-row { display: flex; gap: 8px; padding: 3px 6px; font-size: 12px; word-break: break-word; }
     #info-panel .orb-row .orb-label { color: var(--panel-dim, #9aa3b5); flex-shrink: 0; }
 
     /* 特征标表 */
+    /* ★★ 2026-10-14：入口 12 → 13.5（与面板内 h4 一致）、表体数字 11 → 12、基函数列 10 → 11。
+       ★ 列标题（th）**故意留在 11px**：表是 8 列挤在 270px 里，"不可约表示"那一列只有
+         30px 宽（可用 22px）—— 11px 时两个汉字正好一行（3 行），12px 就变成
+         一个汉字一行（5 行）、表头行高 49 → 87px ✗（实测对照）。这里受**宽度**限制，
+         不是字号偏好，所以只放数字那一档。 */
     #character-table-wrap .ct-header {
-      font-size: 12px; color: var(--panel-dim, #9aa3b5); font-weight: 600;
+      font-size: 13.5px; color: var(--panel-dim, #9aa3b5); font-weight: 600;
       padding: 8px 6px; cursor: pointer; user-select: none;
       border-top: 1px solid var(--border); margin-top: 12px;
     }
-    #character-table-wrap .ct-table { border-collapse: collapse; width: 100%; font-size: 11px; margin-top: 6px; }
+    #character-table-wrap .ct-table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 6px; }
     #character-table-wrap .ct-table th, #character-table-wrap .ct-table td {
       border: 1px solid var(--border); padding: 3px 4px; text-align: center;
     }
-    #character-table-wrap .ct-table th { color: var(--panel-dim, #9aa3b5); font-weight: 600; }
+    #character-table-wrap .ct-table th { color: var(--panel-dim, #9aa3b5); font-weight: 600; font-size: 11px; }
     #character-table-wrap .ct-irrep { font-weight: 600; color: var(--accent); }
-    #character-table-wrap .ct-basis { text-align: left; font-size: 10px; color: var(--panel-dim, #9aa3b5); }
+    /* 行标签（A₁ / T₂ 那列，.ct-irrep 是 td）走表体 12px；
+       只有长基函数串留在 11px，否则会折成三四行。 */
+    #character-table-wrap .ct-basis { text-align: left; font-size: 11px; color: var(--panel-dim, #9aa3b5); }
 
     #hint {
       position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
