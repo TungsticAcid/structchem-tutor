@@ -2046,6 +2046,68 @@ console.log(`\n${'═'.repeat(60)}`)
     rr.ok === true && !!sb2.getDemo('hist-1') && sb2.state().playing !== true && calls.length === 0,
     `ok=${rr.ok} rec=${!!sb2.getDemo('hist-1')} playing=${sb2.state().playing} calls=${calls.length}`)
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // ★★ 2026-10-15（用户："演示的连续播放应只作用于本次演示。当前情况是点击连续播放后，
+  //   别的演示也会自动连续播放"）——**行为级**守卫（用真 storyboard，不是源码匹配）。
+  //
+  //   真因：`manual` 是模块级变量；点一次「连续播放」后它一直是 false，而"这是**另一条**演示"
+  //   这条信息没有入参表达 ⇒ 当上一条"自己播完"（selfFinished）+ 来源同为 'script' +
+  //   队列还有空间时，新一批被判成**上一条的续写**（resume）⇒ 不清队列、也不复位节奏 ✗。
+  //   实测（真实预置脚本）：playDemo(sectionModes) → autoPlay → 播完 → playDemo(rVsD)
+  //   ⇒ rVsD 自己就在播。
+  //
+  //   修法：`applySequence(..., { newDemo: true })` 显式声明"另一条"（playDemo/replayDemo 传，
+  //   智能体分批下发**不传**）。下面两条把两个方向都钉住 —— 只钉"会复位"会让
+  //   "把分批下发也当新演示"（上一轮专门修好的缺陷）悄悄回归。
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    const sb3 = createStoryboard({
+      validate: (name, p) => ({ params: p || {} }),
+      vocabulary: ['act'],
+      applyStep: () => { /* 不关心执行 */ },
+      capture: () => ({}),
+      restore: () => {},
+      getDefaultPlayback: () => 'manual',   // 用户偏好 = 逐步
+    })
+    const A = [{ action: 'act', params: {}, speech: 'A1' }, { action: 'act', params: {}, speech: 'A2' }]
+    const B = [{ action: 'act', params: {}, speech: 'B1' }, { action: 'act', params: {}, speech: 'B2' }]
+
+    // ① 同一条演示内：自己播完后，后续批次**保持**节奏（不能因为"换了批次"就复位）
+    await sb3.applySequence(A, { origin: 'script' })
+    sb3.autoPlay()                                     // 学生点了「连续播放」
+    await new Promise((r) => setTimeout(r, 30))        // 让它自己播完（holdMs 默认很短）
+    const afterA = sb3.state()
+    await sb3.applySequence(B, { origin: 'script' })   // 不传 newDemo = 同一轮续写
+    const continued = sb3.state()
+    check('同一条演示的续写**保留**节奏（不传 newDemo 时仍是 auto）',
+      afterA.mode === 'auto' && continued.mode === 'auto',
+      `A 播完后 ${afterA.mode} · 续写后 ${continued.mode}`)
+
+    // ② 另一条演示：显式 newDemo ⇒ 节奏复位到用户偏好（manual）
+    const sb4 = createStoryboard({
+      validate: (name, p) => ({ params: p || {} }),
+      vocabulary: ['act'],
+      applyStep: () => {},
+      capture: () => ({}),
+      restore: () => {},
+      getDefaultPlayback: () => 'manual',
+    })
+    await sb4.applySequence(A, { origin: 'script' })
+    sb4.autoPlay()
+    await new Promise((r) => setTimeout(r, 30))
+    await sb4.applySequence(B, { origin: 'script', newDemo: true })
+    const fresh = sb4.state()
+    check('★另一条演示（newDemo）必须把节奏复位到用户偏好（连续播放不串台）',
+      fresh.mode === 'manual',
+      `新演示的 mode = ${fresh.mode}（应为 manual）`)
+    check('新演示只含自己的步骤（不串队列）：共 2 步、且**停在闸门上等学生**',
+      // ★ 入队语义：`applySequence` 会**立刻执行第一步**（skipGate = !parkImmediately），
+      //   之后才停在闸门上 —— 所以 index=1、waitingForUser=true 才是正确契约
+      //   （第一版我断言 index===0，那是把 `loadDemo` 的 parkImmediately 语义搬错了）。
+      fresh.total === B.length && fresh.index === 1 && fresh.waitingForUser === true,
+      `index=${fresh.index} total=${fresh.total} waiting=${fresh.waitingForUser}（应为 1 / ${B.length} / true）`)
+  }
+
   // ★★ 2026-10-14（task-2 用户第二/第三次报"问题仍然存在"）—— 两条都只能靠**读数**守：
   //
   //   ① 重建丢掉"只有思考"的回合：`renderPath` 的 assistant 分支原先写成 `if (n.content)`

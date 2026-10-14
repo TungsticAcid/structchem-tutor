@@ -322,8 +322,14 @@ export function createShellTools(ctx) {
         }
       }
       // origin='script'：让演示记录能区分"预置脚本回放"与"智能体现场编排"
+      // ★★ 2026-10-15（用户："连续播放应只作用于本次演示"）：
+      //   这里必须显式声明 `newDemo: true`。否则当上一条演示"自己播完"（selfFinished）、
+      //   来源同为 'script'、队列还有空间时，这一批会被判成**上一条的续写**（resume）——
+      //   既不清队列也不复位节奏，于是上一条点的「连续播放」被带进这条新演示 ✗。
+      //   实测：playDemo(sectionModes) → 连播 → 播完 → playDemo(rVsD) ⇒ 新演示自己在播。
       const r = await ctx.storyboard.applySequence(
-        script.steps.map((s) => Object.assign({}, s)), { origin: 'script', module: sceneModuleId() },
+        script.steps.map((s) => Object.assign({}, s)),
+        { origin: 'script', module: sceneModuleId(), newDemo: true },
       )
       return {
         ok: true,

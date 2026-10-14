@@ -240,6 +240,28 @@ export function createStoryboard(opts = {}) {
   }
 
   /**
+   * 把节奏复位到**用户偏好**（设置 → 「播放方式」；缺省 manual）。
+   *
+   * ★★ 2026-10-15（用户："演示的连续播放应只作用于本次演示。当前情况是点击连续播放后，
+   *   别的演示也会自动连续播放"）——真因：
+   *     `manual` 是**模块级变量**，学生点一次「连续播放」（`autoPlay()` 把它置 false）
+   *     之后它一直留着；下一条演示只要不是走"全新（restart）"那条分支，就继承了上一条的节奏 ✗。
+   *   实测复现（`tmp/probe-autoplay-leak.mjs`）：装载演示 A → 点连续播放 → 播完 →
+   *   再装载**另一条**演示 B ⇒ B 的 `state().mode` 仍是 `auto`（一个按钮都没碰就自己播）。
+   *   两处漏点：
+   *     ① `applySequence` 里"同一条演示续写（resume/append）"分支**刻意**保节奏（这是对的），
+   *        但"换了一条演示"若也被判成续写，就会串台；
+   *     ② `loadDemo` 用的是 `rec.mode` —— 那是**上一条播完时的状态**（连播完即 auto），
+   *        于是「重播」/「从收藏播放」把上一条的节奏带了过来 ✗。
+   *   ⇒ 定死一条规矩：**每一条新演示开始时，节奏回到用户偏好**（与 restart 分支同一口径）；
+   *     只有"同一条演示内的续写"才保留当前节奏。
+   */
+  function resetManualToPreference() {
+    manual = (typeof getDefaultPlayback === 'function' ? getDefaultPlayback() : 'manual') !== 'auto'
+    return manual
+  }
+
+  /**
    * 中止当前播放。
    * ★ 必须同时做到五件事，缺一不可：① 播放循环作废 ② 清空队列
    *   ③ 取消停留定时器 ④ **唤醒所有等待中的 Promise** ⑤ 通知面板收起进度条
@@ -426,6 +448,10 @@ export function createStoryboard(opts = {}) {
    * @param {boolean} [o.noPacing]   auto 模式下不等停留
    * @param {string}  [o.origin]     'agent' | 'script' | 'proactive'，记进演示记录
    * @param {string}  [o.label]      演示标题（缺省时从首条有旁白的步骤里取）
+   * @param {boolean} [o.newDemo]    **这是另一条演示**（不是上一条的续写）。
+   *   `playDemo` / `replayDemo` 必须传 —— 否则"上一条自己播完（selfFinished）+ 同来源 +
+   *   队列有空间"会被判成续写，于是上一条的「连续播放」被带进这条新演示（用户报的正是它）。
+   *   智能体同一轮分批下发**不要传**（那确实是同一条演示的续写）。
    */
   async function applySequence(actions, o) {
     o = o || {}
@@ -509,8 +535,8 @@ export function createStoryboard(opts = {}) {
       }
     }
 
-    // ---- 自动连播：走完再返回 ----
-    if (o.auto) {
+  // ---- 自动连播：走完再返回 ----
+  if (o.auto) {
       trace({ k: 'applyPath', path: 'auto', batch: okSteps.length })
       stop()
       captureBefore()
@@ -578,16 +604,31 @@ export function createStoryboard(opts = {}) {
      */
     const openRec = curDemoId ? demos.get(curDemoId) : null
     const roomLeft = cfg.maxQueue - qIndex
-    const continuing = playing
-      || (selfFinished && !!openRec && openRec.origin === origin && roomLeft > 0)
+    /**
+     * ★★ 2026-10-15（用户："连续播放应只作用于本次演示"）——**真因就在这一行**：
+     *   除了"还在播 / 自己播完的续写"之外，还有第三种情形会被判成续写：
+     *   **换了一条演示**（例如 `playDemo` 播另一段预置脚本、或「重播」另一条记录），
+     *   而它恰好也是 `origin='script'`、上一条又刚"自己播完"（`selfFinished`）、队列还有空间
+     *   ⇒ `continuing = true` ⇒ 走 `resume`：既**不清队列**、又**不复位节奏**，
+     *   于是上一条的「连续播放」被带进新演示 ✗。
+     *   实测（`tmp/probe-autoplay-leak2.mjs`，用真实预置脚本）：
+     *     playDemo(sectionModes) → autoPlay → 播完 → playDemo(rVsD) ⇒ mode 仍是 auto、自己在播。
+     *
+     *   ⇒ 由调用方用一个入参把"这是**另一条**演示"讲清楚（`o.newDemo`）：
+     *     · `playDemo` / `replayDemo` —— 明确是"开始播另一段"，传 `newDemo: true`；
+     *     · 智能体同一轮里分批下发（applySceneActions）—— **不传**，保持"续写"语义不变
+     *       （那是上一轮专门修好的行为：分几次下发的同一条演示不能被拆成两条）。
+     */
+    const continuing = !o.newDemo && (playing
+      || (selfFinished && !!openRec && openRec.origin === origin && roomLeft > 0))
     if (!continuing) {
-      trace({ k: 'applyPath', path: 'restart', batch: okSteps.length, qDropped: queue.length })
+      trace({ k: 'applyPath', path: 'restart', batch: okSteps.length, qDropped: queue.length, newDemo: !!o.newDemo })
       stop()
       captureBefore()
       queue = []
       qIndex = 0
       // 默认播放方式由模块设置决定；演示条上还能临时改成连播
-      manual = (typeof getDefaultPlayback === 'function' ? getDefaultPlayback() : 'manual') !== 'auto'
+      resetManualToPreference()
     } else {
       /**
        * `append` = 演示还在播，队列里还有未执行的步骤；
@@ -901,7 +942,14 @@ export function createStoryboard(opts = {}) {
     snapshots = []                       // 回放时快照会重新生成
     qIndex = 0
     qTotal = queue.length
-    manual = rec.mode !== 'auto'
+    /**
+     * ★★ 2026-10-15（用户："连续播放应只作用于本次演示"）：
+     *   这里原先写 `manual = rec.mode !== 'auto'` —— `rec.mode` 是**上一条播完时的状态**，
+     *   所以"上一条是连播播完的"会把 auto 带进这一条（重播 / 从收藏播放都走 loadDemo）✗。
+     *   ⇒ 新演示一律回到**用户偏好**（设置里的「播放方式」），与 `restart` 分支同一口径。
+     *     `rec.mode` 仍按当前节奏写回（见 syncRecordFromQueue），只是**不再作为入参**。
+     */
+    resetManualToPreference()
     playing = true
     atGate = false
 
