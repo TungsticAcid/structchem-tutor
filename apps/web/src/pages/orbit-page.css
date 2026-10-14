@@ -173,7 +173,19 @@
   gap: 10px;
   flex-wrap: wrap;
 }
-.orbit-page .card-head-right { display: flex; align-items: center; gap: 14px; }
+/**
+ * ★★ 2026-10-14（用户："几个按键不用挤在右边，可以在顶栏平均分布"）：
+ *   原先只有 `justify-content: space-between` —— 标题贴左、四个控件挤在右端 ✗。
+ *   改成：控件组**吃掉剩余宽度**并在其中**平均分布**（space-evenly），
+ *   于是「◇节面 / ⟳复位 / ☐自动旋转 / ☑参考线」在顶栏里横向摊开，不再堆在一角。
+ *   ★ 仍然保留 `flex-wrap`：窄屏下会折行，不会挤成一条。
+ */
+.orbit-page .card-head-right {
+  display: flex; align-items: center; gap: 14px;
+  flex: 1 1 auto;                 /* 吃掉标题右侧的全部剩余宽度 */
+  justify-content: space-evenly;  /* 在剩余宽度里平均分布 */
+  flex-wrap: wrap;
+}
 .orbit-page .card-title { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: 0.3px; }
 .orbit-page .viewer-card { display: flex; flex-direction: column; min-height: 0; align-self: start; }
 .orbit-page .viewer {

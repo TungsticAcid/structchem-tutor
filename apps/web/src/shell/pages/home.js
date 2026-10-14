@@ -98,6 +98,13 @@ export class HomePage {
   mount(container) {
     this._container = container
     container.innerHTML = this._render()
+    /**
+     * ★★ 2026-10-14（用户："首页悬浮球醒目一点"）：
+     *   首页上把智能体悬浮球加大、加光环并做低强度呼吸；离开首页自动复原。
+     *   用 body 上的 home-active 限定作用域（悬浮球是壳的元素，不在 .portal 里，
+     *   作用域选择器够不着它）——样式写在本页自己的 <style> 里。
+     */
+    try { document.body.classList.add('home-active') } catch (e) { /* 非浏览器环境 */ }
     container.querySelectorAll('[data-module]').forEach((el) => {
       el.addEventListener('click', () => {
         const id = el.dataset.module
@@ -134,6 +141,8 @@ export class HomePage {
   unmount() {
     if (this._container) this._container.innerHTML = ''
     this._container = null
+    // ★ 与 mount 成对：撤掉"首页在场"标记，否则悬浮球会一直保持首页那套放大样式
+    try { document.body.classList.remove('home-active') } catch (e) { /* 非浏览器环境 */ }
   }
 
   /**
@@ -343,6 +352,26 @@ export class HomePage {
           .pl-blurb { grid-column: 2 / -1; }
           .pl-tag { display: none; }
           .pl-badge { display: none; }
+        }
+              /**
+         * ★★ 2026-10-14（用户："首页悬浮球醒目一点"）：
+         *   悬浮球是壳的元素（body 下的 .agent-fab），不在 .portal 里，
+         *   所以用本页 mount/unmount 挂/撤的 body.home-active 限定作用域：
+         *   只在首页放大到 72px、加一圈浅色外发光，并做 2.6s 的低强度呼吸
+         *   （遵守 prefers-reduced-motion）；离开首页自动复原。
+         */
+        body.home-active .agent-fab {
+          width: 72px; height: 72px;
+          right: 26px; bottom: 26px;
+          filter: drop-shadow(0 8px 22px rgba(26, 54, 93, .38));
+          animation: pl-fab-breathe 2.6s ease-in-out infinite;
+        }
+        @keyframes pl-fab-breathe {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.07); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          body.home-active .agent-fab { animation: none; }
         }
       </style>`
   }
