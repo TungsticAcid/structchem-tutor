@@ -185,11 +185,12 @@ export class HomePage {
         + '<span class="pl-seg">' + segOf('lang', this._ui.getLang() || 'zh',
           [['zh', '中文'], ['en', 'English']]) + '</span></div>')
     }
-    if (this._ui.onOpenSettings) {
-      rows.push('<div class="pl-set-row"><span class="pl-set-label">模型与教学偏好</span>'
-        + '<button type="button" class="pl-set-link" data-act="open-settings">'
-        + '打开设置（API Key · 模型 · 教学偏好）→</button></div>')
-    }
+    /**
+     * ★★ 2026-10-14（用户："去掉'模型与教学偏好 打开设置(API Key · 模型 · 教学偏好)→'"）：
+     *   首页不再渲染这一组。设置入口仍有两处可达（智能体面板的齿轮按钮 + 设置弹层），
+     *   所以这里撤掉不会让"填 API Key"变成无路可走。
+     *   ★ onOpenSettings 的接线保留：将来想放回来，把这段恢复渲染即可。
+     */
     return rows.length ? '<div class="pl-settings">' + rows.join('') + '</div>' : ''
   }
 
@@ -345,7 +346,8 @@ export class HomePage {
           margin-top: 40px; padding-top: 22px;
           border-top: 1px solid var(--line-soft, rgba(255,255,255,.08));
           display: flex; flex-direction: row; flex-wrap: wrap;
-          align-items: center; gap: 12px 30px;
+          align-items: center; justify-content: center;   /* ★ 居中（用户要求） */
+          gap: 12px 30px;
         }
         .pl-set-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
         .pl-set-label {
