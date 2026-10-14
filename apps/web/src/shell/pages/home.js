@@ -400,6 +400,23 @@ export class HomePage {
           /* PNG 已是透明底，这里再压一档不透明度，做"淡入背景"的观感 */
           opacity: .84;
         }
+        /**
+         * ★★ 深色主题下给自有渲染图加一层**浅色外发光**：
+         *   C₆₀ 的碳球用的是元素 CPK 色（深灰，与主题无关），压在深色底 #141a22 上
+         *   明度太接近（子智能体抓图时如实报过这条）。发光比"改图的元素色"更安全 ——
+         *   像素仍然全部来自应用自己的渲染器，只补一层光晕。
+         */
+        [data-theme="dark"] .portal .pt-shot {
+          filter: drop-shadow(0 0 18px rgba(214, 232, 255, .38));
+        }
+        /**
+         * ★ 深色下 C₆₀ 单独**提亮**：它的碳球是元素 CPK 深灰，即使加了光晕也偏低
+         *   （实测最亮处相对底色只有 2.32:1，图形类建议 ≥ 3:1）。提亮的是同一张自有渲染图，
+         *   只加滤镜、不换像素，也不动元素配色本身。
+         */
+        [data-theme="dark"] .portal .pt-art-b .pt-shot {
+          filter: brightness(1.5) contrast(1.08) drop-shadow(0 0 20px rgba(214, 232, 255, .42));
+        }
         .pt-art-a { right: 2%; top: 0; width: 72%; }
         .pt-art-b { left: 0; top: 20%; width: 34%; }
         .pt-art-c { right: 0; bottom: 0; width: 36%; }
