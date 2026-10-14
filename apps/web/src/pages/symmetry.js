@@ -448,7 +448,7 @@ export function bootSymmetryPage(deps = {}) {
       : ((stab && stab.names) || []).join(', ')
     body.innerHTML =
       `<div class="orb-row"><span class="orb-label">${t('orb.orbit')}</span><span>${orb.map(lab).join(', ')}</span></div>` +
-      `<div class="orb-row"><span class="orb-label">${t('orb.stabilizer')}（${t('orb.order')} ${orderText}）</span><span>${nameText}</span></div>`
+      `<div class="orb-row"><span class="orb-label">${t('orb.stabilizer')}（${t('orb.order')} ${orderText}）</span><span>${formatSymmetrySymbol(nameText)}</span></div>`
     wrap.hidden = false
   }
 
