@@ -236,7 +236,7 @@ export class HomePage {
         .portal {
           min-height: 100vh; box-sizing: border-box;
           display: flex; flex-direction: column; justify-content: center;
-          max-width: 1016px; margin: 0 auto;
+          max-width: 1016px; width: fit-content; margin: 0 auto;
           padding: 32px 32px 24px;
           /* 用令牌，随主题切换（见 ui-kit/theme.js） */
           color: var(--text, #e8ecf7);
@@ -271,7 +271,7 @@ export class HomePage {
          */
         .pl-row {
           display: grid;
-          grid-template-columns: 3.4em 18em minmax(0, 1fr) 16em auto;
+          grid-template-columns: 3.4em 18em max-content 16em auto;
           align-items: baseline; gap: 20px;
           padding: 17px 4px;
           background: none; border: 0; font: inherit; text-align: left;
