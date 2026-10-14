@@ -568,6 +568,8 @@ let lastDemoId = null
     return {
       wrap,
       setReasoning(text) { thinkBody.textContent = text; scrollDown() },
+      /** ★ A 方案：回合结束后把这一块的思考**折叠**（否则多轮下来满屏都是展开的思考，回答被挤下去） */
+      collapseThinking() { try { think.open = false } catch (e) { /* 无 DOM 桩 */ } },
       setContent(text) {
         pendingText = text
         if (rafId) return
@@ -1608,6 +1610,7 @@ let lastDemoId = null
     cur = beginAssistant()
     running = true
     let reasoning = '', content = ''
+    let roundClosed = false   // ★ A 方案：上一个 LLM 回合是否已闭合（见 onToolCall / onDelta）
     let lastBubble = null
     let truncated = false
     stopBtn.classList.remove('hidden')
@@ -1615,6 +1618,14 @@ let lastDemoId = null
 
     const r = await cfg.send(userText, {
       onDelta(ev) {
+        /**
+         * ★★ 2026-10-14（用户选 A："只要显示一次思考，但显示'新增 3 步'" ⇒ 一个回合一个块）：
+         *   一轮里模型常走**多个 LLM 回合**（想 → 调工具 → 再想 → 再调工具 …）。原先整轮共用
+         *   一个气泡，三次思考被 `reasoning +=` 累加进同一块 ⇒ 界面上"只显示一次思考"，与
+         *   "新增 3 步"对不上 ✗。改：**按需建气泡** —— 回合边界（onToolCall）会把 cur 置空，
+         *   于是下一回合的第一条增量会**新起一个气泡**，每个回合自成一块 ✓。
+         */
+        if (!cur || roundClosed) { cur = beginAssistant(); roundClosed = false }
         if (ev.type === 'reasoning') { reasoning += ev.text; cur.setReasoning(reasoning) }
         else if (ev.type === 'content') { content += ev.text; cur.setContent(content) }
       },
@@ -1631,6 +1642,21 @@ let lastDemoId = null
         }
       },
       onToolCall(info) {
+        /**
+         * ★★ 2026-10-14（A 方案）：**一次工具调用 = 这一回合结束** ⇒
+         *   收尾当前气泡（思考块折叠、正文定格），并把两个累加器清零，让下一回合**新起一块**；
+         *   这样"想了几轮"在界面上就是"几个思考块"，与回执里的"新增 N 步"一一对应 ✓。
+         *   ★ 置空 cur 后，若下一回合没有任何增量（例如直接结束），就不会多出一个空气泡 ✓。
+         */
+        if (cur) {
+          cur.collapseThinking()
+          cur.finish({ hasContent: true })
+          // ★ 只标记"本回合已闭合"，**不置空 cur** —— onDone 还要用最后一个气泡收尾；
+          //   置空会让"在工具调用处就结束"的轮次抛 Cannot read properties of null ✗（实测踩到）。
+          roundClosed = true
+          reasoning = ''
+          content = ''
+        }
         // 只有"动手"的工具才显示气泡；查询/知识类属内部行为，静默
         if (info.name === SEQ_TOOL) {
           lastBubble = addActionBubble(SEQ_TOOL, (info.args && info.args.actions) || [])
