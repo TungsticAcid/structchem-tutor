@@ -1881,8 +1881,30 @@ let lastDemoId = null
        *   "重画保留"之列 ⇒ 任何一次 renderPath / 空态刷新都会把它们抹掉 —— 用户说的就是这个。
        *   改用 .chip-row（两种命名都覆盖；这些 chip 都没有 mid、不在对话树里，不会与重画重复）。
        */
-      .filter((el) => el.matches('.chip-row')
-        || el.querySelector('.agent-q, .agent-fb, .agent-opt, .agent-goto, .agent-pick-btn'))
+      /**
+       * ★★ 2026-10-15（用户："'出题吧'按钮先出现后消失"）——**这一类 bug 的第 N 次**：
+       *
+       *   原先这里是"**硬编类名白名单**"：`.chip-row` 或含
+       *   `.agent-q / .agent-fb / .agent-opt / .agent-goto / .agent-pick-btn`。
+       *   而"出题吧"按钮的类名是 **`.agent-go-quiz`**（见 orbit / symmetry 两个
+       *   question-engine 的 `P.addMsg(...)`）—— 它**不在名单里** ⇒ 任何一次重画
+       *   （模型下一轮开口、看门狗兜底、切分支、刷新空态）都把它 `innerHTML = ''` 抹掉，
+       *   而它又**不在对话树里**，抹掉就再也回不来 ✗。实测：重画前 1 个 → 重画后 **0 个**，
+       *   同一批的 `.agent-pick-btn` / `.agent-opt` 因为恰好在名单里而存活。
+       *
+       *   ⇒ 判据从"**类名白名单**"改成"**结构性判据**"：**凡是没有 mid 的消息区直接子元素**，
+       *     就是"只存在于 DOM、不在对话树里"的节点（提示条 / 卡片 / 题目卡 / 按钮），
+       *     一律保留。理由：对话树里的消息**一定有 mid**（`addMsg` 里落的），
+       *     所以"没有 mid"精确等价于"不在树里"。
+       *   ★ 两个已确认安全的地方：`branchBar`（分支片）与题目卡都是按需重建、不在此列；
+       *     而空态问候语 `.agent-hello` 是**空路径**下画的，重画消息时也不该重复出现 ——
+       *     故 `renderEmptyState` 给它打 `data-nav="1"`，这里显式排除。
+       *
+       *   ★ 这条教训值得单独记：**用白名单描述"哪些要留"，迟早漏**（本次是第 4 次：
+       *     先是只认 `.agent-chip-row`、再补 `.agent-pick-btn`…每次都是"用户报了一个、
+       *     我补一个类名"）。改成"按结构判定"之后，新加的任何交互节点**自动**被保住。
+       */
+      .filter((el) => !(el.dataset && el.dataset.mid) && !(el.dataset && el.dataset.nav))
       .map(wrap)
   }
 
@@ -2002,7 +2024,17 @@ let lastDemoId = null
     const keep = domOnlyNodes()          // 卡片/提示条不在树里，见 domOnlyNodes 的说明
     clear(msgBox)
     const g = typeof cfg.greeting === 'function' ? cfg.greeting() : cfg.greeting
-    addMsg('<div class="agent-hello">' + (g || '') + '</div>', 'assistant')
+    /**
+     * ★ 2026-10-15：空态问候语打 `data-nav="1"`。
+     *   它**是由本函数按需画的**（空路径才画），不是"只在 DOM 里的交互节点"——
+     *   若被当成后者收进 keep 再接回去，就会**重复出现一条问候语**
+     *   （renderPath 空路径分支正是"先 renderEmptyState() 再 restoreDomOnly(keep)"）。
+     *   `domOnlyNodes()` 的判据里显式排除 `data-nav`，见那里的说明。
+     *   ★ 加这个标记**不能省掉空态分支里"先摘再画"的顺序**：keep 是在清空**之前**收的，
+     *     所以必须靠这个标记把它排除掉。
+     */
+    const hello = addMsg('<div class="agent-hello">' + (g || '') + '</div>', 'assistant')
+    if (hello && hello.dataset) hello.dataset.nav = '1'
     restoreDomOnly(keep)
   }
 

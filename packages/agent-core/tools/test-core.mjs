@@ -1944,6 +1944,22 @@ console.log(`\n${'═'.repeat(60)}`)
     && (panelSrc.match(/restoreDomOnly\(keep\)/g) || []).length >= 3)
   check('clearPracticeCards 取 .el（否则 remove 抛异常被吞、卡片清不掉却看不出）',
     /kept\.forEach\(\(it\) => \{ try \{ it\.el\.remove\(\) \}/.test(panelSrc))
+  // ─────────────────────────────────────────────────────────────────────────
+  // ★★ 2026-10-15（用户："'出题吧'按钮先出现后消失"）：
+  //   `domOnlyNodes()` 原先是"**硬编类名白名单**"（`.chip-row` 或含
+  //   `.agent-q/.agent-fb/.agent-opt/.agent-goto/.agent-pick-btn`），
+  //   而"出题吧"按钮的类名是 `.agent-go-quiz` ⇒ 不在名单 ⇒ 任何一次重画都把它抹掉，
+  //   它又不在对话树里，抹掉就回不来（实测：重画前 1 → 重画后 0）。
+  //   这类"漏一个类名就静默消失"的坑本仓已踩过 4 次（每次都靠用户报一个补一个）。
+  //   ⇒ 判据改成**结构性的**："没有 mid 的消息区直接子元素"= 只存在于 DOM 的节点，一律保留。
+  //   下面两条把它钉住：① 判据必须是结构式（不得再出现类名白名单）；
+  //                     ② 空态问候语（按需重画）必须被排除，否则会重复出现。
+  // ─────────────────────────────────────────────────────────────────────────
+  check('DOM-only 节点的保留判据是**结构性**的（"没有 mid"），不是类名白名单',
+    /\.filter\(\(el\) => !\(el\.dataset && el\.dataset\.mid\)/.test(panelSrc.replace(/\r/g, ''))
+    && !/el\.querySelector\('\.agent-q, \.agent-fb, \.agent-opt/.test(panelSrc))
+  check('空态问候语打 data-nav 并被保留判据排除（否则重画后重复出现一条问候语）',
+    /dataset\.nav = '1'/.test(panelSrc) && /!\(el\.dataset && el\.dataset\.nav\)/.test(panelSrc))
 
   // ─────────────────────────────────────────────────────────────────────────
   // ★★ 2026-10-14（用户："自动播放结束，回到第一步，再次点击连续播放时，会直接完成播放"）：
