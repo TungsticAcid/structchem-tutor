@@ -116,7 +116,16 @@ export const zh = {
     + '★ 对称元素多的点群（甲烷 Td 有 16 个）**不要"一键全部显示"** —— 画面会糊成一片；'
     + '按**族**演示（四根 C₃ → 三根 C₂ → 三根 S₄ → 六个 σ_d），或只显示正在讲的那一类。'
     + '★ 同一条演示里**先"切换分子"、再引用该分子特有的元素 key** 会被拒（整批校验用的是**当前**分子的元素表）；'
-    + '要引用新分子的元素，请**分两批下发**：先切分子，确认生效后再排引用它元素的那几步。',
+    + '要引用新分子的元素，请**分两批下发**：先切分子，确认生效后再排引用它元素的那几步。'
+    /**
+     * ★★ 2026-10-14（用户："提问'过氧化氢的结构'，回复'这本放开的书'，但是并没有打开辅助几何"）：
+     *   文字提到的画面元素必须**真的在画面上** —— 说"半开书/二面角"时，指的就是那两块半透明面，
+     *   而它们属于**辅助几何**图层 ⇒ 不同时打开，学生照着话在画面上找不到东西 ✗。
+     *   （这是"讲了就要看得见"的一个具体形态，与仓库里"排演示不等于回答"是同一类纪律。）
+     */
+    + '★ 讲到**构象 / 二面角**（如 H₂O₂ 的"半开书/扭曲构象"、乙烷的交叉式）时，'
+    + '必须同时下发 setAuxVisible（visible=true）**打开辅助几何** —— 那两块半透明面就是"二面角"的可视化；'
+    + '不打开图层，学生照着你的话在画面上什么都找不到。',
 
   // ---- 带变量的动态串（扫描替换做不到，必须走键） ----
   'shell.panel.switched': '已切到「{title}」模块',
@@ -296,7 +305,11 @@ export const en = {
     + '★ Inside one demo, **switching molecule first and then referencing that molecule\'s element keys** '
     + 'is rejected (a batch is validated against the **current** molecule\'s element table); to reference a '
     + 'new molecule\'s elements, **send two batches**: switch molecule first, then queue the steps that use '
-    + 'its element keys.',
+    + 'its element keys. '
+    + '★ When you talk about **conformation / dihedral angle** (H₂O₂\'s "open book / skewed" shape, the '
+    + 'staggered ethane), you must also queue setAuxVisible (visible=true) to **turn on the auxiliary '
+    + 'geometry** — those two translucent planes *are* the visualisation of the dihedral angle. Without '
+    + 'that layer, students cannot find on screen what your text describes.',
 
   'shell.panel.switched': 'Switched to the "{title}" module',
   'shell.panel.restored': 'Restored your previous conversation ({n} messages) — the top-right menu starts a new one',
