@@ -265,9 +265,12 @@ export class HomePage {
          *   列宽按**语言**给两套 —— 中文模块名只有 4 个字（约 7.5em 足够），若沿用英文的
          *   18em 会在名字后面留一大块空隙 ✗。版心也随之收窄（中文 780px / 默认 1016px）。
          *   ★ 判断依据是 portal 上的 lang-zh / lang-en（由 _render 按当前界面语言写上）。
+         *   ★★ 另一条教训（用户："箭头应上下对齐"）：每一行都是**各自独立的 grid** ⇒
+         *     概述列若写 max-content，会**按每行自己的文字**算宽 ⇒ 列宽逐行不同，
+         *     标签与箭头就被逐行推走 ✗（实测三行箭头 x 各不相同）。所以概述列也必须**固定宽度**。
          */
         .portal.lang-zh { max-width: 780px; }
-        .portal.lang-zh .pl-row { grid-template-columns: 3.4em 7.5em max-content 14em auto; }
+        .portal.lang-zh .pl-row { grid-template-columns: 3.4em 7.5em 12em 14em auto; }
         /* 每一行：序号 / 名称 / 概述 / 箭头；用细线分隔，不用边框盒 */
         /**
          * ★★ 2026-10-14（用户："中英文模式下，按钮位置不一致了，应基本上一致"）：
@@ -279,7 +282,7 @@ export class HomePage {
          */
         .pl-row {
           display: grid;
-          grid-template-columns: 3.4em 18em max-content 16em auto;
+          grid-template-columns: 3.4em 18em 16.5em 16em auto;
           align-items: baseline; gap: 20px;
           padding: 17px 4px;
           background: none; border: 0; font: inherit; text-align: left;
@@ -310,7 +313,14 @@ export class HomePage {
         .pl-tag {
           font-size: 16px; letter-spacing: .04em; font-weight: 500;
           color: var(--text-dim, #9aa7c6); opacity: .92;
-          text-align: right;      /* ★ 右边三句右对齐：列有固定宽度，右端因此能对齐、贴着箭头 */
+          /**
+           * ★ 右边三句右对齐 + 箭头上下对齐：
+           *   标签元素是"内联级网格项"，单靠 text-align 对它不生效 ✗ ——
+           *   标签框会跟着文字宽度走，把后面的箭头列一起推走（实测三行箭头 x 各不相同）。
+           *   正解是 justify-self: end：把这一项的盒子贴到列右端，而列宽又有固定值，
+           *   于是三行的标签右端与箭头 x 就都一致了。
+           */
+          justify-self: end; text-align: right;
           white-space: nowrap;
         }
         .pl-row:hover .pl-tag { color: var(--accent, #7c9cf5); opacity: 1; }
