@@ -123,6 +123,39 @@ export const zh = {
   'shell.panel.restored': '已恢复上次的对话（共 {n} 条）——右上角菜单可开新会话',
   'shell.home.enter': '进入{title}',
   'shell.home.locked': '{title}：尚未接入本应用',
+  /**
+   * ★★ 2026-10-14 首页改版（用户给了完整设计规范）：导航栏 / Hero / 三卡 / 设置 / 页脚。
+   *   文案**全部走键**（不赌运行时扫描的时机）—— 见 shell/pages/home.js 顶部说明。
+   */
+  'shell.home.brand': '结构化学教学智能体',
+  'shell.home.titleSm': '结构化学',
+  'shell.home.titleLg': '教学智能体',
+  'shell.home.sub': '场景感知式 AI 教学智能体',
+  'shell.home.slogan': '揭秘微观结构 · 启发深度思考 · 引导自主学习',
+  'shell.home.desc': '面向结构化学课程，提供原子轨道可视化、分子点群分析、晶体点阵解析，'
+    + '将抽象微观结构三维化，辅助课堂教学与自主研习。',
+  'shell.home.cta': '开始探索',
+  'shell.home.askAgent': '问智能体',
+  'shell.home.askHint': '有课程问题直接问它 —— 它一边讲，一边把画面调出来。',
+  'shell.home.settingsTitle': '界面与模型设置',
+  'shell.home.setTheme': '界面风格',
+  'shell.home.themeSystem': '跟随系统',
+  'shell.home.themeLight': '浅色',
+  'shell.home.themeDark': '深色',
+  'shell.home.setLang': '界面语言',
+  'shell.home.setModel': '模型与教学偏好',
+  'shell.home.openSettings': '打开设置（API Key · 模型 · 教学偏好）→',
+  'shell.home.comingSoon': '即将接入',
+  'shell.home.footer': '© 2026 结构化学教学智能体 | 面向结构化学课程教学科研工具',
+  'shell.home.orbit.sub': '类氢原子轨道三维可视化',
+  'shell.home.orbit.desc': '直观观测 s/p/d/f 轨道的三维形态、相位与截面，把抽象波函数可视化。',
+  'shell.home.orbit.tag': '微观世界可观察',
+  'shell.home.symmetry.sub': '分子对称性与分子点群',
+  'shell.home.symmetry.desc': '识别对称操作，判定分子点群，拆解对称元素，理解分子结构规律。',
+  'shell.home.symmetry.tag': '结构规律易剖析',
+  'shell.home.crystal.sub': '晶体结构与点阵型式',
+  'shell.home.crystal.desc': '解析晶胞与点阵类型，可视化晶体堆积，打通结构—性质关联。',
+  'shell.home.crystal.tag': '构效关系得贯通',
   'shell.lib.count': '{n} 种',
   /**
    * ★ 练习改由模型出题（用户报「练习功能应由 LLM 出题」）。
@@ -264,6 +297,41 @@ export const en = {
   'shell.panel.restored': 'Restored your previous conversation ({n} messages) — the top-right menu starts a new one',
   'shell.home.enter': 'Open {title}',
   'shell.home.locked': '{title}: not available in this app yet',
+  // ★ 2026-10-14 首页改版（与 zh 表逐键对应）
+  'shell.home.brand': 'Structural Chemistry Teaching AI Agent',
+  'shell.home.titleSm': 'Structural Chemistry',
+  'shell.home.titleLg': 'Teaching AI Agent',
+  'shell.home.sub': 'Scene-aware AI Teaching Agent',
+  'shell.home.slogan': 'Reveal microscopic structures · Inspire in-depth thinking · Guide autonomous learning',
+  'shell.home.desc': 'For structural chemistry courses: atomic-orbital visualization, molecular '
+    + 'point-group analysis and crystal-lattice analysis — rendering abstract microscopic structures '
+    + 'in 3D to assist classroom teaching and self-study.',
+  'shell.home.cta': 'Start exploring',
+  'shell.home.askAgent': 'Ask the agent',
+  'shell.home.askHint': 'Ask course questions directly — it explains and brings the view up as it goes.',
+  'shell.home.settingsTitle': 'Interface & model settings',
+  'shell.home.setTheme': 'Interface style',
+  'shell.home.themeSystem': 'System',
+  'shell.home.themeLight': 'Light',
+  'shell.home.themeDark': 'Dark',
+  'shell.home.setLang': 'Language',
+  'shell.home.setModel': 'Model & teaching preferences',
+  'shell.home.openSettings': 'Open settings (API key · model · teaching preferences) →',
+  'shell.home.comingSoon': 'Coming soon',
+  'shell.home.footer': '© 2026 Structural Chemistry Teaching AI Agent | A teaching and research '
+    + 'tool for structural chemistry courses',
+  'shell.home.orbit.sub': '3D visualization of hydrogenic orbitals',
+  'shell.home.orbit.desc': 'Observe the 3D shapes, phases and cross-sections of s/p/d/f orbitals — '
+    + 'making abstract wavefunctions visible.',
+  'shell.home.orbit.tag': 'Observe the microscopic world',
+  'shell.home.symmetry.sub': 'Molecular symmetry and point groups',
+  'shell.home.symmetry.desc': 'Identify symmetry operations, determine point groups and break down '
+    + 'symmetry elements to grasp the rules of molecular structure.',
+  'shell.home.symmetry.tag': 'Uncover structural principles',
+  'shell.home.crystal.sub': 'Crystal structures and lattice types',
+  'shell.home.crystal.desc': 'Analyze unit cells and lattice types, visualize crystal packing and '
+    + 'connect structure with properties.',
+  'shell.home.crystal.tag': 'Master structure–effect correlations',
   'shell.lib.count': '{n} items',
   'shell.practice.askLlm': 'I want to practise “{kp}”. '
     + 'Call the **generateQuiz tool** to produce one question (do not write the stem or the options yourself '

@@ -1510,6 +1510,9 @@ router
       getTheme, onTheme: setTheme, setTheme,
       getLang: getUiLang, onLang: setUiLang,
       onOpenSettings: () => settingsPopup.open(),
+      // ★★ 2026-10-14（用户："智能体入口要醒目"）：首页那个「问智能体」主按钮
+      //   与右下角悬浮球走**同一个入口**（打开智能体抽屉），不是第二条通路。
+      onOpenAgent: () => panel.open(),
     })
     p.mount($('#app'))
     return p
