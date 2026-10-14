@@ -442,8 +442,15 @@ export class HomePage {
         [data-theme="dark"] .portal .pt-art-b .pt-shot {
           filter: brightness(1.5) contrast(1.08) drop-shadow(0 0 20px rgba(214, 232, 255, .42));
         }
+        /**
+         * ★★ 2026-10-14（用户："C60 改成现在的三倍大小"）：
+         *   原是 52%（实测 187×187）⇒ 三倍 = **156%**（≈561×561）。
+         *   横向定位按"右缘不动、向左生长"算：原 left −34% + width 52% ⇒ 右缘在 18%，
+         *   故新 left = 18% − 156% = **−138%**；top 略上移，避免整体压到卡片区。
+         *   ★ 本注释在模板串内部：不许出现反引号（本行以上已因此把首页弄白屏两次）。
+         */
         .pt-art-a { right: -4%; top: 0; width: 96%; }
-        .pt-art-b { left: -34%; top: 26%; width: 52%; }
+        .pt-art-b { left: -138%; top: -26%; width: 156%; }
         .pt-art-c { right: -6%; bottom: -14%; width: 50%; }
         .pt-shot-wrap { animation: pt-float 7s ease-in-out infinite; }
         .pt-art-b { animation-delay: -2.2s; }
