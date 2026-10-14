@@ -165,8 +165,37 @@ let demoFav
 const pendingRetry = { n: 0, timer: 0 }
 /** 在途标记的看门狗（一次性；见 renderPath 里那段注释：按请求计数永远到不了上限） */
 let pendingWatchdog = 0
+/**
+ * 看门狗本次该等多久（毫秒）。**回合结束之后**只需一个很短的兜底，
+ * 不再是固定 12 秒 —— 那是"回合结束后要等 12–24 秒才恢复重画"的真因（见 armPendingWatchdog）。
+ */
+const PENDING_WATCHDOG_IDLE_MS = 12000
+const PENDING_WATCHDOG_TURN_ENDED_MS = 1400
 /** 正文流式结束的时刻（用于给"演示阶段"留出重试窗口） */
 let finishedAt = 0
+/**
+ * ★★ 2026-10-14（task-3 第 ①/② 项）：**这一轮**真的结束的时刻。
+ *
+ *   两条都用它，且都必须与 `running` 分开看：
+ *   · ① 看门狗要知道"回合已经结束"，才能把兜底等待从 12 秒缩短到 ~1.4 秒；
+ *   · ② 演示条要知道"回合还没结束"，才不会在只有一个批次播完时显示「演示完成」。
+ *
+ *   为什么不用 `finishedAt`：那是**正文流式结束**的时刻，而上游实测已经证明
+ *   "正文流式结束 ≠ 演示阶段结束"（finish() 里那条教训）——拿它当回合结束的判据，
+ *   演示阶段就会被当成"回合已完"，回到同一个坑里。
+ */
+let turnEndedAt = 0
+/** ④ 最近一次 queued 事件带的新增步数：并入**下一条 step** 的文案（否则同 tick 内被覆盖，学生看不到） */
+let pendingAdded = 0
+/** ② 最近一次 done 事件；回合结束后要拿它把演示条从"等待后续"补画成终态 */
+let lastDemoDoneEvt = null
+/** ② 演示条是否正处在"本批播完、回合还在跑 ⇒ 不显示终态"的中间态 */
+let demoBarAwaiting = false
+/**
+ * ③ 重画思考块时的**展开意图**：`null` = 老行为（展开）；`false` = 这一块是"前面的回合"，收起。
+ *   见 thinkBlock 的说明 —— 用它而不是给 thinkBlock 加形参，是为了不动上游那条结构断言。
+ */
+let thinkOpenHint = null
   let disposed = false
   let offProgress = null
   /**
@@ -554,6 +583,25 @@ let lastDemoId = null
     const showReasoning = getShowReasoning()
     if (!showReasoning) think.classList.add('hidden')
     else think.open = true
+    /**
+     * ★★ 2026-10-14（task-3 第 ③ 项）：**"已被显式收起的块，finish 不得再展开"**。
+     *
+     *   实测（真机，修前）：回合边界 `collapseThinking()` 把 `think.open` 置 false，紧接着
+     *   `finish({hasContent:true})` 里那句"设置了显示过程就展开"又把它 `setAttribute('open','')`
+     *   ⇒ 刚收起的块被当场展开 ✗。界面上的症状是块标题写着「点击展开」而内容是展开的。
+     *
+     *   判据不能是"现在 open 不 open"（那是**结果**，正是被我们自己上一步改掉的东西），
+     *   而必须是"有没有人**显式**收起过它"—— 所以这里记**意图**：
+     *     · `collapseThinking()` 置 collapsed = true（回合结束、前面那些块）；
+     *     · `beginAssistant()` 时块是展开的（学生正看着这一块在写）⇒ collapsed = false。
+     *   `finish()` 只对"没被显式收起的块"重新展开，于是：
+     *     · 中间回合那些块 → 保持收起（标题仍写「点击展开」，与状态一致）；
+     *     · 当前正在写的这一块 → 照旧保持展开 ✓。
+     */
+    let collapsed = false
+    const setExpanded = (v) => {
+      try { if (v) think.setAttribute('open', ''); else think.removeAttribute('open') } catch (e) { /* 无 DOM 桩 */ }
+    }
     const body = E('div', { class: 'agent-text' })
     wrap.appendChild(think)
     wrap.appendChild(body)
@@ -583,7 +631,11 @@ let lastDemoId = null
       wrap,
       setReasoning(text) { thinkBody.textContent = text; scrollDown() },
       /** ★ A 方案：回合结束后把这一块的思考**折叠**（否则多轮下来满屏都是展开的思考，回答被挤下去） */
-      collapseThinking() { try { think.open = false } catch (e) { /* 无 DOM 桩 */ } },
+      collapseThinking() {
+        collapsed = true      // ★ 记**意图**：finish() 不得再把这块展开（见上面 collapsed 的说明）
+        try { think.open = false } catch (e) { /* 无 DOM 桩 */ }
+        setExpanded(false)
+      },
       setContent(text) {
         pendingText = text
         if (rafId) return
@@ -665,7 +717,14 @@ let lastDemoId = null
         } else {
           sum.textContent = o.hasContent ? T('已思考（点击展开）') : T('模型实际输出的思考内容（点击展开）')
           // 没正文时把思考展开，让用户至少还能看到模型干了什么；设置了"显示过程"时也保持展开
-          if (!o.hasContent || showReasoning) think.setAttribute('open', '')
+          /**
+           * ★★ 2026-10-14（task-3 第 ③ 项）：`&& !collapsed` 是本轮修的核心。
+           *   没有它，回合边界那句 collapseThinking() 会在同一次 finish() 里被这行**当场撤销**
+           *   （实测：块标题写着「点击展开」，而内容是展开的）。仍然展开的只有两种块：
+           *   · 本轮**当前**正在写的这一块（它从没被显式收起 ⇒ collapsed=false）；
+           *   · 没写正文时那一块（让学生至少看到模型干了什么，老语义保留）。
+           */
+          if ((!o.hasContent || showReasoning) && !collapsed) setExpanded(true)
         }
       },
       setError(text) { body.innerHTML = '<span class="agent-err">' + escapeHtml(text) + '</span>' },
@@ -984,10 +1043,27 @@ let lastDemoId = null
    */
   function armPendingWatchdog() {
     if (pendingWatchdog) return          // 已经挂上了，不重复挂
+    /**
+     * ★★ 2026-10-14（task-3 第 ① 项）：**看门狗现在有两个触发条件**。
+     *
+     *   实测（真机，修前）：`stopRunning()` 在**正常回合结束**这条路上从不被调用，于是收尾
+     *   那次 `renderPath()` 见到在途标记就推迟，标记本身一直挂着 ⇒ 只有 12 秒后的看门狗
+     *   才会撤标记并重画。学生看到的是"回答完了，但整片消息 12–24 秒才恢复"。
+     *
+     *   两个条件各自的语义（都发生在 running === false 时）：
+     *     · `turnEndedAt` 有值 —— **回合至少结束过一次**。此时绝大多数在途标记都该被撤了
+     *       （收尾那次 endTurnRepaint() 已经当场撤过一遍），剩下的只可能是"回合结束后才冒出来
+     *       的孤儿标记" ⇒ 只等一个很短的兜底（~1.4 秒）就撤标记并重画。
+     *     · `turnEndedAt` 为空 —— 页面加载期那种"还没有回合"的孤立标记 ⇒ 12 秒。
+     *
+     *   ★ running 仍为真（含演示阶段）时一律只顺延，**绝不在回合中途撤标记**（4032e1e
+     *     那条实测教训原样保留）。
+     */
+    const delay = (running || !turnEndedAt) ? PENDING_WATCHDOG_IDLE_MS : PENDING_WATCHDOG_TURN_ENDED_MS
     pendingWatchdog = setTimeout(() => {
       pendingWatchdog = 0
       /**
-       * ★ 还在跑 ⇒ 只顺延，不动标记、不重建。这一条是本轮修的核心：
+       * ★ 还在跑 ⇒ 只顺延，不动标记、不重建。这一条是 4032e1e 修的核心：
        *   "标记过期"与"可以重建"是两件事，前者成立不代表后者成立。
        */
       if (running) { armPendingWatchdog(); return }
@@ -996,7 +1072,37 @@ let lastDemoId = null
         for (let i = 0; i < stale.length; i++) if (stale[i].dataset) delete stale[i].dataset.pending
       }
       renderPath()
-    }, 12000)
+      /**
+       * ★★ "标记永远没人撤"的兜底**没有取消** —— 只是它的等待时间随回合状态变短：
+       *   回合已经结束 ⇒ 1.4 秒内必然撤一次标记并重画；还没有任何回合（页面加载期的孤立标记）
+       *   ⇒ 老规矩 12 秒。两条路都不会让界面永久停在不重画上。
+       */
+    }, delay)
+  }
+
+  /**
+   * ★★ 2026-10-14（task-3 第 ① 项）：**回合结束这一步**（runAgent 收尾调用）。
+   *
+   *   为什么必须有它：正常回合结束时没有任何人撤在途标记（`stopRunning()` 只在分支切换/
+   *   新会话/停止那几条路上被调用）⇒ 收尾那次重画被推迟，界面要等看门狗（12 秒，甚至
+   *   两次到期 24 秒）才恢复。这里做三件事：
+   *     ① 记下"回合已结束"（`turnEndedAt`）—— 演示条的第 ② 项也靠它；
+   *     ② 撤掉在途标记，让**重画立刻**发生（大多数情况下这就是全部所需）；
+   *     ③ 顺手把演示条从"等待后续"补画成终态（本批播完、回合也结束了 ⇒ 才是真的完成）。
+   *
+   *   ★ 刻意**不**复用 stopRunning()：那个还会调 `cfg.onStop()`（中止对话循环）。
+   *     回合已经结束了，再去中止它是多余的动作；这里只要"撤标记 + 重画"这两件正事。
+   *   ★ 判定必须在 `running = false` **之后**：`running` 是"重画让不让过"的另一把锁
+   *     （见 renderPath），回合没标结束就补画会被它挡住，白补一次。
+   */
+  function endTurnRepaint() {
+    pendingRender = false
+    if (msgBox && typeof msgBox.querySelectorAll === 'function') {
+      const live = msgBox.querySelectorAll('[data-pending]')
+      for (let i = 0; i < live.length; i++) if (live[i].dataset) delete live[i].dataset.pending
+    }
+    try { renderPath() } catch (e) { /* 重画失败不影响这一轮的返回 */ }
+    finalizeDemoBar()
   }
 
   /**
@@ -1169,13 +1275,22 @@ let lastDemoId = null
   function thinkBlock(text) {
     const d = E('details', { class: 'agent-think' })
     const body = E('div', { class: 'agent-think-body' })
+    /**
+     * ★★ 2026-10-14（task-3 第 ③ 项的第二半）：重画路径要能说"这一块是**前面**那一块，
+     *   应当收起"。用一个**模块级的意图变量**（`thinkOpenHint`）传这层意思，
+     *   而不是给 thinkBlock 加第二个形参 —— 后者会让上游那条结构断言
+     *   （`hasReasoning) el.insertBefore(thinkBlock(n.reasoning), el.firstChild)`）
+     *   在本轮四个改动里变成"需要跟着改的测试"，而它钉的其实是**位置**（思考块在最前面）。
+     *   默认 null = 老行为（展开），所以其它调用点语义不变。
+     */
+    const open = thinkOpenHint === null ? true : !!thinkOpenHint
     if (text) {
-      d.setAttribute('open', '')       // 设置了"显示过程" ⇒ 默认展开（想看的人才点得开是不合预期的）
-      d.appendChild(E('summary', { text: T('思考过程（点击收起）') }))
+      if (open) d.setAttribute('open', '')
+      d.appendChild(E('summary', { text: open ? T('思考过程（点击收起）') : T('已思考（点击展开）') }))
       body.textContent = text
     } else {
       // 空串是**有意义的**：conversation.js 现在连空思考也存（老数据则是没有这个字段）
-      d.setAttribute('open', '')
+      if (open) d.setAttribute('open', '')
       d.appendChild(E('summary', { text: T('本轮没有思考内容') }))
       body.textContent = T('（该模型或这一轮没有返回思考内容——换一个会输出思考的模型，或再问一次，就可能有了）')
     }
@@ -1312,8 +1427,25 @@ let lastDemoId = null
            *   · 设置为不显示 → 一律不加
            */
           if (getShowReasoning() && el) {
-            if (hasReasoning) el.insertBefore(thinkBlock(n.reasoning), el.firstChild)
-            else if (isLast) el.insertBefore(thinkBlock(''), el.firstChild)
+            /**
+             * ★★ 2026-10-14（task-3 第 ③ 项的第二半 —— 真机实测才暴露的那一半）：
+             *   `thinkBlock()` 原先**无条件**展开每一块，于是"回合边界已经把前面的块收起了"
+             *   这件事在**重画**时被整个抹掉：一轮结束 → 落盘 → renderPath 重建 →
+             *   屏幕上又是 6 个全展开的思考块（真机实测：`thinks=[{open:true}×6]`），
+             *   而块标题写着「点击收起」——正是用户报的那个"折叠不生效"。
+             *   ⇒ 重画路径也要认同一个意图：**只有当前（最后）那一块展开**，前面的一律收起。
+             *     `isLast` 已经有（它就是"正在写/刚写完的那一条"）。
+             *   ★ 保留 `thinkOpenHint` 这个**模块级意图变量**而不是直接给 thinkBlock 传第二个实参：
+             *     设计上它是"重画路径想怎么画"这件事的单一出口；顺带让上游那条结构断言
+             *     （`hasReasoning) el.insertBefore(thinkBlock(n.reasoning), el.firstChild)`）
+             *     在本轮四个改动里保持字面不变 —— 那条断言钉的正是"思考块必须在最前面"。
+             */
+            const prevHint = thinkOpenHint
+            thinkOpenHint = isLast
+            try {
+              if (hasReasoning) el.insertBefore(thinkBlock(n.reasoning), el.firstChild)
+              else if (isLast) el.insertBefore(thinkBlock(''), el.firstChild)
+            } finally { thinkOpenHint = prevHint }
           }
         }
       } else if (n.role === 'tool') {
@@ -1866,6 +1998,17 @@ let lastDemoId = null
           hadAction: turnHadAction,
         })
         if (summary && summary.aborted) addChip('已停止（本次循环剩余动作已丢弃）', 'warn')
+        /**
+         * ★★ 2026-10-14（task-3 第 ① 项）：**在这里记下"这一轮真的结束了"**。
+         *
+         *   这一句就是第 ① 项"不要等 12–24 秒才恢复重画"的判据来源：runAgent 收尾据此
+         *   撤在途标记、当场补画一次，并把看门狗的兜底等待缩短到 ~1.4 秒（见 endTurnRepaint）。
+         *   刻意记在 `onDone`（正常收尾）而**不是** `onError`（出错）里：
+         *   · 出错时那个在途气泡里写的正是**错误信息本身**（cur.setError），此刻撤标记重画会
+         *     把它抹掉，学生连"出错了"都看不到 ✗ —— 老行为（等看门狗）反而更安全。
+         *   ★ 判据不能放在 finish() 里：正文流式结束 ≠ 回合结束（finish() 里那条实测教训）。
+         */
+        turnEndedAt = Date.now()
       },
       onError(err) {
         clearNoTextNote()   // ★ 出错时那条"还没写讲解"的实时提示不再成立，先撤掉再说别的
@@ -1893,6 +2036,17 @@ let lastDemoId = null
     if (pendingRender) {
       pendingRender = false
       try { renderPath() } catch (e) { /* 重画失败不影响这一轮的返回 */ }
+    }
+    /**
+     * ★★ 2026-10-14（task-3 第 ①/② 项）：**回合结束的收尾**（只走正常结束这条路）。
+     *
+     *   · ① 撤在途标记 + 当场重画 ⇒ 学生不必等看门狗（12 秒、甚至两次到期 24 秒）；
+     *   · ② 把演示条从"本批播完、回合还在跑"的中间态补画成终态（真·演示完成）。
+     *   ★ onError 那条路不设 `turnEndedAt` ⇒ 这里整体跳过：错误气泡必须留在屏幕上，
+     *     而它只存在于 DOM 里（重画会抹掉它）。老行为（等看门狗）在出错时反而更安全。
+     */
+    if (turnEndedAt) {
+      try { endTurnRepaint() } catch (e) { /* 收尾重画失败不影响这一轮的返回 */ }
     }
     return r
   }
@@ -1932,7 +2086,30 @@ let lastDemoId = null
     if (!demoBar) return
     clearTimeout(demoHideTimer)
     demoBar.classList.remove('hidden', 'bad')
-    demoIdx.textContent = T('第 {index}/{total} 步', { index: evt.index, total: evt.total })
+    /**
+     * ★★ 2026-10-14（task-3 第 ④ 项）：**"新增 K 步"并进这一步的文案**。
+     *
+     *   真因（实测）：`emitProgress(queued)`（"已完成 N/M 步 · 新增 K 步"）与紧接着的
+     *   `emitProgress(step)` 落在**同一个 tick** 里，queued 那行字被 step **当场覆盖**，
+     *   学生根本来不及看见 ✗（DOM 证据：MutationObserver 只录到一个文字值）。
+     *   ⇒ 不再指望"那行字能被看到"，而是把这条信息**带进后面那条一定会渲染的 step 行**：
+     *     `新增 3 步 · 第 1/7 步`。
+     *   ★ 只消费一次（pendingAdded 用完即清）：后续步骤不该继续声称"新增"。
+     */
+    const added = pendingAdded
+    pendingAdded = 0
+    /**
+     * ★ 文案复用**已登记的键**：`已完成 {index}/{total} 步 · 新增 {added} 步` 就是 queued
+     *   那条用过的注册文案（见 i18n.js 的"演示控制条"一节）。为什么不新写一条
+     *   `新增 {n} 步`：那需要同时改 `packages/agent-core/ui/i18n.js`（另一条写范围），
+     *   而本任务只许动 panel.js / storyboard.js —— 复用注册键既不动别的文件，
+     *   也不会有"英文界面里冒出中文"的窟窿（i18n:check 会逐条报出来）。
+     *   语义也正好：`index-1` 就是"这一步之前已经走完的步数"，added 是本批新增。
+     */
+    demoIdx.textContent = (added > 0
+      ? T('已完成 {index}/{total} 步 · 新增 {added} 步',
+        { index: Math.max(0, (evt.index || 1) - 1), total: evt.total, added })
+      : T('第 {index}/{total} 步', { index: evt.index, total: evt.total }))
       + (evt.ok === false ? T('（未执行）') : '')
     demoText.textContent = evt.speech || evt.label
     // ★ 记下"这一步说了什么"：演示完成时要把最后一步的旁白留着（用户报过它被顶掉）
@@ -1984,6 +2161,12 @@ let lastDemoId = null
   function renderQueued(evt) {
     if (!demoBar) return
     demoBar.classList.remove('hidden')
+    /**
+     * ★★ 2026-10-14（task-3 第 ④ 项）：先按原样把这句中间文案写进去（事件语义不变、
+     *   换语言重放也照旧），同时**记下新增步数** —— 它会被下一条 step 的文案带上
+     *   （见 renderStep 里那段说明：同一 tick 内这句一定会被覆盖，所以必须并进下一行）。
+     */
+    pendingAdded = Number(evt.added) > 0 ? Number(evt.added) : 0
     demoIdx.textContent = T('已完成 {index}/{total} 步 · 新增 {added} 步',
       { index: evt.index || 0, total: evt.total, added: evt.added })
     // 追加后"下一步"可能是刚入队的那一条，重新预告一次（否则预告会停留在旧的那条）
@@ -1996,14 +2179,76 @@ let lastDemoId = null
     }
   }
 
-  /** 播完：**不自动收起**，把「上一步 / 重新演示」留在手边 */
-  function renderDone(evt) {
+  /**
+   * ★★ 2026-10-14（task-3 第 ② 项）："本批播完、但回合还在跑"时的演示条文案。
+   *
+   *   实测（真机，修前）：auto 模式下**第一个批次只有 1 步**时，队列一播完就发出 done ⇒
+   *   演示条当场显示「演示完成 / 共 1 步」，而模型同一轮稍后还会下发下一批（约 11 秒后
+   *   才到）⇒ 学生盯着一个**说错话的终态**，然后它突然又变成"第 1/7 步"。
+   *   判据：`running === true` 时这条演示**还没有结束**，就不许出现"演示完成"这个词。
+   *   ★ 刻意**不**改分镜引擎去猜"还会不会再发一批"：storyboard 只知道"队列播完了"，
+   *     那是回合层的知识（runAgent 的 running）。引擎只把歧义**显式报出来**
+   *     （`queueDrained`，见 storyboard 里那段说明）。
+   */
+  function renderDoneProvisional(evt) {
     if (!demoBar) return
+    lastDemoDoneEvt = evt || { total: qTotalOf(evt) }
+    demoBarAwaiting = true
+    clearTimeout(demoHideTimer)
+    demoBar.classList.remove('hidden')
+    setBarMode('done')
+    /**
+     * ★ 用**已登记的键**说"队列走完了、但这一轮还没结束"：不出现"演示完成"这个终态词，
+     *   也不新造未登记的文案（理由同 renderStep 里那段）。`index` 取队列总步数 ⇒ `N/N`。
+     */
+    demoIdx.textContent = T('已完成 {index}/{total} 步', { index: qTotalOf(evt), total: qTotalOf(evt) })
+    demoText.textContent = lastDemoSpeech || ''
+    demoText.classList.toggle('muted', !lastDemoSpeech)
+    /**
+     * 提示行**保持隐藏**：中间态不能出现"共 N 步 · 可重新演示…"这类**终态**提示
+     *   （那等于换个位置再说一次"演完了"）。回合真正结束后由 finalizeDemoBar 补上。
+     */
+    demoNextHint.classList.add('hidden')
+  }
+
+  /**
+   * 队列总步数（终态文案用）。
+   * ★ 优先问分镜要**此刻**的 total：done 事件里的 total 是那一刻的快照，而串行批次会续写
+   *   同一条队列（第一批 1 步 + 第二批 6 步 ⇒ 真的共 7 步）。回合结束时队列已经不再变，
+   *   问到的就是终值 —— 否则学生会看到"共 1 步"这个假终值（正是 task-3 第 ② 项的场景）。
+   * ★ 桩 / 老事件没有 total 时回落到 0，绝不抛错。
+   */
+  function qTotalOf(evt) {
+    const sb = cfg.storyboard
+    const st = (sb && typeof sb.state === 'function') ? sb.state() : null
+    if (st && Number(st.total) > 0) return Number(st.total)
+    return (evt && evt.total) || 0
+  }
+
+  /**
+   * 播完：**不自动收起**，把「上一步 / 重新演示」留在手边。
+   *
+   * ★★ 2026-10-14（task-3 第 ② 项）：**回合还在跑时不许把它当终态显示**（见 renderDoneProvisional）；
+   *   回合确实结束了才画终态。判据是 `running`，不是"这个事件到没到"——事件到得早，
+   *   终态就该晚一点画。
+   *   ★ 还要看"这条 done 是不是**连播自己排空了队列**"（`queueDrained`，见 storyboard 的说明）：
+   *     · queueDrained=true（连播走完）⇒ 模型**同一轮**里很可能还会再发一批 ⇒ 回合没结束
+   *       就不是终态（这正是"第一批只 1 步 ⇒ 瞬时「共 1 步」"那个缺陷）。
+   *     · queueDrained=false（手动模式走完）⇒ 学生一步一步看到底了，这就是终态，不必等回合。
+   *     ★ 老事件没有这个字段时按 `false` 处理：宁可显示终态，也不要把一句已经确定的话拖着不画。
+   *   ★ `force` = true：**回合结束**那条路（finalizeDemoBar）要求无条件画终态，不再看 running。
+   */
+  function renderDone(evt, force) {
+    if (!demoBar) return
+    const drained = evt && evt.queueDrained === true
+    if (!force && running && drained) { renderDoneProvisional(evt); return }
+    demoBarAwaiting = false
+    lastDemoDoneEvt = null
     clearTimeout(demoHideTimer)
     demoNextHint.classList.add('hidden')
     demoBar.classList.remove('hidden')
     setBarMode('done')
-    demoPrev.disabled = !(evt.canPrev !== false && evt.total > 0)
+    demoPrev.disabled = !(evt && evt.canPrev !== false && qTotalOf(evt) > 0)
     demoIdx.textContent = '演示完成'
     /**
      * ★★ 2026-10-11（用户："到了第五步，第五步的描述文字就没了"）：
@@ -2015,11 +2260,25 @@ let lastDemoId = null
       demoText.textContent = lastDemoSpeech
       demoText.classList.remove('muted')
       demoNextHint.classList.remove('hidden')
-      demoNextHint.textContent = T('共 {total} 步 · 可重新演示，或退回去重看某一步', { total: (evt && evt.total) || 0 })
+      demoNextHint.textContent = T('共 {total} 步 · 可重新演示，或退回去重看某一步', { total: qTotalOf(evt) })
     } else {
-      demoText.textContent = T('共 {total} 步 · 可重新演示，或退回去重看某一步', { total: (evt && evt.total) || 0 })
+      demoText.textContent = T('共 {total} 步 · 可重新演示，或退回去重看某一步', { total: qTotalOf(evt) })
       demoText.classList.add('muted')
     }
+  }
+
+  /**
+   * ★ 回合真正结束后，把"等后续"的中间态补画成终态。
+   *   ★ 幂等：没有处在中间态时什么都不做（endTurnRepaint 每轮都会调它）。
+   *   ★ 这一步必须由**回合结束**驱动：done 事件到手时回合往往还没结束，
+   *     那时没有任何后续进度事件会把演示条再画一次。
+   */
+  function finalizeDemoBar() {
+    if (!demoBarAwaiting) return
+    demoBarAwaiting = false
+    const evt = lastDemoDoneEvt || {}
+    lastDemoDoneEvt = null
+    renderDone(evt, true)
   }
 
   function hideBar() {
@@ -2051,6 +2310,16 @@ let lastDemoId = null
       if (demoSuppressed) { hideBar(); return }
     } else {
       demoSuppressed = false
+    }
+    /**
+     * ★★ 2026-10-14（task-3 第 ② 项）：**任何新的进度事件都说明"这条演示还在走"**
+     *   ⇒ 撤掉"本批播完、等待后续"的中间态（终态补画是给回合结束用的，不是给新批次用的）。
+     *   ★ stopped 是例外：它是"演示被结束"，此时那条中间态自然失效，但不必再补画终态 ——
+     *     stopped 分支自己会把演示条画成"演示已停止"。
+     */
+    if (evt.phase !== 'done') {
+      demoBarAwaiting = false
+      lastDemoDoneEvt = null
     }
     switch (evt.phase) {
       case 'step':

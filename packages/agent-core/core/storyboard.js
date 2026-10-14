@@ -804,7 +804,28 @@ export function createStoryboard(opts = {}) {
      */
     selfFinished = !manual
     trace({ k: 'done', total: qTotal, executed: qIndex, q: queue.length, selfFinished })
-    emitProgress({ phase: 'done', total: qTotal, canReplay: queue.length > 0, canPrev: qIndex > 0 })
+    /**
+     * ★★ 2026-10-14（task-3 第 ② 项）：**这个 `done` 是"队列播完了"，不是"演示完成了"**。
+     *
+     *   两者在 auto 模式下不等价，而且差得很远：实测（真模型「过氧化氢的结构」、playback=auto）
+     *   第一批**只有 1 步**时，队列一播完就走到这里 ⇒ 面板当场把演示条画成
+     *   「演示完成 / 共 1 步」，而模型同一轮里约 11 秒后才下发下一批（共 7 步）——
+     *   学生先看到一个**说错话的终态**，随后它又跳回"第 1/7 步"。
+     *
+     *   引擎这边**无从判断**"模型还会不会再发一批"（那是回合层的知识：模型还在跑、还没写收尾），
+     *   所以这里不去猜，而是把这个歧义**显式放进事件里**：
+     *     · `queueDrained: true` —— 队列排空了，但**这条演示/这一轮可能还有后续批次**
+     *       （判据就是 `selfFinished`：学生没插手而队列空了 ⇒ 模型可能还会续写）。
+     *     · `queueDrained: false` —— 手动模式走完：学生一步一步看到底了，这条演示就是完了
+     *       （之后再来的一批按 restart 处理，是另一条演示）。
+     *   ⇒ 面板据此决定"现在能不能显示终态"：**只有回合也结束了**才显示「演示完成」
+     *     （见 panel.js 的 renderDone / renderDoneProvisional / finalizeDemoBar）。
+     */
+    const selfDone = !manual
+    emitProgress({
+      phase: 'done', total: qTotal, canReplay: queue.length > 0, canPrev: qIndex > 0,
+      queueDrained: selfDone, selfFinished: selfDone,
+    })
     return { executed, failed, aborted: false }
   }
 

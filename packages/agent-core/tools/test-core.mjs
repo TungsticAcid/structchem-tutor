@@ -2028,6 +2028,223 @@ console.log(`\n${'═'.repeat(60)}`)
   check('会话页的「＋ 新会话」也调 resetDemo', /store\.newSession\(\)[\s\S]{0,200}?resetDemo\(\)/.test(panelSrc))
 }
 
+// ============================================================================
+section('源码棘轮：模板串内部不得出现裸反引号（本仓库已因此白屏 8 次）')
+// ───────────────────────────────────────────────────────────────────────────
+// ★★ 2026-10-14（第 8 次：apps/web/src/pages/symmetry-markup.js 的 CSS 注释里写反引号）：
+//   症状是**整页白屏**，而 `node --check`、test-shell、vite **全都通过** ——
+//   因为模板串被反引号提前截断之后，剩下的**仍然是合法 JS**（只是语义全错）。
+//   静态语法检查永远抓不到它 ⇒ 只能靠这条源码棘轮：**模板区间内部不许出现裸反引号**。
+//
+// ★ 写法上有两条硬要求（本仓库为这两条分别误报过、也漏报过，别改回去）：
+//
+//   ① **只剥「代码上下文」里的注释，不是全文剥注释。**
+//      这些文件的文件头注释里就写着反引号（"取自上游 `orbit/H5/index.html`"），
+//      不剥 ⇒ 守卫把说明文字当定界符，当场误报（判据自伤）；
+//      而模板串**内部**的 `/* … */` 是 **CSS 注释（模板文本）**，第 8 次那个反引号
+//      正是藏在里面 ⇒ 全文剥注释会把证据一起删掉、守卫**恒绿**（漏报）。
+//      所以这里按 JS 词法走：进了模板就不再认注释，出了模板才认。
+//
+//   ② **不能只找「配对的下一个反引号」。**
+//      截断一旦发生，被截断的那一段里「下一个反引号」就是被注入的那个，
+//      按"区间里有没有反引号"判自然什么都查不到 ⇒ 也是**恒绿**。
+//      这里改判：**凡在「代码上下文」遇到的反引号，都必须是合法的模板起始点**
+//      （前面是 `=` `(` `,` `:` `?` `&` `|` `+`，或 return 这类关键字）。
+//      截断之后，**原来那个收尾反引号**就落进了代码上下文，而它前面通常是
+//      模板文本的结尾（`}` 或 `>`）⇒ 不是合法起始点 ⇒ **当场变红**；
+//      再把 [上一个合法起始点, 这个反引号) 之间的**原始反引号**逐个报出行号与行文本，
+//      照着就能找到那个多写的反引号。
+//
+// ★ 覆盖：清单里**存在**的文件都扫（crystal-markup.js 目前不存在）。清单缩水会报出来。
+// ★ 已知不覆盖的语法（这三个文件里都没有；一旦出现会**误报**，届时按需扩展）：
+//   · 正则字面量（里面的 `//` 会被当代码注释）；
+//   · 标签模板（起始点前面是标识符，不在合法清单里）；
+//   · `=>` 直接返回模板 —— `>` 与「HTML 文本收尾」同形，故意**不**列入合法起始点，
+//     否则 `</div>` 后面那个收尾反引号会被判成合法起点，截断就漏报了。
+//
+// ★ 局限（如实记下）：本文件在**找不到 orbit 上游**时会整体 exit 0（见文件头那段），
+//   那时这条棘轮也不会跑 —— 与文件里其它所有断言同一处境；要让它任何机器上都跑，
+//   得把 `check()` 与这一段挪到那段之前（那属于结构调整，没擅自动）。
+const TEMPLATE_BACKTICK_FILES = [
+  'apps/web/src/shell/pages/home.js',
+  'apps/web/src/pages/symmetry-markup.js',
+  'apps/web/src/pages/orbit-markup.js',
+  'apps/web/src/pages/crystal-markup.js', // 目前不存在（crystal 的标记在 compare.js / viewer.js 里）
+]
+
+/**
+ * 反引号前面那个「有意义的东西」是不是一个合法模板起始点？
+ * ★ 刻意**不含** `>` `}` `)` `;` `.`：模板文本的收尾就长这样，
+ *   放进来等于把「被截断的那个收尾反引号」判成合法起点 ⇒ 棘轮失效。
+ */
+function isTemplateStart(lastChar, lastWord) {
+  if (/^(return|typeof|case|in|of|yield|await|void|delete|new|do|else|default)$/.test(lastWord)) return true
+  return '=(,:[?&|+'.includes(lastChar)
+}
+
+/**
+ * 按 JS 词法扫一遍源码，把「代码上下文的反引号」与「模板文本」分开。
+ *
+ * 返回：
+ *   · delims    代码上下文 / 模板收尾处见到的反引号（opener 记录它是不是合法起始点）
+ *   · strays    代码上下文里**不是**合法起始点的反引号 = 模板被提前截断的证据
+ *   · openAtEnd 扫到文件尾还停在模板里（模板没收尾）
+ */
+function scanTemplateBackticks(src) {
+  const delims = []
+  const strays = []
+  let openerIdx = -1
+  let openerLine = 0
+  let mode = 'code' // code | template | line | block | sq | dq（插值用 stack 记）
+  let line = 1
+  let lastChar = ''
+  let lastWord = ''
+  const stack = [{ kind: 'code', brace: 0 }]
+  const top = () => stack[stack.length - 1]
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i]
+    if (c === '\n') {
+      line++
+      // JS 的字符串不能跨行：真出现就是语法错，这里按行退回代码模式（免得扫飞）
+      if (mode === 'line' || mode === 'sq' || mode === 'dq') mode = 'code'
+      continue
+    }
+    if (mode === 'line') continue
+    if (mode === 'block') {
+      if (c === '*' && src[i + 1] === '/') { i++; mode = 'code' }
+      continue
+    }
+    if (mode === 'sq' || mode === 'dq') {
+      if (c === '\\') { i++; continue }
+      if ((mode === 'sq' && c === "'") || (mode === 'dq' && c === '"')) { mode = 'code'; lastChar = c; lastWord = '' }
+      continue
+    }
+    if (mode === 'template') {
+      // 转义（含反引号前面的反斜杠）—— 被转义的反引号**不是**定界符
+      if (c === '\\') { if (src[i + 1] === '\n') line++; i++; continue }
+      if (c === '`') {
+        delims.push({ line, index: i, opener: false })
+        stack.pop()
+        mode = 'code'
+        lastChar = '`'
+        lastWord = ''
+        continue
+      }
+      if (c === '$' && src[i + 1] === '{') { // 插值：进代码上下文，按花括号配对回来
+        stack.push({ kind: 'interp', brace: 0 })
+        mode = 'code'
+        i++
+        lastChar = ''
+        lastWord = ''
+        continue
+      }
+      continue
+    }
+    // ── 代码上下文 ──
+    if (c === '/' && src[i + 1] === '/') { mode = 'line'; i++; continue }
+    if (c === '/' && src[i + 1] === '*') { mode = 'block'; i++; continue }
+    if (c === "'") { mode = 'sq'; continue }
+    if (c === '"') { mode = 'dq'; continue }
+    if (c === '`') {
+      const ok = isTemplateStart(lastChar, lastWord)
+      delims.push({ line, index: i, opener: ok })
+      if (ok) { openerIdx = i; openerLine = line }
+      else strays.push({ line, index: i, prevOpener: openerIdx, prevOpenerLine: openerLine })
+      stack.push({ kind: 'template' })
+      mode = 'template'
+      lastChar = '`'
+      lastWord = ''
+      continue
+    }
+    if (c === '{') { const t = top(); if (t.kind === 'interp') t.brace++; lastChar = c; lastWord = ''; continue }
+    if (c === '}') {
+      const t = top()
+      if (t.kind === 'interp') {
+        if (t.brace > 0) t.brace--
+        else { stack.pop(); mode = 'template' }
+      }
+      lastChar = c
+      lastWord = ''
+      continue
+    }
+    if (/[A-Za-z0-9_$]/.test(c)) { lastWord += c; lastChar = c; continue }
+    if (/\s/.test(c)) continue
+    lastChar = c
+    lastWord = ''
+  }
+  return { delims, strays, openAtEnd: mode === 'template' }
+}
+
+/** 取 (from, to) 之间**原始反引号**所在的行号（被转义的不算），用来把"多写的那几个"报到行。 */
+function backtickLinesBetween(src, from, to) {
+  const out = []
+  let line = 1
+  for (let i = 0; i < to && i < src.length; i++) {
+    const c = src[i]
+    if (c === '\n') { line++; continue }
+    if (c === '\\') { if (src[i + 1] === '\n') line++; i++; continue }
+    if (c === '`' && i > from) out.push(line)
+  }
+  return out
+}
+
+{
+  const targets = []
+  const absent = []
+  for (const rel of TEMPLATE_BACKTICK_FILES) {
+    const abs = fileURLToPath(new URL('../../../' + rel, import.meta.url))
+    if (existsSync(abs)) targets.push({ rel, abs })
+    else absent.push(rel)
+  }
+
+  // ★ 仪器自检之一：不能"一个文件都没扫到"却绿着（清单缩水/改名必须报出来）
+  check('源码棘轮：清单里存在的模板文件都扫到了（缩水要报，别让它变成空跑）',
+    targets.length >= 3 && targets.some((f) => /symmetry-markup\.js$/.test(f.rel)),
+    `扫到 ${targets.length} 个；不存在：${absent.join(' / ') || '（无）'}`)
+
+  for (const { rel, abs } of targets) {
+    const src = readFileSync(abs, 'utf8')
+    const lines = src.split(/\r?\n/)
+    const at = (n) => `第 ${n} 行「${(lines[n - 1] || '').trim()}」`
+    const found = scanTemplateBackticks(src)
+    const openers = found.delims.filter((d) => d.opener).length
+    const closers = found.delims.length - openers
+    // 报错文本要**可照做**：文件 · 行号 · 那行写了什么。
+    // ★ 连锁报错必须收敛：截断之后，后面每一处反引号都会跟着"不在合法起始点"，
+    //   全量铺开会把真正的凶手淹掉 ⇒ 按"同一段模板"分组，每组只报第一处 + 凶手行 + 连带处数。
+    const groups = []
+    for (const st of found.strays) {
+      const g = groups.find((x) => x.opener === st.prevOpener)
+      if (g) { g.more++; continue }
+      groups.push({
+        opener: st.prevOpener,
+        openerLine: st.prevOpenerLine,
+        cut: st,
+        culprits: [...new Set(backtickLinesBetween(src, st.prevOpener, st.index))],
+        more: 0,
+      })
+    }
+    const detail = groups.map((g) => {
+      const where = g.openerLine ? `第 ${g.openerLine} 行起的模板` : '一处模板'
+      const culprits = g.culprits.map(at).join(' ／ ')
+      return `${rel}：${where}里多写了裸反引号`
+        + (culprits ? ` ⇒ ${culprits}` : '')
+        + `；它把模板截断在第 ${g.cut.line} 行（${at(g.cut.line)}）`
+        + (g.more ? `；后面还有 ${g.more} 处连带报出` : '')
+    }).join(' ｜ ')
+
+    // ① 主判据：模板区间内部不得出现裸反引号。
+    //    红的时候 detail 直接给出**多写的那个反引号在哪一行、那行写了什么**。
+    check(`模板串内部无裸反引号：${rel}`, found.strays.length === 0, detail)
+
+    // ② 仪器自检之二：真的扫到了模板、定界符成对、模板都收尾了。
+    //    ★ 没有这一条，"一个模板都没找到"与"模板全都干净"都会绿 —— 守卫变成空跑。
+    check(`反引号成对、模板都闭合、且确实扫到了模板（不是空跑）：${rel}`,
+      openers >= 1 && openers === closers && !found.openAtEnd,
+      `合法起始点 ${openers} 个 / 收尾 ${closers} 个 · 文件尾仍在模板里=${found.openAtEnd}`)
+  }
+}
+
 console.log(`test-core 结果：通过 ${pass} 项，失败 ${fail} 项`)
 console.log('═'.repeat(60))
 process.exit(fail ? 1 : 0)
