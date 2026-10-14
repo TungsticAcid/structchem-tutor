@@ -59,8 +59,8 @@ const LAYER_CONTROL_BASE_CSS = `
         transition: all 0.3s;
       }
       .panel-toggle { display: flex; align-items: center; justify-content: center; padding: 8px; gap: 4px; cursor: pointer; }
-      .toggle-arrow { color: var(--text-dim, rgba(255,255,255,0.5)); font-size: 10px; }
-      .toggle-label-text { color: var(--text-dim, rgba(255,255,255,0.7)); font-size: 12px; }
+      .toggle-arrow { color: var(--text-dim, rgba(255,255,255,0.5)); font-size: 0.893rem; }
+      .toggle-label-text { color: var(--text-dim, rgba(255,255,255,0.7)); font-size: 1.071rem; }
 `
 
 export class LayerControl extends BaseComponent {
@@ -309,7 +309,7 @@ ${LAYER_CONTROL_BASE_CSS}
     if (p.showAuxiliaryBody || p.showAuxiliaryFace) {
       auxAboveHtml = `
       <div class="toggle-row toggle-indent">
-        <span class="toggle-label" style="font-size:11px;">显示在原子上方</span>
+        <span class="toggle-label" style="font-size: 0.982rem;">显示在原子上方</span>
         <label class="toggle-switch">
           <input type="checkbox" ${p.auxiliaryLineAboveAtoms ? 'checked' : ''} data-layer="auxAbove" data-change="onToggle" />
           <span class="toggle-slider" style="--toggle-color:#FFD54F"></span>
@@ -389,14 +389,14 @@ ${LAYER_CONTROL_BASE_CSS}
 ${LAYER_CONTROL_BASE_CSS}
       .panel-body { padding: 0 12px 16px; max-height: 250px; overflow-y: auto; }
       .control-section { margin-bottom: 12px; }
-      .section-title { display: block; color: var(--text-dim, rgba(255,255,255,0.5)); font-size: 11px; margin-bottom: 6px; }
+      .section-title { display: block; color: var(--text-dim, rgba(255,255,255,0.5)); font-size: 0.982rem; margin-bottom: 6px; }
       .toggle-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
 
       /* 外观滑块（原子缩放 / 原子透明度） */
       .slider-row { padding: 4px 0 8px; }
       .slider-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
-      .slider-val { color: var(--text, rgba(255,255,255,0.8)); font-size: 11px; font-variant-numeric: tabular-nums; }
-      .slider-hint { color: var(--text-dim, rgba(255,255,255,0.38)); font-size: 10.5px; line-height: 1.5; margin-top: 3px; }
+      .slider-val { color: var(--text, rgba(255,255,255,0.8)); font-size: 0.982rem; font-variant-numeric: tabular-nums; }
+      .slider-hint { color: var(--text-dim, rgba(255,255,255,0.38)); font-size: 0.938rem; line-height: 1.5; margin-top: 3px; }
       .appearance-range {
         -webkit-appearance: none; appearance: none;
         width: 100%; height: 4px; border-radius: 2px; outline: none; cursor: pointer;
@@ -413,20 +413,20 @@ ${LAYER_CONTROL_BASE_CSS}
         background: #fff; border: 2px solid var(--accent, #4285F4); cursor: pointer;
       }
       .toggle-indent { padding-left: 12px; }
-      .toggle-label { color: var(--text, rgba(255,255,255,0.85)); font-size: 13px; }
+      .toggle-label { color: var(--text, rgba(255,255,255,0.85)); font-size: 1.161rem; }
       .element-section-header { padding: 5px 0; border-top: 1px solid var(--line-soft, rgba(255,255,255,0.06)); margin-top: 2px; cursor: pointer; }
       .element-section-left { display: flex; align-items: center; gap: 4px; }
-      .element-count-text { color: var(--text-dim, rgba(255,255,255,0.35)); font-size: 11px; }
-      .element-expand-arrow { color: var(--text-dim, rgba(255,255,255,0.4)); font-size: 10px; }
+      .element-count-text { color: var(--text-dim, rgba(255,255,255,0.35)); font-size: 0.982rem; }
+      .element-expand-arrow { color: var(--text-dim, rgba(255,255,255,0.4)); font-size: 0.893rem; }
       .element-toggle-row { padding-left: 12px; padding-top: 2px; padding-bottom: 2px; }
-      .element-toggle-row .toggle-label { flex: 1; font-size: 12px; color: var(--text, rgba(255,255,255,0.75)); }
+      .element-toggle-row .toggle-label { flex: 1; font-size: 1.071rem; color: var(--text, rgba(255,255,255,0.75)); }
       .element-color-dot { width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; border: 1px solid var(--line, rgba(255,255,255,0.3)); flex-shrink: 0; }
       .crystal-info { padding: 4px 0; }
-      .info-line { display: block; color: var(--text, rgba(255,255,255,0.7)); font-size: 12px; line-height: 1.8; }
+      .info-line { display: block; color: var(--text, rgba(255,255,255,0.7)); font-size: 1.071rem; line-height: 1.8; }
       .model-selector { display: flex; gap: 4px; }
       .model-option {
         flex: 1; text-align: center; padding: 7px 0; border-radius: 6px;
-        background: var(--card-2, rgba(255,255,255,0.06)); color: var(--text-dim, rgba(255,255,255,0.5)); font-size: 12px;
+        background: var(--card-2, rgba(255,255,255,0.06)); color: var(--text-dim, rgba(255,255,255,0.5)); font-size: 1.071rem;
         transition: all 0.2s; cursor: pointer;
       }
       .model-option.active { background: rgba(66,133,244,0.18); color: var(--accent, #4285F4); font-weight: 500; }

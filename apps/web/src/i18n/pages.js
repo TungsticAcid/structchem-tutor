@@ -271,7 +271,7 @@ export const text = {
    *   门户卡片走的是模块表，页面顶栏走的是这张表。
    */
   '轨道视界': 'Orbital Horizon',
-  '类氢原子轨道三维可视化 · 等值面 / 球谐 / 杂化': 'Hydrogen-like orbitals in 3D · isosurfaces, spherical harmonics, hybrids',
+  '类氢原子轨道三维可视化 · 等值面 / 球谐': 'Hydrogen-like orbitals in 3D · isosurfaces, spherical harmonics',
   /** 同上：晶体库页顶栏也改成板块名（原先写「晶体结构库」） */
   '晶典在线': 'Crystal Atlas',
   /**

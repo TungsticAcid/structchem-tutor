@@ -85,7 +85,7 @@ export const SYMMETRY_CSS = `    .sym-page {
       box-shadow: var(--panel-shadow);
       z-index: 30; /* 需高于 info/settings/transform 面板，使展开的下拉不被遮挡 */
     }
-    #toolbar .brand { font-weight: 700; font-size: 15px; letter-spacing: 1px; }
+    #toolbar .brand { font-weight: 700; font-size: 1.339rem; letter-spacing: 1px; }
     #toolbar .brand span { color: var(--accent); }
     #toolbar select, #toolbar button {
       background: rgba(255,255,255,0.08);
@@ -93,12 +93,12 @@ export const SYMMETRY_CSS = `    .sym-page {
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 6px 10px;
-      font-size: 13px;
+      font-size: 1.161rem;
       cursor: pointer;
     }
     #toolbar select option { color: #222; }
     #toolbar .spacer { flex: 1; }
-    #toolbar label.toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+    #toolbar label.toggle { display: flex; align-items: center; gap: 6px; font-size: 1.161rem; cursor: pointer; }
     #toolbar input[type="checkbox"] { accent-color: var(--accent); }
     #toolbar label.toggle.disabled { opacity: 0.35; pointer-events: none; }
 
@@ -108,11 +108,11 @@ export const SYMMETRY_CSS = `    .sym-page {
       display: flex; justify-content: space-between; align-items: center;
       background: var(--panel-item-bg); color: var(--panel-fg);
       border: 1px solid var(--border); border-radius: 6px;
-      padding: 6px 10px; font-size: 13px; cursor: pointer;
+      padding: 6px 10px; font-size: 1.161rem; cursor: pointer;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .example-select .es-cur-sym { color: var(--accent); font-weight: 600; font-size: 12px; font-family: "Segoe UI", "PingFang SC", sans-serif; }
-    .example-select .es-current::after { content: '▾'; color: var(--panel-dim, #9aa3b5); font-size: 11px; margin-left: 8px; }
+    .example-select .es-cur-sym { color: var(--accent); font-weight: 600; font-size: 1.071rem; font-family: "Segoe UI", "PingFang SC", sans-serif; }
+    .example-select .es-current::after { content: '▾'; color: var(--panel-dim, #9aa3b5); font-size: 0.982rem; margin-left: 8px; }
     .example-select .es-current.open::after { content: '▴'; }
     .example-select .es-list {
       position: absolute; top: calc(100% + 4px); left: 0; right: 0;
@@ -122,18 +122,18 @@ export const SYMMETRY_CSS = `    .sym-page {
       backdrop-filter: blur(8px); z-index: 30; padding: 4px 0;
     }
     .example-select .es-group-label {
-      font-size: 11px; color: var(--panel-dim, #9aa3b5); padding: 8px 10px 4px;
+      font-size: 0.982rem; color: var(--panel-dim, #9aa3b5); padding: 8px 10px 4px;
       text-transform: uppercase; letter-spacing: 1px;
     }
     .example-select .es-item {
       display: flex; align-items: center; gap: 8px;
-      padding: 5px 10px; font-size: 13px; cursor: pointer;
+      padding: 5px 10px; font-size: 1.161rem; cursor: pointer;
     }
     .example-select .es-item:hover { background: var(--panel-item-bg); }
     .example-select .es-item.selected { background: rgba(124,156,245,0.18); }
     .example-select .es-sym {
       width: 66px; flex-shrink: 0; text-align: center;
-      color: var(--accent); font-weight: 600; font-size: 12px;
+      color: var(--accent); font-weight: 600; font-size: 1.071rem;
       /* ★ 原先这里写了第三套字体栈（少了 -apple-system 与 Microsoft YaHei）——
          同一页三份清单，结果是"哪天改一处、三处不一致"。字体一律继承页面的 --font-ui。 */
     }
@@ -143,7 +143,15 @@ export const SYMMETRY_CSS = `    .sym-page {
     #info-panel {
       position: absolute;
       top: 68px; left: 12px;
-      width: 300px;
+      /**
+       * ★★ 2026-10-15（用户："点群观鉴左边浮窗宽度增加 10%"）：300 → 330px。
+       *   同一轮本页字号整体提到 125%（见各处 font-size 的 rem 值）——
+       *   字号变大后行更长，宽度同步 +10% 才不局促。
+       *   ★ 面板内各行是 flex（.elem-label 是 flex:1，计数列是 margin-left:auto），
+       *     加宽只拉伸中缝，不影响上下对齐。
+       *   ★ 本文件是模板串：注释里不能出现反引号（本仓已栽过多次，本轮就在这里栽过一次）。
+       */
+      width: 330px;
       max-height: calc(100% - 90px);
       overflow-y: auto;
       background: var(--panel-bg);
@@ -166,22 +174,22 @@ export const SYMMETRY_CSS = `    .sym-page {
      * ★★ 2026-10-15 再上调一次（用户两条：分子式与标题同号、对称操作符号大一点）：
      *   分子式 14.5 → **18**（与 .struct-title 同号）· 元素行（组头/子行/身份行）16 → **17.5**。
      */
-    #info-panel .struct-title { font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+    #info-panel .struct-title { font-size: 1.607rem; font-weight: 700; margin-bottom: 2px; }
     /**
      * ★★ 2026-10-15（用户："分子式字体大小要跟'甲烷'一样大"）：
      *   分子式（CH₄）原先 14.5px，而标题（甲烷）是 18px，两行读起来一大一小。
      *   按用户要求**与标题同号**（18px）。★ 字重不跟：标题 700、这里保持常规 ——
      *   两行同号同粗会互相抢视线，分子式靠颜色（--panel-dim）与标题区分。
      */
-    #info-panel .struct-formula { font-size: 18px; color: var(--panel-dim, #9aa3b5); margin-bottom: 10px; }
+    #info-panel .struct-formula { font-size: 1.607rem; color: var(--panel-dim, #9aa3b5); margin-bottom: 10px; }
     #info-panel .group-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
     #info-panel .group-symbol {
-      font-size: 28px; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;
+      font-size: 2.5rem; font-weight: 800; color: var(--accent); letter-spacing: 0.5px;
     }
-    #info-panel .group-name { font-size: 15px; color: var(--panel-fg, #c2c9d8); }
-    #info-panel .meta { font-size: 13.5px; color: var(--panel-dim, #9aa3b5); margin: 4px 0 10px; }
+    #info-panel .group-name { font-size: 1.339rem; color: var(--panel-fg, #c2c9d8); }
+    #info-panel .meta { font-size: 1.205rem; color: var(--panel-dim, #9aa3b5); margin: 4px 0 10px; }
     #info-panel h4 {
-      font-size: 13.5px; color: var(--panel-dim, #9aa3b5); font-weight: 600;
+      font-size: 1.205rem; color: var(--panel-dim, #9aa3b5); font-weight: 600;
       margin: 12px 0 6px; text-transform: uppercase; letter-spacing: 1px;
     }
     /* ★ 身份行（恒等元素 E、"没有对称元素"这类顶层 .elem-item）与组头/子行同号 ——
@@ -190,14 +198,14 @@ export const SYMMETRY_CSS = `    .sym-page {
          组内子行（特异性更高）不受影响，就会出现"组头 17.5、子行 16"的分叉。 */
     #info-panel .elem-item {
       display: flex; align-items: center; gap: 8px;
-      padding: 6px 6px; font-size: 17.5px;
+      padding: 6px 6px; font-size: 1.563rem;
       border-radius: 5px; cursor: default;
     }
     #info-panel .elem-item:hover { background: var(--panel-item-bg); }
     #info-panel .elem-dot {
       width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
     }
-    #info-panel .elem-count { margin-left: auto; color: var(--panel-dim, #9aa3b5); font-size: 14px; }
+    #info-panel .elem-count { margin-left: auto; color: var(--panel-dim, #9aa3b5); font-size: 1.25rem; }
 
     /* 设置面板 */
     #settings-panel {
@@ -217,32 +225,32 @@ export const SYMMETRY_CSS = `    .sym-page {
     }
     #settings-panel .settings-header {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 14px; font-weight: 600; font-size: 13px;
+      padding: 10px 14px; font-weight: 600; font-size: 1.161rem;
       border-bottom: 1px solid var(--border);
     }
     #settings-panel .settings-header button {
-      background: none; border: none; color: var(--panel-fg); cursor: pointer; font-size: 14px;
+      background: none; border: none; color: var(--panel-fg); cursor: pointer; font-size: 1.25rem;
     }
     #settings-panel .settings-body { padding: 12px 14px; }
     #settings-panel .setting-row {
       display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 10px; font-size: 13px;
+      margin-bottom: 10px; font-size: 1.161rem;
     }
     #settings-panel .setting-row input[type="range"] { width: 110px; }
     #settings-panel input[type="color"] {
       width: 40px; height: 26px; border: 1px solid var(--border); border-radius: 4px; background: none; cursor: pointer;
     }
     #settings-panel h4 {
-      font-size: 12px; color: var(--panel-dim, #9aa3b5); margin: 10px 0 6px; text-transform: uppercase; letter-spacing: 1px;
+      font-size: 1.071rem; color: var(--panel-dim, #9aa3b5); margin: 10px 0 6px; text-transform: uppercase; letter-spacing: 1px;
     }
     #settings-panel .color-row {
-      display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px;
+      display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 1.161rem;
     }
     #settings-panel .color-row label { flex: 1; }
     #settings-panel .danger {
       width: 100%; margin-top: 12px; padding: 8px;
       background: rgba(239,83,80,0.15); color: var(--danger, #ef5350);
-      border: 1px solid rgba(239,83,80,0.4); border-radius: 6px; cursor: pointer; font-size: 13px;
+      border: 1px solid rgba(239,83,80,0.4); border-radius: 6px; cursor: pointer; font-size: 1.161rem;
     }
 
     /* 对称元素列表（可展开分组） */
@@ -253,7 +261,7 @@ export const SYMMETRY_CSS = `    .sym-page {
        真正生效的三处一起上调：分组标题 13 → 14、子行 12 → 16、入口 12 → 13.5。 */
     #info-panel .elem-group-header {
       display: flex; align-items: center; gap: 8px;
-      padding: 4px 6px; font-size: 17.5px;
+      padding: 4px 6px; font-size: 1.563rem;
       border-radius: 5px; cursor: pointer; user-select: none;
     }
     #info-panel .elem-group-header:hover { background: var(--panel-item-bg); }
@@ -268,24 +276,24 @@ export const SYMMETRY_CSS = `    .sym-page {
        本文件是模板串：注释里不能出现反引号。 */
     #info-panel .elem-group-header > span, #info-panel .elem-label { line-height: 1.35; }
     #info-panel .elem-group-header sub, #info-panel .elem-item sub { line-height: 0; }
-    #info-panel .elem-arrow { margin-left: auto; color: var(--panel-dim, #9aa3b5); font-size: 12px; }
+    #info-panel .elem-arrow { margin-left: auto; color: var(--panel-dim, #9aa3b5); font-size: 1.071rem; }
     #info-panel .elem-group-body { padding-left: 14px; margin-bottom: 2px; }
     /* ★★ 这一条是**真正生效**的"元素行"字号（特异性高于上面那条 .elem-item 基础规则）：
        12 → 16 → **17.5**（2026-10-15 用户："对称操作的符号字体也大一点"）。
        身份行（.elem-item 顶层）与组内子行保持**同号**，不再一大一小。
        ★ 只动 font-size，不动行高与 padding —— 面板固定宽度，字号变化不会引起换行；
          实测同屏截图确认 ×N 计数列仍然上下对齐。 */
-    #info-panel .elem-group-body .elem-item { display: flex; align-items: center; gap: 8px; padding: 3px 6px; font-size: 17.5px; }
+    #info-panel .elem-group-body .elem-item { display: flex; align-items: center; gap: 8px; padding: 3px 6px; font-size: 1.563rem; }
     #info-panel .elem-group-body input[type="checkbox"] { accent-color: var(--accent); }
     #info-panel .elem-label { flex: 1; min-width: 0; }
     #info-panel .elem-play {
       width: 20px; height: 20px; flex-shrink: 0; margin-left: auto;
       background: rgba(124,156,245,0.18); color: var(--accent);
       border: 1px solid rgba(124,156,245,0.4); border-radius: 50%;
-      font-size: 11px; line-height: 1; cursor: pointer; padding: 0;
+      font-size: 0.982rem; line-height: 1; cursor: pointer; padding: 0;
     }
     #info-panel .elem-play:hover { background: rgba(124,156,245,0.35); }
-    #info-panel .orb-row { display: flex; gap: 8px; padding: 3px 6px; font-size: 12px; word-break: break-word; }
+    #info-panel .orb-row { display: flex; gap: 8px; padding: 3px 6px; font-size: 1.071rem; word-break: break-word; }
     #info-panel .orb-row .orb-label { color: var(--panel-dim, #9aa3b5); flex-shrink: 0; }
 
     /* 特征标表 */
@@ -295,23 +303,23 @@ export const SYMMETRY_CSS = `    .sym-page {
          一个汉字一行（5 行）、表头行高 49 → 87px ✗（实测对照）。这里受**宽度**限制，
          不是字号偏好，所以只放数字那一档。 */
     #character-table-wrap .ct-header {
-      font-size: 13.5px; color: var(--panel-dim, #9aa3b5); font-weight: 600;
+      font-size: 1.205rem; color: var(--panel-dim, #9aa3b5); font-weight: 600;
       padding: 8px 6px; cursor: pointer; user-select: none;
       border-top: 1px solid var(--border); margin-top: 12px;
     }
-    #character-table-wrap .ct-table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 6px; }
+    #character-table-wrap .ct-table { border-collapse: collapse; width: 100%; font-size: 1.071rem; margin-top: 6px; }
     #character-table-wrap .ct-table th, #character-table-wrap .ct-table td {
       border: 1px solid var(--border); padding: 3px 4px; text-align: center;
     }
-    #character-table-wrap .ct-table th { color: var(--panel-dim, #9aa3b5); font-weight: 600; font-size: 11px; }
+    #character-table-wrap .ct-table th { color: var(--panel-dim, #9aa3b5); font-weight: 600; font-size: 0.982rem; }
     #character-table-wrap .ct-irrep { font-weight: 600; color: var(--accent); }
     /* 行标签（A₁ / T₂ 那列，.ct-irrep 是 td）走表体 12px；
        只有长基函数串留在 11px，否则会折成三四行。 */
-    #character-table-wrap .ct-basis { text-align: left; font-size: 11px; color: var(--panel-dim, #9aa3b5); }
+    #character-table-wrap .ct-basis { text-align: left; font-size: 0.982rem; color: var(--panel-dim, #9aa3b5); }
 
     #hint {
       position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
-      font-size: 12px; color: var(--panel-dim, #7a8090); background: var(--card, rgba(255,255,255,0.7));
+      font-size: 1.071rem; color: var(--panel-dim, #7a8090); background: var(--card, rgba(255,255,255,0.7));
       padding: 5px 14px; border-radius: 20px; z-index: 10; pointer-events: none;
     }
 
@@ -331,11 +339,11 @@ export const SYMMETRY_CSS = `    .sym-page {
       width: min(440px, 88vw);
     }
     #anim-progress-wrap[hidden] { display: none; }
-    #anim-progress-wrap .anim-label { font-size: 12px; color: var(--panel-dim, #9aa3b5); white-space: nowrap; flex-shrink: 0; }
+    #anim-progress-wrap .anim-label { font-size: 1.071rem; color: var(--panel-dim, #9aa3b5); white-space: nowrap; flex-shrink: 0; }
     #anim-progress-wrap button { flex-shrink: 0; }
     #anim-progress-wrap input[type="range"] { flex: 1 1 120px; min-width: 80px; accent-color: var(--accent); }
     #anim-progress-wrap button {
-      background: none; border: none; color: var(--panel-fg); cursor: pointer; font-size: 14px; padding: 0 2px;
+      background: none; border: none; color: var(--panel-fg); cursor: pointer; font-size: 1.25rem; padding: 0 2px;
     }
 
     /**
