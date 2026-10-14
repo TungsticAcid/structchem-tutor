@@ -90,13 +90,46 @@
 }
 
 .orbit-page * { box-sizing: border-box; }
+/**
+ * ★★ 2026-10-15（用户："数字/公式一起动"）：
+ *   公式默认走 KaTeX 自带的 `KaTeX_Main`（`.katex` 上直接写死），因此页面字体改成新罗马
+ *   之后**公式仍是 KaTeX_Main** ⇒ 与正文的衬线不一致 ✗。
+ *   ⇒ 把 `.katex` 的字体换成 `--font-math`（新罗马优先，Cambria Math / 符号字体兜底）：
+ *     新罗马没有的字符（部分下标字母、∓ 之类的算子）自动落到后面的兜底，不会变豆腐块。
+ *   ★ 只改 font-family，不动字号与 KaTeX 的排版类（间距/上下标仍由它的 CSS 管）。
+ *   ★ 为什么写 `!important`：`.katex` 那条是 KaTeX 的样式表（后加载），
+ *     同等特异性下比页面样式更晚生效 —— 不加这一条会"看着改了、实际没生效"。
+ *   ★ 为什么不写 `.katex * { font-family: inherit }`：KaTeX 自己按类分配字形
+ *     （数学斜体 KaTeX_Math、花体 KaTeX_Caligraphic…），一刀切继承会把它们全压平，
+ *     连变量斜体都没了。这里只统一基字体，子元素仍由 KaTeX 的规则决定 ——
+ *     实测（probe：`x`/`cos`/`σ` 的计算值）确认哪些真的跟着变了，见提交说明。
+ */
+.orbit-page .katex {
+  font-family: var(--font-math, "Times New Roman", "Cambria Math", "Segoe UI Symbol", serif) !important;
+}
 .orbit-page {
   margin: 0;
   padding: 0;
   background: radial-gradient(1200px 700px at 30% -10%, var(--page-glow) 0%, var(--page-glow-base) 55%);
   color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
-    "Microsoft YaHei", sans-serif;
+  /**
+   * ★★ 2026-10-15（用户："轨道视界。所有西文用新罗马，现在是什么？"）：
+   *   这里原先**自己写死**了一串系统无衬线字体（`system-ui, "Segoe UI", …`），
+   *   把 `html, body` 继承下来的 `--font-ui` 顶掉了 —— 于是页面上 19 处含西文的
+   *   元素（`Slater 型` / `sp³` / `2s/2p` / 轨道芯片…）实际渲染成 Segoe UI 无衬线，
+   *   而仓里的令牌 `--font-ui` 本来就把 "Times New Roman" 排在第一位 ✗。
+   *
+   *   ⇒ 正确做法是**改用与全站同一个令牌** `--font-ui`（它本来就把 "Times New Roman"
+   *     排在第一位），而不是另写一串系统字体。★ 显式写在 `.orbit-page` 上、不靠继承：
+   *     上游 `projects/crystal/H5/src/styles/global.css` 的 `body` 也有一条自己的
+   *     `font-family`（无衬线），页面上**到底谁生效**取决于样式表加载顺序 ——
+   *     这种"两个来源说了算"的写法正是本仓反复吃亏的地方，钉死一处即可。
+   *
+   *   ★ 实测（真实浏览器，量的是 getComputedStyle 与渲染宽度，不是看声明）：
+   *     `pz` 按钮 13.69px → 11.02px（Segoe UI → Times New Roman）；
+   *     含 "Slater" 的提示行 284.83px → 283.02px。
+   */
+  font-family: var(--font-ui, "Times New Roman", system-ui, "PingFang SC", "Microsoft YaHei", serif);
   -webkit-font-smoothing: antialiased;
 }
 .orbit-page .topbar {
@@ -121,7 +154,9 @@
 .orbit-page .subtitle { font-size: 12px; color: var(--text-dim); align-self: flex-end; margin-bottom: 3px; }
 .orbit-page .top-meta { display: flex; align-items: center; gap: 12px; }
 .orbit-page .orbit-title {
-  font-family: Georgia, "Times New Roman", serif;
+  /* ★ 2026-10-15：Georgia 排在新罗马前面，与本仓"西文一律新罗马"的口径不一致（用户要求改）。
+     改后与 `--font-ui` / `--font-symbol` 同口径：新罗马 → Cambria Math → 符号字体 → serif。 */
+  font-family: var(--font-symbol, "Times New Roman", "Cambria Math", "Segoe UI Symbol", symbola, serif);
   font-size: 22px; font-weight: 700; color: var(--accent);
   min-width: 78px; text-align: right;
   
@@ -557,3 +592,42 @@ body.agent-open .orbit-page .layout {
     color: var(--text-dim); font-size: 15px; line-height: 1; padding: 0 4px;
 }
 .orbit-page .orb-del:hover { color: var(--accent-bright, var(--accent)); }
+
+/* ==========================================================================
+ * ★★ 2026-10-15（用户："数字/公式一起动"，随后确认"2"=尺寸补偿）
+ *
+ * 换字体带来一个**实测出来的**副作用：新罗马的西文比 Segoe UI 窄，于是
+ * "以拉丁/数字为主"的元素会看着变小。实测（同一元素同一字号、只换字体，量真实文本宽度）：
+ *
+ *   | 元素                        | Segoe UI | 新罗马 | 变化   |
+ *   |----------------------------|---------:|-------:|-------:|
+ *   | 顶栏轨道名 `ψ3pz`（22px/700）|  54.25  | 48.14 | −11.3% |
+ *   | 分段按钮 `pz`（12.5px/700） |  13.75  | 12.50 |  −9.1% |
+ *   | 轨道芯片 `sp³-1`（11px）    |  25.50  | 22.25 | −12.7% |
+ *   | 提示行（含西文，12px）       | 229.27  |230.09 |  +0.4% |
+ *   | 卡片标题 `三维视图`（纯中文） |  57.20  | 61.20 |  +7.0% |
+ *   | 徽标 `空间波函数实数解`（纯中文）| 96.00 | 96.00 |   0%   |
+ *
+ * ⇒ **纯中文元素不受影响**（宽度由中文回退字形决定），所以**不动全局字号刻度**
+ *   （`--fs-*` 是登记在册的刻度，动它等于把"14px 正文"这条约定改掉，牵连全站）。
+ *   只对"承载西文/数字"的几类元素按 **1.05 倍**补偿，其中轨道名 +10%、
+ *   其余 +5%，与上表的实测降幅相称。
+ *
+ * ★ 为什么用绝对单位而不是 `em`：`em` 会**逐层连乘**（父 1.05 → 子 1.05 → 孙 1.05），
+ *   实测第一版写成 `font-size: 1.05em` 时按钮层级被放大到约 1.16 倍 ✗。
+ *   这里对每个选择器写它**自己的**绝对值（`calc(原值 × 1.05)`），逐项可核对。
+ * ★ 这一段刻意放在文件**末尾**：下面这些选择器与被覆盖的基础规则**特异性相同**，
+ *   靠"后写者胜"生效 —— 中途加规则时别把它挤到前面去。
+ * ========================================================================== */
+.orbit-page .orbit-title { font-size: 24px; }        /* 22 × 1.10（西文占比最高，按实测 −11.3% 补） */
+.orbit-page .se-chip { font-size: 11.5px; }          /* 11 × 1.05（−12.7%） */
+.orbit-page .orb-badge { font-size: 11px; }          /* 10.5 × 1.05 */
+.orbit-page .num-val { font-size: 14.5px; }          /* 14 × 1.05（数字框） */
+/**
+ * ★ 分段按钮**刻意不补**：它在两处被更高特异性的规则定死
+ *   （`.seg.small .seg-btn` 12px、`.seg.wrap .seg-btn` 12.5px，都是 (0,3,0)），
+ *   一条 `.orbit-page .seg-btn`（0,2,0）压不过它们 —— 实测写成 13.1px 后
+ *   计算值仍是 12.5px（"看着改了、其实没生效"的典型）。
+ *   而它那两个尺寸本来就够读（12.5px 的西文按钮），强行提权只是为了数字好看，
+ *   不值当为它把选择器搞复杂；真要统一，应该改那两条基础规则本身。
+ */

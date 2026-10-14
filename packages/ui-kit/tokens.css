@@ -56,7 +56,14 @@
   --font-ui: "Times New Roman", system-ui, -apple-system, "Segoe UI", Roboto,
     "PingFang SC", "Microsoft YaHei",
     "Cambria Math", "Segoe UI Symbol", "Noto Sans Symbols2", Symbola, serif;
-  --font-math: Georgia, "Times New Roman", "Cambria Math", "Segoe UI Symbol", serif;
+  /**
+   * ★★ 2026-10-15（用户："数字/公式一起动"，要求西文一律新罗马）：
+   *   原先 Georgia 排在新罗马前面 —— 与 `--font-ui` / `--font-symbol`（都新罗马优先）
+   *   **口径不一致**：同一个页面上"正文西文"和"公式记法"会是两种衬线 ✗。
+   *   这条属于本仓反复踩过的"同一个事实写两处"，故统一到新罗马优先；
+   *   Georgia 不再出现（它本来只是"没有新罗马时的替代"）。
+   */
+  --font-math: "Times New Roman", "Cambria Math", "Segoe UI Symbol", serif;
   /* 结构化数据（点群符号、晶胞参数、代码式）与正文同源，保证 σᵥ / C₂ₕ 的上下标外观一致 */
   --font-symbol: "Times New Roman", "Cambria Math", "Segoe UI Symbol", "Noto Sans Symbols2", Symbola, serif;
   --fs-xs: 12px;      /* 辅助信息的**下限**，不要更小 */

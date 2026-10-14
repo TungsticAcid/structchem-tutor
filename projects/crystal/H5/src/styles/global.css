@@ -42,7 +42,19 @@ html, body {
      但手机浏览器仍会把"从顶部下拉"判成刷新——双保险之一，
      另一道是画布上的 touch-action:none。 */
   overscroll-behavior: none;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /**
+   * ★★ 2026-10-15（用户："轨道视界。所有西文用新罗马，现在是什么？"）：
+   *   这里原先写死了一串**无衬线**系统字体，而本文件在入口里排在
+   *   `@ui-kit/components.css` **之后**（见 apps/web/src/main.js 的 import 顺序）
+   *   ⇒ 同特异性的 `html, body` 规则里它后生效，把
+   *   `components.css` 的 `font-family: var(--font-ui)`（新罗马优先）整条顶掉了 ✗。
+   *   症状不止一处：轨道页的 19 处西文、**以及挂在 body 上的智能体抽屉**，
+   *   实际渲染的都是 Segoe UI；而仓里的字体令牌看起来是"新罗马优先"，对不上。
+   *
+   *   ⇒ 删掉这条覆盖，字体统一由 `--font-ui` 一个来源说了算（用户要求"西文一律新罗马"）。
+   *     "同一个事实只写一处"——本仓已经为这条栽过好几次（两份浅色调色板、
+   *     两处 Slater 开关、页面默认值顶掉模块默认值…），字体这次是同一类。
+   */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
