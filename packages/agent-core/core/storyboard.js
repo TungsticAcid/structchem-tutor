@@ -20,6 +20,9 @@
  *   7. **演示记录独立于播放队列** → 停止/播完之后仍能重播、整改、被引用
  *   8. 分几次下发的步骤**并入同一条记录**（而非每次新开）→ 否则回放只播后半段
  *   9. 每一步有**稳定编号**（不是数组下标）→ "整改第 3 步"才指得准
+ *  10. 队列每次变化都留一条**账本**（`trace()`）→ 步数突然变小时，"是谁把它清的"
+ *      必须查得出来。★ 这不是临时代码：**判据写错时（例如用"正在播"当"还在演"）
+ *      界面上只表现为"步数变小"，其余什么都不报**，实测踩过（见 applySequence 里那段）。
  */
 // ★ 本文件的文案有两类去向，且**都不进 DOM**：
 //   ① 工具回执里的 `note`（告诉模型"已入队、别重复下发"）→ 进模型上下文
@@ -94,6 +97,34 @@ export function createStoryboard(opts = {}) {
   let gateResolve = null        // 「下一步」闸门的 resolve（最要紧的一个）
   const progressHooks = []      // 播放进度回调（**数组**，见文件头第 4 条）
 
+  /**
+   * **队列变化诊断**（环形缓冲，上限 200 条；`trace()` 取用）。
+   *
+   * ★ 为什么值得常驻（不是临时调试代码）：
+   *   队列被「清空 / 替换」时，界面上只表现为**步数突然变小**
+   *   （实测用户报：「演示条先显示『已完成 1/7 步』，最后一轮变成『共 1 步』且一进来就是
+   *   『演示完成』」）。而"是谁把它清的"在事后完全看不出来：
+   *   可能是 stop()（切模块 / 中止 / 新会话），也可能是 applySequence 走了
+   *   「重开一条演示」而不是「续写」——三种原因的表现一模一样。
+   *   ⇒ 每次**改动队列**的操作留一条记录，`state()` 之外多一个可查的账本。
+   * ★ 成本：一次演示只有几十条，且只在状态真变了的地方 push —— 不在热路径上。
+   */
+  const TRACE_MAX = 200
+  let traceBuf = []
+  function trace(evt) {
+    try {
+      traceBuf.push(Object.assign({ t: Date.now() }, evt))
+      if (traceBuf.length > TRACE_MAX) traceBuf.splice(0, traceBuf.length - TRACE_MAX)
+    } catch (e) { /* 诊断绝不能影响演示本身 */ }
+  }
+  /** 记下"调用来自哪几帧"——回答"是谁清了队列"的关键 */
+  function traceFrom() {
+    try {
+      return String((new Error()).stack || '').split('\n').slice(2, 5)
+        .map((s) => s.trim().replace(/^at\s+/, '')).join(' <- ')
+    } catch (e) { return '' }
+  }
+
   // ---- 播放列表（分镜）----
   let queue = []                // [{ name, params, speech, holdMs, animated }]
   let qIndex = 0                // 下一步待执行的下标
@@ -102,6 +133,20 @@ export function createStoryboard(opts = {}) {
   let manual = true             // true=等用户点「下一步」；false=自动连播
   let atGate = false            // 是否正停在闸门上（只有此时才允许回退）
   let snapshots = []            // 每步执行前的快照，专供「上一步」
+  /**
+   * ★★ 2026-10-14：**这条演示是不是"自己播完的"**（连播一路走到底，学生没插手）。
+   *
+   *   为什么要单独记：`playing` 会在"自己播完"那一刻变假，而模型**同一轮里还会再下发**
+   *   下一批步骤（实测：问「过氧化氢的结构」，模型分 2~3 批下发）。若把"自己播完"当成
+   *   "这条演示结束了"，下一批就会 `stop()` + 重开一条，**把前面已入队的步骤整批丢掉**
+   *   —— 学生看到的正是"演示条由『共 7 步』变成『共 1 步』，教学演示一步没播"。
+   *
+   *   与 `curDemoId` 的区别：`curDemoId` 回答"这条**记录**还开着吗"，本标记回答
+   *   "这条演示是**自己**播完的、还是学生按了停止/一步一步看完的"。
+   *   学生碰过节奏（下一步 / 上一步 / 停止 / 连播 / 逐步）就把标记清掉 ——
+   *   那时"讲完了"是他的判断，之后再来的一批该是**新**演示。
+   */
+  let selfFinished = false
 
   /**
    * **演示前**的完整状态，供「回到演示前」一键还原。
@@ -202,6 +247,7 @@ export function createStoryboard(opts = {}) {
    *   闸门尤其致命——点「停止」本意是退出，结果反而锁死。
    */
   function stop() {
+    trace({ k: 'stop', q: queue.length, qi: qIndex, playing, curDemoId, from: traceFrom() })
     generation++                                  // 旧循环下次检查时自行退出
     queue = []
     qIndex = 0
@@ -209,6 +255,7 @@ export function createStoryboard(opts = {}) {
     playing = false
     atGate = false
     snapshots = []
+    selfFinished = false          // 学生按了停止/换板块/新会话：这条演示到此为止
     curDemoId = null              // 这一轮演示到此为止，之后再来的是新演示
     if (dwellTimer) { clearT(dwellTimer); dwellTimer = null }
     if (pendingWait) { const r = pendingWait; pendingWait = null; r() }
@@ -238,11 +285,12 @@ export function createStoryboard(opts = {}) {
   function releaseGate() { if (gateResolve) { const r = gateResolve; gateResolve = null; r() } }
 
   /** 用户点了「下一步」 */
-  function next() { atGate = false; releaseGate() }
+  function next() { selfFinished = false; atGate = false; releaseGate() }
 
   /** 用户点了「连续播放」：后续步骤不再等确认 */
   function autoPlay() {
     manual = false
+    selfFinished = false          // 学生碰了节奏 ⇒ 之后"播完"是他的选择，不再自动续写
     atGate = false
     if (playing) emitProgress({ phase: 'auto', index: qIndex + 1, total: qTotal })
     releaseGate()
@@ -262,6 +310,7 @@ export function createStoryboard(opts = {}) {
    */
   function prev() {
     if (!queue.length) return { ok: false, error: t('agent.sb.noPrev') }
+    selfFinished = false                // 学生动手回退 ⇒ 这条演示不再"自动续写"
     if (playing && !manual && !atGate) {
       return { ok: false, error: t('agent.sb.prevAuto') }
     }
@@ -344,6 +393,7 @@ export function createStoryboard(opts = {}) {
     const on = v !== false
     if (manual === on) return { ok: true, manual }
     manual = on
+    selfFinished = false                // 学生切了节奏 ⇒ 之后"播完"是他的选择
     if (manual) {
       emitProgress({ phase: 'manual', index: qIndex, total: queue.length })
     } else {
@@ -379,6 +429,10 @@ export function createStoryboard(opts = {}) {
    */
   async function applySequence(actions, o) {
     o = o || {}
+    trace({
+      k: 'apply', batch: (actions || []).length, playing, q: queue.length, qi: qIndex,
+      origin: o.origin || 'agent', module: o.module || null, auto: !!o.auto,
+    })
     const raw = (actions || []).slice(0, cfg.maxActionsPerTurn)
     const dropped = Math.max(0, (actions || []).length - cfg.maxActionsPerTurn)
     const origin = o.origin || 'agent'
@@ -457,6 +511,7 @@ export function createStoryboard(opts = {}) {
 
     // ---- 自动连播：走完再返回 ----
     if (o.auto) {
+      trace({ k: 'applyPath', path: 'auto', batch: okSteps.length })
       stop()
       captureBefore()
       const gen = generation
@@ -489,28 +544,80 @@ export function createStoryboard(opts = {}) {
     //   效果是模型的第一笔立刻可见（用户不必先点一次才看到反应），其余步骤再逐步确认。
     //   只有 prev() 重启循环时会传 parkImmediately=true，让它先停在闸门上而不执行。
     //   这个 off-by-one 在测试里踩过一次，故在此写明。
-    // 正在播就追加（分几次下发也能接成一条完整的分镜），否则重开一轮
-    if (!playing) {
+    /**
+     * 追加还是重开？★ **判据是"这一条演示还开着吗"，不是"这一刻正在播吗"。**
+     *
+     * ★★ 2026-10-14（用户实测："演示条先显示『已完成 1/7 步 · 新增 3 步』，
+     *   最后一轮结束后却变成『共 1 步』且一进来就是『演示完成』"）：
+     *
+     *   原先这里判的是 `playing`。而 `playing` 是**播放这一刻**的状态，它会因为
+     *   "这条演示自己播完了"而变假 —— 连播走完、或者学生点过「连续播放」让它走完。
+     *   于是一个**只有几秒长**的批次播完之后，模型下一批步骤到达时就被当成
+     *   "一条全新的演示"：`stop()` 把整条队列丢掉，演示条从"共 7 步"变成"共 1 步"，
+     *   学生排好的教学演示**一步都没看到就没了**。
+     *
+     *   实测（真模型问「过氧化氢的结构」，playback=auto，trace 原文）：
+     *     apply batch=4 playing=false q=0 qi=0            ← 第一批 4 步
+     *     applyPath restart qDropped=0 / queued total=4 / run / done total=4
+     *     apply batch=2 playing=false q=4 qi=4            ← ★ 第一批**刚连播播完**
+     *     applyPath restart qDropped=4                    ← ★ 整条队列被丢掉
+     *     queued added=2 total=2 / run / done total=2     ← 演示条变成"共 2 步"
+     *   用户的截图正是同一幕，只是最后一批恰好只有 1 步（"共 1 步"）。
+     *
+     *   ⇒ 判据改成"**这条演示是学生结束的，还是它自己播完的**"：
+     *     · `playing` —— 还在播，当然是续写（原有行为，未变）；
+     *     · `selfFinished` —— 连播**自己**走完了（学生没插手），而模型同一轮里
+     *       还会再下发下一批 ⇒ 续写，接着播（`resume`）。
+     *     学生一旦碰过节奏（下一步 / 上一步 / 停止 / 连播 / 逐步 / 跳步），
+     *     `selfFinished` 就被清掉 —— 那时"这条讲完了"是他的判断，之后再来的一批
+     *     该是**新**演示（`restart`）。这与记录层 `curDemoId` 的边界是同一套语义。
+     *   ★ 队列已满（qIndex 顶到上限）时不续写：续写只会把新步骤整批丢掉
+     *     （`room = 0`），那时开一条新演示才是对的。
+     *   ★ 来源（origin）也要一致：`playDemo` 的预置演示（origin='script'）与智能体
+     *     现场编排的演示（origin='agent'）是两件事，不互相续写。
+     */
+    const openRec = curDemoId ? demos.get(curDemoId) : null
+    const roomLeft = cfg.maxQueue - qIndex
+    const continuing = playing
+      || (selfFinished && !!openRec && openRec.origin === origin && roomLeft > 0)
+    if (!continuing) {
+      trace({ k: 'applyPath', path: 'restart', batch: okSteps.length, qDropped: queue.length })
       stop()
       captureBefore()
       queue = []
       qIndex = 0
       // 默认播放方式由模块设置决定；演示条上还能临时改成连播
       manual = (typeof getDefaultPlayback === 'function' ? getDefaultPlayback() : 'manual') !== 'auto'
+    } else {
+      /**
+       * `append` = 演示还在播，队列里还有未执行的步骤；
+       * `resume` = 演示自己播完了、但这条演示**还开着**，新步骤接在后面继续播。
+       * ★ 两种都**不丢**已入队的步骤 —— 这正是上面那个缺陷的反面。
+       */
+      trace({
+        k: 'applyPath', path: playing ? 'append' : 'resume',
+        batch: okSteps.length, q: queue.length, qi: qIndex,
+      })
     }
-    const room = cfg.maxQueue - qIndex
-    const taken = okSteps.slice(0, Math.max(0, room))
+    const taken = okSteps.slice(0, Math.max(0, roomLeft))
     const overflow = okSteps.length - taken.length
     const startIndex = queue.length       // 本批第一步在这条演示里的**绝对**步号
     queue = queue.concat(taken)
     qTotal = queue.length
+    trace({ k: 'queued', added: taken.length, total: qTotal, qi: qIndex })
 
+    if (continuing) {
+      /**
+       * 追加 / 续写都报一次：面板据此显示"已完成 N/M 步 · 新增 K 步"。
+       * ★ `resume`（接在已播完的同一条演示后面）**同样要报** —— 否则学生看到的是
+       *   一条从零开始的演示，与"这条队列其实已经有 N 步"这个事实不符。
+       */
+      emitProgress({ phase: 'queued', index: qIndex, total: qTotal, added: taken.length })
+    }
     if (!playing) {
       playing = true
       const gen = generation
       runQueue(gen, true)             // 后台播放，不 await；★ 同样要 paced（见下）
-    } else {
-      emitProgress({ phase: 'queued', index: qIndex, total: qTotal, added: taken.length })
     }
 
     // ★ 把本批步骤**并入当前这条演示记录**（而不是每次新开一条）。
@@ -607,6 +714,7 @@ export function createStoryboard(opts = {}) {
    * @returns {Promise<{executed:Array, failed:Array, aborted:boolean}>}
    */
   async function runQueue(gen, paced, parkImmediately, ffTo) {
+    trace({ k: 'run', gen, paced: !!paced, park: !!parkImmediately, ffTo: ffTo || 0, q: queue.length })
     const executed = []
     const failed = []
     const dead = () => gen !== generation
@@ -687,6 +795,15 @@ export function createStoryboard(opts = {}) {
     playing = false
     atGate = false
     qIndex = queue.length
+    /**
+     * ★ 走到这里 = 这条演示**自己播完的**（不是被 stop 掉的，也不是学生按「停止」）。
+     *   连播（`manual===false`）时记下：模型同一轮里还可能再下发下一批，
+     *   那时应当**续写**这条演示而不是重开一条（见 selfFinished 的说明）。
+     *   手动模式走完（学生一步一步看完）**不**记：那是他看完了一条演示，
+     *   之后再来的一批该是一条新演示。
+     */
+    selfFinished = !manual
+    trace({ k: 'done', total: qTotal, executed: qIndex, q: queue.length, selfFinished })
     emitProgress({ phase: 'done', total: qTotal, canReplay: queue.length > 0, canPrev: qIndex > 0 })
     return { executed, failed, aborted: false }
   }
@@ -741,6 +858,7 @@ export function createStoryboard(opts = {}) {
     if (!valid.length) {
       return { ok: false, error: t('agent.sb.noSteps'), invalid: invalid.length ? invalid : undefined }
     }
+    trace({ k: 'loadDemo', steps: valid.length, qBefore: queue.length, demoId: o.demoId || null, reason: o.reason || 'load' })
 
     stop()                               // 清空队列并推进 generation（旧的播放循环作废）
     const hasRec = o.demoId != null && demos.has(String(o.demoId))
@@ -858,6 +976,7 @@ export function createStoryboard(opts = {}) {
     if (!manual) return { ok: false, error: t('agent.sb.jumpAuto') }
     if (playing && !atGate) return { ok: false, error: t('agent.sb.jumpPlaying') }
     if (!Number.isInteger(n) || n < 0 || n >= queue.length) return { ok: false, error: t('agent.sb.stepRange') }
+    selfFinished = false                // 学生跳到某一步 ⇒ 不再"自动续写"
     qIndex = n
     if (typeof restore === 'function' && snapshots[n]) restore(snapshots[n])
     if (!playing) {
@@ -972,6 +1091,7 @@ export function createStoryboard(opts = {}) {
    */
   function syncDemosFromHistory(list) {
     const live = new Map([...demos.entries()].filter(([, r]) => r.live))
+    trace({ k: 'syncDemos', history: (list || []).length, liveBefore: live.size, curDemoId })
     demos.clear()
     for (const [k, v] of live) demos.set(k, v)
     for (const item of (list || [])) {
@@ -1052,7 +1172,9 @@ export function createStoryboard(opts = {}) {
     const from = currentModule()
     const target = moduleId || null
     // 缺少模块归属信息时按旧行为停（宁可保守），只有"明确是同一个模块"才留队列
-    if (!(target && from && target === from)) stop()
+    const stopped = !(target && from && target === from)
+    trace({ k: 'setVocab', target, from, stopped, q: queue.length, playing })
+    if (stopped) stop()
     vocabulary = v || {}
     return vocabulary
   }
@@ -1101,6 +1223,9 @@ export function createStoryboard(opts = {}) {
     // 供面板/调试读取
     get queue() { return queue.slice() },
     get manual() { return manual },
+    // 队列变化的账本（见 trace 的说明）：诊断"这次演示为什么只剩 N 步"
+    trace: () => traceBuf.slice(),
+    clearTrace: () => { traceBuf = [] },
   }
 }
 

@@ -122,8 +122,15 @@ export const zh = {
   // ---- 空正文的诊断（finish 时拼出来的，含 finish_reason 与 token 用量）----
   '模型这次没有输出正文：输出被长度上限截断。可在「设置 → 输出上限 max_tokens」调大后重试。':
     '模型这次没有输出正文：输出被长度上限截断。可在「设置 → 输出上限 max_tokens」调大后重试。',
-  '模型这次只发起了动作调用，没写正文。动作可能已经排进演示队列了，看一下上面的动作气泡。':
-    '模型这次只发起了动作调用，没写正文。动作可能已经排进演示队列了，看一下上面的动作气泡。',
+  '模型这次只发起了动作调用，没写正文（动作已排进上面的演示队列）。可以直接追问要结论，或再发一条让它把讲解补上。':
+    '模型这次只发起了动作调用，没写正文（动作已排进上面的演示队列）。可以直接追问要结论，或再发一条让它把讲解补上。',
+  '模型这次只在后台查了资料，没写正文。可以直接追问要结论，或再发一条让它把讲解补上。':
+    '模型这次只在后台查了资料，没写正文。可以直接追问要结论，或再发一条让它把讲解补上。',
+  // ★ 2026-10-14（task-2）：回合边界上的**实时**提示（可撤销）——
+  //   本轮所有回合的正文累计为空、且这一回合真的排了动作时才出现；
+  //   后面某回合写出正文就撤掉，本轮结束时也撤掉（最终说明由上面那两条负责，不重复说）。
+  '它这一轮只排了演示、还没写讲解：可以继续等它下一轮，或直接追问要结论。':
+    '它这一轮只排了演示、还没写讲解：可以继续等它下一轮，或直接追问要结论。',
   '模型这次没有返回正文（只输出了思考内容）。可以再问一次，或换一个模型试试。':
     '模型这次没有返回正文（只输出了思考内容）。可以再问一次，或换一个模型试试。',
   '模型这次没有返回正文（连思考内容也没有，可能是服务端返回异常）。可以再问一次，或换一个模型试试。':
@@ -196,9 +203,16 @@ export const en = {
   '模型这次没有输出正文：输出被长度上限截断。可在「设置 → 输出上限 max_tokens」调大后重试。':
     'The model produced no text this time: the output was cut off by the length limit. '
     + 'Raise "Settings → max output tokens max_tokens" and try again.',
-  '模型这次只发起了动作调用，没写正文。动作可能已经排进演示队列了，看一下上面的动作气泡。':
-    'The model only issued action calls this time and wrote no text. The actions may already be '
-    + 'queued for the demo — look at the action bubbles above.',
+  '模型这次只发起了动作调用，没写正文（动作已排进上面的演示队列）。可以直接追问要结论，或再发一条让它把讲解补上。':
+    'The model only issued action calls this time and wrote no text (the actions are already queued '
+    + 'in the demo list above). Ask directly for the conclusion, or send another message to have it '
+    + 'add the explanation.',
+  '模型这次只在后台查了资料，没写正文。可以直接追问要结论，或再发一条让它把讲解补上。':
+    'The model only looked things up in the background this time and wrote no text. '
+    + 'Ask directly for the conclusion, or send another message to have it add the explanation.',
+  '它这一轮只排了演示、还没写讲解：可以继续等它下一轮，或直接追问要结论。':
+    'It only queued demo actions this turn and has not written the explanation yet: '
+    + 'wait for its next round, or ask directly for the conclusion.',
   '模型这次没有返回正文（只输出了思考内容）。可以再问一次，或换一个模型试试。':
     'The model returned no text this time (it only produced reasoning). '
     + 'Ask again, or try a different model.',

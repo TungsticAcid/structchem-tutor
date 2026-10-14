@@ -20,6 +20,10 @@
  *      clientWidth 重设位图尺寸，不触发就"看着发虚"。
  *   6. **分镜控制条存在的理由**：三维视图在抽屉外面，没有这条，用户只会看到
  *      画面自己在变，既不知道演到第几步、这一步在讲什么，也没有「下一步」可按。
+ *   7. **"本轮没写正文"要在回合内就说得可照做**（task-2）：一轮里模型可能连走好几个
+ *      "只想动手"的回合，攒到整轮结束才报一句像出错的话，学生那时已无事可做；
+ *      而"前面某回合已经写过正文"时又不该报 —— 判据是本轮**所有回合**的正文累计为空
+ *      （见 runAgent 的 roundTextChars）。实时提示可撤销：后面写出正文就撤掉。
  *
  * 来源：orbit/H5/js/agent/panel.js（783 行）的通用部分。抽掉了 orbit 私有内容：
  * 标题/图标/菜单/placeholder/问候语/ACTION_LABEL，以及对 window.Settings /
@@ -149,6 +153,14 @@ let demoFav
    */
   let running = false
   let pendingRender = false
+  /**
+   * ★★ 2026-10-14（task-2）：**本轮"只动手、没写正文"的实时提示元素**（可撤销）。
+   *
+   *   它不是"留在消息区里的一句结论"，而是一条**进行中的状态**：一旦本轮后面某个回合
+   *   写出了正文，它就不再成立 —— 那时若不撤掉，学生会看到"还没写讲解"压在已经写好的
+   *   讲解上面（提示与事实相反，比没有提示更伤）。撤销通路见 clearNoTextNote。
+   */
+  let noTextNoteEl = null
 /** 在途气泡护栏的短重试状态（见 renderPath 里那段注释） */
 const pendingRetry = { n: 0, timer: 0 }
 /** 正文流式结束的时刻（用于给"演示阶段"留出重试窗口） */
@@ -610,8 +622,15 @@ let lastDemoId = null
           let why
           if (o.finishReason === 'length') {
             why = T('模型这次没有输出正文：输出被长度上限截断。可在「设置 → 输出上限 max_tokens」调大后重试。')
+          } else if (o.finishReason === 'tool_calls' && o.hadAction === false) {
+            /**
+             * ★★ 2026-10-14（task-2）："只动手没写正文"这条既要**可照做**，也不能**瞎说**。
+             *   本轮一次动作都没下发（只在后台查了知识/快照）时，说"动作已排进上面的演示队列"
+             *   是假话 ⇒ 分成两支，两支都给出学生真正能做的下一步。
+             */
+            why = T('模型这次只在后台查了资料，没写正文。可以直接追问要结论，或再发一条让它把讲解补上。')
           } else if (o.finishReason === 'tool_calls') {
-            why = T('模型这次只发起了动作调用，没写正文。动作可能已经排进演示队列了，看一下上面的动作气泡。')
+            why = T('模型这次只发起了动作调用，没写正文（动作已排进上面的演示队列）。可以直接追问要结论，或再发一条让它把讲解补上。')
           } else {
             // ★ 有思考 / 连思考都没有：两条都是**完整句子**，不拼半截
             //   （拼半截的话译文语序会错位，而且扫描替换也对不上）
@@ -1484,6 +1503,49 @@ let lastDemoId = null
   }
 
   /**
+   * ★★ 2026-10-14（task-2）：**回合边界上的可行动提示** —— 本轮到目前为止一个字的正文都没写。
+   *
+   * 为什么放在回合边界（onToolCall），而不是等 onDone：
+   *   模型一轮里可能连走好几个"只想动手"的回合（用户实测 5 个）。攒到整轮结束才说，
+   *   学生看到的是"演示都排完了/播完了，才冒出来一句像报错的话"，那时他已无事可做。
+   *   在回合边界上说，他当轮就能决定：继续等下一轮，还是直接追问要结论。
+   *
+   * 为什么是**可撤销**的活提示：
+   *   同一轮的后面某个回合完全可能把讲解写出来 —— 那时这句提示就是假话，必须撤掉
+   *   （见 clearNoTextNote 的调用点：正文到达 / 本轮结束 / 出错）。
+   *
+   * 为什么用普通 chip 而不是 warn：
+   *   它不是错误，只是一个进行中的状态；黄底红字正是上一版被读成"出错了"的原因。
+   *
+   * 幂等：同一轮里第二次、第三次调用不会再加一张（noTextNoteEl 已存在就直接返回）。
+   */
+  function showNoTextNote() {
+    if (noTextNoteEl) return
+    const el = addChip(T('它这一轮只排了演示、还没写讲解：可以继续等它下一轮，或直接追问要结论。'))
+    noTextNoteEl = el
+    // ★ 打一个稳定标记：验收脚本/探针据此认出"这条是那条实时提示"，不必猜文案
+    if (el && el.setAttribute) el.setAttribute('data-note', 'only-actions')
+  }
+
+  /** 撤掉上面那条实时提示（写出正文 / 本轮结束 / 出错时都要撤，见各自调用点） */
+  function clearNoTextNote() {
+    const el = noTextNoteEl
+    noTextNoteEl = null
+    if (!el) return
+    try {
+      /**
+       * ★ 先 el.remove()（真实 DOM 最直接），没有它再退回 msgBox.removeChild(el)。
+       *   为什么必须留第二条路：test-core 的 DOM 桩**既没有 remove() 也没有 parentNode**，
+       *   只写第一条的话，"撤掉"这件事在桩里永远不发生 —— 于是它**没法被验证**，
+       *   而"没法被验证的撤销"正是本项目最怕的那种半成品（提示会与事实相反地挂着）。
+       *   parentNode 那种判存在在这里不够用：桩里它根本不存在，真实 DOM 里却一定有。
+       */
+      if (typeof el.remove === 'function') el.remove()
+      else if (msgBox && typeof msgBox.removeChild === 'function') msgBox.removeChild(el)
+    } catch (e) { /* 已经不在消息区里（例如重画过）：静默，忽略 */ }
+  }
+
+  /**
    * 消息区里"只存在于 DOM、不在对话树里"的节点：题目卡 / 讲评卡 / 知识点选择器 / 提示条。
    *
    * ★★ 2026-10-12（用户反馈"这里少了点群在线"时顺带抓到的那条路径）：
@@ -1513,7 +1575,14 @@ let lastDemoId = null
       return { el, afterMid }
     }
     return Array.from(msgBox.children)
-      .filter((el) => el.matches('.agent-chip-row')
+      /**
+       * ★★ 2026-10-14（用户："演示出来之后，连**切换到「点群观鉴」**字样也不见了"）：
+       *   这里原先只认「.agent-chip-row」✗，而 addChip 建出来的元素类名是
+       *   **agent-msg chip-row** ⇒ 所有提示条（切换板块、未配置 Key、截断警告…）都**不在**
+       *   "重画保留"之列 ⇒ 任何一次 renderPath / 空态刷新都会把它们抹掉 —— 用户说的就是这个。
+       *   改用 .chip-row（两种命名都覆盖；这些 chip 都没有 mid、不在对话树里，不会与重画重复）。
+       */
+      .filter((el) => el.matches('.chip-row')
         || el.querySelector('.agent-q, .agent-fb, .agent-opt, .agent-goto, .agent-pick-btn'))
       .map(wrap)
   }
@@ -1609,8 +1678,19 @@ let lastDemoId = null
     if (typeof cfg.send !== 'function') throw new Error('createPanel 需要 cfg.send')
     cur = beginAssistant()
     running = true
+    clearNoTextNote()   // ★ 上一轮若因为异常路径留下过实时提示，进新的这一轮先清掉
     let reasoning = '', content = ''
     let roundClosed = false   // ★ A 方案：上一个 LLM 回合是否已闭合（见 onToolCall / onDelta）
+    /**
+     * ★★ 2026-10-14（task-2）：**本轮所有回合**的正文累计长度 —— "本轮没写正文"的唯一判据。
+     *
+     *   一个回合一个气泡之后，"最后一个回合没写正文"变成常态（它往往只是又调了一次工具），
+     *   而前面早已把讲解写出来了。只看最后一个回合，就会把"答得挺好"报成"没写正文" ✗。
+     *   累加发生在 onToolCall 里**清零 content 之前**（见那里），判定在 onDone。
+     */
+    let roundTextChars = 0
+    /** ★ 本轮是否真的下发过动作：决定措辞能不能说"动作已排进上面的演示队列"（见 onDone / finish） */
+    let turnHadAction = false
     let lastBubble = null
     let truncated = false
     stopBtn.classList.remove('hidden')
@@ -1627,7 +1707,15 @@ let lastDemoId = null
          */
         if (!cur || roundClosed) { cur = beginAssistant(); roundClosed = false }
         if (ev.type === 'reasoning') { reasoning += ev.text; cur.setReasoning(reasoning) }
-        else if (ev.type === 'content') { content += ev.text; cur.setContent(content) }
+        else if (ev.type === 'content') {
+          content += ev.text
+          cur.setContent(content)
+          /**
+           * ★★ 2026-10-14（task-2）：正文已经在写了 ⇒ "这一轮还没写讲解"的实时提示不再成立，
+           *   当场撤掉。否则屏幕上会同时出现"还没写讲解"和它下面那段讲解（提示与事实相反）。
+           */
+          if (content.trim()) clearNoTextNote()
+        }
       },
       // 截断之类的"非错误但需要说一声"的情况
       onNotice(n) {
@@ -1642,6 +1730,9 @@ let lastDemoId = null
         }
       },
       onToolCall(info) {
+        // ★ 本回合是不是真的"动了手"（与动作气泡同一判据）：没动手就不能说"排了演示"
+        const isAction = info.name === SEQ_TOOL || !!ACTION_LABEL[info.name]
+        if (isAction) turnHadAction = true
         /**
          * ★★ 2026-10-14（A 方案）：**一次工具调用 = 这一回合结束** ⇒
          *   收尾当前气泡（思考块折叠、正文定格），并把两个累加器清零，让下一回合**新起一块**；
@@ -1649,6 +1740,12 @@ let lastDemoId = null
          *   ★ 置空 cur 后，若下一回合没有任何增量（例如直接结束），就不会多出一个空气泡 ✓。
          */
         if (cur) {
+          /**
+           * ★★ 2026-10-14（task-2）：**先把本回合的正文长度并进本轮累计，再清零 content**。
+           *   判据因此是"本轮所有回合的正文都为空"，而不是"最后一个回合没写" ——
+           *   后者才是那个会误报的写法（前面写过正文、最后一回合只调了工具）。
+           */
+          roundTextChars += content.trim().length
           cur.collapseThinking()
           cur.finish({ hasContent: true })
           // ★ 只标记"本回合已闭合"，**不置空 cur** —— onDone 还要用最后一个气泡收尾；
@@ -1657,6 +1754,13 @@ let lastDemoId = null
           reasoning = ''
           content = ''
         }
+        /**
+         * ★★ 2026-10-14（task-2）：**在回合边界就交出可行动的提示**，不再攒到 onDone。
+         *   · 判据 = 本回合没写正文 且 本轮累计正文仍为空（前提：本回合真的排了动作）；
+         *   · 同一轮只说一次（showNoTextNote 幂等，五次工具调用不会变成五条提示）；
+         *   · 后面某回合写出正文时由 onDelta 撤掉（那时它就不成立了）。
+         */
+        if (isAction && roundTextChars === 0) showNoTextNote()
         // 只有"动手"的工具才显示气泡；查询/知识类属内部行为，静默
         if (info.name === SEQ_TOOL) {
           lastBubble = addActionBubble(SEQ_TOOL, (info.args && info.args.actions) || [])
@@ -1684,15 +1788,29 @@ let lastDemoId = null
         lastBubble = null
       },
       onDone(summary) {
+        /**
+         * ★★ 2026-10-14（task-2）：**判据 = 本轮所有回合的正文累计为空**（不是最后一个回合）。
+         *   一个回合一个气泡之后，多回合轮次的最后一回合常常确实没写正文（它只是又调了一次工具），
+         *   而讲解早已在**前面某个回合**写出来了 —— 只看最后一个回合就会误报"没写正文" ✗。
+         */
+        const turnChars = roundTextChars + content.trim().length
+        /**
+         * 实时提示的使命到此为止：本轮已经结束，它那句"可以继续等它下一轮"不再成立。
+         * 空正文这件事的**最终**说明（连 finish_reason / token 用量这类证据）由 finish()
+         * 写在最后一个气泡里 —— 同一件事在屏幕上只留一份，不重复说。
+         */
+        clearNoTextNote()
         cur.finish({
-          hasContent: !!content.trim(),
+          hasContent: turnChars > 0,
           truncated,
           finishReason: summary && summary.finishReason,
           usage: summary && summary.usage,
+          hadAction: turnHadAction,
         })
         if (summary && summary.aborted) addChip('已停止（本次循环剩余动作已丢弃）', 'warn')
       },
       onError(err) {
+        clearNoTextNote()   // ★ 出错时那条"还没写讲解"的实时提示不再成立，先撤掉再说别的
         cur.finish({ hasContent: true })     // 错误另行显示，别让 finish 再补一条"没正文"
         if (err.kind === 'no_key') {
           cur.setError('尚未配置 API Key，请点「设置」填写。')
