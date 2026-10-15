@@ -159,6 +159,34 @@ export const zh = {
   //   整段不等于原文，扫描替换匹配不上。
   'agent.fav.noSteps': '这条演示没有可收藏的步骤',
   'agent.fav.untitled': '未命名演示',
+  // ★ 2026-10-15（用户选定"导出/导入"）：收藏夹的**带走与拿回来**
+  'agent.fav.export': '导出收藏',
+  'agent.fav.export.hint': '把收藏存成一个文件，换浏览器/换设备都能带过去',
+  'agent.fav.import': '导入收藏',
+  'agent.fav.import.hint': '从导出的文件里把收藏合并回来（同一条会跳过，现有收藏不会被删）',
+  'agent.fav.export.empty': '还没有收藏可导出',
+  'agent.fav.export.done': '已导出 {n} 条收藏',
+  'agent.fav.import.done': '导入完成：新增 {added} 条，跳过 {skipped} 条重复',
+  'agent.fav.import.badJson': '这个文件不是有效的收藏文件（JSON 解析失败）',
+  'agent.fav.import.badShape': '这个文件不是收藏导出文件（缺少 favorites 列表）',
+  'agent.fav.import.partial': '（另有 {bad} 条数据不完整被跳过，超出上限丢弃最旧的 {dropped} 条）',
+  'agent.fav.import.cancel': '已取消导入',
+  // ★ 2026-10-15（实测出的静默失败）：写不进去时**必须**如实告知，不能假装成功
+  'agent.fav.saveFailed': '收藏没有存进去（本机存储已满或被浏览器拒绝）——可先删掉一些旧收藏，或用「导出收藏」备份后清理',
+  'agent.fav.import.saveFailed': '导入的数据没有写进本机存储（存储已满或被浏览器拒绝）',
+  'agent.fav.fileType': '收藏文件（JSON）',
+  'agent.fav.export.failed': '导出失败：{msg}',
+  'agent.fav.import.failed': '导入失败：{msg}',
+  'agent.fav.import.readFailed': '读取文件失败',
+  'agent.fav.export.fellBack': '浏览器没有允许写入该位置，已改为下载',
+  /**
+   * ★ 下面这几条是**面板里原本硬编的中文**（2026-10-15 一并收进字典）：
+   *   本仓 i18n 守卫只认"可译"字符串，面板里直接写中文字面量不会报错，
+   *   但英文模式下会露出中文 —— 顺手收干净。
+   */
+  'agent.fav.section': '收藏的演示（点一下重播）',
+  'agent.fav.empty': '还没有收藏——演示时点动作气泡上的「☆ 收藏」即可',
+  'agent.fav.import.readFailed.short': '读取文件失败',
 
   // ==========================================================================
   // nodes/constraints.js —— 角色规格与八个决策节点（都进系统提示）
@@ -580,6 +608,27 @@ export const en = {
   // ==========================================================================
   'agent.fav.noSteps': 'This demonstration has no step that can be saved',
   'agent.fav.untitled': 'Untitled demonstration',
+  'agent.fav.export': 'Export favorites',
+  'agent.fav.export.hint': 'Save your favorites as a file — you can take it to another browser or device',
+  'agent.fav.import': 'Import favorites',
+  'agent.fav.import.hint': 'Merge favorites back from an exported file (identical ones are skipped; nothing existing is deleted)',
+  'agent.fav.export.empty': 'No favorites to export yet',
+  'agent.fav.export.done': 'Exported {n} favorites',
+  'agent.fav.import.done': 'Import done: {added} added, {skipped} duplicates skipped',
+  'agent.fav.import.badJson': 'That file is not a valid favorites file (JSON parse failed)',
+  'agent.fav.import.badShape': 'That file is not a favorites export (no favorites list)',
+  'agent.fav.import.partial': '({bad} incomplete entries skipped, {dropped} oldest dropped over the limit)',
+  'agent.fav.import.cancel': 'Import cancelled',
+  'agent.fav.saveFailed': 'The favorite was not saved (local storage is full or the browser refused it) — delete some old favorites, or export a backup first',
+  'agent.fav.import.saveFailed': 'The imported data could not be written to local storage (full or refused by the browser)',
+  'agent.fav.fileType': 'Favorites file (JSON)',
+  'agent.fav.export.failed': 'Export failed: {msg}',
+  'agent.fav.import.failed': 'Import failed: {msg}',
+  'agent.fav.import.readFailed': 'Could not read the file',
+  'agent.fav.export.fellBack': 'The browser did not allow writing there, so it was downloaded instead',
+  'agent.fav.section': 'Saved demonstrations (click to replay)',
+  'agent.fav.empty': 'No saved demonstrations yet — click "☆ Save" on an action bubble while a demo is playing',
+  'agent.fav.import.readFailed.short': 'Could not read the file',
 
   // ==========================================================================
   // nodes/constraints.js

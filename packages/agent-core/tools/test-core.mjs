@@ -2186,6 +2186,24 @@ console.log(`\n${'═'.repeat(60)}`)
       /const rec = ctx\.storyboard\.getDemo[\s\S]{0,200}?actions: \(\(rec && rec\.steps\)/.test(appCode))
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // ★★ 2026-10-15（用户："收藏的演示是否能永久可重播？" → 选定"导出/导入"）
+  //
+  //   收藏在 localStorage 里：清浏览器数据 / 换浏览器 / 换机器就没了。
+  //   导出成文件、导入再合并回来，是"不依赖服务器"前提下唯一可靠的保命方式。
+  //   语义细节由 `tools/test-demo-favorites.mjs` 逐条测；这里守**接线**：
+  //   面板上确实有这两个按钮、且走的是导出/导入那两个函数（没有按钮等于功能不存在）。
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    check('⑤ 收藏页有「导出收藏 / 导入收藏」两个按钮且接线正确',
+      /导出收藏/.test(panelSrc) && /导入收藏/.test(panelSrc)
+      && /expBtn\.onclick[\s\S]{0,120}?exportFavorites\(\)/.test(panelSrc)
+      && /impBtn\.onclick[\s\S]{0,120}?importFavorites\(\)/.test(panelSrc))
+    check('⑤ 导出走"先叫选择器、再写数据"（否则慢机器上会因激活过期写入失败）',
+      /showSaveFilePicker\([\s\S]{0,600}?createWritable\(\)[\s\S]{0,300}?JSON\.stringify/.test(panelSrc)
+      || /const data = favorites\.exportData[\s\S]{0,900}?showSaveFilePicker/.test(panelSrc))
+  }
+
   // ★★ 2026-10-14（task-2 用户第二/第三次报"问题仍然存在"）—— 两条都只能靠**读数**守：
   //
   //   ① 重建丢掉"只有思考"的回合：`renderPath` 的 assistant 分支原先写成 `if (n.content)`

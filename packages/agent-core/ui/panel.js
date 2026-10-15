@@ -391,8 +391,8 @@ let lastDemoId = null
         // ★ 先用手上攒的 id；没有就问分镜"最近一条是谁"（进度事件并非每个阶段都带 demoId）
         const id = lastDemoId || (SB && typeof SB.latestDemoId === 'function' ? SB.latestDemoId() : null)
         if (!id) return
-        const ok = saveDemoToFavorites(id)
-        if (demoFav) { demoFav.textContent = ok ? '★ 已收藏' : T('（收藏失败）'); demoFav.disabled = !!ok }
+        // ★ 走统一入口：成功/失败/不可用三种情况都由它如实改文案并给原因（见 onFavoriteClick）
+        onFavoriteClick(id, demoFav)
       })
     }
     ;[demoPrev, demoNext, demoAuto, demoManual, demoStop, demoReplay, demoRestore, demoDismiss]
@@ -852,14 +852,59 @@ let lastDemoId = null
    * @returns {boolean} 是否收藏成功（演示记录已不在 ⇒ false）
    */
   function saveDemoToFavorites(demoId) {
-    if (!favorites || !demoId) return false
+    const r = saveDemoToFavoritesResult(demoId)
+    return !!(r && r.ok)
+  }
+
+  /**
+   * 收藏某条演示，**返回 store 的原始结果**（无记录时 null）。
+   * ★ 抽出来是因为两个调用方要的粒度不同：布尔版只关心成没成，点击版还要说出**失败原因**；
+   *   而"写盘"那一步只有一份实现，避免两份判断漂移。
+   */
+  function saveDemoToFavoritesResult(demoId) {
+    if (!favorites || !demoId) return null
     const rec = SB && SB.getDemo ? SB.getDemo(demoId) : null
-    if (!rec || !rec.steps || !rec.steps.length) return false
-    const r = favorites.save('', rec.steps.map((s) => ({
+    if (!rec || !rec.steps || !rec.steps.length) return null
+    return favorites.save('', rec.steps.map((s) => ({
       action: s.name || s.action, params: s.params, speech: s.speech,
       module: s.module || rec.module || null,
     })), { origin: rec.origin, module: rec.module || null })
-    return !!(r && r.ok)
+  }
+
+  /**
+   * 点「☆ 收藏」的统一入口（气泡底部与演示条**共用**）：成功/失败的措辞都要如实。
+   *
+   * ★★ 2026-10-15（实测出的静默失败）：`favorites.save()` 在"本机存储写不进去"时
+   *   原先**仍返回成功**，于是界面显示「★ 已收藏」而其实什么都没存（实测：假 storage
+   *   恒抛配额错时 ok=true、count=0）。现在 store 如实返回 `ok:false + error`，
+   *   这里就把**原因**说出来 —— 并区分两种情况，因为学生要做的事不同：
+   *     · 记录已不在（恢复会话失败的旧症状）→「演示已失效」
+   *     · 存储写不进去 →「未存进去」+ 一条说明原因的提示条
+   *   ★ 按钮**不 disable**：存储问题是可以修复的（删掉一些旧收藏再试），
+   *     把它锁死等于让学生再也没机会。
+   *   ★ 写盘那一步**只有一份实现**（`saveDemoToFavorites`）—— 两份判断迟早漂移。
+   *
+   * @param {string} demoId
+   * @param {HTMLElement} [btn] 对应按钮（用于改文案；不传则只走存储与提示）
+   * @returns {boolean} 是否真的存进去了
+   */
+  function onFavoriteClick(demoId, btn) {
+    if (!favorites || !demoId) return false
+    const rec = SB && SB.getDemo ? SB.getDemo(demoId) : null
+    const alive = !!(rec && rec.steps && rec.steps.length)
+    const r = saveDemoToFavoritesResult(demoId)
+    if (r && r.ok) {
+      if (btn) { btn.textContent = T('★ 已收藏'); btn.disabled = true }
+      return true
+    }
+    if (!alive) {
+      if (btn) { btn.textContent = T('演示已失效'); btn.disabled = true }
+      return false
+    }
+    // 记录还在、但没写进去 ⇒ 存储问题（配额满 / 被浏览器拒绝）：如实说，并留着按钮重试
+    if (btn) btn.textContent = T('未存进去')
+    addChip((r && r.error) || T('收藏失败：本机存储不可用'), 'warn')
+    return false
   }
 
   /**
@@ -937,14 +982,11 @@ let lastDemoId = null
     //   存的是**步骤清单**而不是画面截图，所以以后回放仍然是对的（截图会过时）。
     if (favorites) {
       const fb = E('button', {
-        class: 'agent-act-btn', text: '☆ 收藏', type: 'button',
-        title: '把这条演示存到本机，之后随时可重播',
+        class: 'agent-act-btn', text: T('☆ 收藏'), type: 'button',
+        title: T('把这条演示存到本机，之后随时可重播'),
       })
-      fb.onclick = () => {
-        const ok = saveDemoToFavorites(demoId)
-        fb.textContent = ok ? '★ 已收藏' : '演示已失效'
-        fb.disabled = ok
-      }
+      // ★ 统一入口：区分"演示已失效 / 没存进去 / 已收藏"，并给出原因与重试机会
+      fb.onclick = () => { onFavoriteClick(demoId, fb) }
       foot.appendChild(fb)
     }
     // ★ 挂到气泡**外面**（作为它的下一个兄弟），而不是 details 内部。
@@ -1584,10 +1626,31 @@ let lastDemoId = null
     // ★ 收藏的演示：与"会话"并列的一个分区——两者都是"存本机、随时取用"的东西，
     //   放在同一页里，学生想"再看一遍那条好的"时只有一个地方要记。
     if (favorites) {
-      page.appendChild(E('div', { class: 'agent-conv-sec-t', text: '收藏的演示（点一下重播）' }))
+      /**
+       * ★★ 2026-10-15（用户："收藏的演示是否能永久可重播？" → 选定导出/导入）：
+       *   分区标题右边并排两个按钮：**导出收藏** / **导入收藏**。
+       *
+       *   为什么必须有：收藏是 localStorage 里的东西 —— 清了浏览器数据、
+       *   换个浏览器、换台机器就没了，而"哪条演示讲得好"是学生**攒下来的**资产。
+       *   导出给他一个文件、再由导入合并回来，是"不依赖服务器"前提下唯一可靠的保命方式。
+       *   ★ 导入是**合并**、不是覆盖：学生是想把以前那份拿回来，不是删掉现在这份。
+       */
+      const favHead = E('div', { class: 'agent-conv-sec-t agent-fav-head' })
+      favHead.appendChild(E('span', { text: T('收藏的演示（点一下重播）') }))
+      const favActs = E('span', { class: 'agent-fav-acts' })
+      const expBtn = E('button', { class: 'agent-act-btn', text: T('导出收藏'), type: 'button', title: T('把收藏存成一个文件，换浏览器/换设备都能带过去') })
+      expBtn.onclick = (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); exportFavorites() }
+      const impBtn = E('button', { class: 'agent-act-btn', text: T('导入收藏'), type: 'button', title: T('从导出的文件里把收藏合并回来（同一条会跳过，现有收藏不会被删）') })
+      impBtn.onclick = (ev) => { if (ev && ev.stopPropagation) ev.stopPropagation(); importFavorites() }
+      favActs.appendChild(expBtn)
+      favActs.appendChild(impBtn)
+      favHead.appendChild(favActs)
+      page.appendChild(favHead)
       const favList = E('div', { class: 'agent-conv-list agent-fav-list' })
       page.appendChild(favList)
       page._favList = favList
+      page._favExport = expBtn
+      page._favImport = impBtn
     }
     const foot = E('div', { class: 'agent-conv-foot' })
     const add = E('button', { class: 'agent-btn sm primary', text: '＋ 新会话', type: 'button' })
@@ -1671,7 +1734,7 @@ let lastDemoId = null
     if (!list.length) {
       box.appendChild(E('div', {
         class: 'agent-conv-empty',
-        text: '还没有收藏——演示时点动作气泡上的「☆ 收藏」即可',
+        text: T('还没有收藏——演示时点动作气泡上的「☆ 收藏」即可'),
       }))
       return
     }
@@ -1726,6 +1789,99 @@ let lastDemoId = null
       acts.appendChild(del)
       row.appendChild(acts)
       box.appendChild(row)
+    }
+  }
+
+  /**
+   * 导出收藏成一个文件。
+   *
+   * ★ 顺序与「保存图片」同一条教训（见 apps/web/src/shell/save-image.js）：
+   *   File System Access 的"要权限"动作**必须在用户手势的激活期内**发起，
+   *   所以**先**叫选择器 + 开可写流，**再**序列化数据（序列化虽然很快，
+   *   但"先算后开"在数据变大以后就是同一个坑，不给自己留隐患）。
+   * ★ 不支持该 API 时（Firefox / 内嵌 WebView / 非安全上下文）退化为**下载**，
+   *   并如实说明 —— 让学生在两种情况下都拿到文件。
+   */
+  async function exportFavorites() {
+    if (!favorites) return
+    const data = favorites.exportData()
+    if (!data.favorites.length) { addChip(T('还没有收藏可导出'), 'warn'); return }
+    const text = JSON.stringify(data, null, 2)
+    const name = 'chem-agent-favorites-' + new Date().toISOString().slice(0, 10) + '.json'
+
+    if (typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function') {
+      let writable = null
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: name,
+          types: [{ description: T('收藏文件（JSON）'), accept: { 'application/json': ['.json'] } }],
+        })
+        writable = await handle.createWritable()
+        await writable.write(text)
+        await writable.close()
+        addChip(T('已导出 {n} 条收藏', { n: data.favorites.length }), 'info')
+        return
+      } catch (err) {
+        try { if (writable) await writable.abort() } catch (e) { /* 忽略 */ }
+        if (err && err.name === 'AbortError') return          // 用户取消：什么都不做
+        // 选择器/写入失败 → 仍把文件给出去（下载兜底），并说明原因
+        downloadText(text, name)
+        addChip(T('浏览器没有允许写入该位置，已改为下载'), 'warn')
+        return
+      }
+    }
+    downloadText(text, name)
+    addChip(T('已导出 {n} 条收藏', { n: data.favorites.length }), 'info')
+  }
+
+  /** 下载一段文本（导出兜底；与保存图片的下载兜底同一做法） */
+  function downloadText(text, fileName) {
+    try {
+      const blob = new Blob([text], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => { try { URL.revokeObjectURL(url) } catch (e) { /* 忽略 */ } }, 5000)
+    } catch (e) { addChip(T('导出失败：{msg}', { msg: (e && e.message) || e }), 'warn') }
+  }
+
+  /**
+   * 导入收藏文件（**合并**现存收藏，不覆盖）。
+   * ★ 用隐藏的 `<input type="file">`：它在所有浏览器都可用（包括没有
+   *   File System Access 的那些），而导入本来就不需要写权限。
+   */
+  function importFavorites() {
+    if (!favorites) return
+    try {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'application/json,.json'
+      input.style.display = 'none'
+      input.onchange = () => {
+        const file = input.files && input.files[0]
+        if (!file) return
+        const reader = new FileReader()
+        reader.onload = () => {
+          const r = favorites.importData(String(reader.result || ''))
+          if (!r.ok) { addChip(r.error || T('导入失败'), 'warn'); input.remove(); return }          let msg = T('导入完成：新增 {added} 条，跳过 {skipped} 条重复', { added: r.added, skipped: r.skipped })
+          if (r.bad || r.dropped) {
+            msg += T('（另有 {bad} 条数据不完整被跳过，超出上限丢弃最旧的 {dropped} 条）', { bad: r.bad, dropped: r.dropped })
+          }
+          addChip(msg, 'info')
+          renderFavList()
+          input.remove()
+        }
+        reader.onerror = () => { addChip(T('读取文件失败'), 'warn'); input.remove() }
+        reader.readAsText(file)
+      }
+      document.body.appendChild(input)
+      input.click()
+    } catch (e) {
+      addChip(T('导入失败：{msg}', { msg: (e && e.message) || e }), 'warn')
     }
   }
 

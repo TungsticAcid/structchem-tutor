@@ -50,18 +50,31 @@ export function createDemoFavorites(opts = {}) {
     } catch (e) { return [] }
   }
 
+  /**
+   * 写盘。**返回值必须可信**：调用方要据此如实告知"存进去了没有"。
+   *
+   * ★★ 2026-10-15（实测出的缺陷）：原先**一律 `return true`** —— 即使
+   *   `setItem` 抛了 `QuotaExceededError`、什么都没写进去，调用方看到的也是成功。
+   *   实测：假 storage 恒抛配额错时，`save()` 返回 `{ok:true}` 而 `count()` 是 **0**
+   *   —— 界面上学生看到"★ 已收藏"，其实**一个字都没存**。这种"静默丢数据"
+   *   正是本仓反复修的那一类，故一并修掉。
+   * ★ 没有 storage 时返回 true：那是"内存态"（测试或纯内存运行），
+   *   调用方**能立刻读到**自己写的东西，不算失败。
+   */
   function write(list) {
+    if (!storage) return true
     try {
-      if (storage) storage.setItem(key, JSON.stringify(list))
+      storage.setItem(key, JSON.stringify(list))
       return true
     } catch (e) {
       // ★ 配额满时降级：丢掉最旧的一半再试一次（收藏夹被砍总比整条链路报错好）
       try {
-        if (storage && list.length > 4) {
-          storage.setItem(key, JSON.stringify(list.slice(0, Math.floor(list.length / 2))))
+        if (list.length > 4) {
+          const half = list.slice(0, Math.floor(list.length / 2))
+          storage.setItem(key, JSON.stringify(half))
           return true
         }
-      } catch (e2) { /* 放弃持久化 */ }
+      } catch (e2) { /* 仍然写不进去 */ }
       return false
     }
   }
@@ -114,7 +127,13 @@ export function createDemoFavorites(opts = {}) {
     }
     list.unshift(entry)
     while (list.length > MAX_FAVORITES) list.pop()
-    write(list)
+    /**
+     * ★ 写盘结果**必须如实返回**（见 write 的说明）：存不进去时 `ok:false`
+     *   —— 面板据此显示"没存进去"，而不是骗学生一句"★ 已收藏"。
+     */
+    if (!write(list)) {
+      return { ok: false, key: entry.key, label: entry.label, count: entry.steps.length, error: t('agent.fav.saveFailed') }
+    }
     return { ok: true, key: entry.key, label: entry.label, count: entry.steps.length }
   }
 
@@ -124,8 +143,7 @@ export function createDemoFavorites(opts = {}) {
     const rec = list.find((x) => x.key === k)
     if (!rec) return false
     rec.label = String(label || '').slice(0, 40) || rec.label
-    write(list)
-    return true
+    return write(list)
   }
 
   /** 删除一条 */
@@ -133,13 +151,115 @@ export function createDemoFavorites(opts = {}) {
     const list = read()
     const next = list.filter((x) => x.key !== k)
     if (next.length === list.length) return false
-    write(next)
-    return true
+    return write(next)
   }
 
   function count() { return read().length }
 
-  return { list, get, save, rename, remove, count, MAX: MAX_FAVORITES }
+  /**
+   * ★★ 2026-10-15（用户："收藏的演示是否能永久可重播？" → 选定"导出/导入"）：
+   *   **导出成一个文件**，学生自己保管；换浏览器、换设备、清过浏览器数据都能带回去。
+   *
+   *   为什么是"导出文件"而不是"同步到服务器"：本工具的 BYOK 姿态就是**不依赖服务器**
+   *   （密钥只在本机、对话只在本机）——收藏也该如此。而且 localStorage 属于浏览器，
+   *   我们无法阻止"清浏览器数据"，能做的只是**让学生手里有一份**。
+   *
+   *   ★ 导出的是**条目本身**（label/at/steps/module…），不是渲染结果：
+   *     回放时按当时的视图重新执行，所以一年后导入回来仍然是对的。
+   *   ★ 带 `app` / `version` / `exportedAt`：导入时能认出"这是不是本工具的收藏文件"，
+   *     将来 schema 变化也有依据可迁移。
+   */
+  function exportData() {
+    return {
+      app: 'chem-agent',
+      kind: 'demo-favorites',
+      version: 1,
+      exportedAt: now(),
+      favorites: read(),
+    }
+  }
+
+  /**
+   * 导入一份导出数据（**合并**，不覆盖）。
+   *
+   * 三条纪律：
+   *   ① **不覆盖**现有收藏 —— 学生导入是为了"把以前那份拿回来"，
+   *      不是"把现在这份删掉"。同一条（label+steps 完全相同）视为重复，跳过。
+   *   ② **上限仍然生效**：合并后超过 MAX_FAVORITES 时丢掉**最旧**的，并如实报出丢了几条
+   *      （静默丢弃是上一轮刚修过的那类缺陷）。
+   *   ③ 数据要**逐条校验**：坏条目跳过并计数，不因为一条坏的就整份失败。
+   *
+   * @param {Object|string} data 导出数据（对象或 JSON 文本）
+   * @returns {{ok:boolean, added:number, skipped:number, bad:number, dropped:number, total:number, error?:string}}
+   */
+  function importData(data) {
+    let obj = data
+    if (typeof data === 'string') {
+      try { obj = JSON.parse(data) } catch (e) { return { ok: false, added: 0, skipped: 0, bad: 0, dropped: 0, total: count(), error: t('agent.fav.import.badJson') } }
+    }
+    if (!obj || typeof obj !== 'object') {
+      return { ok: false, added: 0, skipped: 0, bad: 0, dropped: 0, total: count(), error: t('agent.fav.import.badShape') }
+    }
+    // 兼容"直接给数组"的手写文件
+    const incoming = Array.isArray(obj) ? obj : obj.favorites
+    if (!Array.isArray(incoming)) {
+      return { ok: false, added: 0, skipped: 0, bad: 0, dropped: 0, total: count(), error: t('agent.fav.import.badShape') }
+    }
+    const list = read()
+    /**
+     * 重复判据 = **动作序列**（action + speech 序列），**不含 label**。
+     *
+     * ★ 实测抓到的缺陷：第一版把 label 也拼进签名，于是"同一条演示、只是名字不同"
+     *   不会被判重复 ⇒ 反复导入同一份文件就会**越堆越多**（用户要的"导入把以前那份
+     *   拿回来"变成了"每次多一份"）。名字是学生随手改的，**内容才是身份**。
+     */
+    const sig = (x) => JSON.stringify((x.steps || []).map((s) => [s && s.action, s && s.speech]))
+    const seen = new Set(list.map(sig))
+    let skipped = 0
+    let bad = 0
+    const fresh = []
+    for (const item of incoming) {
+      if (!item || !Array.isArray(item.steps) || !item.steps.length) { bad++; continue }
+      if (seen.has(sig(item))) { skipped++; continue }
+      /**
+       * key 一律**重新生成**：文件可能在另一台机器上导出，直接沿用旧 key 会与
+       * 本机已有条目撞号（撞号的表现是"删一条，另一条也没了"）。
+       */
+      const entry = {
+        key: 'f' + now().toString(36) + Math.floor(Math.random() * 1e4).toString(36) + 'i',
+        label: String(item.label || t('agent.fav.untitled')).slice(0, 40),
+        at: Number(item.at) || now(),
+        origin: item.origin || 'import',
+        kp: item.kp || null,
+        crystalId: item.crystalId || null,
+        module: item.module || null,
+        steps: item.steps.map((s) => ({
+          action: s && s.action, params: (s && s.params) || {}, speech: s && s.speech,
+          module: (s && s.module) || item.module || null,
+        })),
+      }
+      seen.add(sig(item))
+      fresh.push(entry)
+    }
+    /**
+     * ★ `added` 与 `dropped` 必须**按最终留下来的算**。
+     *   实测抓到的缺陷：第一版先 `added++` 再截断，于是导入 60 条、上限 50 时
+     *   报的是"新增 60、丢弃 10" —— 学生按这个数字清理，怎么算都对不上。
+     */
+    const merged = fresh.concat(list)
+    while (merged.length > MAX_FAVORITES) merged.pop()
+    const dropped = Math.max(0, fresh.length + list.length - merged.length)
+    const added = fresh.filter((e) => merged.indexOf(e) >= 0).length
+    if (!write(merged)) {
+      return {
+        ok: false, added: 0, skipped, bad, dropped: 0, total: count(),
+        error: t('agent.fav.import.saveFailed'),
+      }
+    }
+    return { ok: true, added, skipped, bad, dropped, total: merged.length }
+  }
+
+  return { list, get, save, rename, remove, count, exportData, importData, MAX: MAX_FAVORITES }
 }
 
 export default createDemoFavorites

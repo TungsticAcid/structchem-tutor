@@ -1,4 +1,4 @@
-﻿/**
+/**
  * i18n.js —— 智能体面板（packages/agent-core/ui）的中英词典
  *
  * ---------------------------------------------------------------------------
@@ -151,6 +151,27 @@ export const zh = {
   '无法播放这条收藏：{error}': '无法播放这条收藏：{error}',
   '会话名称': '会话名称',
   '删除这个会话？不可恢复。': '删除这个会话？不可恢复。',
+  // ★★ 2026-10-15（导出/导入收藏 + 如实报错）：面板新增的文案一律**登记在这里**
+  //   （本仓面板用"原文即键"的 text 表；漏登记的话英文模式会露出中文，守卫也会红）
+  '收藏的演示（点一下重播）': '收藏的演示（点一下重播）',
+  '还没有收藏——演示时点动作气泡上的「☆ 收藏」即可': '还没有收藏——演示时点动作气泡上的「☆ 收藏」即可',
+  '导出收藏': '导出收藏',
+  '导入收藏': '导入收藏',
+  '把收藏存成一个文件，换浏览器/换设备都能带过去': '把收藏存成一个文件，换浏览器/换设备都能带过去',
+  '从导出的文件里把收藏合并回来（同一条会跳过，现有收藏不会被删）': '从导出的文件里把收藏合并回来（同一条会跳过，现有收藏不会被删）',
+  '还没有收藏可导出': '还没有收藏可导出',
+  '已导出 {n} 条收藏': '已导出 {n} 条收藏',
+  '导入完成：新增 {added} 条，跳过 {skipped} 条重复': '导入完成：新增 {added} 条，跳过 {skipped} 条重复',
+  '（另有 {bad} 条数据不完整被跳过，超出上限丢弃最旧的 {dropped} 条）': '（另有 {bad} 条数据不完整被跳过，超出上限丢弃最旧的 {dropped} 条）',
+  '收藏文件（JSON）': '收藏文件（JSON）',
+  '浏览器没有允许写入该位置，已改为下载': '浏览器没有允许写入该位置，已改为下载',
+  '导出失败：{msg}': '导出失败：{msg}',
+  '导入失败': '导入失败',
+  '导入失败：{msg}': '导入失败：{msg}',
+  '读取文件失败': '读取文件失败',
+  '未存进去': '未存进去',
+  '收藏失败：本机存储不可用': '收藏失败：本机存储不可用',
+  '演示已失效': '演示已失效',
 }
 
 /** 键 → 英文（键与 `zh` 完全一致，少的键在英文界面下会静默显示中文 —— 守卫只报未覆盖的源码字面量，不报缺译） */
@@ -242,6 +263,26 @@ export const en = {
   '无法播放这条收藏：{error}': 'Cannot play this saved demo: {error}',
   '会话名称': 'Conversation name',
   '删除这个会话？不可恢复。': 'Delete this conversation? This cannot be undone.',
+  // ---- 收藏的导出 / 导入（2026-10-15）----
+  '收藏的演示（点一下重播）': 'Saved demonstrations (click to replay)',
+  '还没有收藏——演示时点动作气泡上的「☆ 收藏」即可': 'No saved demonstrations yet — click "☆ Save" on an action bubble while a demo plays',
+  '导出收藏': 'Export',
+  '导入收藏': 'Import',
+  '把收藏存成一个文件，换浏览器/换设备都能带过去': 'Save your favorites as a file — take it to another browser or device',
+  '从导出的文件里把收藏合并回来（同一条会跳过，现有收藏不会被删）': 'Merge favorites back from an exported file (identical ones are skipped; nothing existing is deleted)',
+  '还没有收藏可导出': 'No saved demonstrations to export yet',
+  '已导出 {n} 条收藏': 'Exported {n} saved demonstrations',
+  '导入完成：新增 {added} 条，跳过 {skipped} 条重复': 'Import done: {added} added, {skipped} duplicates skipped',
+  '（另有 {bad} 条数据不完整被跳过，超出上限丢弃最旧的 {dropped} 条）': ' ({bad} incomplete entries skipped, {dropped} oldest dropped over the limit)',
+  '收藏文件（JSON）': 'Favorites file (JSON)',
+  '浏览器没有允许写入该位置，已改为下载': 'The browser did not allow writing there, so it was downloaded instead',
+  '导出失败：{msg}': 'Export failed: {msg}',
+  '导入失败': 'Import failed',
+  '导入失败：{msg}': 'Import failed: {msg}',
+  '读取文件失败': 'Could not read the file',
+  '未存进去': 'Not saved',
+  '收藏失败：本机存储不可用': 'Save failed: local storage is unavailable',
+  '演示已失效': 'Demo no longer available',
 }
 
 /**
