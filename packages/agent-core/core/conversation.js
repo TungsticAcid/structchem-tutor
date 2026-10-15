@@ -38,6 +38,7 @@
 //   而守卫照样绿（它只读字典文件里登记了哪些原文）。
 import '../i18n.js'
 import { t } from '../../i18n/index.js'
+import { buildMessages } from './context-budget.js'
 
 /** 默认最大轮数 */
 export const DEFAULT_MAX_ROUNDS = 6
@@ -64,6 +65,17 @@ export const DEFAULT_MAX_CONTINUES = 2
  *   拿到 `tool_calls` 后历史里就要配上 tool 消息，而循环已经结束 —— 学生仍然没有正文。
  */
 const FINAL_ANSWER_ROUNDS = 1
+
+/**
+ * 历史部分的 **token 预算**：超过它就压缩（见 core/context-budget.js）。
+ *
+ * ★★ 2026-10-15（用户："完善…上下文管理压缩机制"）：
+ *   取 24000 而不是贴着模型上限：系统提示 + 工具定义 + 快照本身就要吃掉几千，
+ *   再留出这一轮的回答空间。宁可早一点折叠旧历史，也不要在某一轮突然报
+ *   "上下文超限"——那种失败学生完全看不懂，而且发生在会话正长、正投入的时候。
+ * ★ 设成 0/负数可关闭压缩（测试用）。
+ */
+export const DEFAULT_MAX_HISTORY_TOKENS = 24000
 
 /**
  * 组装「清单」部分：知识库与技能库只放索引，正文由模型按需拉取。
@@ -129,6 +141,8 @@ export function createConversation(opts = {}) {
   }
   const maxRounds = opts.maxRounds == null ? DEFAULT_MAX_ROUNDS : opts.maxRounds
   const maxContinues = opts.maxContinues == null ? DEFAULT_MAX_CONTINUES : opts.maxContinues
+  /** 历史 token 预算（见 DEFAULT_MAX_HISTORY_TOKENS）；<=0 关闭压缩 */
+  const maxHistoryTokens = opts.maxHistoryTokens == null ? DEFAULT_MAX_HISTORY_TOKENS : opts.maxHistoryTokens
 
   let history = []          // 会话历史（OpenAI messages 格式，不含 system）
   let abortCtrl = null
@@ -227,25 +241,40 @@ export function createConversation(opts = {}) {
         return { out, streamedReasoning }
       }
 
+      /**
+       * 采一次"就近快照"（每次组装 messages 前重采：工具可能已改变视图）。
+       * ★ 局部变量刻意不叫 `t`：它会遮住上面 import 的 i18n 取值函数 `t()`。
+       */
+      const takeSnapshot = () => {
+        if (typeof getSnapshotText !== 'function') return ''
+        const snapText = getSnapshotText()
+        return snapText ? t('agent.snapshot.header') + '\n' + snapText : ''
+      }
+
+      /**
+       * 组装发送给模型的 messages（**含上下文压缩**，见 core/context-budget.js）。
+       *
+       * ★★ 2026-10-15（用户："完善会话保存管理机制，以及上下文管理压缩机制"）：
+       *   此前这里是 `[{system}].concat(history)` —— 历史只增不减，长会话会
+       *   ① 每轮都为早已讲完的内容付费 ② 迟早撞上下文上限 ③ 稀释注意力。
+       *   现在统一走 `buildMessages`：超过预算时保留最近的若干条，更早的折叠成一条
+       *   **明确告知模型"已不在上下文里"** 的说明（不做 LLM 摘要，理由见该模块头注释）。
+       *   ★ 快照仍作为**第二条 system** 注入、**不写入 history**（避免累积膨胀）。
+       */
+      const assemble = (hist) => buildMessages({
+        system: buildSystem(),
+        history: hist,
+        snapshotText: takeSnapshot(),
+        maxHistoryTokens: maxHistoryTokens,
+        elidedNote: (n) => t('agent.context.elided', { n }),
+      }).messages
+
       while (rounds < maxRounds) {
         if (aborted) break
         rounds++
 
-        // ① 每轮重采快照（关键：工具可能已改变视图）
-        let snapshotText = ''
-        if (typeof getSnapshotText === 'function') {
-          // ★ 局部变量刻意不叫 `t`：它会遮住上面 import 的 i18n 取值函数 `t()`
-          const snapText = getSnapshotText()
-          if (snapText) snapshotText = t('agent.snapshot.header') + '\n' + snapText
-        }
-
-        // ② 组装 messages
-        const msgs = [{ role: 'system', content: buildSystem() }].concat(history)
-
-        // 把快照作为一条临时的 system 注入（**不写入 history**，避免累积膨胀）
-        if (snapshotText) {
-          msgs.splice(1, 0, { role: 'system', content: snapshotText })
-        }
+        // ① 组装 messages（快照在 assemble 内部按当前视图重采，并作为第二条 system 注入）
+        const msgs = assemble(history)
 
         // ③ 调用（流式）
         // 记录本轮"流式吐出来的"思考长度，供第 ④ 步按差额补发
@@ -372,13 +401,7 @@ export function createConversation(opts = {}) {
         H.onNotice({ kind: 'no_text_final_round' })
         history.push({ role: 'user', origin: 'continuation', content: t('agent.continue.finalAnswer') })
         rounds++
-        let snapshotText = ''
-        if (typeof getSnapshotText === 'function') {
-          const snapText = getSnapshotText()
-          if (snapText) snapshotText = t('agent.snapshot.header') + '\n' + snapText
-        }
-        const msgs = [{ role: 'system', content: buildSystem() }].concat(history)
-        if (snapshotText) msgs.splice(1, 0, { role: 'system', content: snapshotText })
+        const msgs = assemble(history)
         /**
          * ★ 工具定义**照旧**交给模型，但收尾指令明确禁止调用它们。
          *   为什么不干脆传空数组：那样服务端对"openai 兼容"的实现要求各不相同

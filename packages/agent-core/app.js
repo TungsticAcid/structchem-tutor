@@ -340,6 +340,16 @@ export function createShellTools(ctx) {
         title: script.title,
         totalSteps: r.total,
         failed: r.failed,
+        /**
+         * ★★ 2026-10-15（用户："恢复会话后，之前的演示会失效，无法收藏和重播"）：
+         *   回执里**必须带上步骤清单**。理由：刷新后重建演示记录只能靠对话存档，
+         *   而 `playDemo` 的参数里只有脚本 id —— 面板拿不到步骤 ⇒ 记录建不出来
+         *   （实测：刷新后记录数 0，界面上的「↻ 重播」「☆ 收藏」点了没反应）。
+         *   ★ 与 `applySceneActions` 的回执口径一致（它也带 `perAction`），
+         *     而且这份步骤是**当时真正播的那一份**，比拿脚本 id 回头查更可靠
+         *     （脚本将来改了，历史记录仍然能原样重播）。
+         */
+        actions: script.steps.map((s) => ({ action: s.action, params: s.params, speech: s.speech, module: s.module || null })),
         note: t('agent.tool.playDemo.note', { title: script.title, total: r.total, demoId: r.demoId }),
       }
     },
@@ -347,10 +357,19 @@ export function createShellTools(ctx) {
     replayDemo(p) {
       const r = ctx.storyboard.replay(p && p.demoId)
       if (!r || !r.ok) return { ok: false, error: (r && r.error) || t('agent.tool.replayDemo.none') }
+      /**
+       * ★ 与 playDemo 同样带上步骤（见那里的说明）：重播也是一条"历史里放过的演示"，
+       *   刷新后要能重建出来。
+       */
+      const rec = ctx.storyboard.getDemo ? ctx.storyboard.getDemo(r.demoId) : null
       return {
         ok: true,
         demoId: r.demoId,
         totalSteps: r.total,
+        title: (rec && rec.label) || '',
+        actions: ((rec && rec.steps) || []).map((s) => ({
+          action: s.name, params: s.params, speech: s.speech, module: s.module || null,
+        })),
         note: t('agent.tool.replayDemo.note', { demoId: r.demoId, total: r.total }),
       }
     },

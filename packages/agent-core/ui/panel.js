@@ -115,6 +115,20 @@ export function createPanel(cfg = {}) {
   const SEQ_TOOL = cfg.sequenceToolName || 'applySceneActions'
   const ACTION_LABEL = cfg.actionLabels || {}
   /**
+   * ★★ 2026-10-15（用户："恢复会话后，之前的演示会失效，无法收藏和重播"）：
+   *   **带演示回执的工具** —— 它们的共同点是回执里有 `demoId`，
+   *   因此面板要在气泡底部挂「↻ 重播这个演示」「☆ 收藏」。
+   *
+   *   为什么必须显式列出：下面渲染动作气泡的判据是
+   *   `c.name !== SEQ_TOOL && !ACTION_LABEL[c.name]` ⇒ `continue`，
+   *   而 `playDemo` / `replayDemo` 是**演示工具**、天然不在动作词汇表里
+   *   ⇒ 刷新后它们的气泡被整条跳过，学生连按钮都看不到（"以前放过的演示没法重播"）。
+   *   ★ 这类工具"一次调用播一整条脚本"，参数形状与 `applySceneActions` 不同
+   *     （`{id}` / `{demoId}` 而不是 `{actions}`），所以它们的**步骤来自回执**
+   *     （app.js 在回执里多带了 `actions`，见那里的说明）。
+   */
+  const DEMO_TOOLS = cfg.demoToolNames || ['playDemo', 'replayDemo']
+  /**
    * 分镜引擎的**顶层**别名。
    *
    * ★ 这里必须有一份：`setBarMode` 与 `applyProgress` 在 `build()` **之外**，
@@ -1257,18 +1271,34 @@ let lastDemoId = null
       try { res = JSON.parse(n.content || 'null') } catch (e) { res = null }
       if (!res || !res.demoId) continue
       let acts = null
+      let origin = 'agent'
+      let label = ''
       for (const m of (path || [])) {
         if (m.role !== 'assistant' || !Array.isArray(m.tool_calls)) continue
         const tc = m.tool_calls.find((t) => t && t.id === n.tool_call_id)
         if (!tc) continue
+        const fn = (tc.function && tc.function.name) || ''
         try {
           const a = JSON.parse((tc.function && tc.function.arguments) || '{}')
-          acts = a.actions || null
+          /**
+           * ★★ 2026-10-15（用户："恢复会话后，之前的演示会失效，无法收藏和重播"）——第二个漏点：
+           *   这里原先**只认 `applySceneActions` 的 `actions` 字段** ✗，而"播放预置演示"
+           *   走的是 `playDemo({id})` —— 它的**参数里没有** actions。于是用「演示」入口
+           *   放的那类演示刷新后**根本重建不出来**（实测记录数 0、连重播按钮都没有），
+           *   而学生刚看过它。
+           *   ⇒ 步骤的**真源是回执**：app.js 的 playDemo/replayDemo 回执里带
+           *     `actions`（当时真正播的那一份）与 `title`。参数里的 actions 优先
+           *     （applySceneActions 就是那样），否则用回执的。
+           */
+          if (Array.isArray(a.actions) && a.actions.length) acts = a.actions
+          if (Array.isArray(res.actions) && res.actions.length) acts = acts || res.actions
+          if (fn === 'playDemo') origin = 'script'
+          if (res.title) label = String(res.title)
         } catch (e) { acts = null }
         break
       }
-      if (!acts) continue
-      list.push({ demoId: res.demoId, actions: acts, origin: 'agent', ts: n.ts })
+      if (!acts || !acts.length) continue
+      list.push({ demoId: res.demoId, actions: acts, origin, label, ts: n.ts })
     }
     try { SB.syncDemosFromHistory(list) } catch (e) { /* 重建失败不该影响渲染 */ }
   }
@@ -1470,10 +1500,20 @@ let lastDemoId = null
         //   它走的是"承载一次多动作"那条单独分支（见 onToolCall）。
         //   漏掉这个例外，刷新后**所有动作气泡都会被跳过**（而界面只是"什么都没有"，
         //   不报错）——这条被实机验证抓到过。
-        if (c.name !== SEQ_TOOL && !ACTION_LABEL[c.name]) continue
+        // ★ 演示工具（playDemo/replayDemo）是**第二个例外**，理由见 DEMO_TOOLS 的定义。
+        const isDemoTool = DEMO_TOOLS.indexOf(c.name) >= 0
+        if (c.name !== SEQ_TOOL && !isDemoTool && !ACTION_LABEL[c.name]) continue
         let res = null
         try { res = JSON.parse(n.content || 'null') } catch (e) { res = null }
-        const acts = c.args && Array.isArray(c.args.actions) ? c.args.actions : c.args
+        /**
+         * 动作清单的来源按工具分两种：
+         *   · `applySceneActions`：参数里就带着（`{actions:[…]}`）；
+         *   · **演示工具**：参数里只有脚本 id，真正的步骤在**回执**里
+         *     （app.js 的 playDemo/replayDemo 回执带 `actions`）。
+         */
+        const argsActs = c.args && Array.isArray(c.args.actions) ? c.args.actions : null
+        const resActs = res && Array.isArray(res.actions) ? res.actions : null
+        const acts = argsActs || resActs || (isDemoTool ? [] : c.args)
         const bubble = addActionBubble(c.name, acts, res)
         // ★ 带上 acts 与模块归属：记录缺失时要用它们把分镜记录补回来（见 enrichActionBubble）
         if (bubble) enrichActionBubble(bubble, res, acts, (c.args && c.args.module) || null)
@@ -2698,6 +2738,15 @@ let lastDemoId = null
     /** 供测试/调试取用内部节点 */
     nodes: () => ({ fab, drawer, msgBox, inputEl, sendBtn, stopBtn, dot, demoBar, convPage }),
     setInput: (v) => { inputEl.value = v },
+    /**
+     * 走**与点「发送」完全相同**的入口跑一轮（读输入框 → runAgent）。
+     *
+     * ★★ 2026-10-15：加它是为了让实机验证能走真路径。此前验证脚本只能
+     *   `app.send(text)` —— 那**不接面板的 handlers**，于是这一轮不落盘、不渲染，
+     *   看起来像"发了没反应"（我自己就被它骗过一轮：等了 185 秒、store 里 0 条）。
+     *   有了它，"真实一轮"可以端到端验证（含落盘、气泡、演示条）。
+     */
+    send: () => doSend(),
   }
 }
 

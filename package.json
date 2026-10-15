@@ -7,7 +7,7 @@
   "scripts": {
     "test": "npm run test:secrets && npm run test:i18n && npm run test:core && npm run test:ui && npm run test:viewer && npm run test:shared && npm run test:modules && npm run test:symmetry && npm run test:data && npm run test:orbit && npm run test:shell",
     "test:i18n": "node tools/check-i18n.mjs",
-    "test:core": "node packages/agent-core/tools/selftest.mjs && node packages/agent-core/tools/test-core.mjs && node packages/agent-core/tools/test-app.mjs",
+    "test:core": "node packages/agent-core/tools/selftest.mjs && node packages/agent-core/tools/test-core.mjs && node packages/agent-core/tools/test-context-budget.mjs && node packages/agent-core/tools/test-app.mjs",
     "test:ui": "node packages/ui-kit/tools/test-ui-kit.mjs",
     "test:viewer": "node packages/viewer/tools/test-viewer.mjs",
     "test:data": "node projects/crystal/tools/check-crystal-data.mjs",

@@ -183,6 +183,19 @@ export function createStoryboard(opts = {}) {
   const demos = new Map()
   let demoSeq = 0
   /**
+   * ★★ 2026-10-15（用户："恢复会话后，之前的演示会失效，无法收藏和重播"）：
+   *   **建不起来的重建项挂起在这里**，等词汇表就绪再补建。
+   *
+   *   真因：`syncDemosFromHistory` 逐条走 `toStep` → `validate(name, params, mod)`，
+   *   而**刷新后的启动顺序是"先重画对话、后注册模块词汇表"** ⇒ 启动那次重建里
+   *   所有动作都校验不过、`steps.length === 0` 被**静默跳过**（实测：同一份输入
+   *   启动时返回 0、手动再调返回 1，而面板里"重播/收藏"按钮早已画好 ⇒ 点下去是
+   *   "演示已失效"）。这正是用户报的那一幕。
+   *   ⇒ 校验不过的条目不再丢弃，而是挂起；`setVocabulary()`（模块挂载时调用）之后
+   *     自动补建。★ 只挂"因校验失败而空"的条目：真正没有步骤的记录仍按原样丢弃。
+   */
+  const pendingDemoSync = new Map()
+  /**
    * 当前**正在写入**的记录号。null 表示"下一次 applySequence 会新开一条"。
    * ★ 由 stop() 清空：stop() 意味着这一轮演示到此为止，之后再来的是新演示。
    *   正在播时不调 stop()，于是分几次下发的步骤会续写进同一条记录——
@@ -1172,7 +1185,19 @@ export function createStoryboard(opts = {}) {
         if (it.err) continue
         steps.push(it)
       }
-      if (!steps.length) continue
+      if (!steps.length) {
+        /**
+         * ★★ 2026-10-15：**不要**在这里丢弃（原来就是这一行让"恢复会话后演示失效"）。
+         *   走到这里有两种可能：
+         *     ① 该条**确实没有有效动作**（数据本身如此）——重试也没用；
+         *     ② **词汇表还没就绪**（刷新后的启动顺序：先重画对话、后注册模块词汇表）
+         *        —— 这是绝大多数情况，重试一次就能建起来。
+         *   两种从数据上分不出来，所以一律挂起，由 `flushPendingDemos()` 在
+         *   `setVocabulary()` 之后重试；真没动作的那条重试后仍为空，就地丢弃。
+         */
+        if (Array.isArray(item.actions) && item.actions.length) pendingDemoSync.set(id, item)
+        continue
+      }
       demos.set(id, {
         id,
         origin: item.origin || 'agent',
@@ -1195,6 +1220,55 @@ export function createStoryboard(opts = {}) {
   /** 取某条演示记录（含完整步骤，供回放/修订） */
   function getDemo(id) {
     return demos.get(String(id)) || null
+  }
+
+  /**
+   * 补建"当时词汇表没就绪、因而没建起来"的演示记录。
+   *
+   * ★★ 2026-10-15（用户："恢复会话后，之前的演示会失效，无法收藏和重播"）：
+   *   由 `setVocabulary()` 在模块挂载后调用（也可能由面板在渲染后调用，幂等）。
+   *
+   *   为什么必须补：刷新后的启动顺序是
+   *     `main.js 恢复对话 → panel.renderPath() → syncDemosFromPath()`（此刻 vocabulary 还是空的）
+   *     …… 之后才轮到"路由挂载模块 → app.setActiveModule → storyboard.setVocabulary()"。
+   *   于是重建动作全部校验失败、记录建不出来，而界面上的「↻ 重播这个演示」「☆ 收藏」
+   *   早已按对话历史画好 ⇒ 学生一点就是"演示已失效"（收藏）或空播（重播 total=0）。
+   *   实测：同一份输入，启动时 `syncDemosFromHistory` 返回 0、手动再调返回 1。
+   *
+   * @returns {number} 本次补建成功的条数（0 表示没事可做）
+   */
+  function flushPendingDemos() {
+    if (!pendingDemoSync.size) return 0
+    const items = [...pendingDemoSync.values()]
+    let built = 0
+    for (const item of items) {
+      const id = String(item.demoId)
+      const steps = []
+      for (const a of (item.actions || [])) {
+        const it = toStep(a)
+        if (it.err) continue
+        steps.push(it)
+      }
+      if (!steps.length) continue          // 补建后仍为空 ⇒ 数据本身没有有效动作，丢掉
+      demos.set(id, {
+        id,
+        origin: item.origin || 'agent',
+        label: item.label || '',
+        live: false,
+        ts: item.ts || Date.now(),
+        mode: item.mode || 'manual',
+        steps,
+      })
+      pendingDemoSync.delete(id)
+      built++
+    }
+    // 编号水位同步（同 syncDemosFromHistory 的理由：撞号会把新步骤追加进旧记录）
+    for (const k of demos.keys()) {
+      const n = parseInt(String(k).replace(/^d/, ''), 10)
+      if (Number.isFinite(n) && n > demoSeq) demoSeq = n
+    }
+    if (built) trace({ k: 'flushPendingDemos', built, rest: pendingDemoSync.size })
+    return built
   }
 
   /**
@@ -1245,6 +1319,13 @@ export function createStoryboard(opts = {}) {
     trace({ k: 'setVocab', target, from, stopped, q: queue.length, playing })
     if (stopped) stop()
     vocabulary = v || {}
+    /**
+     * ★★ 2026-10-15（用户："恢复会话后，之前的演示会失效，无法收藏和重播"）：
+     *   词汇表此刻才就绪 —— 而"恢复对话"发生在它**之前**（见 flushPendingDemos 的说明），
+     *   那时重建出来的记录因校验不过而被挂起。这里补一次，学生就能重播/收藏了。
+     *   ★ 放在最后（vocabulary 已赋值），且是幂等的：没有挂起项时零开销。
+     */
+    flushPendingDemos()
     return vocabulary
   }
 
@@ -1287,6 +1368,8 @@ export function createStoryboard(opts = {}) {
     setManual, reviseDemo, syncDemosFromHistory,
     // 队列可寻址：面板与修订用
     queueInfo, getStep, jumpTo, loadDemo, registerDemo, latestDemoId,    getDemo, listRecords,
+    // ★ 补建"词汇表未就绪时挂起"的历史演示（setVocabulary 会自动调；面板重画后也可显式调，幂等）
+    flushPendingDemos,
     // "回到演示前"：一键还原到这一轮演示开始之前的视图与视角
     restoreBefore, beforeSnapshot,
     // 供面板/调试读取

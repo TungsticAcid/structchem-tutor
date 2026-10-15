@@ -2108,6 +2108,84 @@ console.log(`\n${'═'.repeat(60)}`)
       `index=${fresh.index} total=${fresh.total} waiting=${fresh.waitingForUser}（应为 1 / ${B.length} / true）`)
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // ★★ 2026-10-15（用户："恢复会话后，之前的演示会失效，无法收藏和重播"）
+  //
+  //   真因：刷新后的启动顺序是 **先恢复对话并重画 → 之后才注册模块词汇表**，
+  //   而 `syncDemosFromHistory` 逐条走 `toStep → validate` ⇒ 那一刻**所有动作都校验不过**，
+  //   `steps.length === 0` 被静默跳过（用户报的正是它）。实测同输入：启动时返回 0、手动返回 1。
+  //
+  //   修法：建不起来的条目**挂起**，`setVocabulary()` 之后由 `flushPendingDemos()` 补建。
+  //   下面用真 storyboard 走一遍"词汇表为空时重建 → 再注册词汇表"，把两个方向都钉住：
+  //     ① 词汇表为空时**不该**建出半条记录（宁可挂起，也不要残缺演示）；
+  //     ② 注册词汇表之后**必须**补建出来，且步骤完整、可重播。
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    /**
+     * ★ 这里必须**照真实结构**搭：`validate` 是宿主给的，而"词汇表是否含这个动作"
+     *   这层判断在**宿主自己的 validate 里**（见 modules/orbit 的 validate：
+     *   名字不在词汇表里就返回 { err: '未知动作' }）。所以测试要让 validate 自己
+     *   依赖一份**可变的**词汇表 —— 第一版我写成"词汇表为空也只认 knownAction"，
+     *   于是校验永远通过、这条断言恒假（暴露了我对结构的误解）。
+     */
+    let hostVocabulary = {}                                  // 宿主侧词汇表：模块挂载时才填
+    const validateByVocabulary = (name, p) => (hostVocabulary[name] ? { params: p || {} } : { err: '未知动作：' + name })
+    const sbd = createStoryboard({
+      validate: validateByVocabulary,
+      vocabulary: {},
+      applyStep: () => {},
+      capture: () => ({}),
+      restore: () => {},
+      getDefaultPlayback: () => 'manual',
+    })
+    const items = [{ demoId: 'd9', actions: [{ action: 'knownAction', params: { a: 1 } }], origin: 'agent', ts: 1 }]
+
+    // ① 词汇表还没注册（启动那一刻）：校验不过 ⇒ 不该建出记录，但必须**记住这件事**
+    const n1 = sbd.syncDemosFromHistory(items)
+    check('词汇表未就绪时：不建残缺记录（返回 0）',
+      n1 === 0 && !sbd.getDemo('d9'), `返回=${n1} getDemo=${!!sbd.getDemo('d9')}`)
+
+    // ② 模块挂载、注册词汇表 ⇒ 必须补建
+    hostVocabulary = { knownAction: { label: '已知动作' } }
+    sbd.setVocabulary(hostVocabulary, 'orbit')
+    const rec = sbd.getDemo('d9')
+    check('★注册词汇表后补建出记录（恢复会话后能重播/收藏）',
+      !!rec && rec.steps.length === 1 && rec.steps[0].name === 'knownAction',
+      rec ? `steps=${rec.steps.length} name=${rec.steps[0] && rec.steps[0].name}` : '没有记录')
+    check('补建出来的记录可重播（loadDemo/replay 认得它）',
+      typeof sbd.replay === 'function' && !!sbd.getDemo('d9'),
+      'replay 应能取到该记录')
+
+    // ③ 幂等：再注册一次词汇表不会重复建、也不会报错
+    const n3 = sbd.flushPendingDemos ? sbd.flushPendingDemos() : 0
+    check('补建是幂等的（再注册词汇表不会重复建）', n3 === 0 && !!sbd.getDemo('d9'), `第二次补建 ${n3} 条`)
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // ★★ 2026-10-15（用户："恢复会话后，之前的演示会失效，无法收藏和重播"）——**第三、四个漏点**
+  //
+  //   ③ `playDemo` / `replayDemo` 是**演示工具**，天然不在 `actionLabels` 里，
+  //      而渲染动作气泡的判据是 `c.name !== SEQ_TOOL && !ACTION_LABEL[c.name] ⇒ continue`
+  //      ⇒ 刷新后它们的动作气泡被**整条跳过**（连「↻ 重播」「☆ 收藏」都不出现）。
+  //   ④ 它们的**参数里没有步骤**（只有脚本 id），步骤的真源在**回执**里 ——
+  //      回执不带 `actions` 时，记录也就重建不出来（实测刷新后记录数 0）。
+  //
+  //   这两条只能靠源码断言守（行为得在真实浏览器里才跑得到，见 tmp/verify-playdemo-restore.mjs
+  //   的实机判据：刷新后记录 1 条、重播 0/9、收藏成功）。
+  // ─────────────────────────────────────────────────────────────────────────
+  {
+    // ★ 判据一律**先剥注释再比对源码**：上面这两处的解释注释本身就写着
+    //   `actions: script.steps.map` 这类字样，不剥就会把注释当实现（本仓库已踩过多次）。
+    const appCode = readFileSync(new URL('../app.js', import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+    check('③ 面板认得"演示工具"（否则 playDemo 的气泡刷新后被整条跳过）',
+      /DEMO_TOOLS/.test(panelSrc) && /DEMO_TOOLS\.indexOf\(c\.name\)/.test(panelSrc))
+    check('④ playDemo 回执带 steps（无此字段则刷新后演示记录建不出来）',
+      /demoScriptId: script\.id,[\s\S]{0,200}?actions: script\.steps\.map/.test(appCode))
+    check('④ replayDemo 回执也带 steps',
+      /const rec = ctx\.storyboard\.getDemo[\s\S]{0,200}?actions: \(\(rec && rec\.steps\)/.test(appCode))
+  }
+
   // ★★ 2026-10-14（task-2 用户第二/第三次报"问题仍然存在"）—— 两条都只能靠**读数**守：
   //
   //   ① 重建丢掉"只有思考"的回合：`renderPath` 的 assistant 分支原先写成 `if (n.content)`

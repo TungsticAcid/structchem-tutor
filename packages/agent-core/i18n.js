@@ -31,6 +31,12 @@ export const zh = {
   'agent.manifest.knowledgeLine': '{id}｜{kp}｜{title}｜关键词:{keywords}',
   'agent.manifest.skillsTitle': '【教学技能清单】（完整步骤需用 loadSkill(name) 加载）',
   'agent.snapshot.header': '【当前视图快照（实时）】',
+  /**
+   * ★ 2026-10-15（上下文压缩）：超过预算时，被折叠掉的那一段用这条说明顶上。
+   *   措辞要点：**明确告诉模型"更早的对话不在上下文里"** ——
+   *   否则它会以为自己记得全部，学生一问细节就编。
+   */
+  'agent.context.elided': '【上下文压缩】更早的 {n} 条对话已不在上下文里（只保留最近的部分）。若学生问起更早的内容，请让他再说一遍，或先用快照确认当前视图。',
   'agent.tool.abortedNote': '用户已中止本次循环，该动作未执行',
   'agent.noApiKey': '尚未配置 API Key，请在设置中填写你自己的模型密钥。',
   'agent.continue.truncated':
@@ -465,6 +471,7 @@ export const en = {
   'agent.manifest.knowledgeLine': '{id} | {kp} | {title} | keywords: {keywords}',
   'agent.manifest.skillsTitle': '[Teaching skill index] (load the full steps with loadSkill(name))',
   'agent.snapshot.header': '[Current view snapshot (live)]',
+  'agent.context.elided': '[Context compressed] The earlier {n} messages are no longer in context (only the most recent part is kept). If the student asks about earlier content, ask them to restate it, or confirm the current view with the snapshot first.',
   'agent.tool.abortedNote': 'The user stopped this round, so this action was not executed',
   'agent.noApiKey': 'No API key configured yet — enter your own model key in Settings.',
   'agent.continue.truncated':
