@@ -151,14 +151,27 @@ export async function withBrowser(o, fn) {
   const {
     url, width = 1440, height = 900, timeoutMs = 60000,
     port = 9222, waitFor = '', settleMs = 3500, pollMs = 250,
+    /**
+     * ★★ 2026-10-15：允许指定 profile 目录，并且**保留**它（不删）。
+     *
+     *   为什么需要：默认 profile 是"一次性"的（每次启动前删、关闭后删），
+     *   于是**跨浏览器重启**的持久化（localStorage / IndexedDB）根本测不到 ——
+     *   而"收藏的演示是否还在"恰恰是这类问题。
+     *   用法：两次 withBrowser 传同一个目录，第二次读第一次写下的东西。
+     *   ★ 传了它就不要并发跑（Chromium 不允许两个实例共用同一 user-data-dir）。
+     */
+    profileDir = null,
   } = o
+  const PROFILE_ACTIVE = profileDir || PROFILE
+  const KEEP_PROFILE = !!profileDir
   const browser = findBrowser()
   if (!browser) {
     const e = new Error('未找到 Edge/Chrome。候选路径：\n  ' + EDGE_CANDIDATES.join('\n  '))
     e.code = 'NO_BROWSER'
     throw e
   }
-  try { rmSync(PROFILE, { recursive: true, force: true }) } catch (e) { /* 残留无妨 */ }
+  // 一次性 profile 才需要先清掉残留；保留型（profileDir）绝不清 —— 它就是被测状态本身
+  if (!KEEP_PROFILE) { try { rmSync(PROFILE_ACTIVE, { recursive: true, force: true }) } catch (e) { /* 残留无妨 */ } }
 
   // ★ 端口不能写死：9222 可能被**更早的实例**占着，连接会打到它身上，
   //   于是"打开我的应用"实际打开的是另一个页面，而且全程不报错。
@@ -166,7 +179,7 @@ export async function withBrowser(o, fn) {
   const proc = spawn(browser, [
     '--headless=new',
     `--remote-debugging-port=${dbg}`,
-    `--user-data-dir=${PROFILE}`,
+    `--user-data-dir=${PROFILE_ACTIVE}`,
     '--enable-unsafe-swiftshader', '--use-angle=swiftshader',
     '--hide-scrollbars', '--no-first-run', '--no-default-browser-check',
     `--window-size=${width},${height}`,
@@ -178,7 +191,8 @@ export async function withBrowser(o, fn) {
     if (closed) return
     closed = true
     try { proc.kill() } catch (e) { /* 忽略 */ }
-    try { rmSync(PROFILE, { recursive: true, force: true }) } catch (e) { /* 忽略 */ }
+    // ★ 保留型 profile（profileDir）不删：它就是被测状态（收藏、会话、学情都在里面）
+    if (!KEEP_PROFILE) { try { rmSync(PROFILE_ACTIVE, { recursive: true, force: true }) } catch (e) { /* 忽略 */ } }
   }
   const killer = setTimeout(() => {
     console.error(`硬超时 ${timeoutMs}ms：无条件关闭浏览器`)
