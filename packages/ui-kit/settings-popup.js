@@ -525,7 +525,10 @@ export function createSettingsPopup(cfg = {}) {
     const g3 = makeSection('数据与隐私', false, 'privacy')
     g3.appendChild(el('div', { class: 'agent-note', text: cfg.privacyNote || (
       '· 学情与设置只存本机浏览器（localStorage），不上传。\n' +
-      '· 对话内容不落库；只保留结构化动作序列用于复现与审计。\n' +
+      // ★ 这一句原先写的是"对话内容不落库；只保留结构化动作序列用于复现与审计"——
+      //   **与代码正好相反**：conversation-store 把每一条消息（含用户提问原文）都写进了
+      //   localStorage 的 `chem-agent.conv.*`。界面上对用户说反话，比说少了更糟。
+      '· 对话内容同样只存在本机浏览器，随时可用下方的「清除本机全部数据」删除。\n' +
       '· API Key 只发往你填写的接入点，不经过任何第三方中转。'
     ) }, undefined, doc))
     const clearBtn = el('button', { class: 'agent-btn danger', text: '清除本机全部数据' }, undefined, doc)

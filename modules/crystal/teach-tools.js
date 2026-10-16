@@ -123,8 +123,15 @@ export function createTeachTools(opts = {}) {
       })
     },
 
-    checkAnswer(p) {
-      const r = quiz.check({ questionId: p && p.questionId, chosenIndex: p && p.chosenIndex })
+    checkAnswer(p, meta) {
+      const r = quiz.check({
+        questionId: p && p.questionId,
+        chosenIndex: p && p.chosenIndex,
+        // ★ 来源标记走**第二参数**，模型传不进来 —— 工具执行只传一个 `args`
+        //   （见 agent-core/core/tool-registry.js 的 `execute`）。
+        //   缺省按 'model'：拿不到答案明文，也不会把题目置成"已作答"（练习守卫据此放行图层）。
+        by: (meta && meta.by) === 'student' ? 'student' : 'model',
+      })
       if (r.error) return r
       // ★ 判分结果里带上"下一步该做什么"，把 grade 节点的纪律说在前面，
       //   而不是等模型自由发挥

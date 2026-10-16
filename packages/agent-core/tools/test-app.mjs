@@ -135,7 +135,16 @@ section('工具可见性按节点裁决（注意力边界）')
   const quizTools = app.getTools()
   check('★ 切到 quiz 节点后，工具列表里**没有** applySceneActions（结构上做不到）',
     !quizTools.includes('applySceneActions'), quizTools.join(','))
-  check('quiz 仍能查晶体（read+query 授权）', quizTools.includes('queryCrystal') && quizTools.includes('getSnapshot'))
+  // ★ 出题节点必须**查不到答案**：数据题的答案就是 query* 算出来的那个数，
+  //   与题目答案走同一个 compute 对象（连舍入位数都一样）。开着它等于把题目与答案一起递给模型。
+  //   `loadKnowledge` 同列 —— 知识条目正文里也写着答案（见 constraints.js 的 deny 说明）。
+  check('★ quiz 节点查不到答案类工具（query* / detail / compare / 知识条目）',
+    !quizTools.includes('queryCrystal') && !quizTools.includes('getCrystalDetail')
+    && !quizTools.includes('compareCrystals') && !quizTools.includes('queryOrbital')
+    && !quizTools.includes('queryPointGroup') && !quizTools.includes('loadKnowledge'),
+    quizTools.join(','))
+  check('quiz 节点仍拿得到 getSnapshot（read 授权没被误伤）',
+    quizTools.includes('getSnapshot'), quizTools.join(','))
   check('quiz 的**定义数组**里也没有 applySceneActions',
     !app.toolDefs().some((d) => d.function.name === 'applySceneActions'))
   check('★ 执行期二次把关：即使硬调也被拒（不靠提示词劝说）',

@@ -787,6 +787,10 @@ export const text = {
   'id 请原样使用，不要改写或推断': 'Use the id exactly as given; do not rewrite or infer it',
   '以上为数据字段原文，未做推导': 'The above are the data fields verbatim; nothing has been derived',
   '数值字段中 atomCount 与 cellVolumeA3 由程序计算，其余为数据原文': 'Of the numeric fields, atomCount and cellVolumeA3 are computed in code; the rest are the data verbatim',
+  // ★ 2026-10-15：summary 不再返回晶格参数（避免"模型自己乘一遍体积"），note 里补了这句话。
+  '数值字段中 atomCount 与 cellVolumeA3 由程序计算，其余为数据原文；晶格参数不在此返回——需要时用 kind:"cellVolume"，或 getCrystalDetail 取原文':
+    'Of the numeric fields, atomCount and cellVolumeA3 are computed in code; the rest are the data verbatim. '
+    + 'Lattice parameters are not returned here — use kind:"cellVolume", or getCrystalDetail for the verbatim data.',
   '通用三斜公式，立方/四方/六方等自动退化': 'The general triclinic formula; cubic/tetragonal/hexagonal etc. reduce to special cases automatically',
   '这是该晶胞实际含有的原子数（数据里的坐标即为晶胞内容）': 'This is the number of atoms the cell actually contains (the coordinates in the data are the cell contents)',
   '分数坐标': 'fractional coordinates',

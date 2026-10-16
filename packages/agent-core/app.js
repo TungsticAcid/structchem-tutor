@@ -34,7 +34,7 @@ import { createPerception } from './core/perception.js'
 import { createStoryboard } from './core/storyboard.js'
 import { createConversation, buildManifestText, composeSystemPrompt } from './core/conversation.js'
 import { createToolRegistry } from './core/tool-registry.js'
-import { buildNodePrompt, listNodes, NODES } from './nodes/constraints.js'
+import { buildNodePrompt, listNodes, NODES, GRANT_CLASSES } from './nodes/constraints.js'
 // ★ 契约已提升为独立包（packages/module-contract/），此处用固定深度的相对路径引用
 //   ——不用 alias，是为了让 packages/ 被原样复制到下游镜像时这条路径依然成立。
 import { assertModuleContract } from '../module-contract/index.js'
@@ -116,9 +116,19 @@ export function createShellTools(ctx) {
       }, ['name']),
       // 演示脚本由**模块**提供（见契约的 demos 字段）；模块没提供则本工具不存在
       ...(demos ? [def('listDemos', t('agent.tool.listDemos.desc'), {})] : []),
-      // ★ 只在 route / explain 节点可见（经 constraints 的 allowExtra 单点放行）。
-      //   它让"意图判断"成为**结构化的工具参数**，而不是让模型吐一段 JSON 文本再解析
-      //   ——后者在模型加代码块、加解释、漏引号时会静默失败，而我们连它想说什么都拿不到。
+      /**
+       * ★ `declareIntent` 在所有节点可见（它属于 query 类），这是**必要**的：
+       *   运行时**唯一的节点切换通路**就是它 —— 任何一个节点里的模型都可能需要请求切换
+       *   （例如学生出题途中问别的）。把它收窄到少数节点，`quiz` 节点就**再也切不出去**。
+       *
+       * 那"模型自己切节点提权"怎么办？靠**时序**而不是能力表：对话循环在执行一批
+       *   `tool_calls` 之前冻结白名单快照，同一批里改节点**不生效**
+       *   （见 core/tool-registry.js 的 `freezeRound`）。所以"先 declareIntent 切到 demo、
+       *   紧接着调 applySceneActions"仍被拒；模型只能**下一批**用新节点的工具 ——
+       *   那本来就是设计内的正常流转（route 节点存在的意义）。
+       *
+       * `canDeclareIntent` 控制"这个壳要不要注册它"（不具备该能力时**如实为空**）。
+       */
       ...(canDeclareIntent ? [def('declareIntent', t('agent.tool.declareIntent.desc'), {
         intent: { type: 'string', description: t('agent.tool.declareIntent.intent', { nodes: listNodes().join(' / ') }) },
         confidence: { type: 'number', description: t('agent.tool.declareIntent.confidence') },
@@ -758,7 +768,9 @@ export function createAgentApp(opts = {}) {
   function buildRegistry() {
     const m = modules.get(activeId)
     const toolsByClass = {}
-    for (const cls of ['read', 'query', 'hand', 'teach']) {
+    // ★ 用共享常量而不是就地写死这四个字面量：漏一个的症状是"工具**静默消失**"
+    //   （见 constraints.js 的 GRANT_CLASSES 说明）。
+    for (const cls of GRANT_CLASSES) {
       toolsByClass[cls] = [].concat(
         (shell.defs[cls] || []),
         m && m.defs ? (m.defs[cls] || []) : [],
@@ -772,6 +784,15 @@ export function createAgentApp(opts = {}) {
       //   漏传的症状是静默的——节点索要"出题"时拿不到本模块的出题工具，
       //   而没有任何东西会报错（详见 constraints.js 的 ROLE_SPEC 说明）。
       roles: (m && m.roles) || {},
+      // ★ 装上"声明与实现脱节"的探针：白名单允许、但本模块**没有实现**的名字，
+      //   在开发时当场报出来。
+      //   ★ 此前 `onMissing` 只有测试在传，生产装配**从来不传** —— 于是那类偏差
+      //     在运行时**完全静默**，只能靠离线跑 selftest 才发现（而 selftest 用的是自己的桩）。
+      onMissing: (miss, node) => {
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn(`[chem-agent] 节点 ${node} 允许、但本模块未实现的工具：${miss.join(', ')}`)
+        }
+      },
     })
     reg.setNode(node)
     return reg
@@ -803,6 +824,12 @@ export function createAgentApp(opts = {}) {
     getSettings: () => settings.get(),
     getTools: () => registry.definitions(),
     executeTool: (name, argsJson) => registry.execute(name, argsJson),
+    // ★ 执行一批 tool_calls 的前后冻结 / 解冻白名单快照（见 core/tool-registry.js 的
+    //   `freezeRound` 说明）：同一批里"先切节点、再调用新节点才有的工具"因此不成立。
+    //   两个回调都读**当前**的 `registry` —— 用户中途"回门户"会把它整个重建，
+    //   闭包住旧那个会让冻结落在没人用的对象上。
+    beginToolRound: () => registry.freezeRound(),
+    endToolRound: () => registry.endRound(),
     getSnapshotText: () => (activeId ? perception.toCompactText() : ''),
     buildSystem: () => {
       const m = modules.get(activeId)
@@ -817,7 +844,7 @@ export function createAgentApp(opts = {}) {
         nodePrompt: buildNodePrompt(node),
       })
     },
-    onAbort: () => storyboard.stop(),
+    onAbort: () => storyboard.stop('abort'),
   })
 
   /**
@@ -840,7 +867,7 @@ export function createAgentApp(opts = {}) {
      *   真的是"轨道→晶体"这种换板块时，该停 —— 那正是这句注释原本的意图。
      */
     const queueModule = typeof storyboard.currentModule === 'function' ? storyboard.currentModule() : null
-    if (id != null && id !== queueModule) storyboard.stop()
+    if (id != null && id !== queueModule) storyboard.stop('setActiveModule')
     activeId = id
     const m = modules.get(id)
     // ★ 把模块归属一并传下去：setVocabulary 内部也只在"真换了板块"时停队列

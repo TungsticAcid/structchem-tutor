@@ -218,10 +218,16 @@ export function createCrystalTools(opts = {}) {
             crystalSystem: d.crystalSystem, spaceGroup: d.spaceGroup,
             latticeType: d.latticeType, structuralUnit: d.structuralUnit,
             coordination: d.coordination, spaceUtilization: d.spaceUtilization,
-            lattice: d.lattice,
             atomCount: atomCount(d),
             cellVolumeA3: vol == null ? null : +vol.toFixed(4),
-            note: '数值字段中 atomCount 与 cellVolumeA3 由程序计算，其余为数据原文',
+            // ★ 这里**不再返回完整晶格参数**（原先给的是 `lattice: d.lattice`，即 a/b/c/α/β/γ）。
+            //   理由：给了它，等于把"体积公式的全部输入"一次性交出去 ——
+            //   "数值一律程序算"在这一档上就没有约束力了，模型完全可以自己乘一遍，
+            //   而且算出来的数与程序算的一致，**不会暴露**。
+            //   晶格参数本身仍然取得到：用 `kind:'cellVolume'`（体积）或 `getCrystalDetail`（数据原文）。
+            //   ★ 出题节点上这两个都不可达（见 constraints 的 quiz.deny），所以这里少给一份，
+            //     就把"自行计算"的入口又收窄了一处。
+            note: '数值字段中 atomCount 与 cellVolumeA3 由程序计算，其余为数据原文；晶格参数不在此返回——需要时用 kind:"cellVolume"，或 getCrystalDetail 取原文',
           }
         }
         case 'cellVolume': {

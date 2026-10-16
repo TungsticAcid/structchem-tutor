@@ -63,6 +63,19 @@ export function createToolRegistry(opts = {}) {
 
   let currentNode = null
   let allowed = null   // Set<string> | null
+  /**
+   * ★ **本轮**工具白名单的快照（由 `freezeRound` / `endRound` 划定边界）。
+   *
+   * 为什么要快照：它让"**模型看到的工具**"与"**执行期放行的工具**"在一批
+   *   `tool_calls` 内保持一致。否则模型可以在**同一条 assistant 消息**里先调用能改节点的
+   *   工具（`declareIntent`）把自己提到 demo / teach 节点，紧接着调用原本拿不到的
+   *   `applySceneActions` —— 执行期读的是已被改写的 `allowed`，于是"注册时看不到的、
+   *   执行时被放行"。**"结构上无法越权"正是断在这里。**
+   *   快照之后，节点切换只对**下一轮**生效。
+   *   反方向的错配（宿主 UI 为了拿到 hand 权限而切节点、用户中途"回门户"导致注册表重建）
+   *   也一并被它解决。
+   */
+  let frozen = null
 
   /**
    * 设定当前决策节点，据此裁决本次可用的工具。
@@ -124,13 +137,31 @@ export function createToolRegistry(opts = {}) {
   }
 
   /**
+   * ★ 冻结 / 解冻**本轮**的白名单快照（见 `frozen` 的说明）。
+   *
+   * 由对话循环在"执行一批 tool_calls"的前后调用（见 core/conversation.js）。
+   *
+   * ★ 为什么边界的判据是**轮次**、而不是"下发了工具定义"：曾经把冻结绑在
+   *   `definitions()` 上（想省掉一个调用点），结果是**任何"只 setNode 不 definitions
+   *   就直接 execute"的调用方都会拿到过期快照** —— 测试里 `grade` 节点明明允许
+   *   `diagnoseError` 却被拒，正是这么撞出来的。绑定在一个"通常会被调到"的函数上，
+   *   就是在赌调用方的习惯；轮次是这件事**本身**的边界。
+   */
+  function freezeRound() { frozen = allowed ? new Set(allowed) : null }
+  function endRound() { frozen = null }
+
+  /**
    * 执行一个工具调用，返回可回灌给模型的结果对象。
    * ★ 永不抛异常：工具失败也作为**结果**回灌，让模型自行应对下一次尝试。
    *   把异常抛进对话循环会中断整轮，而模型本来是有机会改主意的。
    */
   async function execute(name, argsJson) {
-    // 第一道之外的第二道：执行期再比对白名单
-    if (!allowed || !allowed.has(name)) {
+    // 第一道之外的第二道：执行期再比对白名单。
+    // ★ 读的是**本轮快照**（`frozen`）而不是当前的 `allowed`：本轮的工具定义正是按快照发出去的，
+    //   执行期必须与它对齐。否则模型能在同一批 tool_calls 里先 `declareIntent` 切节点、
+    //   紧接着调用原本拿不到的 `applySceneActions`（审计实证的一条提权通路）。
+    const gate = frozen || allowed
+    if (!gate || !gate.has(name)) {
       return {
         error: t('agent.tool.notAllowed', { name })
           + (currentNode ? t('agent.tool.notAllowedNode', { node: currentNode }) : '')
@@ -156,9 +187,11 @@ export function createToolRegistry(opts = {}) {
   }
 
   return {
-    setNode, definitions, execute, available, missing,
+    setNode, definitions, execute, available, missing, freezeRound, endRound,
     names: () => [...defs.keys()].sort(),
     get node() { return currentNode },
+    /** 供测试/调试：本轮冻结的白名单快照（未冻结时为空数组） */
+    frozenNames: () => (frozen ? [...frozen].sort() : []),
     /** 供测试/调试：绕过白名单直接用某个 handler（**不要**在业务代码里用） */
     _raw: (name, args) => (handlers[name] ? handlers[name](args) : undefined),
   }

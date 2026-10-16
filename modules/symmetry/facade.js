@@ -646,14 +646,24 @@ export function createSymmetryFacade(opts = {}) {
       emitChange()
       return true
     },
-    /** 对当前（或指定）示例做完整识别（给 queryPointGroup 工具） */
+    /**
+     * 对指定（或当前）示例做完整识别（给 queryPointGroup 工具）。
+     *
+     * ★ **纯查询，不改当前选中**。
+     *
+     *   原先这里会 `currentId = id` —— 即"查一下，顺便把当前结构换掉"，而且**不 emitChange()**：
+     *   于是模块内部状态已经变成 methane、学生屏幕上还是 water，此后模型下发的动作按 methane
+     *   的 element key 生成、落到 water 的画面上；它还绕过了分镜队列与快照回退
+     *   （"回到演示前"回不到这一步）。
+     *   更要紧的是它违反本模块自己的口径：**改状态的唯一正道是动作**
+     *   （见 facade 顶部"人点按钮也走同一条通路"那条），而 `identify` 成了规则之外的后门。
+     *
+     *   `analyze()` 只认 `currentId`，所以这里**临时切一下再还原** —— 对外零副作用。
+     */
     identify(id) {
-      if (id && id !== currentId) {
-        if (!byId.has(id)) return null
-        currentId = id
-        cachedFor = null
-      }
-      const ex = currentId ? byId.get(currentId) : null
+      const targetId = id || currentId
+      if (!targetId || !byId.has(targetId)) return null
+      const ex = byId.get(targetId)
       if (!ex) return null
       // ★ 晶体示例**如实标出来**，不要返回 {symbol:'ERR', name:'识别失败'}——
       //   那个 'ERR' 是本次修复前实际发生过的事：它被上层当成一个**真的点群符号**
@@ -661,23 +671,31 @@ export function createSymmetryFacade(opts = {}) {
       //   调用方看到 kind==='crystal' 就知道该走 identifyCrystal()。
       if (ex.category === 'crystal') {
         return {
-          id: currentId, title: ex.title, kind: 'crystal',
+          id: targetId, title: ex.title, kind: 'crystal',
           symbol: null, name: null, elements: [],
         }
       }
-      const a = analyze()
-      if (!a) return null
-      return {
-        id: currentId,
-        title: ex.title,
-        kind: 'molecule',
-        symbol: a.symbol,
-        name: a.name,
-        elements: (a.elements || []).map((el) => ({
-          type: el.type, order: el.order,
-          label: el.labelPlain || el.label || el.type,
-          axis: el.axis || null,
-        })),
+      const savedId = currentId
+      const savedCached = cachedFor
+      if (targetId !== currentId) { currentId = targetId; cachedFor = null }
+      try {
+        const a = analyze()
+        if (!a) return null
+        return {
+          id: targetId,
+          title: ex.title,
+          kind: 'molecule',
+          symbol: a.symbol,
+          name: a.name,
+          elements: (a.elements || []).map((el) => ({
+            type: el.type, order: el.order,
+            label: el.labelPlain || el.label || el.type,
+            axis: el.axis || null,
+          })),
+        }
+      } finally {
+        // 查询不该有副作用：把"当前选中"与缓存**原样放回**。
+        if (targetId !== savedId) { currentId = savedId; cachedFor = savedCached }
       }
     },
     /** 当前选中的示例 id */
@@ -718,14 +736,12 @@ export function createSymmetryFacade(opts = {}) {
      *     crystalSystem, pearsonSymbol, elementCount, elements }
      */
     async identifyCrystal(id) {
-      if (id && id !== currentId) {
-        if (!byId.has(id)) {
-          return { error: t('sym.err.unknownExampleStrict', { id }) }
-        }
-        currentId = id
-        cachedFor = null
+      // ★ 纯查询：**不改当前选中**（理由见 identify 的说明）。
+      const targetId = id || currentId
+      if (!targetId || !byId.has(targetId)) {
+        return { error: t('sym.err.unknownExampleStrict', { id: id || '' }) }
       }
-      const ex = currentId ? byId.get(currentId) : null
+      const ex = byId.get(targetId)
       if (!ex) return { error: tr('当前没有选中的结构（先用 listExamples 挑一个）') }
       if (ex.category !== 'crystal') {
         return { error: t('sym.err.notCrystal', { title: ex.title }) }
@@ -741,7 +757,7 @@ export function createSymmetryFacade(opts = {}) {
       if (!r) return { error: t('sym.err.spaceGroupFailed', { title: ex.title }) }
       const els = typeof operationsToElements === 'function' ? operationsToElements(r.operations) : []
       return {
-        id: currentId,
+        id: targetId,
         title: ex.title,
         kind: 'crystal',
         spaceGroupNumber: r.number,

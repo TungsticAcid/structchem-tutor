@@ -739,6 +739,9 @@ export const zh = {
   'orbit.tool.generateQuestion.p.knowledgePoint': '知识点编号（形如 orbit:K1）',
   'orbit.tool.generateQuestion.p.difficulty': '可选难度',
   'orbit.tool.generateQuestion.p.exclude': '可选：要排除的题目 id',
+  'orbit.tool.generateQuestion.note':
+    '题目与选项已生成，**答案由本地引擎冻结保管**（你拿不到，也不要猜）。'
+    + '请把题干与四个选项原样呈现给学生；学生点选后由本地判分。',
   'orbit.tool.generateVariant.desc': '基于刚做过的题生成**变式题**（同知识点，只变动一个维度）。',
   'orbit.tool.explainConcept.desc': '取某个知识点的**结构化讲解**（定义、要点、例子）。',
   'orbit.tool.evaluateFeynman.desc':
@@ -757,6 +760,8 @@ export const zh = {
   'orbit.tool.recommendNext.desc': '推荐下一个该练的知识点（依据本机学情）。',
   'orbit.tool.recommendNext.p.count': '可选：要推荐几个',
   'orbit.tool.err.kpRequired': 'knowledgePoint 必填',
+  'orbit.tool.err.noModelView':
+    '出题引擎未提供 toModelView —— 出于防泄题，宁可不返回题目。',
   'orbit.tool.err.qidRequired': 'questionId 必填',
   'orbit.tool.err.transcriptRequired': 'transcript 必填',
   'orbit.tool.err.noQuizGenerate': '出题引擎未提供 generate/askQuestion',
@@ -874,7 +879,9 @@ export const zh = {
   'orbit.qe.totalNodes.exp':
     '总节点数 = n − 1 = **{total}**，**与 l 无关**。\n'
     + '这正是「同一层内 l 增大时，径向节点减少、角度节面增多，总数不变」的来源。',
-  'orbit.qe.energy.stem': '氢原子 **{n}s** 轨道的能量约为多少 eV？（E_n = −13.6/n²）',
+  // ★ 题干里**不写公式**：原先末尾是"（E_n = −13.6/n²）"，照着念就是一次除法 ——
+  //   题目的答案与解题步骤同时给了出去。公式该讲，但不该印在**问学生**的题干上。
+  'orbit.qe.energy.stem': '氢原子 **{n}s** 轨道的能量约为多少 eV？',
   'orbit.qe.energy.exp': 'E_{n} = −13.6 / {n}² = **{E} eV**。能量只依赖 n（氢原子）。',
   'orbit.qe.degeneracy.stem': '第 **n = {n}** 层共有多少个**轨道**（不计自旋）？',
   'orbit.qe.degeneracy.exp': '第 n 层的轨道数 = n² = **{d}**（含自旋则为 2n² = {d2}）。',
@@ -1476,6 +1483,9 @@ export const en = {
   'orbit.tool.generateQuestion.p.knowledgePoint': 'knowledge point id (of the form orbit:K1)',
   'orbit.tool.generateQuestion.p.difficulty': 'optional difficulty',
   'orbit.tool.generateQuestion.p.exclude': 'optional: question ids to exclude',
+  'orbit.tool.generateQuestion.note':
+    'The question and options are ready. The answer is frozen in the local engine and is not available to you '
+    + '— do not guess it. Present the stem and the four options as they are; grading happens locally.',
   'orbit.tool.generateVariant.desc':
     'Generate a **variant** of a question just attempted (same knowledge point, only one dimension changed).',
   'orbit.tool.explainConcept.desc':
@@ -1501,6 +1511,8 @@ export const en = {
     'Recommend the next knowledge point to practise (based on the local learning record).',
   'orbit.tool.recommendNext.p.count': 'optional: how many to recommend',
   'orbit.tool.err.kpRequired': 'knowledgePoint is required',
+  'orbit.tool.err.noModelView':
+    'the question engine does not provide toModelView — refusing to return the question, to avoid leaking the answer',
   'orbit.tool.err.qidRequired': 'questionId is required',
   'orbit.tool.err.transcriptRequired': 'transcript is required',
   'orbit.tool.err.noQuizGenerate': 'the question engine does not provide generate/askQuestion',
@@ -1704,7 +1716,7 @@ export const en = {
     'total nodes = n − 1 = **{total}**, **independent of l**.\n'
     + 'That is exactly where "within one shell, as l grows the radial nodes decrease and the angular nodal '
     + 'surfaces increase while the total stays the same" comes from.',
-  'orbit.qe.energy.stem': 'What is the energy of the hydrogen **{n}s** orbital, approximately, in eV? (E_n = −13.6/n²)',
+  'orbit.qe.energy.stem': 'What is the energy of the hydrogen **{n}s** orbital, approximately, in eV?',
   'orbit.qe.energy.exp': 'E_{n} = −13.6 / {n}² = **{E} eV**. For hydrogen the energy depends only on n.',
   'orbit.qe.degeneracy.stem': 'How many **orbitals** are there in the **n = {n}** shell (ignoring spin)?',
   'orbit.qe.degeneracy.exp': 'orbital count of shell n = n² = **{d}** (with spin, 2n² = {d2}).',

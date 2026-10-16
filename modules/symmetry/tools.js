@@ -149,6 +149,23 @@ export function createSymmetryTools(facade, opts = {}) {
   const quiz = opts.quiz
   const mastery = opts.mastery
 
+  /**
+   * ★ 出题回执的**唯一出口**：经引擎的 `toModelView` 抹掉答案。
+   *
+   * 为什么必须有这一道：工具返回值会作为 `role:'tool'` 消息回灌给模型
+   *   （见 agent-core/core/conversation.js），模型**必然读到**。而引擎的题目对象里
+   *   带着 `answerIndex` 与 `explanation` —— 原样返回等于把答案与解析摊在模型眼前，
+   *   工具描述里那句"返回的题目**不含答案**"就成了假话。
+   *
+   * ★ 引擎没有 `toModelView` 时**宁可不出题**，也不原样返回：
+   *   少一个功能可以补，泄一次题学生会把它当标准答案记住。
+   */
+  function safeQuestion(qz, q) {
+    if (!q || q.error) return q
+    if (typeof qz.toModelView !== 'function') return { error: t('symmetry.tool.err.noModelView') }
+    return qz.toModelView(q)
+  }
+
   if (quiz) {
     defs.teach.push(
       def('generateQuestion', () => t('symmetry.tool.generateQuestion.desc'), {
@@ -176,7 +193,7 @@ export function createSymmetryTools(facade, opts = {}) {
       if (!kp) return { error: t('symmetry.tool.err.kpRequired') }
       const fn = quiz.askQuestion || quiz.generate
       if (typeof fn !== 'function') return { error: t('symmetry.tool.err.noQuiz') }
-      return fn.call(quiz, kp, p && p.difficulty, p && p.exclude)
+      return safeQuestion(quiz, fn.call(quiz, kp, p && p.difficulty, p && p.exclude))
     }
     handlers.explainConcept = (p) => {
       const kp = p && p.knowledgePoint

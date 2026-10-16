@@ -434,7 +434,8 @@ export const zh = {
   'agent.tool.reviseDemo.op':
     'replace=替换某步 / insert=在该步之后插入 / remove=删除该步 / jump=跳回该步（仅在播时可用）',
   'agent.tool.reviseDemo.demoId': '要改的演示号（如 d2）；省略则改当前这条',
-  'agent.tool.reviseDemo.index': '步号，从 0 起（见 getSnapshot 的 steps[].i）',
+  'agent.tool.reviseDemo.index': '步号，从 0 起（见 getSnapshot 的 steps[].i）'
+    + '——与界面上显示的「第 N 步」**相差 1**（界面是给人看的，从 1 数）',
   'agent.tool.reviseDemo.step': 'op 为 replace / insert 时必填：新的那一步',
   'agent.tool.noModule': '当前没有激活任何模块（请先让用户选定要讲解的对象）',
   'agent.tool.loadKnowledge.notFound': '未找到知识条目：{id}（可用条目见系统提示中的清单）',
@@ -855,7 +856,8 @@ export const en = {
   'agent.tool.reviseDemo.op':
     'replace=replace a step / insert=insert after that step / remove=remove that step / jump=jump back to that step (only while playing)',
   'agent.tool.reviseDemo.demoId': 'demonstration id to revise (such as d2); omit to revise the current one',
-  'agent.tool.reviseDemo.index': 'step number, starting at 0 (see steps[].i in getSnapshot)',
+  'agent.tool.reviseDemo.index': 'step number, starting at 0 (see steps[].i in getSnapshot)'
+    + ' — that is **1 less** than the "step N" shown in the UI (the UI counts from 1 for humans)',
   'agent.tool.reviseDemo.step': 'required when op is replace / insert: the new step',
   'agent.tool.noModule': 'No module is active (first let the user choose what to talk about)',
   'agent.tool.loadKnowledge.notFound': 'Knowledge entry not found: {id} (see the index in the system prompt for available entries)',

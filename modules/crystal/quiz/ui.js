@@ -106,8 +106,11 @@ export function createQuizUI(deps = {}) {
     const q = pending.get(questionId)
     if (!q) return
 
-    // ★ 直接调本地 handler——与模型调的是同一个函数，但省掉一次往返
-    const r = module_.handlers.checkAnswer({ questionId, chosenIndex })
+    // ★ 直接调本地 handler——与模型调的是同一个函数，但省掉一次往返。
+    //   ★ 第二参数 `{ by: 'student' }` 是**本地直调方独有的通道**：它让判定给回
+    //     正确答案与解析（反馈卡要渲染），并把题目置成"已作答"（练习守卫据此放行图层）。
+    //     模型走工具执行，只拿得到一个参数，因此拿不到这些。
+    const r = module_.handlers.checkAnswer({ questionId, chosenIndex }, { by: 'student' })
     if (r && r.error) {
       panel.addChip(t('crystal.t.ui.1', { p1: (r.error) }), 'warn')
       return
@@ -174,15 +177,24 @@ export function createQuizUI(deps = {}) {
     }
   }
 
-  /** 把一道题的预设观察状态下发到视图 */
+  /** 把一道题的预设观察状态下发到视图（学生点「去看结构」） */
   function gotoStructure(presetView) {
     const actions = (presetView && presetView.actions) || []
     if (!actions.length) return
-    // ★ 若当前停在 quiz 节点，先切回 explain：quiz 节点结构上没有 hand 授权，
-    //   且（P5 之后）storyboard 在 quiz 期间会冻结写入——那会把这次合法的演示也拦掉。
-    if (app.node === 'quiz' || app.node === 'grade') {
-      try { app.setNode('explain') } catch (e) { /* 节点名固定合法，忽略 */ }
-    }
+    // ★ 这里**不改节点**（原先会 `setNode('explain')`，已删除）。
+    //
+    //   原先的理由有两句，**两句都不成立**：
+    //     ① "quiz 节点结构上没有 hand 授权" —— 这句话本身对，但与本处无关：
+    //        `storyboard.applySequence` **根本不经过工具白名单**（它不认识节点），
+    //        所以这里从来不存在"因未授权而失败"的问题；
+    //     ② "（P5 之后）storyboard 在 quiz 期间会冻结写入" —— 该机制**不存在**，
+    //        storyboard 里 grep 不到任何 freeze / 冻结 逻辑，是照着想象写下的理由。
+    //   ⇒ 那次 setNode 唯一的实际效果，是**把节点从 quiz 悄悄换成 explain** ——
+    //     学生还在做题，下一轮模型却拿到了 explain 的工具集（含 hand 授权）。
+    //     更糟的是它与"模型看不到不允许的工具、结构上无法越权"正面冲突：
+    //     读代码的人看到的会是"做不到，那就把节点改掉"。
+    //   ⇒ 这是**宿主发起的动作**（学生自己点的），本就该允许；动作照常入队，
+    //     由学生点「下一步」逐步播放。
     app.storyboard.applySequence(actions, { auto: false }).then((r) => {
       if (r && r.failed && r.failed.length) {
         panel.addChip(t('crystal.t.ui.5', { p1: (r.failed.length) }), 'warn')

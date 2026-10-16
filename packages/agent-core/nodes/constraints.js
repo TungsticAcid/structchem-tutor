@@ -65,6 +65,9 @@ import { t } from '../../i18n/index.js'
  *   登记完整之后，"幽灵名"统计才真正覆盖全部中枢工具。**新增中枢工具时，
  *   这里与 app.js 必须同时改。**
  */
+/** 工具类别：节点的 `grants` **只能**写这几个（它表达"这个节点能做什么"）。 */
+export const GRANT_CLASSES = ['read', 'query', 'hand', 'teach']
+
 export const CORE_TOOLS = {
   read: ['getSnapshot'],
   query: ['listSceneActions', 'loadKnowledge', 'loadSkill', 'listDemos', 'declareIntent'],
@@ -221,6 +224,35 @@ export const NODES = {
     //   节点一个出题工具都拿不到，而**没有任何东西会红**。现在由模块自己声明
     //   "我的出题工具叫什么"（见各模块 createModule 的 roles）。
     roles: ['quizGen'],
+    /**
+     * ★ 出题节点**关掉那些"一查就出答案"的工具**。
+     *
+     * 为什么必须关：数据题的答案**就是** `query*` 算出来的那个数 ——
+     *   `queryCrystal({kind:'density'})` 与题目答案走**同一个 compute 对象**，连舍入位数都
+     *   一样；`queryOrbital` 同理（问"3d 有几个径向节点"，它直接给）；`queryPointGroup`
+     *   连点群带阶一起给。出题节点开着它们，等于把题目与答案一并递给模型。
+     *
+     * ★ `loadKnowledge` 也必须关 —— 它是**答案的第二个入口**：
+     *   知识条目的正文里就写着答案（例：`orbit:K9-6` 那句"⟨V⟩ = −27.2 eV"，
+     *   连同该题三个干扰项 13.6 / −13.6 全在正文里；`orbit:K10-2` 直接给出
+     *   "1s、2p、3d 的 r_max 分别是 a₀、4a₀、9a₀"）。只关 query* 而留着条目，
+     *   等于关了一扇门开了另一扇。
+     *   反过来说，条目里那些数**不该删** —— 74%、6:6、−13.6 eV 都是定义性常数或
+     *   知识点本体（删了知识点就不完整，而且模型本来就知道），问题的根源是
+     *   "出题节点能同时拿到题目与资料"，不是"资料里写了数"。
+     *   ★ 出题节点本就不该边出题边查资料；要讲解请切到 explain 节点
+     *   （那里有 hand、也有条目）。
+     *
+     * ⚠️ **残余限制（已知，不能当成"结构上不可能"来写）**：下面是**按模块的工具名**列的，
+     *   与上面 `roles` 那条教训同型（模块专名会漂）。之所以仍这么写，是因为
+     *   `resolveTools` 的权限模型只有"按类别 + 按角色**加**"与"按名字**减**"，
+     *   没有"按角色减"。
+     *   新增模块若也有"一查就出答案"的工具，**必须同步加进这个列表**；
+     *   漏了的症状是"那个模块的出题节点可以自查答案"，而不会有任何东西报错。
+     *   （守它的断言见 tools/test-core.mjs 与 tools/test-app.mjs 的 quiz 段。）
+     */
+    deny: ['queryCrystal', 'getCrystalDetail', 'compareCrystals',
+      'queryOrbital', 'queryPointGroup', 'loadKnowledge'],
     get input() {
       return [t('agent.node.quiz.input0'), t('agent.node.quiz.input1'), t('agent.node.quiz.input2')]
     },
@@ -244,12 +276,17 @@ export const NODES = {
     // ★ 只能用诊断动作，不能自由操控。`reviseDemo` 也必须一并挡掉：它是 hand 类，
     //   而 hand 类是**按类全放行**的——不显式 deny 就会自动落到本节点，
     //   而"整改演示"与"判卷时不许乱动画面"直接冲突（学生正看着诊断动作，画面不该被改）。
-    deny: ['applySceneActions', 'reviseDemo'],
-    // ★ 工具名修正（迁入本仓库时）：原写作 getDiagnosisActions，而
-    //   descriptor 的 plannedTools 与 skills/common 的 misconception-probe 步骤
-    //   用的都是 `diagnoseError`。三处不一致，只有这里用了那个不存在的名字
-    //   —— 白名单写着幽灵名，模型看不到它，诊断节点就拿不到诊断工具。
-    allowExtra: ['diagnoseError'],
+    deny: ['applySceneActions', 'reviseDemo', 'playDemo', 'replayDemo', 'navigateTo'],
+    // ★ `diagnose` 是**角色**，不是工具名。
+    //   原先这里写的是 `allowExtra: ['diagnoseError']` —— 那是**模块专名**，而且违反本文件
+    //   上面写明的字段契约（"allowExtra 只用于中枢工具"）。同型的坑已经栽过一次：
+    //   更早这里写的是幽灵名 `getDiagnosisActions`，白名单写着不存在的名字，模型看不到它，
+    //   诊断节点于是拿不到诊断工具，而**没有任何东西会报错**。
+    //   改成角色之后，各模块自己声明"我的诊断工具叫什么"（见各模块 createModule 的 roles）——
+    //   与 quiz 节点的 `roles: ['quizGen']` 同一套做法。
+    //   ★ 没有诊断能力的模块（如 symmetry 尚无错因库）**什么都不声明**即可，
+    //   结果是本节点对它少一个工具，而不是给模型一个调不动的名字。
+    roles: ['diagnose'],
     get input() { return [t('agent.node.grade.input0'), t('agent.node.grade.input1')] },
     get output() { return t('agent.node.grade.output') },
     get forbidden() {
@@ -379,6 +416,13 @@ export function resolveTools(nodeName, moduleTools = {}, roles = {}) {
   // ★ 循环变量刻意不叫 `t`：它会遮住上面 import 的 i18n 取值函数 `t()`
   const granted = new Set();
   for (const cls of node.grants || []) {
+    // ★ 拼错的类别名会被**静默容忍** —— `CORE_TOOLS[cls] || []` 得到空数组，
+    //   于是"这个节点一个工具都没有"，而没有任何东西会报错。
+    //   本仓库栽过同型的坑（工具名拼错 → 幽灵名），故这里显式挡一道。
+    if (!GRANT_CLASSES.includes(cls)) {
+      throw new Error(`节点 ${nodeName} 的 grants 里有不认识的类别：${cls}`
+        + `（只能是 ${GRANT_CLASSES.join(' / ')}）`);
+    }
     for (const toolName of CORE_TOOLS[cls] || []) granted.add(toolName);
     for (const toolName of moduleTools[cls] || []) granted.add(toolName);
   }

@@ -92,9 +92,12 @@ export const MESSAGES = {
     'symmetry.qe.err.noExample': '这道题不绑定具体示例。',
     'symmetry.qe.err.gotoFailed': '切到该示例失败：{msg}',
 
-    'symmetry.q1.count.stem': '分子「{title}」属于 {symbol} 点群。除恒等操作 E 之外，它一共有几个对称元素？',
+    // ★ 题干里**不给点群符号**：原先三条题干都把 `{symbol}` 印在问学生的句子里，
+    //   而 P3 的题型又常问"某点群的特征标表某格是多少"—— 等于把答案的范围先缩小了。
+    //   去掉之后学生得先自己判定点群，题目反而更贴近 P1/P2 的教学目标。
+    'symmetry.q1.count.stem': '分子「{title}」中，除恒等操作 E 之外一共有几个对称元素？',
     'symmetry.q1.count.exp': '程序在「{title}」的结构里找出 {n} 个对称元素：{kinds}（{symbol}）。★ E 是恒等**操作**，不是对称元素 —— 这是最常混的一处。',
-    'symmetry.q1.axis.stem': '分子「{title}」（{symbol}）的最高次主轴是几重轴？',
+    'symmetry.q1.axis.stem': '分子「{title}」的最高次主轴是几重轴？',
     'symmetry.q1.axis.opt': '{n} 重轴',
     'symmetry.q1.axis.exp': '程序在「{title}」里找到的最高次旋转轴是 **{n} 重轴**，它定义了主轴的阶；其余旋转轴都绕它排布（{symbol}）。',
     'symmetry.q1.notop.stem': '分子「{title}」（{symbol}）的对称操作里，下列哪一项**不存在**？',
@@ -102,7 +105,7 @@ export const MESSAGES = {
     'symmetry.q1.notop.exp': '该点群的对称操作是：{list} —— 里面没有 {wrong}，所以答案是它。',
     'symmetry.q2.group.stem': '分子「{title}」{formula} 属于哪个点群？',
     'symmetry.q2.group.exp': '程序识别「{title}」为 **{symbol}**（{name}）。判群顺序：先找最高次主轴，再看有没有垂直于主轴的 C₂ 轴，最后看有没有 σh / i。',
-    'symmetry.q2.order.stem': '分子「{title}」属于 {symbol} 点群，这个群的阶是多少？（阶 = 对称操作的总数）',
+    'symmetry.q2.order.stem': '分子「{title}」所属点群的阶是多少？（阶 = 对称操作的总数）',
     'symmetry.q2.order.exp': '{symbol} 的阶是 **{n}**，它的操作是：{ops}。',
     'symmetry.q3.linear.stem': '在 {symbol} 点群的特征标表里，沿 {axis} 方向的一次函数（例如 p_{axis} 轨道）属于哪个不可约表示？',
     'symmetry.q3.linear.exp': '{symbol} 的特征标表里，只有 **{label}** 这一行的「线性」栏包含 {axis} —— 「某函数属于哪个不可约表示」就是这么查出来的。',
@@ -235,9 +238,9 @@ export const MESSAGES = {
     'symmetry.qe.err.noExample': 'This question is not tied to a specific example.',
     'symmetry.qe.err.gotoFailed': 'Could not switch to that example: {msg}',
 
-    'symmetry.q1.count.stem': 'The molecule "{title}" belongs to the {symbol} point group. Apart from the identity operation E, how many symmetry elements does it have?',
+    'symmetry.q1.count.stem': 'In the molecule "{title}", apart from the identity operation E, how many symmetry elements are there?',
     'symmetry.q1.count.exp': 'The engine found {n} symmetry elements in "{title}": {kinds} ({symbol}). ★ E is the identity **operation**, not a symmetry element — the most common mix-up.',
-    'symmetry.q1.axis.stem': 'What is the order of the principal axis of "{title}" ({symbol})?',
+    'symmetry.q1.axis.stem': 'What is the order of the principal axis of "{title}"?',
     'symmetry.q1.axis.opt': 'a {n}-fold axis',
     'symmetry.q1.axis.exp': 'The highest-order rotation axis the engine found in "{title}" is a **{n}-fold** axis; it defines the principal axis, and the other axes are arranged around it ({symbol}).',
     'symmetry.q1.notop.stem': 'Which of the following is **not** a symmetry operation of "{title}" ({symbol})?',
@@ -245,7 +248,7 @@ export const MESSAGES = {
     'symmetry.q1.notop.exp': 'The operations of this point group are: {list} — {wrong} is not among them, so it is the answer.',
     'symmetry.q2.group.stem': 'Which point group does "{title}" {formula} belong to?',
     'symmetry.q2.group.exp': 'The engine identifies "{title}" as **{symbol}** ({name}). Order of decisions: find the highest-order axis, then look for C₂ axes perpendicular to it, then check for σh / i.',
-    'symmetry.q2.order.stem': '"{title}" belongs to {symbol}. What is the order of this group? (order = total number of symmetry operations)',
+    'symmetry.q2.order.stem': 'What is the order of the point group that "{title}" belongs to? (order = total number of symmetry operations)',
     'symmetry.q2.order.exp': 'The order of {symbol} is **{n}**; its operations are: {ops}.',
     'symmetry.q3.linear.stem': 'In the character table of {symbol}, which irreducible representation does a linear function along {axis} (e.g. a p_{axis} orbital) belong to?',
     'symmetry.q3.linear.exp': 'In the {symbol} character table only the **{label}** row lists {axis} under "linear" — that is exactly how "which irrep does this function belong to" is answered.',
@@ -583,6 +586,40 @@ Object.assign(MESSAGES.zh, {
   'sym.err.unsupportedAction': '当前模块不支持动作：{name}',
   'sym.err.notCrystal': '{title} 是分子，不是晶体——请用点群识别（不带 kind 的那条路）',
   'sym.err.spaceGroupFailed': '空间群分析失败：{title}',
+
+  // ---------------------------------------------------------------------
+  // 四个教学工具的文案（描述 / 参数 / 错误）
+  //
+  // ★ 这批键此前**一条都没有登记**，而 `t()` 查不到时**原样返回键名** ——
+  //   于是模型看到的工具描述是 "symmetry.tool.generateQuestion.desc" 这样的字符串，
+  //   参数说明、错误提示同样如此。等于四个教学工具对模型是"读不懂"的。
+  // ★ 为什么守卫没报：`check-i18n.mjs` 扫的是**中文字面量**，而这些调用点
+  //   （`t('symmetry.tool.xxx')`）根本没有中文 —— 守卫一个字也看不见。
+  //   （诊断手法：逐个键调 `t(k)`，返回值 === k 即为未登记；见 tmp/check-i18n-keys.mjs）
+  // ---------------------------------------------------------------------
+  'symmetry.tool.generateQuestion.desc':
+    '针对某个知识点出一道题。返回的题目**不含答案**——答案与判定都由本地引擎完成，'
+    + '你拿不到答案，也不要猜测。请把题干与四个选项原样呈现给学生；学生点选后由本地判分。',
+  'symmetry.tool.generateQuestion.p.knowledgePoint': '知识点编号（形如 P1）',
+  'symmetry.tool.generateQuestion.p.difficulty': '可选难度（basic / core / challenge）',
+  'symmetry.tool.generateQuestion.p.exclude': '可选：要排除的题目 id',
+  'symmetry.tool.generateQuestion.note':
+    '题目与选项已生成，**答案由本地引擎冻结保管**（你拿不到，也不要猜）。'
+    + '请把题干与四个选项原样呈现给学生；学生点选后由本地判分。',
+  'symmetry.tool.explainConcept.desc':
+    '取某个知识点的**结构化讲解**（定义、要点，以及依据的知识条目 id）。',
+  'symmetry.tool.recommendNext.desc':
+    '按学情推荐下一个该练的知识点（**掌握度最低者优先**，同分时优先与当前内容关联度高的）。',
+  'symmetry.tool.recommendNext.p.count': '可选：推荐几条',
+  'symmetry.tool.updateMastery.desc':
+    '学生口头作答后记一笔学情（答对 +1、答错 −1）。'
+    + '★ 卡片式点选作答是**本地自动记录**的，不要再重复记一次。',
+  'symmetry.tool.updateMastery.p.correct': '这次答对了吗',
+  'symmetry.tool.err.kpRequired': 'knowledgePoint 必填',
+  'symmetry.tool.err.noQuiz': '出题引擎未提供 generate/askQuestion',
+  'symmetry.tool.err.noMastery': '未接入掌握度模型',
+  'symmetry.tool.err.noModelView':
+    '出题引擎未提供 toModelView —— 出于防泄题，宁可不返回题目。',
 })
 Object.assign(MESSAGES.en, {
   'sym.err.bool': '{name} needs {field} (true or false)',
@@ -598,6 +635,32 @@ Object.assign(MESSAGES.en, {
   'sym.err.unsupportedAction': 'This module does not support the action: {name}',
   'sym.err.notCrystal': '{title} is a molecule, not a crystal — use point-group identification (the path without kind)',
   'sym.err.spaceGroupFailed': 'Space-group analysis failed: {title}',
+
+  // ---- 四个教学工具的文案（与 zh 区一一对应；此前全部缺失，见 zh 区的说明）----
+  'symmetry.tool.generateQuestion.desc':
+    'Generate one question for a knowledge point. The returned question **does not contain the answer** — '
+    + 'both the answer and the grading are done by the local engine; you cannot see the answer and must not guess it. '
+    + 'Present the stem and the four options as they are; the student\'s click is graded locally.',
+  'symmetry.tool.generateQuestion.p.knowledgePoint': 'knowledge point id (of the form P1)',
+  'symmetry.tool.generateQuestion.p.difficulty': 'optional difficulty (basic / core / challenge)',
+  'symmetry.tool.generateQuestion.p.exclude': 'optional: question ids to exclude',
+  'symmetry.tool.generateQuestion.note':
+    'The question and options are ready. The answer is frozen in the local engine and is not available to you '
+    + '— do not guess it. Present the stem and the four options as they are; grading happens locally.',
+  'symmetry.tool.explainConcept.desc':
+    'Fetch the structured explanation of a knowledge point (definition, key points, and the ids of the knowledge entries it rests on).',
+  'symmetry.tool.recommendNext.desc':
+    'Recommend the next knowledge point to practise, by mastery (**lowest mastery first**, ties broken by relevance to the current content).',
+  'symmetry.tool.recommendNext.p.count': 'optional: how many to recommend',
+  'symmetry.tool.updateMastery.desc':
+    'Record one mastery event after an oral answer (correct +1, wrong −1). '
+    + '★ Card-style click answers are recorded **locally and automatically** — do not record them a second time.',
+  'symmetry.tool.updateMastery.p.correct': 'was this answer correct',
+  'symmetry.tool.err.kpRequired': 'knowledgePoint is required',
+  'symmetry.tool.err.noQuiz': 'the question engine does not provide generate/askQuestion',
+  'symmetry.tool.err.noMastery': 'no mastery model is wired in',
+  'symmetry.tool.err.noModelView':
+    'the question engine does not provide toModelView — refusing to return the question, to avoid leaking the answer',
 })
 
 registerDict('symmetry', { zh: MESSAGES.zh, en: MESSAGES.en, text })

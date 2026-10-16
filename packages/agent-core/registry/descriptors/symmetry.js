@@ -53,11 +53,16 @@ export default {
   //   声称"模块无智能体代码"——其实 modules/symmetry/ 的门面与工具层早已建好，
   //   只是没有人从**实现**这一侧反查过（自检 ⑤-3 当时只覆盖 orbit，现已推广到三个模块）。
   //   只列**模块专属**工具；getSnapshot / applySceneActions 等由中枢提供，见本文件上方 crystal.js 的说明。
+  //
+  // ★ 2026-10-15 补：`teach` 的四个教学工具（练习闭环：出题 / 讲解 / 推荐 / 学情）**早已实现**，
+  //   这里一直是空数组。之所以没被对账抓到，是因为自检构造 symmetry 时**没注入出题引擎**，
+  //   那四个工具因此根本没注册（对账的两边都"看不见"它们）。补齐引擎之后，
+  //   "已实现的工具都已在 descriptor 里声明"当场报出这四项漏声明。
   tools: {
     read: [],
     query: ['listExamples', 'queryPointGroup'],
     hand: [],
-    teach: [],
+    teach: ['generateQuestion', 'explainConcept', 'recommendNext', 'updateMastery'],
   },
 
   /**
@@ -83,6 +88,12 @@ export default {
      *   照着去做会去新加工具，而正确的动作是加动作。
      */
     hand: [],
-    teach: ['generateQuiz', 'checkAnswer', 'diagnoseError'],
+    // ★ 教学工具**已补齐**（2026-10-12 的练习闭环：出题 / 讲解 / 推荐 / 学情四项），
+    //   已在 `tools.teach` 里如实声明。
+    //   此前这里写的是 `generateQuiz / checkAnswer / diagnoseError` —— 那是**晶体专名**：
+    //   symmetry 的出题工具叫 `generateQuestion`、判定在本地做（**没有** checkAnswer 工具），
+    //   照抄过来等于"照着一份不存在的清单等自己做"。
+    //   真正还欠的只有 `diagnoseError` —— 本模块**还没有错因库**（见 CLAUDE.md 的待办）。
+    teach: ['diagnoseError'],
   },
 };

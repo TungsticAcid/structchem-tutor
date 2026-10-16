@@ -95,6 +95,32 @@ const QuestionEngine = (function () {
     };
   }
 
+  /**
+   * ★ 给模型的视图：**抹掉答案**（与晶体模块 `quiz/index.js`、轨道模块
+   *   `orbit/core/question-engine.js` 的同名函数一致）。
+   *
+   * 为什么投影写在引擎里、而不是工具层：投影规则必须与题目对象的形状**放在同一个文件**。
+   *   分开写的话，将来给题目加一个字段，投影那一处不会有任何提示 ——
+   *   而漏掉的字段往往正好是答案。下面这份白名单就是"允许模型看见的全部字段"。
+   *
+   * ★ 本模块的 `options` 是**纯字符串数组**（见 `finish`），与晶体模块的对象数组不同 ——
+   *   所以直接复制，**不要**照抄晶体的 `o => o.text`。
+   *
+   * @param {Object} q 引擎内部的题目对象（含 answerIndex / explanation）
+   * @returns {Object} 只含题面与中性信息的安全对象
+   */
+  function toModelView(q) {
+    if (!q || q.error) return q
+    return {
+      id: q.id,
+      kp: q.kp,
+      difficulty: q.difficulty,
+      stem: q.stem,
+      options: Array.isArray(q.options) ? q.options.slice() : [],
+      note: t('symmetry.tool.generateQuestion.note'),
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // 事实层：**全部由引擎算**（缓存：27 个示例各识别一次）
   // ---------------------------------------------------------------------------
@@ -633,7 +659,7 @@ const QuestionEngine = (function () {
   return {
     configure,
     generate, get, askQuestion, renderQuestion, answer, next, startFlow, launch,
-    explain, masteryText, recommend, gotoStructure,
+    explain, masteryText, recommend, gotoStructure, toModelView,
     flow: flow,
     _bank: bank,
     /** 供测试：把缓存清掉（示例事实是惰性算的） */

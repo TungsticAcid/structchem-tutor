@@ -24,18 +24,23 @@ const DEFAULT_MAX_TOKENS = 8192;
 // ---------------------------------------------------------------------------
 // 脱敏（安全关键）
 // ---------------------------------------------------------------------------
-const SENSITIVE_KEYS = /^(authorization|api[-_]?key|x-api-key|token)$/i;
+const SENSITIVE_KEYS = /^(authorization|api[-_]?key|x-api-key|token|access[-_]?token|secret|password|passwd)$/i;
 
 /**
  * 深拷贝并把敏感字段替换为掩码。**任何 console 输出前必须过这一层。**
- * 例：{ Authorization: 'Bearer sk-abc...' } → { Authorization: 'Bearer sk-****' }
+ * 例：{ Authorization: 'Bearer sk-abc...' } → { Authorization: 'Bearer sk-a****wxyz' }
  */
 function redact(value, depth) {
   depth = depth || 0;
   if (depth > 6 || value == null) return value;
   if (typeof value === 'string') {
-    // 兜底：字符串里若出现 sk- 开头的密钥片段，一并掩码
-    return value.replace(/\b(sk-[A-Za-z0-9_-]{4})[A-Za-z0-9_-]+/g, '$1****');
+    // 兜底：**长且字母数字混合**的串当成密钥掩码。
+    // ★ 原先这里只认 `sk-` 前缀（`/\b(sk-...)/`）—— 非该形态的密钥**原样输出**。
+    //   而设置面板写明"任何 OpenAI 兼容服务均可"，现实里的形态远不止一种
+    //   （Google `AIzaSy…`、GitHub `ghp_…`、自建服务 `nvapi-…`、各种 JWT）。
+    //   实测：那几种在旧实现下**完全不被掩码** —— 一层"安全关键"的脱敏形同虚设。
+    return value.replace(/\b(?=[A-Za-z0-9_-]{16,}\b)(?=[A-Za-z0-9_-]*[A-Za-z])(?=[A-Za-z0-9_-]*[0-9])[A-Za-z0-9_-]+\b/g,
+      (m) => m.slice(0, 4) + '****' + m.slice(-4));
   }
   if (Array.isArray(value)) return value.map((v) => redact(v, depth + 1));
   if (typeof value === 'object') {
@@ -48,10 +53,21 @@ function redact(value, depth) {
   return value;
 }
 
-/** 把 Bearer xxx 变成 Bearer sk-****abcd 形式（保留可辨识的前后缀，中间全掩） */
+/**
+ * 把一段凭据变成"可辨识但不泄露"的形式：**保留前 4 后 4、中间全掩**。
+ *
+ * ★ 为什么不只认 `sk-` 前缀（原实现的写法）：正则要求字面量 `sk-`，
+ *   不匹配时 `replace` **原样返回** —— 于是这层脱敏对非 DeepSeek 风格的密钥等于不存在。
+ *   凭据字段（`apiKey` / `token` / `authorization` …）的值本来就是密钥，
+ *   不必再靠"长得像不像"来判断。
+ */
 function maskKey(s) {
-  return String(s).replace(/(Bearer\s+)?(sk-[A-Za-z0-9_-]{2})[A-Za-z0-9_-]*([A-Za-z0-9_-]{2})?/gi,
-    (m, pre, head, tail) => (pre || '') + head + '****' + (tail || ''));
+  const m = /^(Bearer\s+)?(.*)$/i.exec(String(s));
+  const pre = (m && m[1]) || '';
+  const body = (m && m[2]) || '';
+  if (!body) return pre + '****';
+  if (body.length <= 8) return pre + '****';
+  return pre + body.slice(0, 4) + '****' + body.slice(-4);
 }
 
 // ---------------------------------------------------------------------------
@@ -138,15 +154,27 @@ async function chat(opts) {
     return b;
   }
 
-  const doFetch = (omit) => fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + apiKey,
-    },
-    body: JSON.stringify(buildBody(omit)),
-    signal: opts.signal,
-  });
+  const doFetch = (omit) => {
+    // ★ 这里给出 `redact()` 的**一处真实调用**。
+    //   此前它是"全仓零调用点"—— 文件头与设置存储都写着"任何日志输出前必须经 redact()"，
+    //   而那只是一句注释里的约定，没有任何代码执行它（也没有任何测试守着）。
+    //   约定不被执行，就等于不存在。
+    //   `console.debug` 在浏览器默认的日志级别下**不显示**，排查时要手动把级别调到 Verbose。
+    try {
+      if (typeof console !== 'undefined' && console.debug) {
+        console.debug('[chem-agent] LLM 请求', redact({ endpoint, apiKey, model: st && st.model }));
+      }
+    } catch (e) { /* 日志绝不能影响请求本身 */ }
+    return fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey,
+      },
+      body: JSON.stringify(buildBody(omit)),
+      signal: opts.signal,
+    });
+  };
 
   let res;
   const omit = {};

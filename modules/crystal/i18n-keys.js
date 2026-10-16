@@ -45,6 +45,9 @@ export const zh = {
   'crystal.t.quiz-index.12': '（这是变式题：{p1}——用于检验是否真正纠正了认知，而不是记住了上一题的答案）',
   'crystal.t.quiz-index.13': '未找到题目 {p1}',
   'crystal.t.quiz-index.14': '未找到题目 {p1}（可能已过期，请重新出题）',
+  // ★ 模型路径的限次提示：`correct` 是可枚举信号，连调 4 次等于试出答案（见 quiz/index.js 的 check）
+  'crystal.t.quiz-index.15':
+    '该题已经判定过一次了 —— 同一道题只允许判一次。若学生改了答案，请让他直接在题目卡上点选。',
   'crystal.t.quiz-selfcheck.1': '选项数应为 4，实际 {p1}',
   'crystal.t.quiz-selfcheck.2': 'answerIndex 非法：{p1}',
   'crystal.t.quiz-selfcheck.3': '被标记为正确的选项有 {p1} 个（应恰好 1 个）',
@@ -136,6 +139,9 @@ export const en = {
   'crystal.t.quiz-index.12': '(this is a variant question: {p1} — it checks whether the misconception has really been corrected rather than whether the previous answer was memorised)',
   'crystal.t.quiz-index.13': 'Question {p1} not found',
   'crystal.t.quiz-index.14': 'Question {p1} not found (it may have expired; generate a new one)',
+  'crystal.t.quiz-index.15':
+    'This question has already been graded once — each question may be graded a single time. '
+    + 'If the student changed their answer, have them click the option on the question card directly.',
   'crystal.t.quiz-selfcheck.1': 'There should be 4 options, but there are {p1}',
   'crystal.t.quiz-selfcheck.2': 'Invalid answerIndex: {p1}',
   'crystal.t.quiz-selfcheck.3': '{p1} options are marked as correct (there should be exactly 1)',

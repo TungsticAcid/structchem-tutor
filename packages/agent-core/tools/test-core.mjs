@@ -18,6 +18,8 @@ import { createPerception } from '../core/perception.js'
 import { createStoryboard } from '../core/storyboard.js'
 import { createConversation, buildManifestText, composeSystemPrompt } from '../core/conversation.js'
 import { createToolRegistry } from '../core/tool-registry.js'
+import { GRANT_CLASSES } from '../nodes/constraints.js'
+import { redact } from '../core/llm-client.js'
 import { createShellTools } from '../app.js'
 import { createRenderer } from '../ui/renderer.js'
 import { el, clear } from '../ui/dom.js'
@@ -1066,7 +1068,8 @@ section('tool-registry：节点白名单在结构上生效')
     hand: [def('highlightAtoms')],
     teach: [def('generateQuiz'), def('diagnoseError')],
   }
-  const tools = Object.fromEntries(['read', 'query', 'hand', 'teach'].map((c) => [
+  // ★ 遍历 `GRANT_CLASSES`（共享常量）：别就地写死四类，漏一个会让工具静默消失。
+  const tools = Object.fromEntries(GRANT_CLASSES.map((c) => [
     c, [...(shellStub.defs[c] || []), ...(moduleDefs[c] || [])],
   ]))
   const calls = []
@@ -1082,7 +1085,14 @@ section('tool-registry：节点白名单在结构上生效')
     diagnoseError: () => { throw new Error('诊断模块炸了') },                 // 抛异常 → 作为结果回灌
   })
   const missingSeen = []
-  const R = createToolRegistry({ tools, handlers, onMissing: (m, node) => missingSeen.push(node + ':' + m.join(',')) })
+  const R = createToolRegistry({
+    tools, handlers,
+    // ★ 角色映射由**模块**声明（真实装配里来自 createModule 的 `roles`）。
+    //   grade 节点的诊断工具走角色 `diagnose`（不再是 allowExtra 的专名），
+    //   所以这里必须给上，否则它解析不出名字。
+    roles: { diagnose: 'diagnoseError' },
+    onMissing: (m, node) => missingSeen.push(node + ':' + m.join(',')),
+  })
 
   check('未指定节点时拒绝暴露任何工具', (() => {
     try { R.definitions(); return false } catch (e) { return /决策节点/.test(e.message) }
@@ -1093,8 +1103,8 @@ section('tool-registry：节点白名单在结构上生效')
   const qNames = R.available()
   check('quiz 节点无 hand 工具（结构上做不到）',
     !qNames.includes('applySceneActions') && !qNames.includes('highlightAtoms'), qNames.join(','))
-  check('quiz 节点拿到 read + query',
-    qNames.includes('getSnapshot') && qNames.includes('loadKnowledge'),
+  check('quiz 节点仍拿到 read + query 类（getSnapshot / listSceneActions）',
+    qNames.includes('getSnapshot') && qNames.includes('listSceneActions'),
     qNames.join(','))
   check('quiz 节点定义数组里没有 hand 工具',
     !R.definitions().some((d) => ['applySceneActions', 'highlightAtoms'].includes(d.function.name)))
@@ -1102,6 +1112,32 @@ section('tool-registry：节点白名单在结构上生效')
     /不可用/.test((await R.execute('applySceneActions', '{}')).error))
   check('被拒时提示了当前节点与可用工具',
     /quiz/.test((await R.execute('applySceneActions', '{}')).error))
+
+  // ---- ★ 本轮白名单冻结：**同一批** tool_calls 里改节点，不得改变本轮的放行集合 ----
+  //   审计实证的通路：先 `declareIntent` 切到 demo（有 hand 授权），紧接着调 applySceneActions。
+  //   注意 `declareIntent` 在**所有**节点都可见（它是 query 类），这是必要的 ——
+  //   运行时唯一的节点切换通路就是它，收窄了 `quiz` 节点会再也切不出去。
+  //   安全性靠**时序**而不是能力表：同一批里切节点不生效，只能下一批用新节点的工具。
+  R.setNode('quiz')
+  R.freezeRound()                                  // = 对话循环在执行一批 tool_calls 前做的事
+  const frozenAtQuiz = R.frozenNames().join(',')
+  R.setNode('demo')                                // 同一批里切了节点
+  check('切节点后本轮的放行集合不变（提权不成立）',
+    R.frozenNames().join(',') === frozenAtQuiz, R.frozenNames().join(','))
+  check('切节点后本轮仍拒签 applySceneActions（执行期读快照，不读新节点）',
+    /不可用/.test((await R.execute('applySceneActions', '{}')).error))
+  R.endRound()                                     // 本轮结束
+  R.freezeRound()                                  // 下一轮开始 → 按当前节点重新冻结
+  check('下一轮快照按新节点刷新（切换生效）',
+    R.frozenNames().includes('applySceneActions'), R.frozenNames().join(','))
+  // ★ 反向守卫（本文件先前抓到过的副作用）：**轮外**必须按实时节点裁决。
+  //   曾经把冻结绑在 `definitions()` 上，于是"只 setNode 不 definitions 就 execute"
+  //   的调用方拿到过期快照 —— `grade` 明明允许 diagnoseError 却被判"不可用"。
+  R.endRound()
+  R.setNode('grade')
+  const offRound = await R.execute('diagnoseError', '{}')
+  check('轮外按实时节点裁决（不是"不可用"，而是 handler 自己的结果）',
+    !/不可用/.test(String(offRound.error || '')), JSON.stringify(offRound).slice(0, 160))
 
   // ---- route / proactive：同样无 hand、无 teach ----
   for (const n of ['route', 'proactive']) {
@@ -1142,10 +1178,13 @@ section('tool-registry：节点白名单在结构上生效')
     const seen2 = []
     const R2 = createToolRegistry({
       tools: withoutDiag, handlers,
+      // ★ 同上：grade 的诊断工具现在是**角色**，故这里传 roles 声明它 ——
+      //   探针验的是"角色声明了、但注册表里没有这个工具"。
+      roles: { diagnose: 'diagnoseError' },
       onMissing: (m, node) => seen2.push(node + ':' + m.join(',')),
     })
     R2.setNode('grade')
-    check('missing() 报出 allowExtra 里未实现的名字',
+    check('missing() 报出**角色声明了却没实现**的名字',
       R2.missing().includes('diagnoseError'), R2.missing().join(','))
     check('onMissing 回调被触发（用于暴露 descriptor 与实现的偏差）',
       seen2.some((s) => s.startsWith('grade:')), JSON.stringify(seen2))
@@ -1192,6 +1231,46 @@ section('tool-registry：节点白名单在结构上生效')
     check('两边的容错策略一致（都不抛异常、都返回错误对象）',
       !!oBad.error && !!badJson.error && !!oUnknown.error && !!(await R.execute('不存在的工具', '{}')).error)
   }
+}
+
+// ============================================================================
+section('llm-client：脱敏（redact）对**各种形态**的密钥都生效')
+// ============================================================================
+// ★ 为什么要有这一段：`redact()` 原先**全仓零调用点** —— 文件头与设置存储都写着
+//   "任何日志输出前必须经 redact()"，那只是一句注释里的约定，没有任何代码或测试执行它。
+//   而且它的掩码正则**只认 `sk-` 前缀**，不匹配时原样返回：Google / GitHub / 自建服务 /
+//   JWT 形态的密钥**完全不被掩**。一层"安全关键"的脱敏，实际上等于不存在。
+{
+  // 下面是各家的**公开格式样例**（不是真密钥），用它们正因为旧实现只认 `sk-`。
+  const CASES = [
+    ['apiKey', 'sk-abcdefghijklmnopqrstuvwxyz'],
+    ['apiKey', 'AIzaSyD-1234567890abcdefghijklmnopq'],
+    ['apiKey', 'nvapi-1234567890abcdefghijklmnopqrstuv'],
+    ['Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.abcdefghijklmnop'],
+    ['accessToken', 'ghp_1234567890abcdefghijklmnopqrstuvwx'],
+    ['secret', 'some-long-secret-value-1234567890'],
+  ]
+  const leaked = []
+  for (const [k, v] of CASES) {
+    const out = String(redact({ [k]: v })[k])
+    if (out.indexOf('****') < 0) leaked.push(`${k}：完全没掩码 → ${out}`)
+    // ★ 判据：原值**中段**（第 5 位到倒数第 5 位）不得出现在输出里。
+    const mid = v.slice(5, v.length - 5)
+    if (mid && out.indexOf(mid) >= 0) leaked.push(`${k}：中段原样输出 → ${out}`)
+  }
+  check('redact 对非 sk- 形态的密钥同样掩码（旧实现只认 sk-，其余原样）',
+    leaked.length === 0, leaked.join(' | '))
+
+  // 反面：普通短串不该被误伤（否则日志没法看）
+  const plain = redact({ endpoint: 'https://api.deepseek.com', model: 'deepseek-flash' })
+  check('redact 不误伤普通短串',
+    plain.endpoint === 'https://api.deepseek.com' && plain.model === 'deepseek-flash',
+    JSON.stringify(plain))
+
+  // 嵌套对象里的密钥也要掩（配置常是嵌套的）
+  const nested = redact({ a: { b: { apiKey: CASES[0][1] } } })
+  check('redact 递归处理嵌套对象',
+    String(nested.a.b.apiKey).indexOf('****') >= 0, JSON.stringify(nested))
 }
 
 // ============================================================================

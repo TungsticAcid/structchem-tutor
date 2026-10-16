@@ -117,7 +117,15 @@ export function createStoryboard(opts = {}) {
       if (traceBuf.length > TRACE_MAX) traceBuf.splice(0, traceBuf.length - TRACE_MAX)
     } catch (e) { /* 诊断绝不能影响演示本身 */ }
   }
-  /** 记下"调用来自哪几帧"——回答"是谁清了队列"的关键 */
+  /** 记下"调用来自哪几帧"——回答"是谁清了队列"的关键。
+   *
+   *  ⚠️ **只在未压缩的构建里可用**：它读 `new Error().stack`，而 vite 默认用 esbuild 压缩，
+   *     函数名会被改成单字母（实测 dist 里 `traceFrom` → `k()`），栈帧于是只剩
+   *     `at k (…/index-xxxx.js:1:23456)` 这种读不出任何信息的乱码 ——
+   *     也就是说"是谁清的队列"这句话在**发布构建里答不出来**，而发布构建正是它要服务的场景。
+   *  ⇒ 所以调用方应当**显式传来源**（`stop('setActiveModule')`、`trace({…, from:'reviseDemo'})`），
+   *     这里只作兜底。
+   */
   function traceFrom() {
     try {
       return String((new Error()).stack || '').split('\n').slice(2, 5)
@@ -280,9 +288,14 @@ export function createStoryboard(opts = {}) {
    *   ③ 取消停留定时器 ④ **唤醒所有等待中的 Promise** ⑤ 通知面板收起进度条
    *   第 ④ 条最容易被漏掉：只 clearTimeout 而不 resolve，对应的 await 会永远挂住。
    *   闸门尤其致命——点「停止」本意是退出，结果反而锁死。
+   *
+   * @param {string} [reason] **谁**在停（'setActiveModule' / 'setVocabulary' / 'user' …）。
+   *   显式传进来，而不是靠调用栈去猜 —— 理由见 `traceFrom()` 的说明：
+   *   发布构建里函数名被压缩掉，栈帧只剩乱码，"是谁清的队列"就答不出来了。
    */
-  function stop() {
-    trace({ k: 'stop', q: queue.length, qi: qIndex, playing, curDemoId, from: traceFrom() })
+  function stop(reason) {
+    trace({ k: 'stop', q: queue.length, qi: qIndex, playing, curDemoId,
+      from: reason || traceFrom() })
     generation++                                  // 旧循环下次检查时自行退出
     queue = []
     qIndex = 0
@@ -1130,6 +1143,11 @@ export function createStoryboard(opts = {}) {
       }
       qTotal = queue.length
       syncRecordFromQueue(rec)
+      // ★ 留痕：这条路径以前**没有任何 trace**，而它偏偏是最该记的那一条 ——
+      //   `remove` 会让步数**变小**，正是本文件头部注释描述的那个症状：
+      //   "队列被清空 / 替换时，界面上只表现为**步数突然变小**…… 而'是谁把它清的'
+      //    在事后完全看不出来"。别的改动队列的路径都留了痕，只有这里漏了。
+      trace({ k: 'revise', mode: 'inplace', op, i, q: queue.length, from: 'reviseDemo' })
       emitProgress({ phase: 'revised', mode: 'inplace', demoId: rec.id, index: i, total: queue.length })
       return { ok: true, op, demoId: rec.id, index: i, mode: 'inplace', total: queue.length, steps: queueInfo() }
     }
@@ -1317,7 +1335,7 @@ export function createStoryboard(opts = {}) {
     // 缺少模块归属信息时按旧行为停（宁可保守），只有"明确是同一个模块"才留队列
     const stopped = !(target && from && target === from)
     trace({ k: 'setVocab', target, from, stopped, q: queue.length, playing })
-    if (stopped) stop()
+    if (stopped) stop('setVocabulary')
     vocabulary = v || {}
     /**
      * ★★ 2026-10-15（用户："恢复会话后，之前的演示会失效，无法收藏和重播"）：

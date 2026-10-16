@@ -90,8 +90,11 @@ export const text = {
   '数据与隐私': 'Data & privacy',
   '· 学情与设置只存本机浏览器（localStorage），不上传。':
     '· Learning progress and settings stay in this browser (localStorage); nothing is uploaded.',
-  '· 对话内容不落库；只保留结构化动作序列用于复现与审计。':
-    '· Conversation content is not persisted; only the structured action sequence is kept, for replay and audit.',
+  // ★ 这条原先译的是"对话内容不落库" —— 那句话本身与代码相反（对话原文是落盘的），
+  //   译文只是忠实照译了它。改为与中文一致的正确表述。
+  '· 对话内容同样只存在本机浏览器，随时可用下方的「清除本机全部数据」删除。':
+    '· Conversation content likewise stays in this browser only, and can be removed at any time '
+    + 'with "Clear all local data" below.',
   '· API Key 只发往你填写的接入点，不经过任何第三方中转。':
     '· Your API key goes only to the endpoint you entered, with no third-party relay.',
   '清除本机全部数据': 'Clear all local data',

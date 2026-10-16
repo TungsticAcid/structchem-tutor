@@ -66,7 +66,18 @@ export function createQuizEngine(deps = {}) {
 
   /** 题库：id → 完整题目（含答案与解析）——**只有 check/explain 能读** */
   const bank = new Map()
+  /** 洗牌**种子**序列（只做种子用） */
   let seq = 0
+  /**
+   * ★ 题目 **id** 序列，与种子**刻意分开**。
+   *
+   * 为什么不能共用：id 会随回执发给模型（`toModelView`），而洗牌是"已知种子的确定性置换、
+   *   且正确答案洗牌前恒在下标 0"—— 用 `q-${seedBase+attempt}` 做 id，模型拿到 id 就能
+   *   重放 LCG 得到置换、求逆还原出 `answerIndex`。**脱敏（toModelView）因此形同虚设**。
+   *   （复现：id = q-293003 → seed 293003 → 反演出的下标与真实 answerIndex 相同。）
+   *   分开之后，id 只是一个不透明编号，与洗牌无任何算术关系。
+   */
+  let qidSeq = 0
   /** 各题被答过的次数（供变式题避重） */
   const attemptLog = []
 
@@ -77,7 +88,6 @@ export function createQuizEngine(deps = {}) {
    * @param {string} opts.kp          知识点（'crystal:C5' 或 'C5'）
    * @param {string} [opts.crystalId] 指定晶体；缺省则按能力矩阵选强关联的
    * @param {string} [opts.difficulty] 难度层级
-   * @param {string} [opts.excludeId] 避免与这道题重复（变式题用）
    * @returns {Object} 题目（**不含答案**）或 { error }
    */
   function generate(opts = {}) {
@@ -155,7 +165,7 @@ export function createQuizEngine(deps = {}) {
       const r = tpl.build({ data, compute, seed: seedBase + attempt })
       if (r.error) { lastErr = r.error; continue }
       const q = r.question
-      q.id = `q-${seedBase + attempt}`
+      q.id = `q-${++qidSeq}`
       q.kp = kp
       q.source = 'data'
       q.reviewStatus = 'generated'
@@ -188,7 +198,7 @@ export function createQuizEngine(deps = {}) {
    *   不需要区分题目来自哪个通道。
    */
   function finalizeConcept(q) {
-    q.id = `qb-${++seq}`
+    q.id = `qb-${++qidSeq}`
     q.reviewStatus = 'generated'
     // 概念题不针对某个晶体，但「去看结构」仍需要一个落点：取该知识点的强关联晶体
     if (!q.crystalId) q.crystalId = crystalsForKnowledgePoint(q.kp)[0] || null
@@ -239,7 +249,26 @@ export function createQuizEngine(deps = {}) {
    * @param {Object} args { questionId, chosenIndex }
    * @returns {Object} 判分结果（含解析；若答错还含错因与诊断动作）
    */
-  function check({ questionId, chosenIndex } = {}) {
+  /**
+   * 判分（★ 纯本地下标比较，不经模型）。
+   *
+   * ★ 两条调用路径，**返回体刻意不同**：
+   *   · 学生路径（`by:'student'`，由题目卡的点击触发）：给全 —— 反馈卡要渲染正确答案、
+   *     解析与「去看结构」的预设视图，那是**学生亲自作答后**应得的结果。
+   *   · 模型路径（默认）：**不给答案**。只给对错、错因与诊断动作 —— 足够引导，
+   *     而答错时宿主本来就会把错因与话术注入对话（见 quiz/ui.js 的 renderFeedback），
+   *     模型从来不需要答案明文。
+   *
+   * ★ 为什么默认是 `'model'` 而不是 `'student'`：不声明来源时**按模型处理**（少给）。
+   *   反过来的默认会让"忘了声明来源"的调用方悄悄拿到答案 —— 这类默认值必须往严的一边倒。
+   *
+   * ★ `by` **不是工具参数**：工具执行只传一个 `args`（见 tool-registry.js 的 execute），
+   *   所以模型无法自称学生；只有本地直调方能传第二参数。
+   *
+   * @param {Object} args { questionId, chosenIndex, by }
+   * @returns {Object} 判分结果（学生路径含解析；答错还含错因与诊断动作）
+   */
+  function check({ questionId, chosenIndex, by } = {}) {
     const q = bank.get(questionId)
     if (!q) return { error: t('crystal.t.quiz-index.8', { p1: (questionId) }) }
     const idx = Number(chosenIndex)
@@ -247,20 +276,39 @@ export function createQuizEngine(deps = {}) {
       return { error: t('crystal.t.quiz-index.9', { p1: (chosenIndex) }) }
     }
 
+    const isStudent = by === 'student'
+
+    // ★ 模型路径：同一题**只允许判定一次**。
+    //   为什么必须限次：`correct` 本身就是可枚举的信号 —— 连调 4 次（chosenIndex 0..3）
+    //   等于把正确答案试出来。而"学生口头作答"本来就只对应一次判定；他若改口，
+    //   直接在题目卡上点选即可（那是本地判定，不经模型）。
+    if (!isStudent) {
+      if (q.modelChecked) return { error: t('crystal.t.quiz-index.15') }
+      q.modelChecked = true
+    }
+
     const correct = idx === q.answerIndex
     const chosen = q.options[idx]
-    const right = q.options[q.answerIndex]
-    attemptLog.push({ questionId, correct, ts: Date.now() })
-    // ★ 标记已作答：**练习守卫**据此判断"还有没有未揭晓的题"（见 revealLayerSet）
+    attemptLog.push({ questionId, correct, ts: Date.now(), by: isStudent ? 'student' : 'model' })
+    // ★ 标记已作答：**练习守卫**据此判断"还有没有未揭晓的题"（见 revealLayerSet）。
+    //
+    // ★ 两条路径**都置位**，这是刻意的：判定即"学生作答了"—— 模型代判的前提正是
+    //   学生在对话框里说了自己的答案。若只给学生路径置位，学生口述答完后题目会永远
+    //   算"未作答"，练习守卫于是**永久**禁掉相关图层，学生明明答过却打不开，
+    //   教学上说不通。
+    // ★ 那枚举风险呢？由上面的**限次**挡住：模型对一题只能判一次，试不出 4 个选项。
+    //   （残余：这一次判定会回给它 1 bit 的 correct —— 那是"让学生知道对错"的必要代价，
+    //   不是答案明文。）
     q.answered = true
 
-    const out = {
-      correct,
-      answerIndex: q.answerIndex,
-      answerText: right.text,
-      chosenText: chosen.text,
-      explanation: q.explanation,
-      presetView: q.presetView,
+    const out = { correct, chosenText: chosen.text }
+
+    // ★ 答案、解析与"揭示答案的观察状态"只回学生路径；模型路径一律不给。
+    if (isStudent) {
+      out.answerIndex = q.answerIndex
+      out.answerText = q.options[q.answerIndex].text
+      out.explanation = q.explanation
+      out.presetView = q.presetView
     }
 
     if (!correct) {
@@ -333,7 +381,7 @@ export function createQuizEngine(deps = {}) {
           const r = tpl.build({ data, compute, seed })
           if (!r.error) {
             const nq = r.question
-            nq.id = `q-v${seed}`
+            nq.id = `q-v${++qidSeq}`
             nq.kp = q.kp
             nq.source = 'data'
             const sc = selfCheck(nq)
@@ -352,7 +400,10 @@ export function createQuizEngine(deps = {}) {
     }
 
     const next = others[0]
-    const r = generate({ kp: q.kp, crystalId: next, excludeId: q.id })
+    // ★ 不再传 `excludeId`（2026-10-15 清理）：那个参数此前只写在 `generate` 的 docstring 里，
+    //   **实现从未使用过** —— 幽灵参数。变式题"不与原题同型"实际由**换晶体**（`crystalId: next`）
+    //   保证，本来就成立。留着一个不生效的参数，只会让下一个读代码的人以为多了一层保护。
+    const r = generate({ kp: q.kp, crystalId: next })
     if (r.error) return r
     r.variantOf = q.id
     r.variantStrategy = strategy
@@ -360,12 +411,16 @@ export function createQuizEngine(deps = {}) {
     return r
   }
 
-  /** 取解析（判分后调用；未判分时不给，避免"边答边被提示"） */
+  /**
+   * 取解析（判分后调用；未判分时不给，避免"边答边被提示"）。
+   *
+   * ★ 判据用 `q.answered`（**只有学生亲自作答才置位**），而不是"尝试记录里有没有这条"：
+   *   模型代判也会进 attemptLog，用它当判据等于"模型探一下就能取解析"。
+   */
   function explain({ questionId } = {}) {
     const q = bank.get(questionId)
     if (!q) return { error: t('crystal.t.quiz-index.13', { p1: (questionId) }) }
-    const answered = attemptLog.some((a) => a.questionId === questionId)
-    if (!answered) {
+    if (!q.answered) {
       return { error: '该题尚未作答。请先让学生作答并调用 checkAnswer——解析是为作答后的复盘准备的。' }
     }
     return { explanation: q.explanation, answerText: q.answerText }

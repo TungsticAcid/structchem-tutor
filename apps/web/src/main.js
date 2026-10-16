@@ -553,7 +553,20 @@ const settings = createSettingsStore({
   //   列出来即可；对话是**动态键**（索引 + 每个会话一个），静态列表表达不了，
   //   交给 onClearAll —— convStore 在上面已经建好，所以这里可以闭包直接用。
   //   漏了这些的表现是"点了清除，学情与对话其实还在"，且不报错。
-  clearKeys: ['chem-agent.mastery', 'chem-agent.panel.fabPos', 'chem-agent.demoFavorites'],
+  //
+  // ★ 2026-10-15 补齐：原先这里只有三个键，**漏了 7 个** ——
+  //   主题、全局界面语言、点群页遗留的语言键、自定义量子态预设、点群外观设置、晶体视觉颜色。
+  //   它们的症状不是"清不掉"，而是**用户以为清了、偏好其实原样还在**：
+  //   清完 `location.reload()`，主题与语言照旧，看着就像"清除没生效"。
+  clearKeys: [
+    'chem-agent.mastery', 'chem-agent.panel.fabPos', 'chem-agent.demoFavorites',
+    'chem-agent.theme',              // 界面主题
+    'chem-agent.ui-lang',            // 全局界面语言
+    'symmetry_viewer_lang',          // 点群页的语言键（页面上的入口已撤，键还在，一并清）
+    'orbit.statePresets',            // 轨道：用户命名的量子态预设
+    'symmetry_viewer_settings',      // 点群：外观与配色
+    'crystal_settings',              // 晶体：视觉颜色（含 103 项逐元素配色）
+  ],
   /**
    * ★★ 2026-10-14（用户："之前数据清理了，为什么也显示已掌握"）：
    *
@@ -570,6 +583,16 @@ const settings = createSettingsStore({
     for (const m of [mastery, orbitMastery, symMastery]) {
       try { if (m && typeof m.reset === 'function') m.reset() } catch (e) { /* 忽略 */ }
     }
+    // ★ IndexedDB 里那个"保存图片的目录句柄"也要清 —— 它指向用户授权过的**一个真实磁盘
+    //   目录**，而静态键列表碰不到它（它不在 localStorage 里）。
+    //   ★ 故意**不 await**：被别的标签页占着连接时 `deleteDatabase` 会一直 blocked，
+    //     等它就把"清除 → 刷新"这条链路卡住了；宁可这次删不掉也不让按钮看着没反应。
+    try {
+      if (typeof indexedDB !== 'undefined') {
+        const req = indexedDB.deleteDatabase('chem-agent-fs')
+        req.onerror = req.onblocked = () => { /* 忽略：下次点清除还会再删一次 */ }
+      }
+    } catch (e) { /* 忽略 */ }
   },
 })
 

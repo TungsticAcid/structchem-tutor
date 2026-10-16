@@ -28,7 +28,7 @@ import { fileURLToPath } from 'url';
 import { registerAll, buildRoutingTable, routeByText, listModules,
          collectTools, collectPlannedTools }
   from '../registry/index.js';
-import { NODES, CORE_TOOLS, resolveTools, buildNodePrompt, listNodes }
+import { NODES, CORE_TOOLS, resolveTools, buildNodePrompt, listNodes, GRANT_CLASSES }
   from '../nodes/constraints.js';
 import { createShellTools } from '../app.js';
 
@@ -101,12 +101,20 @@ for (const node of listNodes()) {
   for (const id of BUILT.keys()) for (const t of toolsFor(id, node)) s.add(t);
   resolved[node] = [...s].sort();
 }
-const modTools = collectTools();
-const declared = new Set(Object.values(modTools).flat());
-const provided = new Set([...coreNames, ...declared]);
-/** 权限允许、但没有任何模块实现的名字（应尽量为空） */
-const allowedButMissing = (node) =>
-  resolveTools(node, modTools).filter((t) => !provided.has(t));
+/**
+ * 权限允许、但**某个模块**没实现的名字（幽灵名）。
+ *
+ * ★ 按模块分别解析，**不用并集**：原先这里是 `resolveTools(node, collectTools())` ——
+ *   所有模块工具名的并集。于是**任何**模块实现了某个名字，别的模块的缺口就被掩盖，
+ *   逐模块的幽灵名永远报不出来；而且 `roles` 恒为 `{}`，角色解析出来的名字也不进统计。
+ *   本仓库在"同源断言互相印证、绿着却什么都没守"上栽过，这是同型的一处。
+ */
+function allowedButMissing(moduleId, node) {
+  const b = BUILT.get(moduleId);
+  if (!b) return [];
+  return resolveTools(node, b.defsByClass, b.roles)
+    .filter((t) => !b.impl.has(t) && !coreNames.has(t));
+}
 
 console.log('\n【② 节点约束：各节点实际可用的工具（权限 ∩ 实现，按模块）】');
 for (const id of BUILT.keys()) {
@@ -129,6 +137,31 @@ ok(toolsFor('crystal', 'quiz').includes('generateQuiz'),
 ok(toolsFor('orbit', 'teach').includes('updateMastery'),
    '★ orbit 在 teach 节点拿得到「记学情」（它的名字是 updateMastery，不是 recordLearningEvent）',
    '实际：' + toolsFor('orbit', 'teach').join(', '))
+
+// ── 约束表自身的两条不变量（原先无人守）────────────────────────────────
+{
+  const badInv = [];
+  for (const node of listNodes()) {
+    const nd = NODES[node];
+    // ① `grants` 的取值必须是已知类别。拼错的类别名会被**静默容忍**
+    //    （`CORE_TOOLS[cls] || []` 得到空数组 ⇒ "这个节点一个工具都没有"，却不报错）。
+    //    resolveTools 现在会抛错（运行时兜底），这里在**自检期**先把它报成一条失败。
+    for (const cls of (nd.grants || [])) {
+      if (!GRANT_CLASSES.includes(cls)) badInv.push(`${node}.grants 里有不认识的类别：${cls}`);
+    }
+    // ② `allowExtra` 与 `deny` 不得有交集。
+    //    有交集时是**顺序**决定谁赢（resolveTools 里 deny 在最后 ⇒ deny 赢），
+    //    而顺序一旦被后人调换，被禁的能力会**静默复活** —— 今天恰好没有交集，
+    //    但没有任何东西声明过这条不变量，所以要显式钉住。
+    const extra = new Set(nd.allowExtra || []);
+    for (const n2 of (nd.deny || [])) {
+      if (extra.has(n2)) badInv.push(`${node}: ${n2} 同时出现在 allowExtra 与 deny`);
+    }
+  }
+  ok(badInv.length === 0,
+     '约束表不变量：grants 取值合法，且 allowExtra ∩ deny = ∅',
+     badInv.join(' | '));
+}
 
 // ── G1：每个已实现的工具都要**可达**（否则它永远调不到）──
 {
@@ -157,10 +190,14 @@ ok(toolsFor('orbit', 'teach').includes('updateMastery'),
   const KNOWN_ROLE_GAPS = {
     crystal: ['explainConcept'],   // 晶体没有 explainConcept 工具（它的讲解不走这个工具）
     orbit: [],                     // 节点索要的六项它全有 —— ★ 修复前这里是拿不到 quizGen 的
-    symmetry: ['feynmanStart', 'feynmanEval'],
+    symmetry: ['diagnose', 'feynmanStart', 'feynmanEval'],
     // ★ 2026-10-12（用户第 7 条）：点群观鉴补齐了练习闭环（出题 / 讲解 / 推荐 / 学情 四项），
     //   缺口从六项缩到**两项**：费曼自检的入口与评估还没有。棘轮是双向的 ——
     //   把这两项也补上之后，这里必须跟着清空（少了也红）。
+    // ★ 2026-10-15：`diagnose` 也进了缺口 —— grade 节点的诊断工具由 allowExtra 的
+    //   **模块专名** `diagnoseError` 改成了**角色**（同 quiz 节点的 quizGen 做法）。
+    //   对称模块**还没有错因库**（见 CLAUDE.md 的待办），所以它不声明这个角色，
+    //   于是这里如实多一项。补上错因库之后，这一项要跟着删。
   };
   const bad = [];
   for (const [id, b] of BUILT) {
@@ -223,19 +260,23 @@ ok(prompt.includes('分离生成'), 'quiz 提示含答案解析分离要求');
 console.log('\n【⑤ descriptor 与实现的对账】');
 
 // ⑤-1 权限允许但没有实现的名字（幽灵名）。理想为空；不为空则应尽快补齐或撤回声明。
-let ghostTotal = 0;
-for (const node of listNodes()) {
-  const miss = allowedButMissing(node);
-  ghostTotal += miss.length;
-}
-console.log(`      权限允许但无人实现的名字：${ghostTotal} 处`);
-if (ghostTotal) {
+//   ★ 逐模块统计（见 allowedButMissing 的说明）。以前只有打印、**没有断言** ——
+//     于是幽灵名出现了也不会红，只能靠人看日志。
+const ghosts = [];
+for (const id of BUILT.keys()) {
   for (const node of listNodes()) {
-    const miss = allowedButMissing(node);
-    if (miss.length) console.log(`        ${node.padEnd(11)} ${miss.join(', ')}`);
+    for (const t of allowedButMissing(id, node)) ghosts.push(`${id}/${node}: ${t}`);
   }
-  console.log('      （这些词来自 nodes 的 allowExtra；模型实际看不到它们，但应尽快实现或撤回）');
 }
+console.log(`      权限允许但该模块未实现的名字：${ghosts.length} 处`);
+if (ghosts.length) {
+  ghosts.slice(0, 20).forEach((g) => console.log(`        ${g}`));
+  console.log('      （这些词来自 constraints 的 grants/roles/allowExtra；模型实际看不到它们，'
+    + '但应尽快实现或撤回声明）');
+}
+ok(ghosts.length === 0,
+   '⑤ 幽灵名探针：权限允许但模块未实现的名字为零（**逐模块**解析，不再用并集掩盖）',
+   ghosts.slice(0, 10).join(' | '));
 
 // ⑤-2 CORE_TOOLS 里的名字必须由中枢**实际实现**
 //
@@ -255,7 +296,8 @@ const shellImplemented = (() => {
     onIntent: () => ({ ok: true }),
   }
   const s = createShellTools(stub)
-  return new Set(['read', 'query', 'hand', 'teach']
+  // ★ 遍历 `GRANT_CLASSES`（共享常量，别就地写死四类 —— 漏一个的症状是"工具静默消失"）。
+  return new Set(GRANT_CLASSES
     .flatMap((c) => (s.defs[c] || []).map((d) => d.function.name)))
 })()
 
@@ -373,7 +415,16 @@ function moduleBuilt(id) {
       practiceGuard: () => new Set(),
     })
   } else if (id === 'symmetry') {
-    mod = createSymmetryModule({ initialId: 'water' })
+    // ★ 与 crystal / orbit 同款：symmetry 的教学工具同样是"**注入引擎才注册**"的
+    //   （它的 roles 是静态声明的，见 modules/symmetry/index.js）。
+    //   原先这里只传了 `initialId`，于是那四个角色解析出来的工具名**全是幽灵名** ——
+    //   被"逐模块幽灵名探针"（⑤-1）当场抓出四处。旧版探针用「所有模块的并集」，
+    //   crystal / orbit 实现了同名工具，就把 symmetry 的缺口掩盖了。
+    mod = createSymmetryModule({
+      initialId: 'water',
+      quiz: { generate() {}, askQuestion() {}, explain() {}, recommend() {}, variant() {}, evaluateFeynman() {} },
+      mastery: { update() {}, recommend() {} },
+    })
   } else if (id === 'orbit') {
     mod = createOrbitModule({
       quiz: { generate() {}, variant() {}, explain() {}, askQuestion() {}, evaluateFeynman() {} },

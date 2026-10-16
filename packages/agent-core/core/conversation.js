@@ -135,6 +135,7 @@ export function composeSystemPrompt(parts = {}) {
 export function createConversation(opts = {}) {
   const {
     llm, buildSystem, getSettings, getTools, executeTool, getSnapshotText, onAbort,
+    beginToolRound, endToolRound,
   } = opts
   for (const [k, v] of Object.entries({ llm, buildSystem, getSettings, getTools, executeTool })) {
     if (v == null) throw new Error(`createConversation 需要 opts.${k}`)
@@ -342,29 +343,40 @@ export function createConversation(opts = {}) {
         if (!out.toolCalls.length && !truncated) break
 
         // 逐个执行工具；若用户中止，**丢弃剩余未执行的调用**
-        for (let i = 0; i < out.toolCalls.length; i++) {
-          if (aborted) {
-            // ★ 未执行的调用也要回灌一条结果，否则历史里 tool_calls 与 tool 消息不配对，
-            //   下一次请求会被服务端判为格式非法（见文件头第 4 条）
-            for (let k = i; k < out.toolCalls.length; k++) {
-              history.push({
-                role: 'tool', tool_call_id: out.toolCalls[k].id,
-                content: JSON.stringify({ aborted: true, note: t('agent.tool.abortedNote') }),
-              })
+        //
+        // ★ 执行这批 tool_calls 之前**冻结工具白名单快照**（见 tool-registry.js 的
+        //   freezeRound）：同一批里"先调 declareIntent 切节点、紧接着调用新节点才有的
+        //   工具"于是不成立 —— 节点切换只对**下一轮**生效。
+        //   少了它，"模型看不到不允许的工具、结构上无法越权"就断在这里；
+        //   审计实证的通路正是：在 quiz 节点先切到 demo、再调 applySceneActions。
+        if (typeof beginToolRound === 'function') beginToolRound()
+        try {
+          for (let i = 0; i < out.toolCalls.length; i++) {
+            if (aborted) {
+              // ★ 未执行的调用也要回灌一条结果，否则历史里 tool_calls 与 tool 消息不配对，
+              //   下一次请求会被服务端判为格式非法（见文件头第 4 条）
+              for (let k = i; k < out.toolCalls.length; k++) {
+                history.push({
+                  role: 'tool', tool_call_id: out.toolCalls[k].id,
+                  content: JSON.stringify({ aborted: true, note: t('agent.tool.abortedNote') }),
+                })
+              }
+              break
             }
-            break
+            const tc = out.toolCalls[i]
+            const name = tc.function.name
+            let args = {}
+            try { args = JSON.parse(tc.function.arguments || '{}') } catch (e) { args = {} }
+
+            H.onToolCall({ name, args, round: rounds })
+            const result = await executeTool(name, tc.function.arguments)
+            executedTools.push(name)
+            H.onToolResult({ name, args, result, round: rounds })
+
+            history.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) })
           }
-          const tc = out.toolCalls[i]
-          const name = tc.function.name
-          let args = {}
-          try { args = JSON.parse(tc.function.arguments || '{}') } catch (e) { args = {} }
-
-          H.onToolCall({ name, args, round: rounds })
-          const result = await executeTool(name, tc.function.arguments)
-          executedTools.push(name)
-          H.onToolResult({ name, args, result, round: rounds })
-
-          history.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) })
+        } finally {
+          if (typeof endToolRound === 'function') endToolRound()
         }
 
         // ⑥ 长度截断（见文件头第 5 条）

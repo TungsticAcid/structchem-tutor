@@ -343,7 +343,7 @@ let lastDemoId = null
     //   之后，此后所有演示都只能一路播完——界面上再没有任何按钮能把节奏改回来
     //   （orbit 实测过这条：manual 只降不升）。
     demoManual = mkAct('⏸ 逐步', () => SB && SB.setManual && SB.setManual(true))
-    demoStop = mkAct('■ 停止', () => SB && SB.stop(), 'stop')
+    demoStop = mkAct('■ 停止', () => SB && SB.stop('user'), 'stop')
     demoReplay = mkAct('↻ 重新演示', () => SB && SB.replay(), 'primary')
     // ★ 「收起」只隐藏这条控制条，**不动播放状态**。原先它调的是 stop()，于是学生
     //   "看完顺手收起"之后就再也重播不了（队列被清空了）——那条演示其实还在记录里，

@@ -101,13 +101,41 @@ function distractorsFromCauses(kp, { excludeValue, limit = 3 } = {}) {
 }
 
 /** 邻近值干扰项（策略 ②）：在答案附近取几个合理值 */
-function nearValues(value, { digits = 4, factors = [0.5, 2, 0.75, 1.5] } = {}) {
+function nearValues(value, { digits = 4, factors = null } = {}) {
   const out = []
-  for (const f of factors) {
+  for (const f of (factors || pickFactors())) {
     const v = Number((value * f).toFixed(digits))
     if (v > 0) out.push({ text: num(v, digits), errorCause: null })
   }
   return out
+}
+
+/**
+ * 随机取 3 个互异的倍率（都不等于 1，以免与答案重合）。
+ *
+ * ★ 为什么不写死一组（默认值原先正是 `[0.5, 2, 0.75, 1.5]`）：
+ *   纯邻近值题型（C7 的 cellVolume / density / nearestNeighbor，其错因池为空）
+ *   四个选项的集合恒为 {v, 0.5v, 0.75v, 2v} —— 对 4 个数字**逐个假设"我是答案"**，
+ *   只有一个是使其余三个恰好等于它的 0.5 / 0.75 / 2 倍，答案当场可反推。
+ *   实测：NaCl 晶胞体积（v = 177.5043）的四个选项正是
+ *   177.5043 / 88.7522 / 355.0086 / 133.1282，比值恰为 1 : 0.5 : 2 : 0.75。
+ *   ★ 这条通路**与题目 id、洗牌种子都无关** —— 单修"id 不等于种子"堵不住它。
+ */
+function pickFactors() {
+  const POOL = [0.25, 0.35, 0.4, 0.5, 0.6, 0.75, 0.8, 1.2, 1.25, 1.5, 1.6, 1.75, 2, 2.5, 3]
+  let picked = []
+  for (let guard = 0; guard < 50; guard++) {
+    picked = []
+    while (picked.length < 3) {
+      const f = POOL[Math.floor(Math.random() * POOL.length)]
+      if (picked.indexOf(f) < 0) picked.push(f)
+    }
+    // ★ 明确躲开**原来那组固定因子**：它正是"唯一自洽"的可反推结构。
+    //   随机撞上它的概率约 1/455 —— 既然已经知道是哪一组，就不该留给运气。
+    const hitOldSet = picked.indexOf(0.5) >= 0 && picked.indexOf(0.75) >= 0 && picked.indexOf(2) >= 0
+    if (!hitOldSet) return picked
+  }
+  return [0.4, 1.25, 3]   // 兜底：一个明确不构成上述结构的组合
 }
 
 // ============================================================================

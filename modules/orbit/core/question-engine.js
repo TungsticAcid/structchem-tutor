@@ -532,6 +532,36 @@ const QuestionEngine = (function () {
     return { error: t('未能生成变式题') };
   }
 
+  /**
+   * ★ 给模型的视图：**抹掉答案**（与晶体模块 `quiz/index.js` 的 `toModelView` 同名同义）。
+   *
+   * 为什么投影写在引擎里、而不是工具层：投影规则必须与题目对象的形状**放在同一个文件**。
+   *   分开写的话，将来给题目加一个字段（例如某个"提示"），投影那一处不会有任何提示 ——
+   *   而漏掉的字段往往正好是答案。下面这份白名单就是"允许模型看见的全部字段"。
+   *
+   * ★ 本模块的 `options` 是**纯字符串数组**（见 `assemble` 里的 `shuffled`），
+   *   与晶体模块的对象数组不同 —— 所以直接复制，**不要**照抄晶体的 `o => o.text`。
+   *
+   * @param {Object} q 引擎内部的题目对象（含 answerIndex / explanation / presetView）
+   * @returns {Object} 只含题面与中性信息的安全对象
+   */
+  function toModelView(q) {
+    if (!q || q.error) return q
+    const out = {
+      id: q.id,
+      kp: q.kp,
+      difficulty: q.difficulty,
+      stem: q.stem,
+      options: Array.isArray(q.options) ? q.options.slice() : [],
+      note: t('orbit.tool.generateQuestion.note'),
+    }
+    // 变式题的谱系（不含答案）：留着它，模型才能说清"这是上面那题的变式"
+    if (q.isVariant) {
+      out.isVariant = true
+      out.fromQuestion = q.fromQuestion
+    }
+    return out
+  }
 
   function get(id) { return bank[id] || null; }
 
@@ -764,7 +794,7 @@ const QuestionEngine = (function () {
   }
 
   return { configure,
-    generate, variant, get, explain, evaluateFeynman,
+    generate, variant, get, explain, evaluateFeynman, toModelView,
     startFlow, launch, askQuestion, renderQuestion, answer, gotoStructure, next,
     flow: flow,
     _bank: bank,
