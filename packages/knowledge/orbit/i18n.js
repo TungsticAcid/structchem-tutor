@@ -476,7 +476,13 @@ export const entryText = {
   "在球坐标中 dV = r²sinθ dr dθ dφ，那个 r² 就是球壳体积因子。": "In spherical coordinates dV = r²sinθ dr dθ dφ, and that r² is the shell-volume factor.",
   "|ψ| 称为概率幅，|ψ|² 才是概率密度。": "|ψ| is called the probability amplitude; |ψ|² is the probability density.",
   "两者的关系：|ψ| = c ⟺ |ψ|² = c²，所以**同一条等值线**既可以说成": "They are related by |ψ| = c ⟺ |ψ|² = c², so **one and the same contour** can be read either as",
-  "\"|ψ| = c\"也可以说成\"|ψ|² = c²\"——它们是同一族曲面。": "\"|ψ| = c\" or as \"|ψ|² = c²\" — they are the same family of surfaces.",
+  // ★★ 2026-10-16：删掉一条**行级僵尸键** ——
+  //   `"\"|ψ| = c\"也可以说成\"|ψ|² = c²\"——它们是同一族曲面。"`
+  //   它是"引号统一成「」"那一轮漏下的：源文现在用的是**整段键**
+  //   （见本文件上方那条以 `|ψ| 称为概率幅` 开头的键，译文完整），
+  //   这条按行拆的旧键既查不到也不再被任何文本节点命中 ⇒ 删。
+  //   ★ 是用新写的 `packages/knowledge/tools/check-i18n-orphans.mjs` 扫出来的：
+  //     它把"字典键找不到源文"这种情况全部报出来（本轮扫出 symmetry 1 条、orbit 1 条）。
   "★ 但同一个「百分比读数」含义不同：": "★ But one and the same \"percentage reading\" means different things:",
   "按 |ψ|² 计 30% ⟺ 按 |ψ| 计 54.8%（因为 √0.30 ≈ 0.548）。": "30% by |ψ|² ⟺ 54.8% by |ψ| (since √0.30 ≈ 0.548).",
   "所以切换判据时曲面的**大小会变**，但**形状族不变**。": "So switching the criterion changes the **size** of the surface, but not the **family of shapes**.",

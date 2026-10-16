@@ -335,7 +335,7 @@ export const entryText = {
   "· **Ci**：只有一个反演中心 i。**群阶 = 2**（E 与 i）。": "· **Ci**: only one inversion center i. **Order = 2** (E and i).",
   "Ci 也可写成 **S₂**（因为 S₂ = i，见 P1-2）。": "Ci can also be written **S₂** (because S₂ = i; see P1-2).",
   "· **Cₙ**：只有一根 n 阶轴。**群阶 = n**（E, Cₙ, Cₙ², …, Cₙⁿ⁻¹）。": "· **Cₙ**: only one n-fold axis. **Order = n** (E, Cₙ, Cₙ², …, Cₙⁿ⁻¹).",
-  "例：交叉式 H₂O₂ 属于 C₂。": "Example: staggered H₂O₂ belongs to C₂.",
+  "例：H₂O₂ 的**扭曲构象**（平衡构象，二面角约 111°）属于 C₂。": "Example: the **skewed conformer** of H₂O₂ (the equilibrium conformer, dihedral ≈ 111°) belongs to C₂.",
   "· **S₂ₙ**：只有一根 n 阶非真轴。**群阶 = n**（n 为偶数时）。": "· **S₂ₙ**: only one n-fold improper axis. **Order = n** (for even n).",
   "例：1,3,5,7-四甲基环辛四烯属于 S₄。": "Example: 1,3,5,7-tetramethylcyclooctatetraene belongs to S₄.",
   "**这一族在教学上特别重要**，因为 P4 的几个判据都指向它们：": "**This family matters especially for teaching**, because several of the criteria in P4 point to it:",
@@ -466,10 +466,17 @@ export const entryText = {
   "由于邻位氢的立体排斥，实际分子**扭曲**（约 44°），此时 → **D₂**。": "because of steric repulsion between the ortho hydrogens the real molecule is **twisted** (by about 44°), and then → **D₂**.",
   "所以「联苯是 D₂ₕ 还是 D₂」取决于问的是理想平面构型还是真实构象——": "So \"is biphenyl D₂ₕ or D₂\" depends on whether the question is about the ideal planar geometry or the real conformation —",
   "本模块给的是**扭曲构象**（更接近真实），符号会与「平面联苯」不同。": "this module gives the **twisted conformation** (closer to reality), so the symbol differs from that of \"planar biphenyl\".",
-  "· **过氧化氢 H₂O₂**：绕 O—O 键转动，点群在 C₂ 与 C₂ₕ 之间变化。": "· **Hydrogen peroxide H₂O₂**: rotating about the O—O bond, the point group varies between C₂ and C₂ₕ.",
-  // ★ 2026-10-14：这句改成"扭转（构象转动）"并补了三句澄清 —— 起因是模型把
-  //   "绕 O—O 键转动（构象扭转）"读成了"C₂ 轴沿 O—O 键"✗（实测那根轴与 O—O 成 90°）。
-  "· **过氧化氢 H₂O₂**：绕 O—O 键**扭转**（构象转动）时，点群在 C₂ 与 C₂ₕ 之间变化。": "· **Hydrogen peroxide H₂O₂**: as the molecule **twists** about the O—O bond (conformational rotation), the point group varies between C₂ and C₂ₕ.",
+  // ★★ 2026-10-16（用户贴出模型的思维链："条目只说了 C₂ 与 C₂ₕ，C₂ᵥ 是我自己加的吗"）：
+  //   **条目原来是错的** —— 原文漏掉了**顺式的 C₂ᵥ**（见 p2.js 那段的长注释与
+  //   `tmp/probe-h2o2-groups.mjs` 的实测：φ=0°→C₂ᵥ、中间→C₂、φ=180°→C₂ₕ）。
+  //   ★ 上面那条旧键（"绕 O—O 键转动，点群在 C₂ 与 C₂ₕ 之间变化。"）已删除：
+  //     源文里不再有这一句，留着就是"查不到的僵尸键"。
+  "· **过氧化氢 H₂O₂**：绕 O—O 键**扭转**（H—O—O—H 二面角 φ 在变）时，": "· **Hydrogen peroxide H₂O₂**: as the molecule **twists** about the O—O bond (the H—O—O—H dihedral φ is changing),",
+  "点群**依次经过三个**：": "  the point group **passes through three in turn**:",
+  "**顺式 φ=0° → C₂ᵥ**、**扭曲 φ≈111°（平衡构象）→ C₂**、**反式 φ=180° → C₂ₕ**。": "  **cis, φ=0° → C₂ᵥ**, **skewed, φ≈111° (equilibrium) → C₂**, **trans, φ=180° → C₂ₕ**.",
+  "★ 两端各有各的镜面，但**一个是竖直的（σᵥ）、一个是水平的（σₕ）**，": "  ★ Both ends have a mirror plane, but **one is vertical (σᵥ) and the other horizontal (σₕ)**,",
+  "所以顺式与反式**不是同一个群**——C₂ᵥ 可以有偶极矩、C₂ₕ 不能（见 P4-5）。": "    so cis and trans are **not the same group** — C₂ᵥ may have a dipole moment, C₂ₕ cannot (see P4-5).",
+  "除了这三个特殊角度，中间任何构象都只剩那根 C₂ 轴。": "  Apart from these three special angles, any intermediate conformer keeps only the single C₂ axis.",
   "★ 别把两件事混起来：这里的「绕 O—O 键」说的是**构象扭转**（H—O—O—H 二面角在变）；": "★ Do not conflate two things: \"about the O—O bond\" here means **conformational torsion** (the H—O—O—H dihedral angle is changing);",
   "而 C₂ 群的**那根 C₂ 轴与 O—O 键垂直** —— 它平分两条 O—H 键（各约 56°），与 O—O 约 90°。": "whereas the **C₂ axis of the C₂ group is perpendicular to the O—O bond** — it bisects the two O—H bonds (≈56° each) and makes ≈90° with O—O.",
   "分子「看起来」是绕 O—O 在转，但**对称轴不是 O—O 本身**（这条被模型误读过一次）。": "The molecule \"looks like\" it is rotating about O—O, but the **symmetry axis is not the O—O bond itself** (a model once misread this).",
@@ -1276,7 +1283,9 @@ Object.assign(entryText, {
   "  例如 CHFClBr（四个基团全不同）。**群阶 = 1**。": "for example CHFClBr (all four substituents different). **Order = 1**.",
   "  注意 Cs 有时也写成 **C₁ₕ**，两者是同一个群。": "Note that Cs is sometimes written **C₁ₕ**; the two are the same group.",
   "  Ci 也可写成 **S₂**（因为 S₂ = i，见 P1-2）。": "Ci can also be written **S₂** (because S₂ = i; see P1-2).",
-  "  例：交叉式 H₂O₂ 属于 C₂。": "Example: staggered H₂O₂ belongs to C₂.",
+  // ★★ 2026-10-16：删掉一条**僵尸键** `"  例：交叉式 H₂O₂ 属于 C₂。"`
+  //   （源文已改成「例：H₂O₂ 的**扭曲构象**…属于 C₂。」；留着它查不到、也没人用）。
+  //   顺手用新写的 `tools/check-i18n-orphans.mjs` 扫全库发现的这类键 —— 见该脚本的说明。
   "  例：1,3,5,7-四甲基环辛四烯属于 S₄。": "Example: 1,3,5,7-tetramethylcyclooctatetraene belongs to S₄.",
   "  不能把偶极矢量清零，见 P4-5）。": "cannot wipe out the dipole vector; see P4-5).",
   "  都含有非真旋转，见 P4-4）。": "all contain improper rotations; see P4-4).",
