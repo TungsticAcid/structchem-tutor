@@ -389,11 +389,33 @@ export class HomePage {
           text-decoration: underline; text-underline-offset: 3px;
         }
         .pl-set-link:hover { filter: brightness(1.2); }
+        /**
+         * ★★ 2026-10-16（用户："手机端界面显示有问题"——真机截图：副标题末字被右边缘切掉、
+         *   悬浮球压住第 03 行）——**两个真因，都是层叠问题**：
+         *
+         *   ① **小屏列定义被特异性压住**：这里原先写的是单类选择器 .pl-row，
+         *      而桌面规则是 **.portal.lang-zh .pl-row**（0,3,0）—— 单类（0,1,0）
+         *      **永远盖不住它** ⇒ 窄屏仍按 5 列排（实测列宽 47.6 + 105 + 189 + 196 加间距
+         *      ≈ **626px**），页面被撑到比视口还宽 ✗。
+         *      ⇒ 小屏这条也要写成 .portal.lang-zh .pl-row（同特异性、靠后生效），
+         *        英文那套基础规则（18em…）同样要盖，故两条都写。
+         *
+         *   ② **.portal 自身会撑破视口**：桌面用 width: fit-content（版心随内容收窄），
+         *      而窄屏下网格的**固有最小宽度**把 fit-content 顶到 670px（视口 496）✗。
+         *      ⇒ 小屏改成 width: 100%（配合 box-sizing: border-box 与 22px 内边距）。
+         *
+         *   ★ 实测（手机视口）：修前 .portal 宽 **670** / 文档宽 670（视口 496）；
+         *     修后见提交说明里的读数（应等于视口宽、横向溢出 0）。
+         *   ★ 本注释在模板串内部：**不许出现反引号** —— 我这版第一稿正是因此把模板串
+         *     截断、整页白屏（node --check 当场报 SyntaxError），
+         *     上一轮新加的 tmp/check-tpl-backticks.mjs 一跑就抓到。
+         */
         @media (max-width: 560px) {
-          .portal { padding: 64px 22px 48px; }
+          .portal { width: 100%; max-width: 100%; padding: 64px 22px 48px; }
           .pl-head h1 { font-size: 30px; }
           .pl-head { margin-bottom: 48px; }
-          .pl-row { grid-template-columns: 2.6em 1fr auto; row-gap: 6px; }
+          .pl-row,
+          .portal.lang-zh .pl-row { grid-template-columns: 2.6em 1fr auto; row-gap: 6px; }
           .pl-blurb { grid-column: 2 / -1; }
           .pl-tag { display: none; }
           .pl-badge { display: none; }
