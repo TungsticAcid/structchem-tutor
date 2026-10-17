@@ -836,20 +836,31 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '元素小块读模块的 elements.js（不另抄一份周期表）')
   ok(/@media \(max-width: 1359px\) \{\s*\.pt-deco \{ display: none/.test(flat),
     '窄屏隐藏点缀层（页边距不足时会压正文）')
-  ok(/pt-chem-strip/.test(home) && /\(100\) \(110\) \(111\)/.test(home),
+  ok(/pt-chem-strip/.test(home) && /\(111\)/.test(home),
     '化学记号条：点群 + Miller 指数（不是随手编的符号）')
-  // ★ 2026-10-18 用户复查：结构化学课对空间群讲得不多（原来的 4 个空间群减到 1 个），
-  //   并补上薛定谔方程 / 德布罗意 / 玻尔能级这些经典元素。
-  ok(/<i>Ĥ<\/i><i>ψ<\/i> = <i>E<\/i><i>ψ<\/i>/.test(home)
-    && /<i>λ<\/i> = <i>h<\/i>\/<i>p<\/i>/.test(home)
-    && /13\.6 eV\/<i>n<\/i>²/.test(home),
-    '化学记号条：薛定谔方程 / 德布罗意关系 / 玻尔能级（经典元素，排版按变量斜体、单位正体）')
+  // ★ 2026-10-18 用户再次复查（第三条）："记号条太长了" —— 三条公式从 strip 挪到三张卡片里，
+  //   记号条只留 1 个空间群 + 4 个点群 + (111)。
+  ok(!/13\.6 eV/.test(home) && !/<i>λ<\/i> = <i>h<\/i>\/<i>p<\/i>/.test(home),
+    '★ 记号条已缩短：薛定谔/德布罗意/玻尔能级不再挤在 strip 里')
   ok(/P6<sub>3<\/sub>\/mmc/.test(home) === false && /Fd<span class="pt-bar">3<\/span>m/.test(home) === false,
     '★ 空间群已按用户要求减少：Strip 里只保留 NaCl 的 Fm3̄m，删掉 Im3̄m / Fd3̄m / P6₃/mmc')
   ok(/pt-deco-art--bohr/.test(home) && /<ellipse/.test(home) && /Bohr · 1913/.test(home),
     '点缀：玻尔模型线稿（轨道 + 电子）+ 年代标签')
   ok(/pt-deco-tag--tight/.test(home) && /\.pt-deco-tag--tight \{[^}]*white-space: nowrap/.test(flat),
     '短记号（σ·π·δ / Bohr·1913）强制单行 —— 用户实测发现会被折行')
+
+  // ★ 2026-10-18：三条公式作为**卡片点缀**（不是主信息）
+  ok(/const CARD_FORMULA = \{/.test(home)
+    && /orbit: '<i>Ĥ<\/i><i>ψ<\/i> = <i>E<\/i><i>ψ<\/i>'/.test(home),
+    '轨道卡点缀：定态薛定谔方程 Ĥψ = Eψ')
+  ok(/CARD_FORMULA[\s\S]*?<i>Γ<\/i>[\s\S]*?√[\s\S]*?<i>δ<\/i>/.test(home),
+    '点群卡点缀：大正交定理（Γ、√、δ 都在；按变量斜体排版）')
+  ok(/crystal: '[^']*ψ[^']*e<sup><i>ik<\/i>·<i>r<\/i><\/sup>/.test(home),
+    '晶典卡点缀：布洛赫定理 ψ_k(r) = e^{ik·r} u_k(r)')
+  ok(/pt-card-formula/.test(home)
+    && /\.pt-card-formula \{[^}]*opacity: \.4[^}]*pointer-events: none/.test(flat)
+    && /@media \(max-width: 1099px\) \{\s*\.pt-card-formula \{ display: none/.test(flat),
+    '卡片公式是低透明度点缀（不拦点击；窄卡片隐藏，避免截出半行）')
 }
 
 console.log('')

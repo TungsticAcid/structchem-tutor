@@ -73,6 +73,26 @@ const MODULE_DEMO = {
   crystal: 'NaCl · Fm<span class="pt-bar">3</span>m',
 }
 
+/**
+ * 三张卡片里各放一条**公式点缀**（用户：「薛定谔方程改到轨道视界卡片……点群观鉴卡片放一个
+ * 大正交定理公式，晶典在线卡片上放一个布洛赫定理的公式。不用太突出，公式只是作为点缀」）。
+ *
+ * 排版沿用项目规则：变量（ψ、E、R、h、d、k、r、u…）用斜体衬线；Γ 作为表示符号也按斜体；
+ * 运算符/数字/函数名（Σ、√、e、δ？）保持正体。放在卡片视觉区左下角，低透明度、不拦点击。
+ */
+const CARD_FORMULA = {
+  // 定态薛定谔方程
+  orbit: '<i>Ĥ</i><i>ψ</i> = <i>E</i><i>ψ</i>',
+  // 大正交定理（Great Orthogonality Theorem）—— 两行排版：长公式在小卡片里一行会挤成噪点
+  symmetry: 'Σ<sub><i>R</i></sub> <i>Γ</i><sup>(<i>i</i>)</sup>(<i>R</i>)<sub><i>mn</i></sub>'
+    + ' <i>Γ</i><sup>(<i>j</i>)</sup>(<i>R</i>)<sub><i>m′n′</i></sub><sup>*</sup>'
+    + '<br>= (<i>h</i>/√(<i>d</i><sub><i>i</i></sub><i>d</i><sub><i>j</i></sub>))'
+    + '<i>δ</i><sub><i>ij</i></sub><i>δ</i><sub><i>mm′</i></sub><i>δ</i><sub><i>nn′</i></sub>',
+  // 布洛赫定理
+  crystal: '<i>ψ</i><sub><i>k</i></sub>(<i>r</i>) = e<sup><i>ik</i>·<i>r</i></sup>'
+    + '<i>u</i><sub><i>k</i></sub>(<i>r</i>)',
+}
+
 /** 等宽字体栈：HUD/编号/英文小字用（正文仍走 --font-ui 令牌） */
 const MONO = 'ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
 
@@ -279,6 +299,10 @@ export class HomePage {
       + '<span class="pt-card-visual">'
       + '<canvas class="pt-canvas pt-card-canvas" data-canvas="' + m.id + '" aria-hidden="true"></canvas>'
       + '<span class="pt-card-demo" aria-hidden="true">' + (MODULE_DEMO[m.id] || '') + '</span>'
+      + (CARD_FORMULA[m.id]
+        ? '<span class="pt-card-formula pt-card-formula--' + m.id + '" aria-hidden="true">'
+          + CARD_FORMULA[m.id] + '</span>'
+        : '')
       + '</span>'
       + '<span class="pt-card-body">'
       + '<span class="pt-card-name">' + title + '</span>'
@@ -433,7 +457,7 @@ export class HomePage {
         <section class="pt-modules" id="pt-modules">
           <div class="pt-chem-strip" aria-hidden="true">
             <span class="pt-chem-strip-rule"></span>
-            <span class="pt-chem-strip-items">Fm<span class="pt-bar">3</span>m · <i>T</i><sub>d</sub> · <i>O</i><sub>h</sub> · <i>D</i><sub>6h</sub> · <i>C</i><sub>2v</sub> · <i>Ĥ</i><i>ψ</i> = <i>E</i><i>ψ</i> · <i>λ</i> = <i>h</i>/<i>p</i> · <i>E</i><sub><i>n</i></sub> = −13.6 eV/<i>n</i>² · (100) (110) (111)</span>
+            <span class="pt-chem-strip-items">Fm<span class="pt-bar">3</span>m · <i>T</i><sub>d</sub> · <i>O</i><sub>h</sub> · <i>D</i><sub>6h</sub> · <i>C</i><sub>2v</sub> · (111)</span>
             <span class="pt-chem-strip-rule"></span>
           </div>
           <div class="pt-mod-head">
@@ -2083,6 +2107,38 @@ const STYLE = `
   letter-spacing: .06em;
   color: var(--pt-dim);
   opacity: .85;
+}
+/**
+ * 卡片里的公式点缀（薛定谔 / 大正交定理 / 布洛赫定理）。
+ * ★ 用户要求"不用太突出，公式只是作为点缀，重点是美观" ⇒ 8px 等宽 + 低透明度 + 左下角，
+ *   不参与信息层级、不拦点击；窄卡片（<1100px 时一列变窄）直接隐藏，避免截出来半行。
+ */
+.pt-card-formula {
+  position: absolute;
+  left: 3px;
+  bottom: 4px;
+  max-width: calc(100% - 6px);
+  overflow: hidden;
+  white-space: normal;
+  font-family: var(--pt-mono);
+  font-size: 9px;
+  line-height: 1.5;
+  letter-spacing: .01em;
+  color: var(--pt-dim);
+  opacity: .42;
+  pointer-events: none;
+  transition: opacity .3s ease;
+}
+.pt-card-formula--symmetry { font-size: 8px; }
+.pt-card:hover .pt-card-formula { opacity: .6; }
+.pt-card-formula i {
+  font-family: var(--font-symbol, "Times New Roman", serif);
+  font-style: italic;
+  letter-spacing: 0;
+}
+.pt-card-formula sub, .pt-card-formula sup { font-size: .72em; line-height: 0; letter-spacing: 0; }
+@media (max-width: 1099px) {
+  .pt-card-formula { display: none; }
 }
 .pt-card-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .pt-card-name {
