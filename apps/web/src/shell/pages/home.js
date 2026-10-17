@@ -1100,21 +1100,33 @@ export class HomePage {
     const style = this._crystalStyle || this._resolveCrystalStyle()
     const lat = this._scenes.lattice
 
-    // ---- 动效（用户：晶典卡"不像其他两张会动，缺高级感"）----
-    //   ★ 不做旋转、不做透视：视角仍是教材图的 cabinet 斜投影 —— 只让投影参数在基准上
-    //     **极慢呼吸**（角度 ±2.6°、深度 ±0.035、整体缩放 ±0.8%、画面 ±2px 浮动）。
-    //     正面永远不变形、平行线永远平行（斜投影的定义），看起来是晶格在手里轻轻转动。
+    // ---- 动效（用户反馈"还是不动"：振幅必须调到肉眼可感知）----
+    //   ★ 怎么动都不引入透视：**先做 3D 旋转，再用 projectOblique 做仿射投影** ——
+    //     仿射保持平行线（没有近大远小），所以教材图那种"平行投影"的观感不丢。
+    //     绕竖直轴 ±18° 缓慢摆动（≈16 s 一周期）、绕水平轴 ±3.4° 轻微点头，
+    //     再叠加呼吸（角度/深度/缩放/浮动）—— 一眼就能看出晶格在转，但不会"透视歪掉"。
+    const yaw = Math.sin(t * 0.38) * 0.32
+    const pitch = Math.sin(t * 0.27 + 1.1) * 0.06
+    const cyaw = Math.cos(yaw), syaw = Math.sin(yaw)
+    const cpit = Math.cos(pitch), spit = Math.sin(pitch)
+    const spin = (p) => {
+      const x1 = p[0] * cyaw - p[2] * syaw
+      const z1 = p[0] * syaw + p[2] * cyaw
+      return [x1, p[1] * cpit - z1 * spit, p[1] * spit + z1 * cpit]
+    }
     const breathe = Math.sin(t * 0.55)                 // ≈ 11.4 s 一个来回
     const breathe2 = Math.sin(t * 0.42 + 1.3)          // ≈ 15 s，与上面错相
-    const scale = m * (0.5 + breathe * 0.008)
+    const scale = m * (0.5 + breathe * 0.012)
     const opts = {
       cx,
-      cy: cy + breathe2 * 2,
+      cy: cy + breathe2 * 2.4,
       scale,
-      alpha: 0.6632251 + breathe * 0.045,
-      depth: 0.5 + breathe2 * 0.035,
+      alpha: 0.6632251 + breathe * 0.03,
+      depth: 0.5 + breathe2 * 0.05,
     }
     const screen = (p) => projectOblique(p, opts)
+    // 旋转后的节点位置（画家算法的深度必须用**旋转后**的 z）
+    const rot = lat.nodes.map((n) => spin([n.x, n.y, n.z]))
 
     // ---- 尺寸：全部从模块常量/数据换算（不手写像素比例）----
     // 卡片格点间距 = 1/√3 × scale；NaCl 最近邻距离 = a/2（岩盐型：Cl 在 0、Na 在 a/2）
@@ -1141,53 +1153,56 @@ export class HomePage {
 
     // 柔光脉动：卡片里没有独立光源，用一层很淡的呼吸光把晶格"托"起来（与另外两张卡的辉光同语言）
     const pulse = 0.5 + 0.5 * Math.sin(t * 0.7 + 0.4)
-    drawGlow(ctx, cx, cy, m * 0.46, pal.accent, dark ? 0.05 + pulse * 0.05 : 0.035 + pulse * 0.03)
+    drawGlow(ctx, cx, cy, m * 0.46, pal.accent, dark ? 0.06 + pulse * 0.06 : 0.04 + pulse * 0.035)
 
     // 画家算法：键与球放进同一张表，按 z 从远到近画（+z = 远离观察者，朝右上）
     const items = []
     for (let i = 0; i < lat.edges.length; i++) {
-      const a = lat.nodes[lat.edges[i][0]]
-      const b = lat.nodes[lat.edges[i][1]]
-      items.push({ kind: 'bond', z: (a.z + b.z) / 2, a, b })
+      const ia = lat.edges[i][0]
+      const ib = lat.edges[i][1]
+      items.push({ kind: 'bond', z: (rot[ia][2] + rot[ib][2]) / 2, a: ia, b: ib })
     }
     for (let i = 0; i < lat.nodes.length; i++) {
-      items.push({ kind: 'atom', z: lat.nodes[i].z, node: lat.nodes[i] })
+      items.push({ kind: 'atom', z: rot[i][2], node: i })
     }
     items.sort((p, q) => q.z - p.z)
 
     for (let k = 0; k < items.length; k++) {
       const it = items[k]
       if (it.kind === 'bond') {
-        const ps = screen([it.a.x, it.a.y, it.a.z])
-        const pe = screen([it.b.x, it.b.y, it.b.z])
+        const ps = screen(rot[it.a])
+        const pe = screen(rot[it.b])
         const midX = (ps.x + pe.x) / 2
         const midY = (ps.y + pe.y) / 2
         // 模块的键 = 两根半截圆柱：靠哪端就用哪个元素的颜色（双色键是晶典在线的特征之一）
-        drawLine(ctx, ps.x, ps.y, midX, midY, rgba(colorOf(it.a.kind), 1), bondW, 1)
-        drawLine(ctx, midX, midY, pe.x, pe.y, rgba(colorOf(it.b.kind), 1), bondW, 1)
+        const aKind = lat.nodes[it.a].kind
+        const bKind = lat.nodes[it.b].kind
+        drawLine(ctx, ps.x, ps.y, midX, midY, rgba(colorOf(aKind), 1), bondW, 1)
+        drawLine(ctx, midX, midY, pe.x, pe.y, rgba(colorOf(bKind), 1), bondW, 1)
         continue
       }
-      const node = it.node
-      const pr = screen([node.x, node.y, node.z])
+      const node = lat.nodes[it.node]
+      const pr = screen(rot[it.node])
       const base = colorOf(node.kind)
-      // 每个球自己的相位：高光"呼吸"（金属球在环境光里轻轻闪）
-      const twinkle = 0.78 + 0.18 * Math.sin(t * 1.1 + (node.x + node.z) * 1.8)
+      // 每个球自己的相位：高光在球面上**缓慢绕圈**（金属球在环境光里转动）+ 轻微呼吸
+      const glint = t * 0.55 + (node.x * 2.1 + node.y * 1.7 + node.z)
       const r = radiusOf(node.kind) * (1 + 0.012 * Math.sin(t * 0.85 + k * 1.3))
       ctx.beginPath()
       ctx.arc(pr.x, pr.y, r, 0, TAU)
       ctx.fillStyle = sphereFill(pr, r, base)
       ctx.fill()
-      drawDot(ctx, pr.x - r * 0.34, pr.y - r * 0.34, r * 0.2, 'rgba(255,255,255,0.85)', twinkle)
+      drawDot(ctx, pr.x + r * 0.34 * Math.cos(glint), pr.y + r * 0.34 * Math.sin(glint),
+        r * 0.2, 'rgba(255,255,255,0.85)', 0.78 + 0.18 * Math.sin(glint * 1.7))
     }
 
-    // 扫描光带：每 ~9 s 从左上到右下掠过一次，只扫晶格所在的圆形区域（卡片的"高级感"细节）
-    const sweepT = (t * 0.11) % 1
+    // 扫描光带：每 ~6 s 从左上到右下掠过一次，只扫晶格所在的圆形区域（卡片的"高级感"细节）
+    const sweepT = (t * 0.16) % 1
     if (sweepT > 0.02 && sweepT < 0.98) {
       const sweepX = cx + (sweepT * 2 - 1) * m * 0.72
       const sw = m * 0.22
       const sg = ctx.createLinearGradient(sweepX - sw, cy - m * 0.6, sweepX + sw, cy + m * 0.6)
       sg.addColorStop(0, 'rgba(255,255,255,0)')
-      sg.addColorStop(0.5, dark ? 'rgba(150,220,255,0.10)' : 'rgba(37,99,214,0.055)')
+      sg.addColorStop(0.5, dark ? 'rgba(150,220,255,0.16)' : 'rgba(37,99,214,0.075)')
       sg.addColorStop(1, 'rgba(255,255,255,0)')
       ctx.save()
       ctx.beginPath()

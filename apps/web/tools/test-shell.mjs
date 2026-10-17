@@ -777,20 +777,22 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /STICK_RADIUS_A = 0\.08/.test(crystalDraw),
     '★ 晶典卡：球棍比例来自模块常量（BALL_STICK_FACTOR 0.3 / stickRadius 0.08）')
   ok(/const midX = \(ps\.x \+ pe\.x\) \/ 2/.test(crystalDraw)
-    && /rgba\(colorOf\(it\.b\.kind\)/.test(crystalDraw),
+    && /rgba\(colorOf\(bKind\)/.test(crystalDraw),
     '★ 晶典卡：键是两段双色（靠 Cl 端绿、靠 Na 端蓝 —— 与晶典在线一致）')
   /**
-   * ★ 2026-10-17 用户第六次复查："晶典在线的卡片不像其他两个卡片会动，缺乏一点高级感"。
-   *   判据不是"看起来动"，而是**在教材视角的基准上做小振幅呼吸**：
-   *   投影参数（alpha/depth/scale）必须仍然是基准 + sin 调制 —— 一旦有人为了"会动"把它改成
-   *   旋转/透视，这两条会连同上面的"无 focal、用 projectOblique"一起红。
+   * ★ 2026-10-17 用户第六次复查："晶典在线的卡片不像其他两个卡片会动，缺乏一点高级感"；
+   *   第一版只做了 ±2.6° 的呼吸（像素位移 ≤2px），用户随后反馈"还是不动" —— 振幅必须可感知。
+   *   现在的判据：**先 3D 旋转（yaw ±18° + pitch ±3.4°）再用 projectOblique 做仿射投影**，
+   *   因此"(1) 有旋转 (2) 仍走 projectOblique (3) 无透视 focal"三件事必须同时成立 ——
+   *   任何一条被改掉（比如换成透视相机去"让它更动"）都会红。
    */
-  ok(/const breathe = Math\.sin\(t \* 0\.55\)/.test(crystalDraw)
-    && /alpha: 0\.6632251 \+ breathe \* 0\.045/.test(crystalDraw),
-    '★ 晶典卡有动效：cabinet 斜投影参数在基准上缓慢呼吸（不作旋转、不引入透视）')
-  ok(/const sweepT = \(t \* 0\.11\) % 1/.test(crystalDraw)
+  ok(/const yaw = Math\.sin\(t \* 0\.38\) \* 0\.32/.test(crystalDraw)
+    && /const spin = \(p\)/.test(crystalDraw)
+    && /const rot = lat\.nodes\.map\(\(n\) => spin/.test(crystalDraw),
+    '★ 晶典卡有动效：绕竖直轴 ±18° 缓慢摆动 + 轻微点头（旋转后仍走 projectOblique ⇒ 平行线保持平行）')
+  ok(/const sweepT = \(t \* 0\.16\) % 1/.test(crystalDraw)
     && /globalCompositeOperation/.test(crystalDraw),
-    '★ 晶典卡有扫描光带（每 ~9s 掠过晶格所在的圆形区域）')
+    '★ 晶典卡有扫描光带（每 ~6s 掠过晶格所在的圆形区域）')
 
   ok(/overflow: hidden;\s*overflow: clip;/.test(flat),
     '★ .portal 用 overflow: clip（hidden 会变成滚动容器 ⇒ "开始探索"后页面滚不回来）')
