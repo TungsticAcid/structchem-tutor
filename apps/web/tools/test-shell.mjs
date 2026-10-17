@@ -779,6 +779,18 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/const midX = \(ps\.x \+ pe\.x\) \/ 2/.test(crystalDraw)
     && /rgba\(colorOf\(it\.b\.kind\)/.test(crystalDraw),
     '★ 晶典卡：键是两段双色（靠 Cl 端绿、靠 Na 端蓝 —— 与晶典在线一致）')
+  /**
+   * ★ 2026-10-17 用户第六次复查："晶典在线的卡片不像其他两个卡片会动，缺乏一点高级感"。
+   *   判据不是"看起来动"，而是**在教材视角的基准上做小振幅呼吸**：
+   *   投影参数（alpha/depth/scale）必须仍然是基准 + sin 调制 —— 一旦有人为了"会动"把它改成
+   *   旋转/透视，这两条会连同上面的"无 focal、用 projectOblique"一起红。
+   */
+  ok(/const breathe = Math\.sin\(t \* 0\.55\)/.test(crystalDraw)
+    && /alpha: 0\.6632251 \+ breathe \* 0\.045/.test(crystalDraw),
+    '★ 晶典卡有动效：cabinet 斜投影参数在基准上缓慢呼吸（不作旋转、不引入透视）')
+  ok(/const sweepT = \(t \* 0\.11\) % 1/.test(crystalDraw)
+    && /globalCompositeOperation/.test(crystalDraw),
+    '★ 晶典卡有扫描光带（每 ~9s 掠过晶格所在的圆形区域）')
 
   ok(/overflow: hidden;\s*overflow: clip;/.test(flat),
     '★ .portal 用 overflow: clip（hidden 会变成滚动容器 ⇒ "开始探索"后页面滚不回来）')

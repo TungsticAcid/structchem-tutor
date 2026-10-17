@@ -1100,9 +1100,20 @@ export class HomePage {
     const style = this._crystalStyle || this._resolveCrystalStyle()
     const lat = this._scenes.lattice
 
-    // 斜投影参数：与屏幕水平方向 38°、深度缩短一半（教材插图的常用比例）
-    const scale = m * 0.5
-    const opts = { cx, cy, scale, alpha: 0.6632251, depth: 0.5 }
+    // ---- 动效（用户：晶典卡"不像其他两张会动，缺高级感"）----
+    //   ★ 不做旋转、不做透视：视角仍是教材图的 cabinet 斜投影 —— 只让投影参数在基准上
+    //     **极慢呼吸**（角度 ±2.6°、深度 ±0.035、整体缩放 ±0.8%、画面 ±2px 浮动）。
+    //     正面永远不变形、平行线永远平行（斜投影的定义），看起来是晶格在手里轻轻转动。
+    const breathe = Math.sin(t * 0.55)                 // ≈ 11.4 s 一个来回
+    const breathe2 = Math.sin(t * 0.42 + 1.3)          // ≈ 15 s，与上面错相
+    const scale = m * (0.5 + breathe * 0.008)
+    const opts = {
+      cx,
+      cy: cy + breathe2 * 2,
+      scale,
+      alpha: 0.6632251 + breathe * 0.045,
+      depth: 0.5 + breathe2 * 0.035,
+    }
     const screen = (p) => projectOblique(p, opts)
 
     // ---- 尺寸：全部从模块常量/数据换算（不手写像素比例）----
@@ -1127,6 +1138,10 @@ export class HomePage {
       g.addColorStop(1, rgba(mixColor(base, { r: 0, g: 0, b: 0, a: 1 }, 0.42), 1))
       return g
     }
+
+    // 柔光脉动：卡片里没有独立光源，用一层很淡的呼吸光把晶格"托"起来（与另外两张卡的辉光同语言）
+    const pulse = 0.5 + 0.5 * Math.sin(t * 0.7 + 0.4)
+    drawGlow(ctx, cx, cy, m * 0.46, pal.accent, dark ? 0.05 + pulse * 0.05 : 0.035 + pulse * 0.03)
 
     // 画家算法：键与球放进同一张表，按 z 从远到近画（+z = 远离观察者，朝右上）
     const items = []
@@ -1155,12 +1170,33 @@ export class HomePage {
       const node = it.node
       const pr = screen([node.x, node.y, node.z])
       const base = colorOf(node.kind)
-      const r = radiusOf(node.kind)
+      // 每个球自己的相位：高光"呼吸"（金属球在环境光里轻轻闪）
+      const twinkle = 0.78 + 0.18 * Math.sin(t * 1.1 + (node.x + node.z) * 1.8)
+      const r = radiusOf(node.kind) * (1 + 0.012 * Math.sin(t * 0.85 + k * 1.3))
       ctx.beginPath()
       ctx.arc(pr.x, pr.y, r, 0, TAU)
       ctx.fillStyle = sphereFill(pr, r, base)
       ctx.fill()
-      drawDot(ctx, pr.x - r * 0.34, pr.y - r * 0.34, r * 0.2, 'rgba(255,255,255,0.85)', 0.9)
+      drawDot(ctx, pr.x - r * 0.34, pr.y - r * 0.34, r * 0.2, 'rgba(255,255,255,0.85)', twinkle)
+    }
+
+    // 扫描光带：每 ~9 s 从左上到右下掠过一次，只扫晶格所在的圆形区域（卡片的"高级感"细节）
+    const sweepT = (t * 0.11) % 1
+    if (sweepT > 0.02 && sweepT < 0.98) {
+      const sweepX = cx + (sweepT * 2 - 1) * m * 0.72
+      const sw = m * 0.22
+      const sg = ctx.createLinearGradient(sweepX - sw, cy - m * 0.6, sweepX + sw, cy + m * 0.6)
+      sg.addColorStop(0, 'rgba(255,255,255,0)')
+      sg.addColorStop(0.5, dark ? 'rgba(150,220,255,0.10)' : 'rgba(37,99,214,0.055)')
+      sg.addColorStop(1, 'rgba(255,255,255,0)')
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(cx, cy, m * 0.52, 0, TAU)
+      ctx.clip()
+      ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over'
+      ctx.fillStyle = sg
+      ctx.fillRect(cx - m * 0.6, cy - m * 0.6, m * 1.2, m * 1.2)
+      ctx.restore()
     }
 
     // ---- 图例：与晶典在线一致（Cl⁻ 大球绿、Na⁺ 小球蓝）----
