@@ -393,6 +393,70 @@ console.log('\n【⑦ 显示状态：模型可驱动（此前这些功能只有�
   check('每个 H 恰好连一个重原子', loneH.length === 0, loneH.slice(0, 4).join('；'))
   check('没有飘着的重原子', floating.length === 0, floating.slice(0, 4).join('；'))
 
+  // ★ 2026-10-18：三乙二胺合钴 [Co(en)3]3+ —— 按 `D3-CoIIIen3.gjf` 的组成/连接重构
+  //   为 37 原子的严格 D3 模型（原先是 19 原子示意图；GJF 原始坐标判群 C1、有硬接触）。
+  //   这里钉住"组成、点群、键长、无 H···H 硬接触"四条，防止退回示意结构或抄坏坐标。
+  {
+    const ex = EXAMPLES.find((e) => e.id === 'coen3')
+    check('coen3 示例存在', !!ex)
+    if (ex) {
+      const A = ex.structure.atoms
+      const cnt = {}
+      for (const a of A) cnt[el(a)] = (cnt[el(a)] || 0) + 1
+      check('★ 三乙二胺合钴：37 个原子（CoC6N6H24，含全部 24 个 H，不再是 19 原子示意图）',
+        A.length === 37 && cnt.Co === 1 && cnt.C === 6 && cnt.N === 6 && cnt.H === 24,
+        JSON.stringify(cnt))
+      const pg = identifyPointGroup(ex.structure).symbol
+      check('★ 三乙二胺合钴：程序算出 D3（与 GJF 标注一致）', pg === 'D3', pg)
+      const coN = A.slice(1).filter((a) => el(a) === 'N').map((a) => dist(A[0], a))
+      check('三乙二胺合钴：6 根 Co–N 均为 1.96 Å（八面体配位）',
+        coN.length === 6 && coN.every((d) => Math.abs(d - 1.96) < 0.02),
+        coN.map((d) => d.toFixed(3)).join(','))
+      // 键长按"元素对 + 距离窗口"统计：C–C×3、N–C×6、N–H×12、C–H×12
+      const countPair = (e1, e2, target) => {
+        let n = 0
+        for (let i = 0; i < A.length; i++) {
+          for (let j = i + 1; j < A.length; j++) {
+            const p = el(A[i]), q = el(A[j])
+            if (!((p === e1 && q === e2) || (p === e2 && q === e1))) continue
+            if (Math.abs(dist(A[i], A[j]) - target) < 0.02) n++
+          }
+        }
+        return n
+      }
+      check('三乙二胺合钴：en 配体键长（C–C 3 / N–C 6 / N–H 12 / C–H 12）全部按参数生成',
+        countPair('C', 'C', 1.53) === 3 && countPair('N', 'C', 1.48) === 6
+        && countPair('N', 'H', 1.02) === 12 && countPair('C', 'H', 1.09) === 12,
+        `C-C=${countPair('C', 'C', 1.53)} N-C=${countPair('N', 'C', 1.48)} `
+        + `N-H=${countPair('N', 'H', 1.02)} C-H=${countPair('C', 'H', 1.09)}`)
+      // 非键 H···H：手工坐标/坏坐标常在这里撞在一起。
+      // ★ 判据要排除**同碳/同氮上的偕二氢**（CH₂ 的 H–C–H≈107° ⇒ H···H≈1.75 Å 是正常的），
+      //   只统计"重原子邻居不同"的 H 对；否则会把正常四面体构型当成硬接触（实测踩过：
+      //   按全部 H–H 对算会得到 1.64 Å 的假红）。
+      const heavyOf = (i) => {
+        let best = -1, bd = 1.35
+        for (let j = 0; j < A.length; j++) {
+          if (el(A[j]) === 'H') continue
+          const d = dist(A[i], A[j])
+          if (d <= bd) { bd = d; best = j }
+        }
+        return best
+      }
+      let minHH = Infinity, minPair = ''
+      for (let i = 0; i < A.length; i++) {
+        if (el(A[i]) !== 'H') continue
+        for (let j = i + 1; j < A.length; j++) {
+          if (el(A[j]) !== 'H') continue
+          if (heavyOf(i) === heavyOf(j)) continue   // 偕二氢不算非键
+          const d = dist(A[i], A[j])
+          if (d < minHH) { minHH = d; minPair = `H${i}–H${j}` }
+        }
+      }
+      check('三乙二胺合钴：非键 H···H ≥ 2.0 Å（排除偕二氢；无氢-氢硬接触）',
+        minHH >= 2.0, `${minHH.toFixed(3)} ${minPair}`)
+    }
+  }
+
   // ★ 按参数生成的示例，键长必须是**构造出来的**那个值（而不是"差不多"）
   {
     const tpm = EXAMPLES.find((e) => e.id === 'triphenylmethane')

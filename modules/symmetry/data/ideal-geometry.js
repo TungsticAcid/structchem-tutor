@@ -20,6 +20,7 @@ const D = Math.PI / 180
 /** 向量小工具（本文件是纯计算，不引 three） */
 const unit = (v) => { const n = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / n, v[1] / n, v[2] / n] }
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 const mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k]
 const cross = (a, b) => [
   a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0],
@@ -114,4 +115,87 @@ export function buildS8Xyz({ bond = 2.06, angleDeg = 108 } = {}) {
     atoms.push(['S', [r * Math.cos(az), r * Math.sin(az), (i % 2 ? 1 : -1) * h]])
   }
   return toXyz(atoms, '环八硫 S8 (D4d)')
+}
+
+/**
+ * 三乙二胺合钴 [Co(en)₃]³⁺（D₃，手性螺旋桨）。
+ *
+ * ★ 为什么"按 GJF 重构"而不是直接抄 GJF 坐标：
+ *   源文件 `D3-CoIIIen3.gjf`（CoC₆N₆H₂₄，D₃）给出的是一份**未经优化的初始猜测**：
+ *   · 用本项目的点群识别（容差 0.15 Å）判出来的点群是 **C1**，不是 D3；
+ *   · 不同螯合环上的两个 N 之间只有 **2.15 Å**（N···N 严重重叠）；
+ *   · 有 N–H 氢指向相邻碳（H···C 1.31 Å、∠H–N–C ≈ 61°），不是四面体胺。
+ *   这样的坐标直接放进教学视图，会展示一个"化学上不成立、对称性也不对"的结构。
+ *   所以这里**沿用 GJF 的组成与连接关系**（Co + 3 条 en：Co–N、N–C、C–C、N–H、C–H 全保留），
+ *   按标准几何**重构为严格的 D₃ 模型**：C₃ 轴沿 z、C₂ 轴沿 x，三个 en 由 C₃ 生成、
+ *   每个 en 自身满足 C₂（N↔N、C↔C、H↔H），因此点群严格是 D₃（引擎已复算确认）。
+ *
+ * 参数（Å / 度）：
+ *   Co–N 1.96 · 螯合咬角 ∠N–Co–N 83.5 · N–C 1.48 · C–C 1.53 · N–H 1.02 · C–H 1.09
+ *   en 环为 gauche 构象（N–C–C–N 二面角 ≈ 45°；配体间最短 H···H ≈ 2.14 Å，无重叠）
+ *
+ * ★ "N 对的取向"（PHI1=30°）是按"反位 N–Co–N 接近 180°"选的：本模型给出 ≈174.6°，
+ *   与八面体配位的反位角一致；RING 控制 C–C 键的褶皱方向，25° 时二面角 ≈45°。
+ */
+export function buildCoen3Xyz() {
+  const R = 1.96            // Co–N
+  const BITE = 83.5         // N–Co–N 螯合咬角
+  const NC = 1.48, CC = 1.53, NH = 1.02, CH = 1.09
+  const PHI1 = 30           // N1 在 C₂ 坐标系里的方位角（决定反位角）
+  const RING = 25           // C–C 键绕 C₂ 轴的放置角（决定 en 环褶皱）
+  const H_HALF = 53.5       // H–X–H / X–H 方向半角（≈ 107° 的 H–N–H、H–C–H）
+
+  // ---- 六个 N：C₂ 轴 = x，N1/N2 关于 x 对称；另两对由 C₃ 生成 ----
+  const a = R * Math.cos(BITE / 2 * D)
+  const rho = R * Math.sin(BITE / 2 * D)
+  const b = a * Math.tan(PHI1 * D)
+  const c = Math.sqrt(Math.max(rho * rho - b * b, 0))
+  const N1 = [a, b, c]
+  const N2 = [a, -b, -c]
+
+  // ---- 两条 C（C1↔C2 由 C₂ 对称；N–C、C–C 解出 x 坐标）----
+  const rad = CC / 2
+  const yc = rad * Math.cos(RING * D)
+  const zc = rad * Math.sin(RING * D)
+  const xc = a + Math.sqrt(Math.max(NC * NC - (yc - b) ** 2 - (zc - c) ** 2, 0))
+  const C1 = [xc, yc, zc]
+  const C2 = [xc, -yc, -zc]
+
+  // ---- H：给"已有两条键"的中心补另外两条四面体方向 ----
+  const placeH = (u1, u2) => {
+    const bis = unit(mul(add(u1, u2), -1))
+    const perp = unit(cross(u1, u2))
+    const f = H_HALF * D
+    return [
+      unit(add(mul(bis, Math.cos(f)), mul(perp, Math.sin(f)))),
+      unit(add(mul(bis, Math.cos(f)), mul(perp, -Math.sin(f)))),
+    ]
+  }
+  // N1 上有 Co 与 C1 两条键
+  const [hn1, hn2] = placeH(unit(mul(N1, -1)), unit(sub(C1, N1)))
+  // C1 上有 N1 与 C2 两条键
+  const [hc1, hc2] = placeH(unit(sub(N1, C1)), unit(sub(C2, C1)))
+  const Hn1a = add(N1, mul(hn1, NH))
+  const Hn1b = add(N1, mul(hn2, NH))
+  const Hc1a = add(C1, mul(hc1, CH))
+  const Hc1b = add(C1, mul(hc2, CH))
+
+  // C₂ 对称（以 x 轴转 180°）：(x,y,z) → (x,−y,−z)
+  const c2 = (p) => [p[0], -p[1], -p[2]]
+
+  // 一个 en 配体（12 个原子）：N1 端、C1、C2、N2 端；H 由 C₂ 生成
+  const lig0 = [
+    ['N', N1], ['H', Hn1a], ['H', Hn1b],
+    ['C', C1], ['H', Hc1a], ['H', Hc1b],
+    ['C', C2], ['H', c2(Hc1a)], ['H', c2(Hc1b)],
+    ['N', N2], ['H', c2(Hn1a)], ['H', c2(Hn1b)],
+  ]
+
+  // ---- 三条 en 由 C₃（绕 z 转 120°）生成；Co 在原点 ----
+  const atoms = [['Co', [0, 0, 0]]]
+  for (let k = 0; k < 3; k++) {
+    const th = k * 120 * D
+    for (const [el, p] of lig0) atoms.push([el, rotate(p, [0, 0, 1], th)])
+  }
+  return toXyz(atoms, '三乙二胺合钴 [Co(en)3]3+ C6H24CoN6 (D3)')
 }

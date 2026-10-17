@@ -49,6 +49,9 @@ const CASES = {
   xef4: 'D4h',
   ethylene: 'D2h',
   'meso-tartaric': 'Ci',
+  // ★ 2026-10-18：三乙二胺合钴按 D3-CoIIIen3.gjf 的组成/连接重构为严格 D3 模型
+  //   （原 19 原子手敲坐标是示意图；GJF 原始坐标判群为 C1，见 ideal-geometry.js 的说明）
+  coen3: 'D3',
 }
 
 // ---- 造红入口：把指定案例的期望值改成不可能的值 ----
