@@ -701,7 +701,13 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   const home = readFileSync(resolve(REPO, 'apps/web/src/shell/pages/home.js'), 'utf8')
   const flat = home.replace(/\s+/g, ' ')
   ok(/@media \(max-width: 720px\) \{/.test(flat), '首页存在小屏媒体块（max-width: 720px）')
-  const block = (home.match(/@media \(max-width: 720px\) \{[\s\S]*?\n\}/) || [''])[0]
+  /**
+   * ★ 720px 的媒体块现在**不止一个**（化学记号条也为窄屏单独写了一条）。
+   *   所以不能取"第一个匹配"，要取**含 .pt-hero-visual 的那一块** ——
+   *   否则取到的是记号条的块，主视觉限宽那条断言会假红（实测踩过）。
+   */
+  const blocks = home.match(/@media \(max-width: 720px\) \{[\s\S]*?\n\}/g) || []
+  const block = blocks.find((b) => b.indexOf('.pt-hero-visual') >= 0) || ''
   const fb = block.replace(/\s+/g, ' ')
   ok(!!block, '小屏媒体块能被取出（不是空块）')
   ok(/\.pt-hero-visual \{ max-width: min\(74vw, 300px\)/.test(fb),
@@ -789,6 +795,28 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/\.pt-hud-v i, \.pt-card-demo i \{/.test(flat)
     && /\.pt-hud-v sub, \.pt-hud-v sup, \.pt-card-demo sub, \.pt-card-demo sup \{/.test(flat),
     '公式片段有专门排版规则（斜体衬线变量 + 独立的上下标字号）')
+}
+
+// ---------------------------------------------------------------------------
+// ★★ 2026-10-17 用户第四次复查：「可以多一点结构化学或化学有关的经典元素，
+//   这部分作为点缀，要高级感、美观、视觉效果好」。
+//
+//   这里钉住的是"点缀的分寸"，不是好看不好看（那只能靠截图看）：
+//     ① 纯装饰：aria-hidden + pointer-events:none，不能挡点击、不进屏幕阅读器；
+//     ② 数据有出处：元素小块读模块的 elements.js，记号条里是真实空间群/点群/Miller 指数；
+//     ③ 不压正文：<1360px 时整层隐藏（那时左右页边距放不下 40px 的块）。
+// ---------------------------------------------------------------------------
+{
+  const home = readFileSync(resolve(REPO, 'apps/web/src/shell/pages/home.js'), 'utf8')
+  const flat = home.replace(/\s+/g, ' ')
+  ok(/class="pt-deco" aria-hidden="true"/.test(home), '化学点缀层存在且 aria-hidden')
+  ok(/\.pt-deco \{[^}]*pointer-events: none/.test(flat), '点缀层 pointer-events:none（不挡点击）')
+  ok(/from '@crystal\/data\/elements\.js'/.test(home) && /_renderElementTiles\(/.test(home),
+    '元素小块读模块的 elements.js（不另抄一份周期表）')
+  ok(/@media \(max-width: 1359px\) \{\s*\.pt-deco \{ display: none/.test(flat),
+    '窄屏隐藏点缀层（页边距不足时会压正文）')
+  ok(/pt-chem-strip/.test(home) && /P6<sub>3<\/sub>\/mmc/.test(home) && /\(100\) \(110\) \(111\)/.test(home),
+    '化学记号条：真实空间群 / 点群 / Miller 指数（不是随手编的符号）')
 }
 
 console.log('')

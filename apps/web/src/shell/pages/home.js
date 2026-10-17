@@ -48,6 +48,8 @@ import {
 //   含义见 _resolveCrystalStyle 的注释。
 import { getCrystalData } from '@crystal/lib/crystal-loader.js'
 import { getElementColor } from '@crystal/data/settings.js'
+// ★ 装饰用的元素小块（原子序数 / 相对原子质量）也读模块的元素数据 —— 不另抄一份周期表。
+import elementsData from '@crystal/data/elements.js'
 
 /**
  * 模块 id → 卡片文案的键。
@@ -290,6 +292,28 @@ export class HomePage {
       + '</' + tag + '>'
   }
 
+  /**
+   * 首页两侧的**化学点缀**：元素小块 + 结构式线稿 + 经典符号。
+   *
+   * ★ 定位：装饰（`aria-hidden`、`pointer-events:none`、低透明度、只放在页面留白里），
+   *   目的是让整页"有结构化学的味道"，而不是往界面上堆信息 —— 所以：
+   *     · 元素数据不另抄：原子序数/相对原子质量直接读模块的 elements.js（改一处全站一致）；
+   *     · 图形只有线稿（苯环、晶胞），颜色只用主题的 --pt-dim/--pt-line，保持灰阶高级感；
+   *     · 窄屏（<1360px）整层隐藏：那时页面左右留白不足，放上去会压到正文。
+   */
+  _renderElementTiles(symbols) {
+    return symbols.map((sym) => {
+      const el = elementsData && elementsData[sym]
+      if (!el) return ''
+      const mass = typeof el.atomicMass === 'number' ? el.atomicMass : ''
+      return '<span class="pt-el" data-el="' + sym + '">'
+        + '<i class="pt-el-z">' + el.atomicNumber + '</i>'
+        + '<b class="pt-el-sym">' + sym + '</b>'
+        + '<i class="pt-el-mass">' + mass + '</i>'
+        + '</span>'
+    }).join('')
+  }
+
   _render() {
     const lang = (this._ui.getLang && this._ui.getLang()) || 'zh'
     const cards = this._modules.map((m, i) => this._renderCard(m, i)).join('')
@@ -302,6 +326,43 @@ export class HomePage {
         <div class="pt-scanlines" aria-hidden="true"></div>
         <div class="pt-noise" aria-hidden="true"></div>
         <div class="pt-vignette" aria-hidden="true"></div>
+
+        <div class="pt-deco" aria-hidden="true">
+          <div class="pt-deco-col pt-deco-col--l">
+            <div class="pt-el-stack">${this._renderElementTiles(['H', 'C', 'O'])}</div>
+            <svg class="pt-deco-art" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.1">
+              <path d="M50 12 82 31v38L50 88 18 69V31z"/>
+              <circle cx="50" cy="50" r="20"/>
+              <circle cx="50" cy="12" r="1.8" fill="currentColor" stroke="none"/>
+              <circle cx="82" cy="31" r="1.8" fill="currentColor" stroke="none"/>
+              <circle cx="82" cy="69" r="1.8" fill="currentColor" stroke="none"/>
+              <circle cx="50" cy="88" r="1.8" fill="currentColor" stroke="none"/>
+              <circle cx="18" cy="69" r="1.8" fill="currentColor" stroke="none"/>
+              <circle cx="18" cy="31" r="1.8" fill="currentColor" stroke="none"/>
+            </svg>
+            <span class="pt-deco-tag">C<sub>6</sub>H<sub>6</sub></span>
+            <span class="pt-deco-tag pt-deco-tag--dim">109.47°</span>
+            <span class="pt-deco-tag pt-deco-tag--dim"><i>σ</i> · <i>π</i> · <i>δ</i></span>
+          </div>
+          <div class="pt-deco-col pt-deco-col--r">
+            <div class="pt-el-stack">${this._renderElementTiles(['Na', 'Cl'])}</div>
+            <svg class="pt-deco-art" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.1">
+              <path d="M22 36h44v44H22z"/>
+              <path d="M38 20h44v44H38z"/>
+              <path d="M22 36l16-16M66 36l16-16M66 80l16-16M22 80l16-16"/>
+              <circle cx="22" cy="36" r="2.2" fill="currentColor" stroke="none"/>
+              <circle cx="66" cy="36" r="2.2" fill="currentColor" stroke="none"/>
+              <circle cx="66" cy="80" r="2.2" fill="currentColor" stroke="none"/>
+              <circle cx="22" cy="80" r="2.2" fill="currentColor" stroke="none"/>
+              <circle cx="38" cy="20" r="2.2" fill="currentColor" stroke="none"/>
+              <circle cx="82" cy="20" r="2.2" fill="currentColor" stroke="none"/>
+              <circle cx="82" cy="64" r="2.2" fill="currentColor" stroke="none"/>
+              <circle cx="38" cy="64" r="2.2" fill="currentColor" stroke="none"/>
+            </svg>
+            <span class="pt-deco-tag">NaCl<br>Fm<span class="pt-bar">3</span>m</span>
+            <span class="pt-deco-tag pt-deco-tag--dim">2<i>d</i> sin<i>θ</i><br>= <i>n</i><i>λ</i></span>
+          </div>
+        </div>
 
         <header class="pt-top">
           <div class="pt-brand">
@@ -359,6 +420,11 @@ export class HomePage {
         </main>
 
         <section class="pt-modules" id="pt-modules">
+          <div class="pt-chem-strip" aria-hidden="true">
+            <span class="pt-chem-strip-rule"></span>
+            <span class="pt-chem-strip-items">Fm<span class="pt-bar">3</span>m · Im<span class="pt-bar">3</span>m · Fd<span class="pt-bar">3</span>m · P6<sub>3</sub>/mmc · <i>T</i><sub>d</sub> · <i>O</i><sub>h</sub> · <i>D</i><sub>6h</sub> · <i>C</i><sub>2v</sub> · (100) (110) (111)</span>
+            <span class="pt-chem-strip-rule"></span>
+          </div>
           <div class="pt-mod-head">
             <div class="pt-mod-title">
               <span class="pt-mod-kicker">[ MODULES 01 — 03 · TEACHING ORDER ]</span>
@@ -1291,6 +1357,87 @@ const STYLE = `
   background: radial-gradient(120% 100% at 50% 40%, transparent 58%, rgba(30, 60, 110, .1) 100%);
 }
 
+/* ---------- 化学点缀层（装饰，不是信息） ----------
+ * 放在左右两条页边距里：元素小块 + 结构式线稿 + 经典符号。
+ * 只做低透明度灰阶（--pt-dim / --pt-line），不抢正文；<1360px 整层隐藏（那时没有页边距）。
+ * pointer-events:none + aria-hidden：纯装饰，不可点、不进屏幕阅读器。
+ */
+.pt-deco {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 8px;
+  pointer-events: none;
+}
+.pt-deco-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 40px;
+  /* 底部多留一截：右下角是固定的智能体悬浮球，别让最下面的记号落到它下面 */
+  padding: 12vh 0 24vh;
+}
+.pt-deco-col > * { animation: pt-float 10s ease-in-out infinite alternate; }
+.pt-deco-col > *:nth-child(2) { animation-duration: 13s; animation-delay: -4s; }
+.pt-deco-col > *:nth-child(3) { animation-duration: 11.5s; animation-delay: -7s; }
+.pt-deco-col > *:nth-child(4) { animation-duration: 14s; animation-delay: -2s; }
+.pt-deco-col > *:nth-child(5) { animation-duration: 12.5s; animation-delay: -5.5s; }
+@keyframes pt-float {
+  from { transform: translateY(-4px); }
+  to { transform: translateY(5px); }
+}
+
+.pt-el-stack { display: flex; flex-direction: column; gap: 8px; }
+.pt-el {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 3px 2px 4px;
+  box-sizing: border-box;
+  border: 1px solid var(--pt-line);
+  border-radius: 4px;
+  background: rgba(12, 20, 38, .18);
+  color: var(--pt-dim);
+  opacity: .72;
+}
+[data-theme="light"] .pt-el { background: rgba(255, 255, 255, .35); }
+.pt-el-z { justify-self: start; font: 7.5px/1 var(--pt-mono); letter-spacing: .04em; }
+.pt-el-sym {
+  font-family: var(--font-symbol, "Times New Roman", serif);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--pt-ink);
+  opacity: .82;
+}
+.pt-el-mass { font: 6.5px/1 var(--pt-mono); letter-spacing: .02em; opacity: .8; }
+
+.pt-deco-art { width: 40px; height: 40px; color: var(--pt-dim); opacity: .38; }
+
+/* 化学记号：页边距只有 ~60px，所以做成最多两行的小字（竖排会让式子更难读） */
+.pt-deco-tag {
+  max-width: 40px;
+  font-family: var(--pt-mono);
+  font-size: 8.5px;
+  line-height: 1.45;
+  letter-spacing: .06em;
+  color: var(--pt-dim);
+  opacity: .62;
+  text-align: center;
+  white-space: normal;
+}
+.pt-deco-tag--dim { opacity: .46; }
+.pt-deco-tag i { font-family: var(--font-symbol, "Times New Roman", serif); font-style: italic; letter-spacing: 0; }
+.pt-deco-tag sub { font-size: .7em; }
+@media (max-width: 1359px) {
+  .pt-deco { display: none; }
+}
+
 /* ---------- 顶栏 ---------- */
 .pt-top {
   position: relative;
@@ -1661,6 +1808,34 @@ const STYLE = `
   max-width: 1280px;
   margin: 0 auto;
   padding: clamp(6px, 1.2vh, 14px) 0 0;
+}
+/**
+ * 化学记号条：一行极淡的空间群 / 点群符号，压在 hero 与模块区之间。
+ * 它是"结构化学词典"式的细节 —— 不承担信息，只定调子；两侧渐变细线把它收进版心。
+ */
+.pt-chem-strip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 8px;
+  color: var(--pt-dim);
+  opacity: .68;
+}
+.pt-chem-strip-rule {
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--pt-line), transparent);
+}
+.pt-chem-strip-items {
+  font-family: var(--pt-mono);
+  font-size: 9.5px;
+  letter-spacing: .22em;
+  white-space: nowrap;
+}
+.pt-chem-strip-items i { font-family: var(--font-symbol, "Times New Roman", serif); font-style: italic; letter-spacing: 0; }
+.pt-chem-strip-items sub { font-size: .66em; line-height: 0; }
+@media (max-width: 720px) {
+  .pt-chem-strip { display: none; }
 }
 .pt-mod-head {
   display: flex;
