@@ -836,8 +836,20 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '元素小块读模块的 elements.js（不另抄一份周期表）')
   ok(/@media \(max-width: 1359px\) \{\s*\.pt-deco \{ display: none/.test(flat),
     '窄屏隐藏点缀层（页边距不足时会压正文）')
-  ok(/pt-chem-strip/.test(home) && /P6<sub>3<\/sub>\/mmc/.test(home) && /\(100\) \(110\) \(111\)/.test(home),
-    '化学记号条：真实空间群 / 点群 / Miller 指数（不是随手编的符号）')
+  ok(/pt-chem-strip/.test(home) && /\(100\) \(110\) \(111\)/.test(home),
+    '化学记号条：点群 + Miller 指数（不是随手编的符号）')
+  // ★ 2026-10-18 用户复查：结构化学课对空间群讲得不多（原来的 4 个空间群减到 1 个），
+  //   并补上薛定谔方程 / 德布罗意 / 玻尔能级这些经典元素。
+  ok(/<i>Ĥ<\/i><i>ψ<\/i> = <i>E<\/i><i>ψ<\/i>/.test(home)
+    && /<i>λ<\/i> = <i>h<\/i>\/<i>p<\/i>/.test(home)
+    && /13\.6 eV\/<i>n<\/i>²/.test(home),
+    '化学记号条：薛定谔方程 / 德布罗意关系 / 玻尔能级（经典元素，排版按变量斜体、单位正体）')
+  ok(/P6<sub>3<\/sub>\/mmc/.test(home) === false && /Fd<span class="pt-bar">3<\/span>m/.test(home) === false,
+    '★ 空间群已按用户要求减少：Strip 里只保留 NaCl 的 Fm3̄m，删掉 Im3̄m / Fd3̄m / P6₃/mmc')
+  ok(/pt-deco-art--bohr/.test(home) && /<ellipse/.test(home) && /Bohr · 1913/.test(home),
+    '点缀：玻尔模型线稿（轨道 + 电子）+ 年代标签')
+  ok(/pt-deco-tag--tight/.test(home) && /\.pt-deco-tag--tight \{[^}]*white-space: nowrap/.test(flat),
+    '短记号（σ·π·δ / Bohr·1913）强制单行 —— 用户实测发现会被折行')
 }
 
 console.log('')

@@ -343,8 +343,17 @@ export class HomePage {
               <circle cx="18" cy="31" r="1.8" fill="currentColor" stroke="none"/>
             </svg>
             <span class="pt-deco-tag">C<sub>6</sub>H<sub>6</sub></span>
-            <span class="pt-deco-tag pt-deco-tag--dim">109.47°</span>
-            <span class="pt-deco-tag pt-deco-tag--dim"><i>σ</i> · <i>π</i> · <i>δ</i></span>
+            <span class="pt-deco-tag pt-deco-tag--dim pt-deco-tag--tight"><i>σ</i> · <i>π</i> · <i>δ</i></span>
+            <svg class="pt-deco-art pt-deco-art--bohr" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.1">
+              <circle cx="50" cy="50" r="3.4" fill="currentColor" stroke="none"/>
+              <ellipse cx="50" cy="50" rx="38" ry="15"/>
+              <ellipse cx="50" cy="50" rx="38" ry="15" transform="rotate(60 50 50)"/>
+              <ellipse cx="50" cy="50" rx="38" ry="15" transform="rotate(120 50 50)"/>
+              <circle cx="88" cy="50" r="2.2" fill="currentColor" stroke="none"/>
+              <circle cx="69" cy="83" r="2.2" fill="currentColor" stroke="none"/>
+              <circle cx="31" cy="83" r="2.2" fill="currentColor" stroke="none"/>
+            </svg>
+            <span class="pt-deco-tag pt-deco-tag--tight">Bohr · 1913</span>
           </div>
           <div class="pt-deco-col pt-deco-col--r">
             <div class="pt-el-stack">${this._renderElementTiles(['Na', 'Cl'])}</div>
@@ -424,7 +433,7 @@ export class HomePage {
         <section class="pt-modules" id="pt-modules">
           <div class="pt-chem-strip" aria-hidden="true">
             <span class="pt-chem-strip-rule"></span>
-            <span class="pt-chem-strip-items">Fm<span class="pt-bar">3</span>m · Im<span class="pt-bar">3</span>m · Fd<span class="pt-bar">3</span>m · P6<sub>3</sub>/mmc · <i>T</i><sub>d</sub> · <i>O</i><sub>h</sub> · <i>D</i><sub>6h</sub> · <i>C</i><sub>2v</sub> · (100) (110) (111)</span>
+            <span class="pt-chem-strip-items">Fm<span class="pt-bar">3</span>m · <i>T</i><sub>d</sub> · <i>O</i><sub>h</sub> · <i>D</i><sub>6h</sub> · <i>C</i><sub>2v</sub> · <i>Ĥ</i><i>ψ</i> = <i>E</i><i>ψ</i> · <i>λ</i> = <i>h</i>/<i>p</i> · <i>E</i><sub><i>n</i></sub> = −13.6 eV/<i>n</i>² · (100) (110) (111)</span>
             <span class="pt-chem-strip-rule"></span>
           </div>
           <div class="pt-mod-head">
@@ -1471,6 +1480,7 @@ const STYLE = `
 .pt-el-mass { font: 6.5px/1 var(--pt-mono); letter-spacing: .02em; opacity: .8; }
 
 .pt-deco-art { width: 40px; height: 40px; color: var(--pt-dim); opacity: .38; }
+.pt-deco-art--bohr { opacity: .42; }
 
 /* 化学记号：页边距只有 ~60px，所以做成最多两行的小字（竖排会让式子更难读） */
 .pt-deco-tag {
@@ -1485,6 +1495,14 @@ const STYLE = `
   white-space: normal;
 }
 .pt-deco-tag--dim { opacity: .46; }
+/* ★ 用户实测发现「σ · π · δ」被 max-width 折成了两行 —— 短记号强制单行，字号略收小 */
+.pt-deco-tag--tight {
+  max-width: none;
+  font-size: 7.5px;
+  letter-spacing: .02em;
+  opacity: .58;
+  white-space: nowrap;
+}
 .pt-deco-tag i { font-family: var(--font-symbol, "Times New Roman", serif); font-style: italic; letter-spacing: 0; }
 .pt-deco-tag sub { font-size: .7em; }
 @media (max-width: 1359px) {
@@ -1872,7 +1890,7 @@ const STYLE = `
   gap: 14px;
   margin: 0 0 8px;
   color: var(--pt-dim);
-  opacity: .68;
+  opacity: .74;
 }
 .pt-chem-strip-rule {
   flex: 1 1 auto;
