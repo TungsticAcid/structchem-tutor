@@ -988,17 +988,38 @@ export class HomePage {
     ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over'
 
     const lat = this._scenes.lattice
-    const cam = { w, h, focal: m * 1.15, dist: 3.6 }
-    const ax = -0.48 + py * 0.12
-    const ay = t * 0.4 + px * 0.16 + 0.55
-    const pts = lat.nodes.map((n) => toScreen(rotateXYZ([n.x, n.y, n.z], ax, ay), cam))
+    /**
+     * ★ 相机：**弱透视 + 等轴（isometric-ish）视角**。
+     *
+     *   2026-10-17 用户指着晶典在线的缩略图问："这里有点歪，这是什么视角？透视投影吗？"
+     *   —— 是透视投影，而且原先两件事叠加把"歪"放大了：
+     *     ① cam = focal 1.15m / dist 3.6（晶胞归一化半径 1）⇒ 近/远比 4.6/2.6 = **1.77**，
+     *        强透视下立方体近面大、远面小，小卡片里看起来像被拉歪的笼子；
+     *     ② 偏航随时间连续转（0.4 rad/s），任意一帧都可能停在"斜角"上 ——
+     *        教材里的晶胞图总是等轴视角（同时看见三个面、棱长投影相等）。
+     *   改：相机拉远到 dist 9、焦距同比放大到 3.2m ⇒ 近/远比 **1.25**（接近正交）；
+     *   视角停在等轴角（俯仰约 −35.5°、偏航约 133°）附近**小幅摆动**，
+     *   于是任何一帧都能看到三个面，读起来就是"一个晶胞"，而不是一坨菱形。
+     */
+    const cam = { w, h, focal: m * 3.2, dist: 9.0 }
+    const ax = -0.62 + Math.sin(t * 0.45) * 0.03 + py * 0.05
+    const ay = 2.32 + Math.sin(t * 0.3) * 0.16 + px * 0.06
+    const rot = lat.nodes.map((n) => rotateXYZ([n.x, n.y, n.z], ax, ay))
+    const pts = rot.map((p) => toScreen(p, cam))
+    const depthOf = (pr) => clamp01(1 - (pr.depth - (cam.dist - 1)) / 2.2)
+    /**
+     * ★ 画家算法：Canvas 没有 z-buffer。不按深度排序时，远处的球可能画在近处球的上面，
+     *   球与球之间的前后关系就乱了（浅色主题是 source-over，错序一眼可见）。
+     *   按相机坐标 z 升序（远的先画）即可；同一深度内保持原顺序（确定性，截图可比对）。
+     */
+    const drawOrder = lat.nodes.map((_, i) => i).sort((a, b) => rot[a][2] - rot[b][2])
 
     // 键（Na–Cl 最近邻）
     for (let i = 0; i < lat.edges.length; i++) {
       const a = pts[lat.edges[i][0]]
       const b = pts[lat.edges[i][1]]
       if (!a || !b) continue
-      const depth = clamp01(1 - ((a.depth + b.depth) / 2 - (cam.dist - 1)) / 2.2)
+      const depth = depthOf({ depth: (a.depth + b.depth) / 2 })
       drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.node, 1), 1, (dark ? 0.08 : 0.12) + depth * (dark ? 0.14 : 0.1))
     }
 
@@ -1018,16 +1039,17 @@ export class HomePage {
       const a = corners[cubeEdges[i][0]]
       const b = corners[cubeEdges[i][1]]
       if (!a || !b) continue
-      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.cyan, 1), 1, dark ? 0.22 : 0.24)
+      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.cyan, 1), 1, dark ? 0.26 : 0.3)
     }
     ctx.restore()
 
-    // 原子球：两套格点两种颜色（Na 绿 / Cl 琥珀），近处亮
-    for (let i = 0; i < lat.nodes.length; i++) {
+    // 原子球：两套格点两种颜色（Na 绿 / Cl 琥珀），按深度排序（远 → 近）
+    for (let k = 0; k < drawOrder.length; k++) {
+      const i = drawOrder[k]
       const pr = pts[i]
       if (!pr) continue
-      const depth = clamp01(1 - (pr.depth - (cam.dist - 1)) / 2.2)
-      const base = (lat.nodes[i].kind === 0 ? 0.032 : 0.026) * m * (dark ? 1 : 1.18)
+      const depth = depthOf(pr)
+      const base = (lat.nodes[i].kind === 0 ? 0.03 : 0.0245) * m * (dark ? 1 : 1.18)
       const r = base * (0.7 + depth * 0.5)
       const col = lat.nodes[i].kind === 0 ? pal.emerald : pal.amber
       drawGlow(ctx, pr.x, pr.y, r * 2.6, col, (dark ? 0.3 : 0.3) * (0.4 + depth * 0.6))
