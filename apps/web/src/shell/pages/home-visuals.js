@@ -24,13 +24,6 @@
 
 export const TAU = Math.PI * 2
 
-/** 立方八面体的 12 个顶点（±1, ±1, 0 的全排列）——面心立方配位数 12 的配位多面体 */
-const CUBOCTA_UNIT = [
-  [1, 1, 0], [1, -1, 0], [-1, 1, 0], [-1, -1, 0],
-  [1, 0, 1], [1, 0, -1], [-1, 0, 1], [-1, 0, -1],
-  [0, 1, 1], [0, 1, -1], [0, -1, 1], [0, -1, -1],
-]
-
 /** 四面体的 4 个顶点方向（正四面体） */
 const TETRA_DIRS = [
   [1, 1, 1], [1, -1, -1], [-1, 1, -1], [-1, -1, 1],
@@ -108,31 +101,107 @@ export function createPRNG(seed) {
 }
 
 /**
- * 立方八面体（cuboctahedron）线框 —— 面心立方（FCC）的 12 配位多面体。
+ * 斜面投影 / 斜投影（cabinet projection）—— 化工与教材插图最常用的"晶胞"画法。
  *
- * ★ 选它的理由（不是随便挑一个"好看的多面体"）：
- *   结构化学里 FCC 金属与 NaCl 型晶体中，一个原子/离子的最近邻正好构成这个多面体；
- *   "配位数 12"是晶体模块与点群模块都会讲到的结构事实。首页主视觉用它当全息外壳，
- *   比一个没有出处的球壳更能对上课程内容。
+ * ★ 为什么不用透视：2026-10-17 用户贴了一张教材里的 NaCl 晶胞图，说"最好做成这种视图，
+ *   化学家喜欢用这种视图"。那种图的特征是：**正面是正方形、平行线永远平行**（正交投影），
+ *   深度轴朝右上约 35–45°、长度缩短一半左右（cabinet）。透视投影会让近面大、远面小，
+ *   小卡片里看起来就像"歪的笼子"。
  *
- * @returns {{verts:number[][], edges:number[][]}}
- *   顶点归一化到半径 1；棱是顶点下标对，恰好 12 顶点 / 24 棱 / 8 个三角面 + 6 个正方形。
+ * ★ 与 `rotateXYZ + project` 的区别：那套是"相机旋转 + 透视"，适合全息主视觉；
+ *   这套是**作图法**，正面不变形、深度方向固定，是教科书插图的语言。
+ *
+ * @param {number[]} p 世界坐标 [x, y, z]（y 向上；+z 向屏幕里/右上）
+ * @param {{cx:number, cy:number, scale:number, alpha?:number, depth?:number}} opts
+ *        alpha = 深度轴与屏幕水平方向的夹角（默认 38°）；depth = 深度缩短系数（默认 0.5）
+ * @returns {{x:number, y:number, depth:number}} depth 越大越远（画家算法先画远的）
  */
-export function createCuboctahedron() {
-  const s = Math.SQRT1_2   // 1/√2：把 (±1,±1,0) 归一化到长度 1
-  const verts = CUBOCTA_UNIT.map((v) => [v[0] * s, v[1] * s, v[2] * s])
-  const edges = []
-  for (let i = 0; i < verts.length; i++) {
-    for (let j = i + 1; j < verts.length; j++) {
-      // 立方八面体的棱 = 原始坐标相距 √2 的顶点对；归一化后棱长为 1
-      if (Math.abs(length([
-        verts[i][0] - verts[j][0],
-        verts[i][1] - verts[j][1],
-        verts[i][2] - verts[j][2],
-      ]) - 1) < 1e-9) edges.push([i, j])
-    }
+export function projectOblique(p, opts) {
+  const cx = opts.cx || 0
+  const cy = opts.cy || 0
+  const scale = opts.scale || 1
+  const alpha = typeof opts.alpha === 'number' ? opts.alpha : 0.6632251   // 38°
+  const depth = typeof opts.depth === 'number' ? opts.depth : 0.5
+  return {
+    x: cx + (p[0] + p[2] * Math.cos(alpha) * depth) * scale,
+    y: cy - (p[1] + p[2] * Math.sin(alpha) * depth) * scale,
+    depth: p[2],
   }
-  return { verts, edges }
+}
+
+/**
+ * 球坐标网格（纬线 + 经线）—— 主视觉的"参考坐标系"，与 ψ(r,θ,φ) 的坐标一一对应。
+ *
+ * ★ 为什么用它替换原来的"随便倾斜的三条轨道环"：用户的第 2 条反馈是"右上角的图文对应吗"。
+ *   球坐标网格的每一条线都确实对应一个 (θ, φ)，HUD 上写 θ、φ 时就不是装饰了。
+ *   其中 θ = 54.74° / 125.26° 两条纬线正好是 d_z² 的**节锥**与球面的交线（3cos²θ−1 = 0）。
+ *
+ * @param {{latitudes?:number[], meridians?:number[], steps?:number}} [opts] 角度单位为度
+ * @returns {{latitudes:number[][][], meridians:number[][][]}} 每条线是一串 [x,y,z] 点
+ */
+export function createSphericalCage(opts = {}) {
+  const latDeg = opts.latitudes || [30, 54.7356, 90, 125.2644, 150]
+  const merDeg = opts.meridians || [0, 45, 90, 135]
+  const steps = Math.max(12, opts.steps || 72)
+  const toRad = Math.PI / 180
+  const latitudes = latDeg.map((deg) => {
+    const th = deg * toRad
+    const z = Math.cos(th)
+    const r = Math.sin(th)
+    const line = []
+    for (let i = 0; i <= steps; i++) {
+      const a = (i / steps) * TAU
+      line.push([r * Math.cos(a), r * Math.sin(a), z])
+    }
+    return line
+  })
+  const meridians = merDeg.map((deg) => {
+    const phi = deg * toRad
+    const dx = Math.cos(phi)
+    const dy = Math.sin(phi)
+    const line = []
+    for (let i = 0; i <= steps; i++) {
+      const th = (i / steps) * TAU
+      line.push([Math.sin(th) * dx, Math.sin(th) * dy, Math.cos(th)])
+    }
+    return line
+  })
+  return { latitudes, meridians }
+}
+
+/**
+ * d_z² 的节锥（nodal cones）：3cos²θ − 1 = 0 的两个解。
+ *
+ * ★ 这是"真算出来的"几何：θ₀ = arccos(1/√3) ≈ 54.7356°，绕 ±z 各一个圆锥面。
+ *   锥面与单位球面的交线是两条纬线（z = ±1/√3），从原点出发的母线是锥面的直纹。
+ *   主视觉里把它画成线框，HUD 上写 54.74° / 125.26° —— 图文严格对应。
+ *
+ * @param {number} [thetaDeg] 半锥角（默认 arccos(1/√3)）
+ * @param {{generatrices?:number, steps?:number}} [opts]
+ * @returns {{thetaDeg:number, z:number, radius:number,
+ *            cones:Array<{sign:number, circle:number[][], lines:Array<number[][]>}>}}
+ */
+export function createNodalCones(thetaDeg, opts = {}) {
+  const deg = typeof thetaDeg === 'number' ? thetaDeg : 54.735610317245346
+  const th = deg * Math.PI / 180
+  const z0 = Math.cos(th)
+  const r0 = Math.sin(th)
+  const gens = Math.max(3, opts.generatrices || 12)
+  const steps = Math.max(12, opts.steps || 72)
+  const cones = [1, -1].map((sign) => {
+    const circle = []
+    for (let i = 0; i <= steps; i++) {
+      const a = (i / steps) * TAU
+      circle.push([r0 * Math.cos(a), r0 * Math.sin(a), sign * z0])
+    }
+    const lines = []
+    for (let i = 0; i < gens; i++) {
+      const a = (i / gens) * TAU
+      lines.push([[0, 0, 0], [r0 * Math.cos(a), r0 * Math.sin(a), sign * z0]])
+    }
+    return { sign, circle, lines }
+  })
+  return { thetaDeg: deg, z: z0, radius: r0, cones }
 }
 
 /**
@@ -413,12 +482,13 @@ export function createPalette(getVar, opts = {}) {
     ink: v('--pt-ink', '#eaf2ff'),
     accent: v('--pt-accent', '#5ad6ff'),
     dim: v('--pt-dim', '#8fa6c8'),
+    bg: v('--pt-bg', '#050a15'),
   }
 }
 
 export default {
   TAU, clamp, lerp, clamp01, normalize, dot, cross, length, angleBetween,
-  rotateXYZ, project, createPRNG, createCuboctahedron, createMethane,
-  createLatticeScene, createOrbitalCloud, orbitalAngular, createDust,
+  rotateXYZ, project, projectOblique, createPRNG, createSphericalCage, createNodalCones,
+  createMethane, createLatticeScene, createOrbitalCloud, orbitalAngular, createDust,
   createBackgroundLattice, parseColor, rgba, mixColor, createPalette,
 }

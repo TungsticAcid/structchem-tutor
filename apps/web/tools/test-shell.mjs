@@ -738,25 +738,43 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
 }
 
 // ---------------------------------------------------------------------------
-// ★★ 2026-10-17（用户指着晶典在线的缩略图问："感觉有点歪，这是什么视角？透视投影吗？"）
+// ★★ 2026-10-17 用户第二轮复查（5 条）。这里钉住四条**结构性**事实：
 //
-//   是透视投影 —— 而且原先两件事把"歪"放大了：
-//     ① 强透视（focal 1.15m / dist 3.6，晶胞归一化半径 1 ⇒ 近/远比 4.6/2.6 = 1.77）；
-//     ② 偏航随时间连续转，任意一帧都可能停在斜角 —— 小卡片里读起来像被拉歪的笼子。
-//   改：弱透视（dist 9 / focal 3.2m ⇒ 近/远比 1.25）+ 等轴视角附近小幅摆动；
-//   另补 **深度排序**（Canvas 没有 z-buffer，不排序时远近球的遮挡关系会错）。
-//   这里钉住三件事实，防止以后调色/加动画时又退回强透视或随机视角。
+//   ① 晶典卡换成教材式**斜投影**（用户贴了教材 NaCl 晶胞图，说"化学家喜欢这种视图"）：
+//      判据是"用了 projectOblique、不再出现透视相机参数 focal/dist、深度排序、有图例"。
+//   ② `.portal` 必须是 `overflow: clip`（而不是 hidden）—— hidden 会让它成为**滚动容器**，
+//      scrollIntoView 把"开始探索"的滚动落在 .portal 上，页面滚不回来（用户第 3 条）。
+//   ③ 说明条「结构全息投影 / 实时演算」已按用户要求删除（第 4 条）。
+//   ④ 科学排版：轨道/点群标签必须是"斜体变量 + 下标"，不能是 `2p_z` 这种下划线写法（第 5 条）；
+//      主视觉 HUD 的节锥角度必须与画面里真画出来的锥线框对应（第 2 条）。
 // ---------------------------------------------------------------------------
 {
   const home = readFileSync(resolve(REPO, 'apps/web/src/shell/pages/home.js'), 'utf8')
+  const flat = home.replace(/\s+/g, ' ')
   const crystalDraw = (home.match(/_drawCrystal\(ctx, e, t, pal\) \{[\s\S]*?\n  \}/) || [''])[0]
+
   ok(!!crystalDraw, '能取出 _drawCrystal（守卫没被重构甩掉）')
-  ok(/focal: m \* 3\.2, dist: 9\.0/.test(crystalDraw),
-    '★ 晶典卡：弱透视相机（dist 9 / focal 3.2m ⇒ 近/远比 1.25），不再是 1.77 的强透视')
-  ok(/const drawOrder = lat\.nodes\.map\(\(_, i\) => i\)\.sort/.test(crystalDraw),
-    '★ 晶典卡：球按深度排序（Canvas 没有 z-buffer，否则远近球的遮挡关系会乱）')
-  ok(/Math\.sin\(t \* 0\.3\) \* 0\.16/.test(crystalDraw),
-    '★ 晶典卡：偏航在等轴角附近小幅摆动（不连续快转，任何一帧都看得见三个面）')
+  ok(/projectOblique\(/.test(crystalDraw), '★ 晶典卡：教材式斜投影（projectOblique）')
+  ok(!/focal:/.test(crystalDraw), '★ 晶典卡：不再有透视相机参数（focal/dist）')
+  ok(/items\.sort\(/.test(crystalDraw), '★ 晶典卡：键与球按深度排序（画家算法，Canvas 没有 z-buffer）')
+  ok(/Cl⁻/.test(crystalDraw) && /Na⁺/.test(crystalDraw),
+    '★ 晶典卡：有离子图例（Cl⁻ 大浅 / Na⁺ 小深，与教材一致）')
+
+  ok(/overflow: hidden;\s*overflow: clip;/.test(flat),
+    '★ .portal 用 overflow: clip（hidden 会变成滚动容器 ⇒ "开始探索"后页面滚不回来）')
+  ok(!/\.pt-holo-caption/.test(home), '说明条「结构全息投影 / 实时演算」已删除（用户要求）')
+
+  ok(/2<i>p<\/i><sub><i>z<\/i><\/sub>/.test(home),
+    '★ 轨道卡标签：2p 的 p 斜体、z 作下标且斜体（不再是 2p_z）')
+  ok(/<i>T<\/i><sub>d<\/sub> · 24/.test(home),
+    '★ 点群卡标签：Schoenflies T 斜体、d 作下标（不是正体 Td）')
+  ok(/<i>ψ<\/i><sub>3,2,0<\/sub> · 3<i>d<\/i><sub><i>z<\/i>²<\/sub>/.test(home),
+    '★ 主视觉 HUD：ψ 与 3d_z² 用斜体变量 + 下标（量子数正体）')
+  ok(/NODAL CONES/.test(home) && /54\.74/.test(home) && /125\.26/.test(home),
+    '★ 主视觉 HUD 的"节锥"角度与画面里真画出来的锥线框对应（图文对应）')
+  ok(/\.pt-hud-v i, \.pt-card-demo i \{/.test(flat)
+    && /\.pt-hud-v sub, \.pt-hud-v sup, \.pt-card-demo sub, \.pt-card-demo sup \{/.test(flat),
+    '公式片段有专门排版规则（斜体衬线变量 + 独立的上下标字号）')
 }
 
 console.log('')

@@ -4,9 +4,10 @@
  *
  * ★ 为什么要这个文件：首页的五块画布在 Node 里画不出来（没有 Canvas），
  *   但"画出来的东西对不对"里有一半是**数学事实**，完全可以在无头环境里独立重算：
- *     · 立方八面体是不是 12 顶点 / 24 棱、每个顶点度数 4、棱长相等？
  *     · 甲烷的 C-H 键长是否相等、H-C-H 夹角是否 109.47°、C₃ 轴是否就是 C-H 方向？
- *     · 3d_z² 点云的相位符号是否真的等于 3cos²θ−1 的符号？
+ *     · 3d_z² 点云的相位符号是否真的等于 3cos²θ−1 的符号？节锥的 θ 是否是 arccos(1/√3)？
+ *     · 教材式晶胞图的斜投影是否真的"平行线保持平行、深度缩短一半"？
+ *     · 球坐标网格的点是否都在单位球面上（HUD 写 θ、φ 的前提）？
  *     · 投影在两套坐标系里是否自洽（原点落在画面中心、相机后方返回 null）？
  *     · 同一个随机种子是否给出同一片星空（截图可比对）？
  *   这些算错了，画面上**看不出来**（点云照样有形状），但教学上就是错的。
@@ -15,10 +16,10 @@
  * 用法：node apps/web/tools/test-home-visuals.mjs
  */
 import {
-  rotateXYZ, project, createPRNG, createCuboctahedron, createMethane,
-  createLatticeScene, createOrbitalCloud, orbitalAngular, createDust,
-  createBackgroundLattice, parseColor, rgba, mixColor, createPalette,
-  angleBetween, length, normalize, TAU,
+  rotateXYZ, project, projectOblique, createPRNG, createSphericalCage,
+  createNodalCones, createMethane, createLatticeScene, createOrbitalCloud,
+  orbitalAngular, createDust, createBackgroundLattice, parseColor, rgba,
+  mixColor, createPalette, angleBetween, length, normalize, TAU,
 } from '../src/shell/pages/home-visuals.js'
 
 let pass = 0
@@ -33,23 +34,69 @@ function ok(cond, label, detail) {
 function near(a, b, eps = 1e-9) { return Math.abs(a - b) <= eps }
 
 // ---------------------------------------------------------------------------
-// ① 立方八面体：FCC 的 12 配位多面体
+// ① 教材式斜投影（cabinet）：正面不变形、平行线保持平行
+//
+//   2026-10-17 用户贴了教材里的 NaCl 晶胞图："最好做成这种视图，化学家喜欢用这种视图"。
+//   那种图是**正交/斜投影**，不是透视 —— 判据就是"平行线永远平行"。
 // ---------------------------------------------------------------------------
 {
-  const { verts, edges } = createCuboctahedron()
-  ok(verts.length === 12, '立方八面体：12 个顶点', 'got ' + verts.length)
-  ok(edges.length === 24, '立方八面体：24 条棱', 'got ' + edges.length)
-  ok(verts.every((v) => near(length(v), 1)), '立方八面体：全部顶点在单位球面上')
-  ok(edges.every(([i, j]) => near(length([
-    verts[i][0] - verts[j][0], verts[i][1] - verts[j][1], verts[i][2] - verts[j][2],
-  ]), 1)), '立方八面体：所有棱等长（= 1）')
-  const degree = new Array(verts.length).fill(0)
-  edges.forEach(([i, j]) => { degree[i]++; degree[j]++ })
-  ok(degree.every((d) => d === 4), '立方八面体：每个顶点度数 4（8 个三角面 + 6 个正方形）',
-    degree.join(','))
-  // 顶点两两不同
-  const uniq = new Set(verts.map((v) => v.map((x) => x.toFixed(6)).join(',')))
-  ok(uniq.size === verts.length, '立方八面体：12 个顶点互不重合')
+  const opts = { cx: 100, cy: 60, scale: 50, alpha: 0.6632251, depth: 0.5 }
+  const o = projectOblique([0, 0, 0], opts)
+  ok(o.x === 100 && o.y === 60, '斜投影：原点落在中心')
+  // 正面（z = 0）与正交投影一致：x 向右、y 向上（y 轴翻转在投影里做）
+  const p0 = projectOblique([0.5, 0.25, 0], opts)
+  ok(near(p0.x, 100 + 25) && near(p0.y, 60 - 12.5), '斜投影：z = 0 的正面不缩短（x 右、y 上）')
+  // +z 朝右上偏移（教材的深度轴方向），depth 返回 z 供画家算法排序
+  const pz = projectOblique([0, 0, 1], opts)
+  ok(pz.x > 100 && pz.y < 60, '+z 朝右上（教材的深度轴方向）')
+  ok(near(pz.depth, 1), '斜投影：depth = z（画家算法用）')
+  // 平行线保持平行：两条同向等长线段的投影位移相同（与位置无关）→ 透视投影不成立
+  const a1 = projectOblique([-0.3, -0.2, 0.1], opts)
+  const b1 = projectOblique([0.2, 0.1, 0.4], opts)
+  const a2 = projectOblique([0.4, -0.3, -0.2], opts)
+  const b2 = projectOblique([0.9, 0, 0.1], opts)
+  ok(near(b1.x - a1.x, b2.x - a2.x) && near(b1.y - a1.y, b2.y - a2.y),
+    '斜投影：平行线保持平行（正交性质；透视投影不成立）')
+  // cabinet：深度轴缩短为一半
+  const q1 = projectOblique([0, 0, 0], opts)
+  const q2 = projectOblique([0, 0, 2], opts)
+  ok(Math.abs(Math.hypot(q2.x - q1.x, q2.y - q1.y) - 2 * 50 * 0.5) < 1e-9,
+    'cabinet：深度轴缩短为一半（2 单位深度 → 屏幕上 1 个单位长度）')
+}
+
+// ---------------------------------------------------------------------------
+// ② 球坐标网格与 d_z² 节锥（主视觉 HUD 的"图文对应"靠它们成立）
+// ---------------------------------------------------------------------------
+{
+  const cage = createSphericalCage()
+  ok(cage.latitudes.length === 5 && cage.meridians.length === 4,
+    '球坐标网格：5 条纬线 + 4 条经线', cage.latitudes.length + '/' + cage.meridians.length)
+  ok(cage.latitudes.every((line) => line.every((p) => near(Math.hypot(p[0], p[1], p[2]), 1))),
+    '球坐标网格：纬线上的点都在单位球面上')
+  ok(cage.meridians.every((line) => line.every((p) => near(Math.hypot(p[0], p[1], p[2]), 1))),
+    '球坐标网格：经线上的点都在单位球面上')
+  // θ = 54.7356° / 125.2644° 两条纬线：z = ±1/√3 —— 它们就是节锥与球面的交线
+  ok(near(cage.latitudes[1][0][2], 1 / Math.sqrt(3), 1e-6)
+    && near(cage.latitudes[3][0][2], -1 / Math.sqrt(3), 1e-6),
+    '球坐标网格：θ = 54.74° / 125.26° 两条纬线的 z = ±1/√3（节锥交线）')
+  ok(cage.meridians[0].some((p) => near(Math.abs(p[2]), 1)),
+    '球坐标网格：经线经过南北极（是绕过 z 轴的大圆）')
+
+  const cones = createNodalCones()
+  const theta0 = Math.acos(1 / Math.sqrt(3)) * 180 / Math.PI
+  ok(Math.abs(cones.thetaDeg - theta0) < 1e-9, '节锥：半锥角 = arccos(1/√3) = 54.7356°',
+    cones.thetaDeg.toFixed(6) + '° / ' + theta0.toFixed(6) + '°')
+  ok(near(cones.z, 1 / Math.sqrt(3), 1e-9) && near(cones.radius, Math.sqrt(2 / 3), 1e-9),
+    '节锥：z = cos θ = 1/√3，底圆半径 = sin θ = √(2/3)')
+  ok(cones.cones.length === 2 && cones.cones[0].sign === 1 && cones.cones[1].sign === -1,
+    '节锥：±z 两个圆锥（3cos²θ−1 = 0 的两个解）')
+  const onZero = (p) => Math.abs(3 * p[2] * p[2] - 1) < 1e-9
+  ok(cones.cones.every((c) => c.circle.every((p) => onZero(p)
+    && near(Math.hypot(p[0], p[1], p[2]), 1))),
+    '节锥：底圆上的点满足 3cos²θ−1 = 0 且在单位球面上')
+  ok(cones.cones.every((c) => c.lines.length === 12
+    && c.lines.every((seg) => near(Math.hypot(seg[0][0], seg[0][1], seg[0][2]), 0))),
+    '节锥：12 条母线都从原点出发')
 }
 
 // ---------------------------------------------------------------------------

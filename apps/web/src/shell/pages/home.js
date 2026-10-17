@@ -39,9 +39,9 @@
 
 import { t, tsrc } from '@i18n/index.js'
 import {
-  TAU, clamp01, rotateXYZ, project, createPalette, rgba,
-  createCuboctahedron, createMethane, createLatticeScene, createOrbitalCloud,
-  createDust, createBackgroundLattice,
+  TAU, clamp01, rotateXYZ, project, projectOblique, createPalette, rgba,
+  createSphericalCage, createNodalCones, createMethane, createLatticeScene,
+  createOrbitalCloud, createDust, createBackgroundLattice,
 } from './home-visuals.js'
 
 /**
@@ -55,11 +55,13 @@ const MODULE_COPY = {
   crystal: { sub: 'shell.home.crystal.sub', desc: 'shell.home.crystal.desc', tag: 'shell.home.crystal.tag' },
 }
 
-/** 卡片画布上角的"正在演示什么"（化学标识，不是界面文案，故不进字典） */
+/** 卡片画布上角的"正在演示什么"（化学标识；变量用斜体、下标用 <sub>，见文件头排版约定） */
 const MODULE_DEMO = {
-  orbit: '2p_z',
-  symmetry: 'Td · 24',
-  crystal: 'NaCl · Fm3̄m',
+  orbit: '2<i>p</i><sub><i>z</i></sub>',
+  symmetry: '<i>T</i><sub>d</sub> · 24',
+  // Fm3̄m 是 Hermann–Mauguin 空间群符号：**正体**，3 上有横杠（用 CSS overline 画，
+  // 组合字符 3̄ 在有些字体里横杠几乎看不见）
+  crystal: 'NaCl · Fm<span class="pt-bar">3</span>m',
 }
 
 /** 等宽字体栈：HUD/编号/英文小字用（正文仍走 --font-ui 令牌） */
@@ -101,24 +103,6 @@ function drawGlow(ctx, x, y, r, color, alpha) {
   ctx.beginPath()
   ctx.arc(x, y, r, 0, TAU)
   ctx.fill()
-}
-
-/** 取一个与 n 不平行的向量，构造正交基（画 3D 圆环用） */
-function basisFor(n) {
-  const helper = Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]
-  const u = [
-    n[1] * helper[2] - n[2] * helper[1],
-    n[2] * helper[0] - n[0] * helper[2],
-    n[0] * helper[1] - n[1] * helper[0],
-  ]
-  const ul = Math.hypot(u[0], u[1], u[2]) || 1
-  u[0] /= ul; u[1] /= ul; u[2] /= ul
-  const v = [
-    n[1] * u[2] - n[2] * u[1],
-    n[2] * u[0] - n[0] * u[2],
-    n[0] * u[1] - n[1] * u[0],
-  ]
-  return [u, v]
 }
 
 /** 把世界坐标点投影成画布坐标（返回 null 表示在相机后方） */
@@ -163,17 +147,13 @@ export class HomePage {
     this._scenes = {
       bgLattice: createBackgroundLattice({ n: 4, spacing: 1 }),
       dust: createDust({ count: 150, seed: 3 }),
-      cob: createCuboctahedron(),
+      // 主视觉：3d_z² 电子云 + **球坐标网格**（纬线/经线）+ **节锥**（3cos²θ−1 = 0）
       holoCloud: createOrbitalCloud('dz2', { count: 280, seed: 5, spread: 0.72 }),
+      cage: createSphericalCage(),
+      cones: createNodalCones(54.7356, { generatrices: 18 }),
       orbitCloud: createOrbitalCloud('pz', { count: 260, seed: 9, spread: 0.62 }),
       methane: createMethane(),
       lattice: createLatticeScene({ n: 3 }),
-      // 主视觉的三条轨道环：法向量 / 半径 / 转速 / 初相
-      rings: [
-        { n: [0, 1, 0], r: 0.94, speed: 0.55, phase: 0 },
-        { n: [1, 0.35, 0.15], r: 0.8, speed: -0.8, phase: 1.7 },
-        { n: [0.15, 0.85, -0.5], r: 1.04, speed: 0.36, phase: 3.1 },
-      ],
     }
 
     // ---- 动画状态（mount 时重置） ----
@@ -365,14 +345,10 @@ export class HomePage {
               <div class="pt-holo-ring2" aria-hidden="true"></div>
               <div class="pt-holo-scan" aria-hidden="true"></div>
               <canvas class="pt-canvas pt-holo" data-canvas="holo" aria-hidden="true"></canvas>
-              <div class="pt-hud pt-hud--tl" aria-hidden="true"><span class="pt-hud-k">WAVE FUNCTION</span><span class="pt-hud-v">ψ<sub>n,l,m</sub> · 3d<sub>z²</sub></span></div>
-              <div class="pt-hud pt-hud--tr" aria-hidden="true"><span class="pt-hud-k">POINT GROUP</span><span class="pt-hud-v">T<sub>d</sub> · 24</span></div>
-              <div class="pt-hud pt-hud--bl" aria-hidden="true"><span class="pt-hud-k">LATTICE</span><span class="pt-hud-v">Fm3̄m · 5.64 Å</span></div>
-              <div class="pt-hud pt-hud--br" aria-hidden="true"><span class="pt-hud-k">COORDINATION</span><span class="pt-hud-v">CN 12</span></div>
-            </div>
-            <div class="pt-holo-caption" aria-hidden="true">
-              <i class="pt-holo-dot"></i><span>${t('shell.home.holoTitle')}</span>
-              <span class="pt-holo-sep">/</span><span class="pt-holo-live">${t('shell.home.holoLive')}</span>
+              <div class="pt-hud pt-hud--tl" aria-hidden="true"><span class="pt-hud-k">WAVE FUNCTION</span><span class="pt-hud-v"><i>ψ</i><sub>3,2,0</sub> · 3<i>d</i><sub><i>z</i>²</sub></span></div>
+              <div class="pt-hud pt-hud--tr" aria-hidden="true"><span class="pt-hud-k">NODAL CONES</span><span class="pt-hud-v"><i>θ</i> = 54.74° / 125.26°</span></div>
+              <div class="pt-hud pt-hud--bl" aria-hidden="true"><span class="pt-hud-k">PHASE</span><span class="pt-hud-v"><span class="pt-phase-pos">+1</span> / <span class="pt-phase-neg">−1</span></span></div>
+              <div class="pt-hud pt-hud--br" aria-hidden="true"><span class="pt-hud-k">ANGULAR PART</span><span class="pt-hud-v">|<i>Y</i>| ∝ |3cos<sup>2</sup><i>θ</i> − 1|</span></div>
             </div>
           </div>
         </main>
@@ -734,7 +710,14 @@ export class HomePage {
   }
 
   // -------------------------------------------------------------------------
-  // 绘制：主视觉全息（刻度环 + 立方八面体 + 3d_z² 点云 + 轨道环 + 原子核）
+  // 绘制：主视觉 —— 3d_z² 轨道全息
+  //
+  //   画面上的每个元素都与右上角的 HUD **一一对应**（用户问"右上角的图文对应吗"）：
+  //     · 点云（青/紫按相位分色） ↔ ψ3,2,0 · 3d_z²
+  //     · 两个绕 ±z 的线框圆锥     ↔ 节锥 θ = 54.74° / 125.26°（3cos²θ−1 = 0）
+  //     · 青/紫两种点的颜色        ↔ 相位 +1 / −1
+  //     · 球坐标网格（纬线/经线）  ↔ 角度部分 |Y| ∝ |3cos²θ−1|
+  //   原先的"立方八面体 + 点群 Td"是两套不相干的对象硬凑在一起，已删。
   // -------------------------------------------------------------------------
   _drawHolo(ctx, e, t, pal) {
     const w = e.w
@@ -748,113 +731,126 @@ export class HomePage {
     ctx.save()
     ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over'
 
-    // ---- 1. 外刻度环（72 格，每 6 格一个长刻度；整体极慢旋转）----
+    // ---- 1. 外刻度环（仪器感；与化学内容无关，只是"探针"的边框）----
     const tickR = R * 0.468
     const tickRot = t * 0.05
     for (let i = 0; i < 72; i++) {
       const a = (i / 72) * TAU + tickRot
       const major = i % 6 === 0
-      const r0 = tickR
       const r1 = tickR + (major ? R * 0.02 : R * 0.01)
       drawLine(ctx,
-        cx + Math.cos(a) * r0, cy + Math.sin(a) * r0,
+        cx + Math.cos(a) * tickR, cy + Math.sin(a) * tickR,
         cx + Math.cos(a) * r1, cy + Math.sin(a) * r1,
         rgba(pal.dim, 1), 1, major ? (dark ? 0.42 : 0.5) : (dark ? 0.15 : 0.22))
     }
 
-    // ---- 2. 三条 3D 轨道环 ----
-    const cam = { w, h, focal: R * 1.4, dist: 3.5 }
-    const ax = -0.36 + py * 0.2
-    const ay = t * 0.2 + px * 0.26 + 0.3
-    for (let ri = 0; ri < this._scenes.rings.length; ri++) {
-      const ring = this._scenes.rings[ri]
-      const [u, v] = basisFor(ring.n)
-      const steps = 84
-      const pts2 = []
-      for (let s = 0; s <= steps; s++) {
-        const a = (s / steps) * TAU
-        const p = [
-          (u[0] * Math.cos(a) + v[0] * Math.sin(a)) * ring.r,
-          (u[1] * Math.cos(a) + v[1] * Math.sin(a)) * ring.r,
-          (u[2] * Math.cos(a) + v[2] * Math.sin(a)) * ring.r,
-        ]
-        pts2.push(toScreen(rotateXYZ(p, ax, ay), cam))
+    // ---- 2. 相机：弱透视 + 慢速旋转（鼠标轻微视差）----
+    // ★ 画面里所有 3D 元素（球坐标网格 / 节锥 / 坐标轴 / 电子云）必须共用同一组
+    //   ax、ay —— 用户第 2 条要的是"图文对应"：如果点云的 z 瓣和节锥的 z 轴在屏幕上
+    //   指向不同方向，那 HUD 就是在说谎。缩放 0.8 是给四角 HUD 留出安全区（原尺寸会压到字）。
+    const cam = { w, h, focal: R * 1.76, dist: 5.0 }
+    const ax = -0.5 + py * 0.12
+    const ay = 0.22 + t * 0.12 + px * 0.2
+    const P = (p) => toScreen(rotateXYZ(p, ax, ay), cam)
+
+    // ---- 3. 球坐标网格：纬线（θ 固定）+ 经线（φ 固定）----
+    const strokePolyline = (pts, color, alpha, width) => {
+      ctx.beginPath()
+      let started = false
+      for (let i = 0; i < pts.length; i++) {
+        const pr = pts[i]
+        if (!pr) { started = false; continue }
+        if (!started) { ctx.moveTo(pr.x, pr.y); started = true } else ctx.lineTo(pr.x, pr.y)
       }
-      // 环体：分段画（近处亮、远处暗）
-      for (let s = 0; s < steps; s++) {
-        const a = pts2[s]
-        const b = pts2[s + 1]
-        if (!a || !b) continue
-        const depth = clamp01(1 - (a.depth - (cam.dist - 1.0)) / 2.2)
-        drawLine(ctx, a.x, a.y, b.x, b.y, rgba(ri === 0 ? pal.cyan : pal.violet, 1), 1,
-          (dark ? 0.1 : 0.24) + depth * (dark ? 0.2 : 0.2))
+      ctx.strokeStyle = color
+      ctx.lineWidth = width || 1
+      ctx.globalAlpha = alpha
+      ctx.stroke()
+      ctx.globalAlpha = 1
+    }
+    const cage = this._scenes.cage
+    for (let i = 0; i < cage.latitudes.length; i++) {
+      // θ = 54.74° / 125.26° 两条纬线同时是**节锥与球面的交线**，用节点色强调
+      const isNodal = i === 1 || i === 3
+      strokePolyline(cage.latitudes[i].map(P),
+        rgba(isNodal ? pal.amber : pal.dim, 1),
+        isNodal ? (dark ? 0.4 : 0.46) : (dark ? 0.12 : 0.18), 1)
+    }
+    for (let i = 0; i < cage.meridians.length; i++) {
+      strokePolyline(cage.meridians[i].map(P), rgba(pal.dim, 1), dark ? 0.1 : 0.16, 1)
+    }
+
+    // ---- 4. 节锥（3cos²θ−1 = 0 的两个解）：半透明锥面 + 底圆 + 母线 ----
+    const cones = this._scenes.cones
+    const origin = P([0, 0, 0])
+    for (let ci = 0; ci < cones.cones.length; ci++) {
+      const cone = cones.cones[ci]
+      const rim = cone.circle.map(P)
+      // 锥面：从顶点沿底圆的三角扇 —— 只描线框的话读起来像两个"圆环"，
+      // 填一层低透明度后才看得出是"两个圆锥面"（这正是 HUD 上写的 NODAL CONES）
+      if (origin && rim.length > 1) {
+        ctx.beginPath()
+        ctx.moveTo(origin.x, origin.y)
+        for (let i = 0; i < rim.length; i++) {
+          if (rim[i]) ctx.lineTo(rim[i].x, rim[i].y)
+        }
+        ctx.closePath()
+        ctx.fillStyle = rgba(pal.amber, 1)
+        ctx.globalAlpha = dark ? 0.05 : 0.07
+        ctx.fill()
+        ctx.globalAlpha = 1
       }
-      // 环上的电子：亮点 + 光晕
-      const ea = (t * ring.speed + ring.phase) % TAU
-      const ept = [
-        (u[0] * Math.cos(ea) + v[0] * Math.sin(ea)) * ring.r,
-        (u[1] * Math.cos(ea) + v[1] * Math.sin(ea)) * ring.r,
-        (u[2] * Math.cos(ea) + v[2] * Math.sin(ea)) * ring.r,
-      ]
-      const ep = toScreen(rotateXYZ(ept, ax, ay), cam)
-      if (ep) {
-        const col = [pal.cyan, pal.violet, pal.emerald][ri % 3]
-        const depth = clamp01(1 - (ep.depth - (cam.dist - 1.0)) / 2.2)
-        drawGlow(ctx, ep.x, ep.y, R * (0.012 + 0.03 * depth), col, 0.55 * depth + 0.15)
-        drawDot(ctx, ep.x, ep.y, R * 0.006 * (0.7 + depth), rgba(col, 1), 0.95)
+      strokePolyline(rim, rgba(pal.amber, 1), dark ? 0.52 : 0.58, 1)
+      if (origin) {
+        for (let i = 0; i < cone.lines.length; i++) {
+          const tip = P(cone.lines[i][1])
+          if (!tip) continue
+          drawLine(ctx, origin.x, origin.y, tip.x, tip.y, rgba(pal.amber, 1), 1, dark ? 0.2 : 0.26)
+        }
       }
     }
 
-    // ---- 3. 立方八面体线框（FCC 的 12 配位多面体）----
-    const cob = this._scenes.cob
-    const camC = { w, h, focal: R * 1.3, dist: 3.2 }
-    const axC = ax * 0.8 + 0.1
-    const ayC = ay * 0.55 + 0.6
-    const cobPts = cob.verts.map((p) => toScreen(rotateXYZ(p, axC, ayC), camC))
-    for (let i = 0; i < cob.edges.length; i++) {
-      const a = cobPts[cob.edges[i][0]]
-      const b = cobPts[cob.edges[i][1]]
-      if (!a || !b) continue
-      const depth = clamp01(1 - ((a.depth + b.depth) / 2 - (camC.dist - 1)) / 2.0)
-      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.cyan, 1), 1, (dark ? 0.07 : 0.18) + depth * (dark ? 0.13 : 0.14))
-    }
-    for (let i = 0; i < cobPts.length; i++) {
-      const pr = cobPts[i]
-      if (!pr) continue
-      const depth = clamp01(1 - (pr.depth - (camC.dist - 1)) / 2.0)
-      drawGlow(ctx, pr.x, pr.y, R * (0.008 + 0.014 * depth), pal.cyan, 0.18 + depth * 0.3)
-      drawDot(ctx, pr.x, pr.y, R * 0.0032 * (0.6 + depth), rgba(pal.node, 1), 0.65 + depth * 0.3)
+    // ---- 5. 坐标轴 + 轴标（斜体 x / y / z，正体是错的：变量必须斜体）----
+    const axisLen = 1.14
+    ctx.font = 'italic ' + Math.max(11, Math.round(R * 0.05)) + 'px "Times New Roman", "Cambria Math", serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const axes = [{ d: [1, 0, 0], label: 'x' }, { d: [0, 1, 0], label: 'y' }, { d: [0, 0, 1], label: 'z' }]
+    for (let i = 0; i < axes.length; i++) {
+      const d = axes[i].d
+      const a = P([-d[0] * axisLen, -d[1] * axisLen, -d[2] * axisLen])
+      const b = P([d[0] * axisLen, d[1] * axisLen, d[2] * axisLen])
+      const tip = P([d[0] * (axisLen + 0.1), d[1] * (axisLen + 0.1), d[2] * (axisLen + 0.1)])
+      if (a && b) drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.dim, 1), 1, dark ? 0.26 : 0.3)
+      if (tip) {
+        ctx.globalAlpha = dark ? 0.85 : 0.9
+        ctx.fillStyle = rgba(pal.dim, 1)
+        ctx.fillText(axes[i].label, tip.x, tip.y)
+        ctx.globalAlpha = 1
+      }
     }
 
-    // ---- 4. 3d_z² 电子云：两个沿 z 的大瓣 + 赤道负相位圈 ----
+    // ---- 6. 3d_z² 电子云：两个沿 z 的大瓣 + 赤道负相位圈（相位决定颜色）----
+    // ★ 与网格/节锥/坐标轴共用同一组 ax、ay（同一个坐标系），否则两个"z 方向"会在
+    //   屏幕上打架 —— 那正是用户第 2 条问的"图文对应吗"。
     const cloud = this._scenes.holoCloud
-    const axO = -0.42 + py * 0.24
-    const ayO = t * 0.34 + px * 0.3 + 0.15
-    const sc = R * 0.46
+    const sc = R * 0.4
     for (let i = 0; i < cloud.points.length; i++) {
       const p = cloud.points[i]
-      const q = rotateXYZ([p.x, p.y, p.z], axO, ayO)
+      const q = rotateXYZ([p.x, p.y, p.z], ax, ay)
       const depth = (q[2] + 1) / 2                     // 0 = 远，1 = 近
-      const x = cx + q[0] * sc
-      const y = cy - q[1] * sc
       const col = p.phase > 0 ? pal.cyan : pal.violet
       const size = R * (0.0022 + 0.0048 * depth) * (dark ? 1 : 1.45)
-      drawDot(ctx, x, y, size, rgba(col, 1), (dark ? 0.3 : 0.42) + depth * (dark ? 0.58 : 0.48))
+      drawDot(ctx, cx + q[0] * sc, cy - q[1] * sc, size, rgba(col, 1),
+        (dark ? 0.3 : 0.42) + depth * (dark ? 0.58 : 0.48))
     }
 
-    // ---- 5. 原子核：脉动光晕 + 白核 ----
+    // ---- 7. 原子核：脉动光晕 + 白核 ----
     const pulse = 1 + 0.07 * Math.sin(t * 2.1)
     drawGlow(ctx, cx, cy, R * 0.17 * pulse, pal.cyan, dark ? 0.5 : 0.42)
     drawGlow(ctx, cx, cy, R * 0.09 * pulse, pal.violet, dark ? 0.35 : 0.4)
     drawGlow(ctx, cx, cy, R * 0.06 * pulse, pal.node, dark ? 0.6 : 0.5)
     drawDot(ctx, cx, cy, R * 0.014 * pulse, dark ? '#ffffff' : pal.ink, 0.95)
-
-    // ---- 6. 十字准星（很淡；仪器感）----
-    const crossA = dark ? 0.18 : 0.16
-    drawLine(ctx, cx - R * 0.5, cy, cx - R * 0.06, cy, rgba(pal.dim, 1), 1, crossA)
-    drawLine(ctx, cx + R * 0.06, cy, cx + R * 0.5, cy, rgba(pal.dim, 1), 1, crossA)
-    drawLine(ctx, cx, cy - R * 0.5, cx, cy - R * 0.06, rgba(pal.dim, 1), 1, crossA)
-    drawLine(ctx, cx, cy + R * 0.06, cx, cy + R * 0.5, rgba(pal.dim, 1), 1, crossA)
 
     ctx.restore()
   }
@@ -973,7 +969,15 @@ export class HomePage {
   }
 
   // -------------------------------------------------------------------------
-  // 绘制：模块卡 · 晶体（NaCl 岩盐型晶胞）
+  // 绘制：模块卡 · 晶体（NaCl 晶胞 —— 教材式斜投影球棍图）
+  //
+  //   2026-10-17 用户贴了一张教材里的 NaCl 晶胞图：「最好做成这种视图，化学家喜欢用这种视图」。
+  //   那种图的画法要点（也是本函数的四条约定）：
+  //     · **斜投影（正交）**：正面不变形、平行线永远平行 —— 不是透视投影；
+  //     · 深度轴朝右上约 38°、长度缩短一半（cabinet projection）；
+  //     · 球是**带轮廓的圆**：Cl⁻ 大而浅、Na⁺ 小而深（教材惯例，与离子半径一致）；
+  //     · 键是细直线；键与球放在同一张表里按深度排序（远的先画，画家算法）。
+  //   不再做任何旋转动画：教材插图的价值在于"永远是一个正面的晶胞"。
   // -------------------------------------------------------------------------
   _drawCrystal(ctx, e, t, pal) {
     const w = e.w
@@ -982,81 +986,104 @@ export class HomePage {
     const cy = h / 2
     const m = Math.min(w, h)
     const dark = pal.dark
-    const px = this._pointer.x
-    const py = this._pointer.y
-    ctx.save()
-    ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over'
-
     const lat = this._scenes.lattice
-    /**
-     * ★ 相机：**弱透视 + 等轴（isometric-ish）视角**。
-     *
-     *   2026-10-17 用户指着晶典在线的缩略图问："这里有点歪，这是什么视角？透视投影吗？"
-     *   —— 是透视投影，而且原先两件事叠加把"歪"放大了：
-     *     ① cam = focal 1.15m / dist 3.6（晶胞归一化半径 1）⇒ 近/远比 4.6/2.6 = **1.77**，
-     *        强透视下立方体近面大、远面小，小卡片里看起来像被拉歪的笼子；
-     *     ② 偏航随时间连续转（0.4 rad/s），任意一帧都可能停在"斜角"上 ——
-     *        教材里的晶胞图总是等轴视角（同时看见三个面、棱长投影相等）。
-     *   改：相机拉远到 dist 9、焦距同比放大到 3.2m ⇒ 近/远比 **1.25**（接近正交）；
-     *   视角停在等轴角（俯仰约 −35.5°、偏航约 133°）附近**小幅摆动**，
-     *   于是任何一帧都能看到三个面，读起来就是"一个晶胞"，而不是一坨菱形。
-     */
-    const cam = { w, h, focal: m * 3.2, dist: 9.0 }
-    const ax = -0.62 + Math.sin(t * 0.45) * 0.03 + py * 0.05
-    const ay = 2.32 + Math.sin(t * 0.3) * 0.16 + px * 0.06
-    const rot = lat.nodes.map((n) => rotateXYZ([n.x, n.y, n.z], ax, ay))
-    const pts = rot.map((p) => toScreen(p, cam))
-    const depthOf = (pr) => clamp01(1 - (pr.depth - (cam.dist - 1)) / 2.2)
-    /**
-     * ★ 画家算法：Canvas 没有 z-buffer。不按深度排序时，远处的球可能画在近处球的上面，
-     *   球与球之间的前后关系就乱了（浅色主题是 source-over，错序一眼可见）。
-     *   按相机坐标 z 升序（远的先画）即可；同一深度内保持原顺序（确定性，截图可比对）。
-     */
-    const drawOrder = lat.nodes.map((_, i) => i).sort((a, b) => rot[a][2] - rot[b][2])
 
-    // 键（Na–Cl 最近邻）
+    // 斜投影参数：与屏幕水平方向 38°、深度缩短一半（教材插图的常用比例）
+    const scale = m * 0.5
+    const opts = { cx, cy, scale, alpha: 0.6632251, depth: 0.5 }
+    const screen = (p) => projectOblique(p, opts)
+
+    // 教材配色：浅色球 = Cl⁻；深色球 = Na⁺。轮廓色随主题取反，保证两种底色上都清楚。
+    const fillCl = dark ? rgba(pal.node, 1) : 'rgba(255,255,255,1)'
+    const fillNa = dark ? rgba(pal.bg, 1) : rgba(pal.ink, 1)
+    const lineCl = dark ? rgba(pal.bg, 0.95) : 'rgba(28,38,52,0.92)'
+    const lineNa = dark ? rgba(pal.node, 0.82) : rgba(pal.ink, 0.95)
+    const bondColor = dark ? rgba(pal.node, 0.4) : 'rgba(28,38,52,0.6)'
+    const hilite = 'rgba(255,255,255,0.85)'
+    // 离子半径：Cl⁻ 明显大于 Na⁺（正交/斜投影下，球的大小与深度无关）
+    const rCl = scale * 0.08
+    const rNa = scale * 0.052
+
+    // 画家算法：键与球放进同一张表，按 z 从远到近画（+z = 远离观察者，朝右上）
+    const items = []
     for (let i = 0; i < lat.edges.length; i++) {
-      const a = pts[lat.edges[i][0]]
-      const b = pts[lat.edges[i][1]]
-      if (!a || !b) continue
-      const depth = depthOf({ depth: (a.depth + b.depth) / 2 })
-      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.node, 1), 1, (dark ? 0.08 : 0.12) + depth * (dark ? 0.14 : 0.1))
+      const a = lat.nodes[lat.edges[i][0]]
+      const b = lat.nodes[lat.edges[i][1]]
+      items.push({ kind: 'bond', z: (a.z + b.z) / 2, a, b })
+    }
+    for (let i = 0; i < lat.nodes.length; i++) {
+      items.push({ kind: 'atom', z: lat.nodes[i].z, node: lat.nodes[i] })
+    }
+    items.sort((p, q) => q.z - p.z)
+
+    for (let k = 0; k < items.length; k++) {
+      const it = items[k]
+      if (it.kind === 'bond') {
+        const a = screen([it.a.x, it.a.y, it.a.z])
+        const b = screen([it.b.x, it.b.y, it.b.z])
+        drawLine(ctx, a.x, a.y, b.x, b.y, bondColor, 1, dark ? 0.8 : 0.95)
+        continue
+      }
+      const isCl = it.node.kind === 0
+      const pr = screen([it.node.x, it.node.y, it.node.z])
+      const r = isCl ? rCl : rNa
+      // 球面用径向渐变做一点体积感（教材插图里的球都是"有明暗的圆"，不是纯色圆）
+      const grad = ctx.createRadialGradient(
+        pr.x - r * 0.34, pr.y - r * 0.34, Math.max(0.5, r * 0.12),
+        pr.x, pr.y, r)
+      if (isCl) {
+        grad.addColorStop(0, 'rgba(255,255,255,1)')
+        grad.addColorStop(1, dark ? 'rgba(186,206,232,1)' : 'rgba(226,234,244,1)')
+      } else {
+        grad.addColorStop(0, dark ? rgba(pal.node, 0.26) : 'rgba(72,88,112,1)')
+        grad.addColorStop(1, dark ? rgba(pal.bg, 1) : rgba(pal.ink, 1))
+      }
+      ctx.beginPath()
+      ctx.arc(pr.x, pr.y, r, 0, TAU)
+      ctx.fillStyle = grad
+      ctx.fill()
+      ctx.strokeStyle = isCl ? lineCl : lineNa
+      ctx.lineWidth = Math.max(1, r * 0.22)
+      ctx.stroke()
+      if (isCl && !dark) {
+        // 浅色主题的白色球面上，高光改用一道淡弧（白球 + 白高光等于没有）
+        ctx.beginPath()
+        ctx.arc(pr.x, pr.y, r * 0.7, Math.PI * 1.08, Math.PI * 1.6)
+        ctx.strokeStyle = 'rgba(28,38,52,0.2)'
+        ctx.lineWidth = Math.max(1, r * 0.1)
+        ctx.stroke()
+      }
+      drawDot(ctx, pr.x - r * 0.32, pr.y - r * 0.32, r * 0.26, hilite, 0.85)
     }
 
-    // 晶胞棱（立方体轮廓）
-    const halfUnit = 1 / Math.sqrt(3)
-    const corners = []
-    for (let i = 0; i < 8; i++) {
-      const sx = (i & 1) ? 1 : -1
-      const sy = (i & 2) ? 1 : -1
-      const sz = (i & 4) ? 1 : -1
-      corners.push(toScreen(rotateXYZ([sx * halfUnit, sy * halfUnit, sz * halfUnit], ax, ay), cam))
-    }
-    const cubeEdges = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]]
-    ctx.save()
-    ctx.setLineDash([4, 4])
-    for (let i = 0; i < cubeEdges.length; i++) {
-      const a = corners[cubeEdges[i][0]]
-      const b = corners[cubeEdges[i][1]]
-      if (!a || !b) continue
-      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.cyan, 1), 1, dark ? 0.26 : 0.3)
-    }
-    ctx.restore()
-
-    // 原子球：两套格点两种颜色（Na 绿 / Cl 琥珀），按深度排序（远 → 近）
-    for (let k = 0; k < drawOrder.length; k++) {
-      const i = drawOrder[k]
-      const pr = pts[i]
-      if (!pr) continue
-      const depth = depthOf(pr)
-      const base = (lat.nodes[i].kind === 0 ? 0.03 : 0.0245) * m * (dark ? 1 : 1.18)
-      const r = base * (0.7 + depth * 0.5)
-      const col = lat.nodes[i].kind === 0 ? pal.emerald : pal.amber
-      drawGlow(ctx, pr.x, pr.y, r * 2.6, col, (dark ? 0.3 : 0.3) * (0.4 + depth * 0.6))
-      drawDot(ctx, pr.x, pr.y, r, rgba(col, 1), 0.85)
-      drawDot(ctx, pr.x - r * 0.3, pr.y - r * 0.3, r * 0.32, dark ? '#ffffff' : pal.ink, 0.75)
-    }
-    ctx.restore()
+    // 图例：教材左下角那两行"大球 Cl / 小球 Na"在小卡片里也不能省
+    const lx = Math.max(8, w * 0.025)
+    const ly = Math.max(12, h * 0.22)
+    const lr = Math.max(2.6, rNa * 1.2)
+    ctx.font = '9px "Cascadia Mono", Consolas, "Microsoft YaHei", monospace'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+    ctx.globalAlpha = dark ? 0.78 : 0.82
+    ctx.beginPath()
+    ctx.arc(lx + lr, ly, lr, 0, TAU)
+    ctx.fillStyle = fillCl
+    ctx.fill()
+    ctx.strokeStyle = lineCl
+    ctx.lineWidth = 1
+    ctx.stroke()
+    ctx.fillStyle = rgba(pal.dim, 1)
+    ctx.fillText('Cl⁻', lx + lr * 2 + 5, ly)
+    ctx.beginPath()
+    ctx.arc(lx + lr, ly + 15, lr * 0.72, 0, TAU)
+    ctx.fillStyle = fillNa
+    ctx.fill()
+    ctx.strokeStyle = lineNa
+    ctx.stroke()
+    ctx.fillStyle = rgba(pal.dim, 1)
+    ctx.fillText('Na⁺', lx + lr * 2 + 5, ly + 15)
+    ctx.globalAlpha = 1
+    ctx.textAlign = 'start'
+    ctx.textBaseline = 'alphabetic'
   }
 }
 
@@ -1107,7 +1134,12 @@ const STYLE = `
   display: flex;
   flex-direction: column;
   padding: 20px clamp(20px, 3.6vw, 56px) 18px;
+  /* ★ 只裁装饰层的溢出，**不能**让 .portal 成为滚动容器：
+     overflow: hidden 的元素算"可滚动容器"，scrollIntoView 会把滚动落在它身上而不是文档上
+     —— 表现就是"点开始探索会滚，但滚不回来、也没有页面滚动条"（用户报的第 3 条）。
+     overflow: clip 只裁切、不创建滚动容器；hidden 作为旧浏览器的兜底。 */
   overflow: hidden;
+  overflow: clip;
   color: var(--pt-ink);
   background:
     radial-gradient(120% 90% at 50% -10%, #0b1730 0%, transparent 60%),
@@ -1546,32 +1578,45 @@ const STYLE = `
   pointer-events: none;
 }
 .pt-hud-k { font-size: 8.5px; letter-spacing: .22em; color: var(--pt-dim); opacity: .75; }
-.pt-hud-v { font-size: 12.5px; letter-spacing: .06em; color: var(--pt-ink); white-space: nowrap; }
+.pt-hud-v {
+  font-size: 12.5px;
+  letter-spacing: .02em;
+  color: var(--pt-ink);
+  white-space: nowrap;
+  /* 画布里的刻度环/网格可能从字后面穿过：给读数一圈与页面底色同色的浅描边，
+     保证任何角度下都清楚（不能靠"把线画淡"——那是拿专业性换干净）。 */
+  text-shadow: 0 0 6px var(--pt-bg), 0 0 2px var(--pt-bg);
+}
+/**
+ * ★ 科学排版：变量用斜体衬线、数字/函数名/单位正体、上下标独立字号。
+ *   用户第 5 条："2pz 的 z 不是下标，且没有斜体。检查首页，字母是否符合规范"。
+ *   规则（IUPAC / ISO 80000-2 的通行写法）：
+ *     · 物理量、量子数、轨道字母（p、d、ψ、θ、φ、x、y、z、Y）→ 斜体；
+ *     · 数字、函数名（cos）、单位（Å）、点群符号（T 是斜体 Schoenflies 符号）、
+ *       空间群（Fm3̄m 是正体 Hermann–Mauguin 符号）→ 正体；
+ *     · 下标是变量时斜体（z），是数字时正体（3,2,0）。
+ *   HUD/编号本身用等宽字，公式片段改用 --font-symbol（Times 优先），两者混排才像仪器读数 + 公式。
+ */
+.pt-hud-v i, .pt-card-demo i {
+  font-family: var(--font-symbol, "Times New Roman", "Cambria Math", serif);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+.pt-hud-v sub, .pt-hud-v sup, .pt-card-demo sub, .pt-card-demo sup {
+  font-size: .72em;
+  line-height: 0;
+  letter-spacing: 0;
+}
+.pt-hud-v sub i, .pt-hud-v sup i, .pt-card-demo sub i { font-family: var(--font-symbol, "Times New Roman", serif); }
+.pt-phase-pos { color: var(--pt-cyan); }
+.pt-phase-neg { color: var(--pt-violet); }
+/* Hermann–Mauguin 的 3̄：用 overline 画横杠（组合字符在等宽字体里常被吞掉） */
+.pt-bar { text-decoration: overline; text-decoration-thickness: 1px; }
 .pt-hud--tl { top: 3%; left: 1%; }
 .pt-hud--tr { top: 3%; right: 1%; text-align: right; align-items: flex-end; }
 .pt-hud--bl { bottom: 3%; left: 1%; }
 .pt-hud--br { bottom: 3%; right: 1%; text-align: right; align-items: flex-end; }
-.pt-holo-caption {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  max-width: 100%;
-  font-family: var(--pt-mono);
-  font-size: 10px;
-  letter-spacing: .18em;
-  color: var(--pt-dim);
-  text-align: center;
-}
-.pt-holo-sep { opacity: .5; }
-.pt-holo-dot {
-  width: 5px; height: 5px;
-  border-radius: 50%;
-  background: var(--pt-emerald);
-  box-shadow: 0 0 8px var(--pt-emerald);
-  animation: pt-pulse 2.2s ease-in-out infinite;
-}
-.pt-holo-live { color: var(--pt-cyan); letter-spacing: .14em; }
 
 /* ---------- 模块区 ---------- */
 .pt-modules {
@@ -1753,10 +1798,10 @@ const STYLE = `
   top: 4px;
   right: 2px;
   font-family: var(--pt-mono);
-  font-size: 9.5px;
-  letter-spacing: .1em;
+  font-size: 10.5px;
+  letter-spacing: .06em;
   color: var(--pt-dim);
-  opacity: .8;
+  opacity: .85;
 }
 .pt-card-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .pt-card-name {
@@ -1929,10 +1974,9 @@ body.home-active .agent-fab {
   .pt-hero-visual { max-width: min(74vw, 300px); }
   .pt-hud--tl, .pt-hud--bl { left: -2%; }
   .pt-hud--tr, .pt-hud--br { right: -2%; }
-  /* 手机上画布只占容器 90%，四周留白有限：底部两条 HUD 会压到点云/环上，
-     直接收起来，只留"波函数 / 点群"两条最关键的读数 */
+  /* 手机上画布只占容器 90%，四周留白有限：底部两条 HUD 会压到点云/节锥上，
+     直接收起来，只留"波函数 / 节锥"两条最关键的读数 */
   .pt-hud--bl, .pt-hud--br { display: none; }
-  .pt-holo-caption { font-size: 9px; letter-spacing: .12em; gap: 7px; }
   .pt-hud-v { font-size: 11px; }
   .pt-hud-k { font-size: 8px; }
   .pt-card { grid-template-rows: auto 112px auto auto; }

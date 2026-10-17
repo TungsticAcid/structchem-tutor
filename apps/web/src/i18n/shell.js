@@ -176,10 +176,6 @@ export const zh = {
    *   与上一轮同规矩：首页文案全部走键，不依赖运行时扫描（见 shell/pages/home.js 顶部说明）。
    */
   'shell.home.status': '场景感知 · 在线',
-  'shell.home.probe': '全息结构探针',
-  'shell.home.holoTitle': '结构全息投影',
-  'shell.home.holoLive': '实时演算',
-  'shell.home.scroll': '向下探索',
   'shell.home.featScene': '场景感知',
   'shell.home.featVisual': '三维可视化',
   'shell.home.featDeterministic': '数值由程序计算',
@@ -189,7 +185,7 @@ export const zh = {
   'shell.home.modulesOrder': '按授课顺序：原子结构 → 分子对称性 → 晶体结构',
   'shell.home.enterModule': '进入模块',
   'shell.home.consoleLabel': '界面设定',
-  'shell.home.visualHint': '实时渲染的结构化学演示：轨道云、配位多面体与晶体点阵',
+  'shell.home.visualHint': '实时渲染的结构化学演示：3d_z² 电子云、节锥与球坐标网格',
   /**
    * ★★ 2026-10-14（用户："现在还没有申请下软著"）：
    *   原先页脚写的是「© 2026 结构化学教学智能体 | …」——`©` 容易被读成"已登记/已获著作权"，
@@ -387,10 +383,6 @@ export const en = {
    *   Key-for-key with the zh table; keep each line short — the home page is a visual layout.
    */
   'shell.home.status': 'Scene-aware · online',
-  'shell.home.probe': 'Holographic structure probe',
-  'shell.home.holoTitle': 'Structural hologram',
-  'shell.home.holoLive': 'Live computation',
-  'shell.home.scroll': 'Scroll to explore',
   'shell.home.featScene': 'Scene-aware',
   'shell.home.featVisual': '3D visualization',
   'shell.home.featDeterministic': 'Numbers computed in code',
@@ -400,7 +392,7 @@ export const en = {
   'shell.home.modulesOrder': 'In teaching order: atomic structure → molecular symmetry → crystal structure',
   'shell.home.enterModule': 'Open module',
   'shell.home.consoleLabel': 'Interface',
-  'shell.home.visualHint': 'Live-rendered structural chemistry: orbital clouds, coordination polyhedra and crystal lattices',
+  'shell.home.visualHint': 'Live-rendered structural chemistry: a 3d_z² electron cloud, nodal cones and a spherical grid',
   'shell.home.footer': 'Structural Chemistry Teaching AI Agent · 2026 | A teaching and research '
     + 'tool for structural chemistry courses',
   'shell.home.orbit.sub': '3D visualization of hydrogenic orbitals',
