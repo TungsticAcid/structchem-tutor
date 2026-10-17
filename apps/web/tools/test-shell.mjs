@@ -686,29 +686,55 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
 }
 
 // ---------------------------------------------------------------------------
-// ★★ 2026-10-16（用户："手机端界面显示有问题"，真机截图：副标题末字被右边缘切掉）
+// ★★ 2026-10-17（首页全面重写为"结构探针 / 全息仪表"）
 //
-//   真因是**层叠**，而且两处都得成立才不溢出（实机在 390/360 下量出来的）：
-//     ① 小屏媒体查询里写的是单类选择器 `.pl-row`（特异性 0,1,0），
-//        而桌面规则是 `.portal.lang-zh .pl-row`（0,3,0）⇒ **永远盖不住**，
-//        窄屏仍按桌面 5 列排（列宽 ≈ 626px）✗；
-//     ② `.portal` 桌面用 `width: fit-content`，窄屏下被网格的固有最小宽度顶到
-//        670px（视口 496）✗ ⇒ 小屏必须 `width: 100%`。
-//
-//   ★ 判据只钉"小屏块里的那两条声明"，不去解析 CSS（本仓没有 CSS 解析器，
-//     而"能把特异性算对"的解析器本身就该由浏览器负责）。实测复核见
-//     `tmp/verify-mobile-390.mjs`（390/360 两种真机宽度：横向溢出 0、无元素越界）。
+//   旧版是一条"编号列表"，小屏溢出的两个真因（列定义特异性、fit-content）
+//   随旧布局一起消失；但**"窄屏不能横向溢出"这条意图必须继续守着** ——
+//   新布局换了网格 / 画布 / 绝对定位的 HUD，能撑破视口的写法反而更多了：
+//     · 网格项若没有 min-width: 0，画布与长文本的固有宽度会把整页顶宽；
+//     · 悬浮 HUD 是绝对定位，写到视口外就是横向滚动条；
+//     · 主视觉按 min(74vw, 300px) 限宽，而不是写死像素。
+//   静态守卫只钉"让窄屏收窄的那些声明"；真机像素由 tmp/qa-home.mjs（独立 QA）
+//   与实机截图复核（390/360 两种宽度：横向溢出 0、无元素越界）。
 // ---------------------------------------------------------------------------
 {
   const home = readFileSync(resolve(REPO, 'apps/web/src/shell/pages/home.js'), 'utf8')
-  // 取第一个 max-width 560 的媒体块（首页只有这一个）
-  const block = (home.match(/@media \(max-width: 560px\) \{[\s\S]*?\n {8}\}/) || [''])[0]
-  const flat = block.replace(/\s+/g, ' ')
-  ok(!!block, '首页存在小屏媒体块（@media max-width: 560px）')
-  ok(/\.portal\.lang-zh \.pl-row/.test(flat),
-    '★ 小屏列定义带 .portal.lang-zh 限定（否则被桌面同选择器压住 ⇒ 窄屏仍 5 列、横向溢出）')
-  ok(/\.portal \{ width: 100%/.test(flat),
-    '★ 小屏 .portal 改为 width: 100%（桌面是 fit-content，窄屏会被网格固有宽度顶破视口）')
+  const flat = home.replace(/\s+/g, ' ')
+  ok(/@media \(max-width: 720px\) \{/.test(flat), '首页存在小屏媒体块（max-width: 720px）')
+  const block = (home.match(/@media \(max-width: 720px\) \{[\s\S]*?\n\}/) || [''])[0]
+  const fb = block.replace(/\s+/g, ' ')
+  ok(!!block, '小屏媒体块能被取出（不是空块）')
+  ok(/\.pt-hero-visual \{ max-width: min\(74vw, 300px\)/.test(fb),
+    '★ 小屏主视觉按视口宽度限宽 min(74vw, 300px)（不写死像素宽度）')
+  ok(/\.pt-hero-copy \{ min-width: 0/.test(flat) && /\.pt-card-body \{ display: flex; flex-direction: column; gap: 4px; min-width: 0/.test(flat),
+    '★ grid 子项显式 min-width: 0（否则画布/长文本的固有宽度会顶破视口）')
+  ok(/\.pt-card \{[^}]*overflow: hidden/.test(flat), '卡片裁切内部溢出的装饰光斑（不产生横向溢出）')
+  ok(/\.pt-canvas \{ display: block; width: 100%; height: 100%/.test(flat),
+    '五块画布统一 width/height: 100%（跟随父容器，不写死尺寸）')
+  ok(/\.pt-hud \{ position: absolute/.test(flat) && !/\.pt-hud--tl \{[^}]*left: \d+px/.test(flat),
+    'HUD 绝对定位但不用固定像素偏移（窄屏不会越界）')
+}
+
+// ---------------------------------------------------------------------------
+// ★★ 2026-10-17：首页动画/画布的**生命周期守卫**（源码棘轮）
+//
+//   "新场景 + 旧记账"在本仓已经栽过（orbit 跨挂载的 auxGroup 缓存）；首页每次
+//   进出都会重建五块 canvas 与 rAF 循环，漏掉一处就是泄漏 —— 而泄漏不会报错，
+//   只会在来回切换若干次后越来越卡。这里钉住几个**必须成对出现**的调用。
+// ---------------------------------------------------------------------------
+{
+  const home = readFileSync(resolve(REPO, 'apps/web/src/shell/pages/home.js'), 'utf8')
+  ok(/cancelAnimationFrame\(this\._raf\)/.test(home), '画布 rAF 在卸载时被 cancelAnimationFrame 取消')
+  ok(/ResizeObserver/.test(home) && /\.disconnect\(\)/.test(home), 'ResizeObserver / IntersectionObserver 被 disconnect')
+  ok(/this\._cleanup\.forEach\(/.test(home) && /this\._cleanup = \[\]/.test(home),
+    '事件监听登记在 _cleanup 里并统一撤销')
+  ok(/prefers-reduced-motion: reduce/.test(home)
+    && /matchMedia\('\(prefers-reduced-motion: reduce\)'\)/.test(home),
+    '尊重 prefers-reduced-motion（CSS + JS 两处都停动画）')
+  ok(/attributeFilter: \['data-theme'\]/.test(home),
+    '主题切换通过 MutationObserver 重读 --pt-* 令牌（画布与页面同一套颜色）')
+  ok(/getPropertyValue/.test(home), '画布颜色从 CSS 变量读取（不在 JS 里抄第二套调色板）')
+  ok(/data-canvas="bg"/.test(home) && /data-canvas="holo"/.test(home), '背景与主视觉两块画布都在标记里')
 }
 
 console.log('')

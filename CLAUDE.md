@@ -15,7 +15,7 @@
 | 1 | ~~orbit 接入统一壳~~ | ✅ **已完成**（2026-10-01）：页面移植 · 模块门面 · **9 个工具**（queryOrbital + 8 个 teach）· **5 段演示脚本** · 实机验证通过。**仅剩 P7**（state 成为真源、去 DOM 中介）——那是架构清理，不影响功能 | — |
 | 2 | ~~symmetry 的动作层~~ | ✅ **已完成**（2026-10-01）：词汇表从 1 个扩到 **11 个**（元素显隐 · 逐个元素 · 标签/辅助/原子标签 · 播放与停止操作 · 选中原子 · 外观 · 配色 · 速度/时长/语言）。页面改成"渲染模块状态"，且**用户点按钮与模型下发走同一条通路**。★ 逐个元素用**稳定 key**（`C2#1` 式）而非数组下标 —— 下标是临时 id，交给模型等于让它编造 | `modules/symmetry/facade.js` |
 | 3 | ~~写知识条目~~ | ✅ **已全部写完**（2026-10-01）：晶体 44 · orbit 42 · **对称性 40（P1–P5，新写）**。⏳ **仅剩 `shared/` 总库**——按"会不会被两个以上模块引用"的判据，目前还没有满足条件的内容 | [packages/knowledge/](packages/knowledge/) |
-| 4 | **晶体模块继续打磨** | 取景已修（`VIEW_FIT_MARGIN`，实测模型高占画布 **0.408 → 0.529**，顺带修了竖屏会被左右切掉的隐患）。仍有：首页卡片缩略图未验证、径向/角度/截面三张图表未接入 | `modules/crystal/`、`apps/web/` |
+| 4 | **晶体模块继续打磨** | 取景已修（`VIEW_FIT_MARGIN`，实测模型高占画布 **0.408 → 0.529**，顺带修了竖屏会被左右切掉的隐患）。仍有：径向/角度/截面三张图表未接入（原"首页卡片缩略图未验证"一项已随 2026-10-17 首页重构改为**实时演算画布**，不再有缩略图） | `modules/crystal/`、`apps/web/` |
 | 5 | ~~知识库注册~~ | ✅ 已完成（2026-10-01）：三模块 **126 条**全部注册 | `apps/web/src/main.js` |
 | 6 | ~~智能体兼容收尾~~ | ✅ 已完成（2026-10-01）：`assertHostProvides` 落地 · 存储命名空间必须注入 · 转发层退役 · descriptor 与实现双向对账 | 重构计划 F |
 | 7 | **退役 `projects/orbit/`** | ⏳ **代码侧已完全解耦**（`test-core.mjs`、`check-shared-data.mjs` 都已改指活上游，全仓**再无任何代码**读它）。**但仍不能 `rm -rf`**：`projects/orbit/activity/` 是 **git 忽略目录**，里面有**未入库**的方案/清单/题解 .doc 与 **`apikey/`** —— 未入库 = 不在 git 历史里，删了就永久没了。要删先搬走 `activity/`，或只删 `projects/orbit/H5/` | 重构计划 P0 |
@@ -33,6 +33,54 @@
 
 **每个知识库的"该写什么"都写在作业现场**：`packages/knowledge/<模块>/README.md`
 （crystal 的 C1–C8、symmetry 的 P1–P5 骨架与素材来源表都在那里，条目已写完）。
+
+### 已完成（2026-10-17 第二十一轮：首页全面重构 —— 结构探针 · 全息仪表）
+
+用户要求：「重构一下首页，视觉效果越牛逼越好，要有科技感，体现结构化学和本程序特色，足够吸睛」。
+
+改法：首页从"编号列表"改成一块**结构探针仪表**（`apps/web/src/shell/pages/home.js` 全量重写 +
+新增 `apps/web/src/shell/pages/home-visuals.js` 纯计算层）。
+
+| 层 | 内容 |
+|---|---|
+| 主视觉（全息） | 立方八面体线框（FCC 的 12 配位多面体）+ **真算出来的** 3d_z² 电子云点云（半径 = 归一化角度函数 \|3cos²θ−1\|，相位 ±1）+ 三条 3D 轨道环 + 原子核脉动光晕 + 72 格刻度环；画布下方是文档流说明条 |
+| 整页背景 | 一层 Canvas：立方晶格 + 尘埃视差 + 透视地面网格 + 缓慢扫描线；CSS 极光 / 细网格 / 噪点 / 暗角 / 扫描线叠层 |
+| 三张模块卡 | 各带**实时演算**画布：轨道 2p_z 电子云 · 点群甲烷 Td 球棍 + C₃ 轴 · 晶体 NaCl 晶胞；HUD 读数（ψ/Td·24/Fm3̄m·5.64 Å/CN 12） |
+| 文案 | 全部走 `t()`（首页模板里不出现中文）；新增 15 个 `shell.home.*` 键（zh+en） |
+
+**★ 关键工程决定（都有实测依据）**
+
+1. **数学与渲染分离**：几何/投影/调色板读取在 `home-visuals.js`（无 DOM），画布绘制在 `home.js`。
+   守卫 `apps/web/tools/test-home-visuals.mjs`（**81 项**）**独立重算**每条几何事实：立方八面体
+   12 顶点/24 棱/顶点度数 4、甲烷 6 个 H-C-H 全 109.47°、4 根 C₃ 轴与 C-H 方向重合、
+   d_z² 点云相位 = 角度函数符号且半径 ≤ 1、透影不变量、同种子逐点一致。
+2. **颜色单一真源**：canvas 颜色从 `.portal` 的 `--pt-*` CSS 变量用 `getComputedStyle` 读取；
+   切主题时 MutationObserver 重读 —— **不在 JS 里抄第二套调色板**（深/浅两套画布一起变）。
+3. **点云必须归一化**（`orbitalPeak`）：d_z² 的 \|3cos²θ−1\| 峰值是 **2**，不除峰值会把点画到
+   半径 2 处（戳出全息环外）；守卫的"半径 ≤ 1"就是为它写的。
+4. **说明条不能绝对定位**：第一版把「结构全息投影 / 实时演算」绝对定位在画布顶部中央，
+   1280×720 与平板上会与左右 HUD 叠字（实测两轮）⇒ 改成与画布同列的**文档流**元素，
+   从此与画布尺寸无关。
+5. **生命周期成对**：五块 canvas 的 rAF、ResizeObserver、IntersectionObserver、matchMedia、
+   visibilitychange、MutationObserver、`body.home-active` 全在 `_stopVisuals()` / `unmount()`
+   撤销；`test-shell` 新增源码棘轮钉住 `cancelAnimationFrame` / `disconnect` / `_cleanup` 清空。
+6. **prefers-reduced-motion**：CSS 停动画 + JS 不启动 rAF（只画一帧静态）。CDP
+   `Emulation.setEmulatedMedia` 实测：`matchMedia=true`、五画布仍有内容、700ms 内 rAF 调用 **0**。
+7. **窄屏守卫换判据**：旧版守的是"5 列网格不能溢出"；旧布局删掉后改守新布局的同类真因 ——
+   grid 子项 `min-width:0`、主视觉 `min(74vw,300px)` 限宽、画布 100% 跟随父容器、
+   HUD 不用固定像素偏移。
+
+**实机验证**（独立 QA 脚本 `tmp/qa-home.mjs`，真实 Edge/CDP，**源码冻结期**运行；跑前/跑后
+四个源文件 SHA256 一致、页面重载 0 ⇒ 本轮有效）：
+
+- **40/40 必需断言 PASS / 0 FAIL**；无横向溢出（1440/1024/768/390 的 `scrollWidth = innerWidth`）；
+  五画布采样颜色数 **160 / 169 / 71 / 66 / 276**（非空白）；路由 `#/orbit` ↔ `#/` 往返后
+  5 块画布仍在（136/169/75/68/283 色）；主题深/浅、语言中/英（**排除端名「中文」后 CJK=0**）；
+  全程 `exceptionThrown / Log.error / warning = 0`；explore 在 390 宽真实滚动 +636px。
+- `node tools/check-i18n-live.mjs --routes /,/crystal,/orbit,/symmetry`：四路由残留中文 **0**、
+  控制台 0 error、语言往返回合通过。
+- `npm test` 全绿（含新增 test-home-visuals 81 项）；`node tools/build-web.mjs` 构建通过。
+- 报告：`tmp/qa/report.md` / `report.json` + 5 张截图（1440 深/浅、1024 深、390 深/浅）。
 
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 

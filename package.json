@@ -15,7 +15,7 @@
     "test:modules": "node modules/crystal/tools/test-crystal-module.mjs && node modules/crystal/tools/test-crystal-tools.mjs && node modules/crystal/tools/test-crystal-quiz.mjs",
     "test:symmetry": "node modules/symmetry/tools/test-symmetry-engine.mjs && node modules/symmetry/tools/test-symmetry-module.mjs && node modules/symmetry/tools/test-symmetry-quiz.mjs",
     "test:orbit": "node modules/orbit/tools/test-orbit-core.mjs && node modules/orbit/tools/test-orbit-module.mjs && node modules/orbit/tools/test-orbit-engine.mjs",
-    "test:shell": "node apps/web/tools/test-shell.mjs",
+    "test:shell": "node apps/web/tools/test-shell.mjs && node apps/web/tools/test-home-visuals.mjs",
     "verify:live": "node tools/acceptance.mjs",
     "test:secrets": "node tools/check-secrets.mjs"
   },

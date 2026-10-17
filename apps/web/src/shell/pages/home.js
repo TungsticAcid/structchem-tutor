@@ -1,447 +1,1961 @@
 /**
- * home.js — 门户首页：编号列表 · 极简学术风
+ * home.js — 门户首页：结构化学 · 教学智能体
  *
- * ★ 为什么需要一个首页：统一壳的定位是「一个中枢 + N 个可插拔教学模块」。
- *   没有首页时，打开就直接进某一个模块的视图——那是"单模块应用"的形态，
- *   用户无从知道还有别的模块，将来接入新模块也无处安放入口。
+ * ===========================================================================
+ * 一、这一版在视觉上做了什么（2026-10-17 全面重写）
+ * ===========================================================================
+ * 目标：科技感 · 结构化学气质 · 本程序特色 · 足够吸睛。
  *
- * ★ 模块清单的来源是 **registry 的 descriptor**，不是 `app.listModules()`。
- *   两者问的是不同的问题：
- *     · `app.listModules()`      → 「现在**能跑**什么」（已装配的，今天只有一个）
- *     · `registry.listModules()` → 「**将要**有什么」（声明过的，三个都在）
- *   门户要回答后者，所以必须用后者——这也正是它显示三行而不是一行的原因。
+ * 它不是"给极简列表加装饰"，而是把首页当成一块**结构探针仪表**来组织：
  *
- * ★ 次序按 `teachingOrder`（descriptor 里的字段），**不是** id 的字母序。
- *   现在若按 id 排会得到 crystal → orbit → symmetry，那只是巧合；
- *   正确的依据是结构化学的授课顺序（原子结构 → 分子对称性 → 晶体结构）。
+ *   1. **全息主视觉**（右侧 canvas）：立方八面体线框（FCC 的 12 配位多面体）
+ *      + **真算出来的** 3d_z² 电子云点云 + 三条 3D 轨道环 + 原子核光晕 + 刻度环。
+ *      点云不是贴图：每个点的位置来自角度函数 3cos²θ−1（见 home-visuals.js），
+ *      所以"两个大瓣沿 z 轴、赤道一圈负相位"是数学事实，与轨道模块的等值面同源。
+ *   2. **动态晶格背景**：整页一层低亮度 canvas —— 立方晶格线框 + 尘埃视差
+ *      + 透视地面网格 + 缓慢扫过的一道扫描线。鼠标移动有轻微视差。
+ *   3. **三张模块卡各带一块实时演算的演示画布**：轨道（3d_z² 电子云）、
+ *      点群（甲烷 Td 球棍 + C₃ 轴）、晶体（NaCl 岩盐型晶胞）。三者都是程序
+ *      算出来的几何，不是截图 —— 这是"本程序特色"的直接证据。
+ *   4. **HUD 语言**：等宽小字 + 化学标识（ψ、Td·24、Fm3̄m·5.64 Å、CN 12）
+ *      + 刻度环/角标/扫描线，构成"仪器"的观感。
+ *   5. **深浅两套配色**：颜色全部是 CSS 令牌（--pt-*），canvas 只**读**不写死
+ *      —— 切主题时页面与五块画布一起变（本仓库栽过"两份调色板"的跟头）。
  *
- * ★ 呈现：编号列表，不用卡片、不放缩略图与大图标。
- *   那是与卡片式不同的一套语言——"高级"来自留白、对齐、层次，不是来自装饰。
- *   未接入的模块**如实弱化标注**（而不是藏起来、也不是假可点）：
- *   让人看得到完整蓝图，同时不误以为它已经能用。
+ * ===========================================================================
+ * 二、工程约束（为什么代码长这样）
+ * ===========================================================================
+ * ★ 全部文案走 `t()`：本页要重画的 DOM 很多，走键就不依赖运行时扫描的时机；
+ *   中文一个都不留在模板串里（模板里出现中文会被 i18n 覆盖率守卫计入分母）。
+ * ★ 数学与渲染分离：几何/投影/调色板读取在 `home-visuals.js`（无 DOM、可被
+ *   Node 守卫独立重算），本文件只做 DOM 与 Canvas 绘制。
+ * ★ 资源必须成对释放：五块 canvas 的 rAF、ResizeObserver、IntersectionObserver、
+ *   matchMedia、document 上的监听器、MutationObserver、body 上的 home-active
+ *   全部在 unmount 里撤掉 —— 首页会被反复进出（每次换语言也会重挂一次）。
+ * ★ 尊重 prefers-reduced-motion：不跑动画循环，只画一帧静态画面。
+ * ★ 本文件的大模板串里**不许出现反引号**（本仓库已因此白屏七次）。样式单独
+ *   放在 STYLE 常量里，里面只有一处 ${MONO} 字体栈插值 —— 减少模板串被截断的机会。
  */
-// ★ 只有"带变量的提示语"走 t()（扫描替换对不了变量）；
-//   纯静态文案仍留在模板里交给扫描替换 —— 见文件内 onLangChange 的说明。
-//   ★ 这里用 `@i18n` 别名（与 main.js 一致）：本文件只被 vite 加载。
-//     守卫在 Node 里 import 的是**字典文件**，那些才必须走相对路径。
+
 import { t, tsrc } from '@i18n/index.js'
+import {
+  TAU, clamp01, rotateXYZ, project, createPalette, rgba,
+  createCuboctahedron, createMethane, createLatticeScene, createOrbitalCloud,
+  createDust, createBackgroundLattice,
+} from './home-visuals.js'
 
 /**
- * 模块 id → 一句话能力概述（展现层的内容）。
- *
- * ★ 为什么不从 descriptor 的 `capabilities` 生成：
- *   那是一份**路由用的关键词表**（"NaCl"、"CsCl"、"面心立方"…），
- *   直接铺到界面上会变成一串名词。界面要的是一句人能读懂的话，
- *   那是**表现层的职责**——所以放在这里，而不是塞进 descriptor。
- *
- * ★ 这一段文案**取自参赛配图**（`比赛配图-1.pptx` 第 1 页的模块卡副标题）：
- *   轨道视界「类氢原子轨道三维可视化」· 点群观鉴「分子对称性与分子点群」·
- *   晶典在线「晶体结构与点阵型式」。门户与配图口径一致，评审对照时不会两套说法。
+ * 模块 id → 卡片文案的键。
+ * ★ 写成显式表而不是 `'shell.home.' + id + '.sub'` 拼出来：拼出来的键
+ *   静态读不到，以后改文案/删模块时容易留下悬空键。
  */
-const MODULE_BLURB = {
-  orbit: '类氢原子轨道三维可视化',
-  symmetry: '分子对称性与分子点群',
-  crystal: '晶体结构与点阵型式',
+const MODULE_COPY = {
+  orbit: { sub: 'shell.home.orbit.sub', desc: 'shell.home.orbit.desc', tag: 'shell.home.orbit.tag' },
+  symmetry: { sub: 'shell.home.symmetry.sub', desc: 'shell.home.symmetry.desc', tag: 'shell.home.symmetry.tag' },
+  crystal: { sub: 'shell.home.crystal.sub', desc: 'shell.home.crystal.desc', tag: 'shell.home.crystal.tag' },
 }
 
-/**
- * 模块 id → 配图底部那句"学生得到什么"。
- *
- * ★ 与上面的副标题分工不同：副标题说的是"这里面有什么"，这一句说的是
- *   **学完之后能做什么**（可观察 / 易剖析 / 得贯通）。行内两段并列显示。
- */
-const MODULE_TAGLINE = {
-  orbit: '微观世界可观察',
-  symmetry: '结构规律易剖析',
-  crystal: '构效关系得贯通',
+/** 卡片画布上角的"正在演示什么"（化学标识，不是界面文案，故不进字典） */
+const MODULE_DEMO = {
+  orbit: '2p_z',
+  symmetry: 'Td · 24',
+  crystal: 'NaCl · Fm3̄m',
 }
 
+/** 等宽字体栈：HUD/编号/英文小字用（正文仍走 --font-ui 令牌） */
+const MONO = 'ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace'
+
+// ---------------------------------------------------------------------------
+// 画布绘制的几个基础图元（纯函数式，只碰 ctx）
+// ---------------------------------------------------------------------------
+function drawLine(ctx, x1, y1, x2, y2, color, width, alpha) {
+  if (!(alpha > 0)) return
+  ctx.globalAlpha = alpha
+  ctx.strokeStyle = color
+  ctx.lineWidth = width
+  ctx.beginPath()
+  ctx.moveTo(x1, y1)
+  ctx.lineTo(x2, y2)
+  ctx.stroke()
+  ctx.globalAlpha = 1
+}
+
+function drawDot(ctx, x, y, r, color, alpha) {
+  if (!(r > 0) || !(alpha > 0)) return
+  ctx.globalAlpha = alpha
+  ctx.fillStyle = color
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, TAU)
+  ctx.fill()
+  ctx.globalAlpha = 1
+}
+
+/** 径向光晕（比 shadowBlur 便宜，且在软件渲染下也稳定） */
+function drawGlow(ctx, x, y, r, color, alpha) {
+  if (!(r > 0) || !(alpha > 0)) return
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r)
+  g.addColorStop(0, rgba(color, alpha))
+  g.addColorStop(0.45, rgba(color, alpha * 0.38))
+  g.addColorStop(1, rgba(color, 0))
+  ctx.fillStyle = g
+  ctx.beginPath()
+  ctx.arc(x, y, r, 0, TAU)
+  ctx.fill()
+}
+
+/** 取一个与 n 不平行的向量，构造正交基（画 3D 圆环用） */
+function basisFor(n) {
+  const helper = Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]
+  const u = [
+    n[1] * helper[2] - n[2] * helper[1],
+    n[2] * helper[0] - n[0] * helper[2],
+    n[0] * helper[1] - n[1] * helper[0],
+  ]
+  const ul = Math.hypot(u[0], u[1], u[2]) || 1
+  u[0] /= ul; u[1] /= ul; u[2] /= ul
+  const v = [
+    n[1] * u[2] - n[2] * u[1],
+    n[2] * u[0] - n[0] * u[2],
+    n[0] * u[1] - n[1] * u[0],
+  ]
+  return [u, v]
+}
+
+/** 把世界坐标点投影成画布坐标（返回 null 表示在相机后方） */
+function toScreen(p, cam) {
+  return project(p, cam)
+}
+
+// ---------------------------------------------------------------------------
+// 页面
+// ---------------------------------------------------------------------------
 export class HomePage {
   /**
    * @param {Object} ctx
    * @param {Array<{id:string,title:string,teachingOrder?:number}>} ctx.modules
-   *        全部模块（来自 `registry.listModules()`，已按 teachingOrder 排好或由此处再排一次）
-   * @param {Set<string>|Array<string>} [ctx.available]
-   *        已接入（可在本应用里打开的）模块 id
-   * @param {string} [ctx.theme] 当前主题（'dark' | 'light'），仅用于日志诊断
+   * @param {Set<string>|Array<string>} [ctx.available] 已接入（可打开）的模块 id
+   * @param {Function} [ctx.onOpenAgent] 打开智能体抽屉（与右下角悬浮球同一入口）
+   * @param {Function} [ctx.getTheme] / [ctx.onTheme]
+   * @param {Function} [ctx.getLang] / [ctx.onLang]
+   * @param {Function} [ctx.onOpenSettings] 预留：本版首页不放设置入口（用户要求删过）
    */
   constructor(ctx = {}) {
     this._modules = Array.isArray(ctx.modules) ? ctx.modules.slice() : []
     this._available = new Set(ctx.available || [])
-    this._theme = ctx.theme || 'dark'
     this._container = null
-    /**
-     * 首页上的设置回调（都由宿主提供）。
-     *
-     * ★ 为什么这些设置放在首页而不是只藏在智能体面板里：
-     *   「界面风格」与「界面语言」是**与具体模块无关**的偏好，用户第一次打开应用
-     *   就会想调；而面板（⚙）要先进对话、还只在一处。实测本仓库此前**根本没有**
-     *   主题的界面入口 —— 只有 `window.__chemAgent.theme` 这个调试把手。
-     * ★ 全部可选：没给就**不渲染那一行**，而不是渲染一个点了没反应的控件
-     *   （"看起来能用、其实没接"是本仓库反复记为缺陷的形态）。
-     */
+    this._portal = null
     this._ui = {
       getTheme: ctx.getTheme || null,
       onTheme: ctx.onTheme || null,
       getLang: ctx.getLang || null,
       onLang: ctx.onLang || null,
       onOpenSettings: ctx.onOpenSettings || null,
+      onOpenAgent: ctx.onOpenAgent || null,
     }
-    // ★ 按授课次序排（缺失的排到最后，而不是排到最前——"没标注"不该抢占首位）
+    // 按授课次序排（缺失的排最后，而不是抢首位）
     this._modules.sort((a, b) => {
       const oa = typeof a.teachingOrder === 'number' ? a.teachingOrder : Number.MAX_SAFE_INTEGER
       const ob = typeof b.teachingOrder === 'number' ? b.teachingOrder : Number.MAX_SAFE_INTEGER
       return oa - ob
     })
+
+    // ---- 几何场景：只依赖确定性随机种子，刷新后画面一致（截图可对比） ----
+    this._scenes = {
+      bgLattice: createBackgroundLattice({ n: 4, spacing: 1 }),
+      dust: createDust({ count: 150, seed: 3 }),
+      cob: createCuboctahedron(),
+      holoCloud: createOrbitalCloud('dz2', { count: 280, seed: 5, spread: 0.72 }),
+      orbitCloud: createOrbitalCloud('pz', { count: 260, seed: 9, spread: 0.62 }),
+      methane: createMethane(),
+      lattice: createLatticeScene({ n: 3 }),
+      // 主视觉的三条轨道环：法向量 / 半径 / 转速 / 初相
+      rings: [
+        { n: [0, 1, 0], r: 0.94, speed: 0.55, phase: 0 },
+        { n: [1, 0.35, 0.15], r: 0.8, speed: -0.8, phase: 1.7 },
+        { n: [0.15, 0.85, -0.5], r: 1.04, speed: 0.36, phase: 3.1 },
+      ],
+    }
+
+    // ---- 动画状态（mount 时重置） ----
+    this._canvas = []
+    this._raf = 0
+    this._stopped = true
+    this._reduced = false
+    this._pointer = { tx: 0, ty: 0, x: 0, y: 0 }
+    this._t0 = 0
+    this._palette = null
+    this._resizeObs = null
+    this._intersectObs = null
+    this._themeObs = null
+    this._mql = null
+    this._cleanup = []
   }
 
+  // -------------------------------------------------------------------------
+  // 生命周期
+  // -------------------------------------------------------------------------
   mount(container) {
+    this._stopVisuals()
     this._container = container
     container.innerHTML = this._render()
+    this._portal = container.querySelector('.portal')
+
     /**
-     * ★★ 2026-10-14（用户："首页悬浮球醒目一点"）：
-     *   首页上把智能体悬浮球加大、加光环并做低强度呼吸；离开首页自动复原。
-     *   用 body 上的 home-active 限定作用域（悬浮球是壳的元素，不在 .portal 里，
-     *   作用域选择器够不着它）——样式写在本页自己的 <style> 里。
+     * ★ 首页悬浮球加大 + 呼吸：用 body 上的 home-active 限定作用域。
+     *   悬浮球是壳的元素（在 document.body 下），不在 .portal 里，选择器够不着它。
      */
     try { document.body.classList.add('home-active') } catch (e) { /* 非浏览器环境 */ }
-    container.querySelectorAll('[data-module]').forEach((el) => {
-      el.addEventListener('click', () => {
-        const id = el.dataset.module
-        if (el.classList.contains('is-locked')) {
-          // 未接入：给一句如实的说明，而不是静默无反应
-          el.classList.add('is-nudged')
-          setTimeout(() => el.classList.remove('is-nudged'), 600)
-          return
-        }
-        // 用 hash 跳转，让路由器接管（不要在这里 new 页面——那会绕过 unmount）
-        window.location.hash = '#/' + id
-      })
-    })
 
-    // ---- 设置区：分段控件（界面风格 / 界面语言）与打开完整设置 ----
-    this._container.querySelectorAll('[data-set]').forEach((el) => {
-      el.addEventListener('click', () => {
-        const kind = el.dataset.set
-        const v = el.dataset.v
-        if (kind === 'theme' && this._ui.onTheme) this._ui.onTheme(v)
-        if (kind === 'lang' && this._ui.onLang) this._ui.onLang(v)
-        // 就地更新高亮，**不整页重渲** —— 重渲会把用户刚点的那一下的视觉反馈冲掉，
-        // 看着像"点了没反应"。主题/语言生效后页面自己会跟着变。
-        el.parentElement.querySelectorAll('.pl-seg-btn')
-          .forEach((b) => b.classList.toggle('is-on', b === el))
-      })
-    })
-    const openBtn = this._container.querySelector('[data-act="open-settings"]')
-    if (openBtn && this._ui.onOpenSettings) {
-      openBtn.addEventListener('click', () => this._ui.onOpenSettings())
-    }
+    this._bindEvents()
+    this._startVisuals()
   }
 
   unmount() {
+    this._stopVisuals()
     if (this._container) this._container.innerHTML = ''
     this._container = null
-    // ★ 与 mount 成对：撤掉"首页在场"标记，否则悬浮球会一直保持首页那套放大样式
+    this._portal = null
     try { document.body.classList.remove('home-active') } catch (e) { /* 非浏览器环境 */ }
   }
 
   /**
-   * 语言变更时重挂自己。
-   *
-   * ★ 静态文案（"界面风格""即将接入"…）不需要这一手 —— 运行时的 `restore` + `sweep`
-   *   已经把它们换好了。需要重挂的是**走 `t()` 取值**的那几处：
-   *   行的 `title` 提示（"进入晶体结构"/"…：尚未接入本应用"）与列表与提示语 ——
-   *   它们的值在渲染那一刻算出来，DOM 扫描够不着（见 packages/i18n 的两张表说明）。
-   * ★ 首页重挂的代价只是拼一次 innerHTML，没有 WebGL、没有异步流水线，所以直接重挂。
-   *   （轨道页那种"重建要十几秒"的页面**不能**这么做，见 router._notifyLang。）
+   * 语言变更：整页重挂。
+   * ★ 与旧版同一判断：首页重挂只是重拼一次 innerHTML + 五块小画布，没有
+   *   WebGL、没有异步流水线（轨道页那种十几秒的页面不能这么做）。
    */
   onLangChange() {
     if (this._container) this.mount(this._container)
   }
 
-  /**
-   * 首页底部的设置区（界面风格 · 界面语言 · 打开完整设置）。
-   *
-   * ★ 只渲染**真的接上了**的行：回调没给就不出这一行，而不是给出一个
-   *   点了没反应的控件 —— 后者正是本仓库反复记为缺陷的形态。
-   */
+  // -------------------------------------------------------------------------
+  // 渲染
+  // -------------------------------------------------------------------------
   _renderSettings() {
-    const segOf = (kind, cur, pairs) => pairs.map(([v, label]) =>
-      '<button type="button" class="pl-seg-btn' + (v === cur ? ' is-on' : '') +
-      '" data-set="' + kind + '" data-v="' + v + '">' + label + '</button>').join('')
+    const seg = (kind, cur, pairs) =>
+      '<span class="pt-seg">' + pairs.map(([v, label]) =>
+        '<button type="button" class="pt-seg-btn' + (v === cur ? ' is-on' : '')
+        + '" data-set="' + kind + '" data-v="' + v + '">' + label + '</button>').join('') + '</span>'
     const rows = []
     if (this._ui.getTheme && this._ui.onTheme) {
-      rows.push('<div class="pl-set-row"><span class="pl-set-label">界面风格</span>'
-        + '<span class="pl-seg">' + segOf('theme', this._ui.getTheme() || 'system',
-          [['system', '跟随系统'], ['light', '浅色'], ['dark', '深色']]) + '</span></div>')
+      rows.push('<span class="pt-set"><span class="pt-set-label">' + t('shell.home.setTheme') + '</span>'
+        + seg('theme', this._ui.getTheme() || 'system', [
+          ['system', t('shell.home.themeSystem')],
+          ['light', t('shell.home.themeLight')],
+          ['dark', t('shell.home.themeDark')],
+        ]) + '</span>')
     }
     if (this._ui.getLang && this._ui.onLang) {
-      // ★ 这里原来还有一句「全站生效：切完页面与图表一起变，不会重算几何」——
-      //   已删。理由：它是**给实现者看的**（当初 i18n 刚落地时的必要说明），
-      //   对用户既不是选择依据、也不是操作指引；而"不会重算几何"这种话
-      //   用户本来就不该操心（重不重建是我们的实现细节）。
-      //   真正需要可发现性的是"**哪里**还能换语言" → 设置弹层里也放了一项。
-      rows.push('<div class="pl-set-row"><span class="pl-set-label">界面语言</span>'
-        + '<span class="pl-seg">' + segOf('lang', this._ui.getLang() || 'zh',
-          [['zh', '中文'], ['en', 'English']]) + '</span></div>')
+      rows.push('<span class="pt-set"><span class="pt-set-label">' + t('shell.home.setLang') + '</span>'
+        + seg('lang', this._ui.getLang() || 'zh', [['zh', '中文'], ['en', 'English']]) + '</span>')
     }
-    /**
-     * ★★ 2026-10-14（用户："去掉'模型与教学偏好 打开设置(API Key · 模型 · 教学偏好)→'"）：
-     *   首页不再渲染这一组。设置入口仍有两处可达（智能体面板的齿轮按钮 + 设置弹层），
-     *   所以这里撤掉不会让"填 API Key"变成无路可走。
-     *   ★ onOpenSettings 的接线保留：将来想放回来，把这段恢复渲染即可。
-     */
-    return rows.length ? '<div class="pl-settings">' + rows.join('') + '</div>' : ''
+    return rows.join('')
+  }
+
+  _renderFeats() {
+    const items = [
+      ['visual', 'shell.home.featVisual'],
+      ['scene', 'shell.home.featScene'],
+      ['deterministic', 'shell.home.featDeterministic'],
+      ['modular', 'shell.home.featModular'],
+    ]
+    return items.map(([kind, key]) =>
+      '<li class="pt-feat pt-feat--' + kind + '"><i aria-hidden="true"></i>' + t(key) + '</li>').join('')
+  }
+
+  /**
+   * 一张模块卡。
+   * ★ 已接入的用 `<a href="#/id">`：中键/回车/新标签页都能用，且 hash 变化由
+   *   路由器接管（与用户点按钮走同一条通路）。未接入的用 `<button aria-disabled>`：
+   *   点了给一次"还没接入"的轻晃反馈，而不是静默无反应。
+   */
+  _renderCard(m, i) {
+    const copy = MODULE_COPY[m.id] || null
+    const ok = this._available.has(m.id)
+    const no = String(typeof m.teachingOrder === 'number' ? m.teachingOrder : (i + 1)).padStart(2, '0')
+    const title = tsrc(m.title || m.id) || m.title || m.id
+    const tip = ok ? t('shell.home.enter', { title }) : t('shell.home.locked', { title })
+    const tag = ok ? 'a' : 'button'
+    const attrs = ok
+      ? 'href="#/' + m.id + '"'
+      : 'type="button" aria-disabled="true"'
+    const badge = ok ? '' : '<span class="pt-badge">' + t('shell.home.comingSoon') + '</span>'
+    return '<' + tag + ' class="pt-card' + (ok ? '' : ' is-locked') + '" data-module="' + m.id
+      + '" data-order="' + no + '" ' + attrs + ' title="' + tip + '">'
+      + '<span class="pt-card-glow" aria-hidden="true"></span>'
+      + '<span class="pt-card-top">'
+      + '<span class="pt-card-no">' + no + '</span>'
+      + '<span class="pt-card-code">' + String(m.id).toUpperCase() + ' · MODULE</span>'
+      + '<span class="pt-card-arrow" aria-hidden="true">↗</span>'
+      + '</span>'
+      + '<span class="pt-card-visual">'
+      + '<canvas class="pt-canvas pt-card-canvas" data-canvas="' + m.id + '" aria-hidden="true"></canvas>'
+      + '<span class="pt-card-demo" aria-hidden="true">' + (MODULE_DEMO[m.id] || '') + '</span>'
+      + '</span>'
+      + '<span class="pt-card-body">'
+      + '<span class="pt-card-name">' + title + '</span>'
+      + (copy ? '<span class="pt-card-sub">' + t(copy.sub) + '</span>' : '')
+      + (copy ? '<span class="pt-card-desc">' + t(copy.desc) + '</span>' : '')
+      + '</span>'
+      + '<span class="pt-card-foot">'
+      + (copy ? '<span class="pt-card-tag">' + t(copy.tag) + '</span>' : '<span></span>')
+      + '<span class="pt-card-enter">' + t('shell.home.enterModule')
+      + ' <span class="pt-card-enter-arrow" aria-hidden="true">→</span></span>'
+      + '</span>'
+      + badge
+      + '</' + tag + '>'
   }
 
   _render() {
-    const rows = this._modules.map((m, i) => {
-      const no = String(m.teachingOrder || (i + 1)).padStart(2, '0')
-      const ok = this._available.has(m.id)
-      const blurb = MODULE_BLURB[m.id] || ''
-      const tagline = MODULE_TAGLINE[m.id] || ''
-      const badge = ok ? '' : '<span class="pl-badge">即将接入</span>'
-      // ★ 提示语里带模块名 ⇒ **必须走键**（扫描替换对不了变量）；
-      //   而 `即将接入` 之类的纯静态文案仍留在模板里，交给扫描替换 —— 少一处键。
-      // ★ 模块名（descriptor 的 `title`）本身是**中文原文**，虽然登记在 agent 区的
-      //   `text` 表里，但**嵌进句子之后就不再是独立的文本节点**，扫描替换够不着它 ——
-      //   不翻一道会得到 "Open「晶体结构」" 这种半英半中。
-      const title = tsrc(m.title || m.id) || m.title || m.id
-      const tip = ok
-        ? t('shell.home.enter', { title })
-        : t('shell.home.locked', { title })
-      return `
-        <button class="pl-row${ok ? '' : ' is-locked'}" type="button" data-module="${m.id}"
-                title="${tip}">
-          <span class="pl-no">${no}</span>
-          <span class="pl-name">${m.title || m.id}</span>
-          <span class="pl-blurb">${blurb}</span>
-          <span class="pl-tag">${tagline}</span>
-          ${badge}
-          <span class="pl-arrow">→</span>
-        </button>`
-    }).join('')
+    const lang = (this._ui.getLang && this._ui.getLang()) || 'zh'
+    const cards = this._modules.map((m, i) => this._renderCard(m, i)).join('')
+    const markup = `
+      <div class="portal lang-${lang}" data-home-page>
+        <canvas class="pt-canvas pt-canvas--bg" data-canvas="bg" aria-hidden="true"></canvas>
+        <div class="pt-aurora pt-aurora--a" aria-hidden="true"></div>
+        <div class="pt-aurora pt-aurora--b" aria-hidden="true"></div>
+        <div class="pt-grid-bg" aria-hidden="true"></div>
+        <div class="pt-scanlines" aria-hidden="true"></div>
+        <div class="pt-noise" aria-hidden="true"></div>
+        <div class="pt-vignette" aria-hidden="true"></div>
 
-    return `
-      <div class="portal lang-${(this._ui.getLang && this._ui.getLang()) || 'zh'}">
-        <header class="pl-head">
-          <h1>结构化学<br><span>教学智能体</span></h1>
-          <p class="pl-sub">场景感知式 AI 教学智能体 —— 揭秘微观结构 · 启发深度思考 · 引导自主学习</p>
+        <header class="pt-top">
+          <div class="pt-brand">
+            <span class="pt-logo" aria-hidden="true">
+              <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
+                <path d="M16 3.2 27 9.4v12.4L16 28 5 21.8V9.4z"/>
+                <path d="M16 9.2v13.6M9.5 12.9l13 6.2M22.5 12.9l-13 6.2" opacity=".65"/>
+                <circle cx="16" cy="16" r="2.6" fill="currentColor" stroke="none"/>
+              </svg>
+            </span>
+            <span class="pt-brand-text">
+              <span class="pt-brand-name">${t('shell.home.brand')}</span>
+              <span class="pt-brand-en">STRUCTURAL CHEMISTRY · AI TEACHING AGENT</span>
+            </span>
+          </div>
+          <div class="pt-top-meta">
+            <span class="pt-status"><i class="pt-dot" aria-hidden="true"></i>${t('shell.home.status')}</span>
+            <span class="pt-ver">v0.1.0</span>
+          </div>
         </header>
-        <nav class="pl-list">${rows}</nav>
-        ${this._renderSettings()}
-      </div>
-      <style>
-        /* ---- 极简学术风：留白、对齐、层次；不用卡片、不放装饰 ---- */
-        .portal {
-          min-height: 100vh; box-sizing: border-box;
-          display: flex; flex-direction: column; justify-content: center;
-          max-width: 1016px; width: fit-content; margin: 0 auto;
-          padding: 32px 32px 24px;
-          /* 用令牌，随主题切换（见 ui-kit/theme.js） */
-          color: var(--text, #e8ecf7);
+
+        <main class="pt-hero">
+          <div class="pt-hero-copy">
+            <p class="pt-kicker"><span class="pt-kicker-rule" aria-hidden="true"></span>SCENE-AWARE · HUB + 3 MODULES</p>
+            <h1 class="pt-title">
+              <span class="pt-title-line">${t('shell.home.titleSm')}</span>
+              <span class="pt-title-line pt-title-line--accent">${t('shell.home.titleLg')}</span>
+              <span class="pt-title-en">TEACHING AI AGENT</span>
+            </h1>
+            <p class="pt-slogan">${t('shell.home.slogan')}</p>
+            <p class="pt-desc">${t('shell.home.desc')}</p>
+            <div class="pt-actions">
+              <button type="button" class="pt-btn pt-btn--primary" data-act="explore">
+                <span>${t('shell.home.cta')}</span><span class="pt-btn-arrow" aria-hidden="true">→</span>
+              </button>
+              <button type="button" class="pt-btn pt-btn--ghost" data-act="ask" title="${t('shell.home.askHint')}">
+                <span class="pt-btn-pulse" aria-hidden="true"></span>${t('shell.home.askAgent')}
+              </button>
+            </div>
+            <ul class="pt-feats">${this._renderFeats()}</ul>
+          </div>
+
+          <div class="pt-visual-col">
+            <div class="pt-hero-visual" role="img" aria-label="${t('shell.home.visualHint')}">
+              <div class="pt-holo-ring" aria-hidden="true"></div>
+              <div class="pt-holo-ring2" aria-hidden="true"></div>
+              <div class="pt-holo-scan" aria-hidden="true"></div>
+              <canvas class="pt-canvas pt-holo" data-canvas="holo" aria-hidden="true"></canvas>
+              <div class="pt-hud pt-hud--tl" aria-hidden="true"><span class="pt-hud-k">WAVE FUNCTION</span><span class="pt-hud-v">ψ<sub>n,l,m</sub> · 3d<sub>z²</sub></span></div>
+              <div class="pt-hud pt-hud--tr" aria-hidden="true"><span class="pt-hud-k">POINT GROUP</span><span class="pt-hud-v">T<sub>d</sub> · 24</span></div>
+              <div class="pt-hud pt-hud--bl" aria-hidden="true"><span class="pt-hud-k">LATTICE</span><span class="pt-hud-v">Fm3̄m · 5.64 Å</span></div>
+              <div class="pt-hud pt-hud--br" aria-hidden="true"><span class="pt-hud-k">COORDINATION</span><span class="pt-hud-v">CN 12</span></div>
+            </div>
+            <div class="pt-holo-caption" aria-hidden="true">
+              <i class="pt-holo-dot"></i><span>${t('shell.home.holoTitle')}</span>
+              <span class="pt-holo-sep">/</span><span class="pt-holo-live">${t('shell.home.holoLive')}</span>
+            </div>
+          </div>
+        </main>
+
+        <section class="pt-modules" id="pt-modules">
+          <div class="pt-mod-head">
+            <div class="pt-mod-title">
+              <span class="pt-mod-kicker">[ MODULES 01 — 03 · TEACHING ORDER ]</span>
+              <h2>${t('shell.home.modulesTitle')}<span class="pt-mod-lead">${t('shell.home.modulesLead')}</span></h2>
+            </div>
+            <p class="pt-mod-order">${t('shell.home.modulesOrder')}</p>
+          </div>
+          <div class="pt-cards">${cards}</div>
+        </section>
+
+        <footer class="pt-foot">
+          <div class="pt-console">
+            <span class="pt-console-title">${t('shell.home.consoleLabel')}</span>
+            ${this._renderSettings()}
+          </div>
+          <div class="pt-foot-bottom">
+            <span>${t('shell.home.footer')}</span>
+            <span class="pt-foot-mono">ONE HUB · THREE MODULES · SCENE-AWARE · BYOK</span>
+          </div>
+        </footer>
+      </div>`
+
+    return markup + STYLE
+  }
+
+  // -------------------------------------------------------------------------
+  // 事件
+  // -------------------------------------------------------------------------
+  _bindEvents() {
+    const root = this._container
+    if (!root) return
+
+    // 1) 已接入模块用 <a href>，默认导航即可；未接入的按钮点了轻晃一下
+    root.querySelectorAll('[data-module].is-locked').forEach((el) => {
+      const onClick = () => {
+        el.classList.remove('is-nudged')
+        // 强制重排，让同一次点击里连续两次也能重新触发动画
+        void el.offsetWidth
+        el.classList.add('is-nudged')
+        setTimeout(() => el.classList.remove('is-nudged'), 520)
+      }
+      el.addEventListener('click', onClick)
+      this._cleanup.push(() => el.removeEventListener('click', onClick))
+    })
+
+    // 2) 「开始探索」：滚到模块区；若模块区已经在视口里，就闪一下三张卡给反馈
+    const explore = root.querySelector('[data-act="explore"]')
+    if (explore) {
+      const onClick = () => {
+        const mods = root.querySelector('#pt-modules')
+        if (!mods) return
+        try { mods.scrollIntoView({ behavior: this._reduced ? 'auto' : 'smooth', block: 'start' }) } catch (e) { mods.scrollIntoView() }
+        // "开始探索"必须有可见反馈：页面本来就一屏放得下时，滚动是个空操作。
+        // 这里给三张卡各闪一下（尊重 reduced-motion：那种情况下直接跳过）。
+        if (this._reduced) return
+        const cards = root.querySelectorAll('.pt-card')
+        cards.forEach((card) => card.classList.remove('is-flash'))
+        void mods.offsetWidth
+        cards.forEach((card) => card.classList.add('is-flash'))
+        setTimeout(() => cards.forEach((card) => card.classList.remove('is-flash')), 2600)
+      }
+      explore.addEventListener('click', onClick)
+      this._cleanup.push(() => explore.removeEventListener('click', onClick))
+    }
+
+    // 3) 「问智能体」：与右下角悬浮球是同一个入口（宿主注入的回调）
+    const ask = root.querySelector('[data-act="ask"]')
+    if (ask) {
+      const onClick = () => {
+        if (this._ui.onOpenAgent) {
+          this._ui.onOpenAgent()
+          return
         }
-        .pl-head { margin-bottom: 72px; }
-        /**
-         * ★★ 2026-10-14（用户："字体大一点，特别是右边三句"）：
-         *   原先这套字号偏小（序号 12 / 概述 12.5 / **右边那三句只有 11.5px** ✗），
-         *   用户点名右边三句 —— 它们是"学生得到什么"的结论句，不该是最弱的一档。
-         *   本轮整体上调：名称 19→24、概述 12.5→16、**右边三句 11.5→19**（一次涨 65%），
-         *   并把它的透明度从 .7 提到 .92（大了也要看得清）；层级仍靠颜色弱于"概述"。
-         */
-        .pl-head h1 {
-          font-size: 46px; line-height: 1.28; font-weight: 300;
-          letter-spacing: .14em; margin: 0;
-          color: var(--text, #e8ecf7);
+        // 兜底：直接点悬浮球（回调没注入时也仍然能打开面板）
+        const fab = document.querySelector('.agent-fab')
+        if (fab && typeof fab.click === 'function') fab.click()
+      }
+      ask.addEventListener('click', onClick)
+      this._cleanup.push(() => ask.removeEventListener('click', onClick))
+    }
+
+    // 4) 主题 / 语言分段控件
+    root.querySelectorAll('[data-set]').forEach((el) => {
+      const onClick = () => {
+        const kind = el.dataset.set
+        const v = el.dataset.v
+        if (kind === 'theme' && this._ui.onTheme) this._ui.onTheme(v)
+        if (kind === 'lang' && this._ui.onLang) this._ui.onLang(v)
+        // 就地更新高亮，**不整页重渲**：重渲会把用户刚点的那一下的视觉反馈冲掉
+        const row = el.parentElement
+        if (row) row.querySelectorAll('.pt-seg-btn').forEach((b) => b.classList.toggle('is-on', b === el))
+      }
+      el.addEventListener('click', onClick)
+      this._cleanup.push(() => el.removeEventListener('click', onClick))
+    })
+
+    // 5) 鼠标视差（只影响画布，不影响布局；触屏没有 pointermove 也不会有问题）
+    const hero = root.querySelector('.pt-hero')
+    if (hero) {
+      const onMove = (ev) => {
+        const r = hero.getBoundingClientRect()
+        if (!(r.width > 0) || !(r.height > 0)) return
+        this._pointer.tx = clamp01((ev.clientX - r.left) / r.width) * 2 - 1
+        this._pointer.ty = clamp01((ev.clientY - r.top) / r.height) * 2 - 1
+      }
+      const onLeave = () => { this._pointer.tx = 0; this._pointer.ty = 0 }
+      hero.addEventListener('pointermove', onMove)
+      hero.addEventListener('pointerleave', onLeave)
+      this._cleanup.push(() => {
+        hero.removeEventListener('pointermove', onMove)
+        hero.removeEventListener('pointerleave', onLeave)
+      })
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 画布：初始化 / 尺寸 / 每帧绘制
+  // -------------------------------------------------------------------------
+  _startVisuals() {
+    if (!this._container) return
+    const portal = this._portal
+    if (!portal) return
+    this._stopped = false
+    this._t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now())
+    this._palette = this._resolvePalette()
+
+    const list = this._container.querySelectorAll('canvas[data-canvas]')
+    list.forEach((cv) => {
+      const ctx = cv.getContext ? cv.getContext('2d') : null
+      if (!ctx) return
+      const entry = { cv, ctx, kind: cv.dataset.canvas || 'bg', w: 0, h: 0, dpr: 1, visible: true }
+      this._canvas.push(entry)
+    })
+    this._resizeAll()
+
+    // 尺寸变化：窗口、智能体抽屉让位、卡片换行……都靠 ResizeObserver 兜住
+    if (typeof ResizeObserver === 'function') {
+      this._resizeObs = new ResizeObserver(() => this._resizeAll())
+      this._resizeObs.observe(portal)
+      this._canvas.forEach((e) => this._resizeObs.observe(e.cv))
+    }
+    // 视口外的画布不画（首页滚动后背景仍在视口，但卡片会离开）
+    if (typeof IntersectionObserver === 'function') {
+      this._intersectObs = new IntersectionObserver((entries) => {
+        entries.forEach((en) => {
+          const entry = this._canvas.find((e) => e.cv === en.target)
+          if (entry) entry.visible = en.isIntersecting
+        })
+      }, { rootMargin: '80px' })
+      this._canvas.forEach((e) => this._intersectObs.observe(e.cv))
+    }
+
+    // 主题变化：重新读一遍 --pt-* 令牌（颜色真源在 CSS，不在 JS）
+    if (typeof MutationObserver === 'function') {
+      this._themeObs = new MutationObserver(() => {
+        this._palette = this._resolvePalette()
+        if (this._reduced) this._drawAll(0.6)
+      })
+      this._themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    }
+
+    // 降低动效偏好：只画一帧静态画面，不启动 rAF 循环
+    if (typeof matchMedia === 'function') {
+      this._mql = matchMedia('(prefers-reduced-motion: reduce)')
+      this._reduced = !!this._mql.matches
+      const onChange = () => {
+        this._reduced = !!this._mql.matches
+        if (this._reduced) {
+          this._stopLoop()
+          this._drawAll(0.8)
+        } else {
+          this._startLoop()
         }
-        .pl-head h1 span { font-weight: 600; }
-        .pl-sub {
-          margin: 20px 0 0; font-size: 15px; line-height: 1.9;
-          letter-spacing: .04em; color: var(--text-dim, #9aa7c6);
-        }
-        .pl-list { display: flex; flex-direction: column; }
-        /**
-         * ★★ 2026-10-14（用户："可以紧凑一点。中英文宽度可以不同，中文稍微窄一点"）：
-         *   列宽按**语言**给两套 —— 中文模块名只有 4 个字（约 7.5em 足够），若沿用英文的
-         *   18em 会在名字后面留一大块空隙 ✗。版心也随之收窄（中文 780px / 默认 1016px）。
-         *   ★ 判断依据是 portal 上的 lang-zh / lang-en（由 _render 按当前界面语言写上）。
-         *   ★★ 另一条教训（用户："箭头应上下对齐"）：每一行都是**各自独立的 grid** ⇒
-         *     概述列若写 max-content，会**按每行自己的文字**算宽 ⇒ 列宽逐行不同，
-         *     标签与箭头就被逐行推走 ✗（实测三行箭头 x 各不相同）。所以概述列也必须**固定宽度**。
-         */
-        .portal.lang-zh { max-width: 780px; }
-        .portal.lang-zh .pl-row { grid-template-columns: 3.4em 7.5em 13.5em 14em auto; }
-        /* 每一行：序号 / 名称 / 概述 / 箭头；用细线分隔，不用边框盒 */
-        /**
-         * ★★ 2026-10-14（用户："中英文模式下，按钮位置不一致了，应基本上一致"）：
-         *   原先是 minmax(6.5em, auto) + 自适应列 ⇒ 英文名（Orbital Horizon）与英文概述
-         *   更长，把列**撑开**，于是"标签 + 箭头"整体右移，中英文两套位置对不上 ✗。
-         *   ⇒ 序号 / 名称 / 标签 三列改成**固定宽度**（1fr 只留给最长的概述列），
-         *     这样不管哪种语言，箭头都落在同一 x 上；概述列长了就自己换行。
-         *   ★ 本注释在模板串内部：不许出现反引号（今天已因此白屏三次）。
-         */
-        .pl-row {
-          display: grid;
-          grid-template-columns: 3.4em 18em 16.5em 16em auto;
-          align-items: baseline; gap: 20px;
-          padding: 17px 4px;
-          background: none; border: 0; font: inherit; text-align: left;
-          color: inherit; cursor: pointer;
-          border-top: 1px solid var(--line, rgba(255,255,255,.10));
-          transition: padding-left .22s ease, color .22s ease, opacity .22s ease;
-        }
-        .pl-row:last-of-type { border-bottom: 1px solid var(--line, rgba(255,255,255,.10)); }
-        .pl-row:hover { padding-left: 14px; color: var(--accent, #7c9cf5); }
-        .pl-row:hover .pl-arrow { transform: translateX(6px); opacity: 1; }
-        .pl-row:hover .pl-blurb { color: var(--accent, #7c9cf5); }
-        .pl-no {
-          font-size: 14px; font-variant-numeric: tabular-nums;
-          letter-spacing: .12em; color: var(--text-dim, #9aa7c6);
-          transition: color .22s ease;
-        }
-        .pl-row:hover .pl-no { color: var(--accent, #7c9cf5); }
-        .pl-name { font-size: 24px; font-weight: 500; letter-spacing: .04em; }
-        .pl-blurb {
-          font-size: 16px; letter-spacing: .02em;
-          color: var(--text-dim, #9aa7c6);
-          transition: color .22s ease;
-        }
-        /* 「学生得到什么」那一句：与配图底部三块一一对应
-           （微观世界可观察 / 结构规律易剖析 / 构效关系得贯通）。
-           ★ 2026-10-14 用户："右边三句和中间三句字体一样大即可" ⇒ 与 .pl-blurb 同为 16px。
-             字重与不透明度保持 500 / .92（层级仍靠颜色弱一档，只是不再更小）。 */
-        .pl-tag {
-          font-size: 16px; letter-spacing: .04em; font-weight: 500;
-          color: var(--text-dim, #9aa7c6); opacity: .92;
-          /**
-           * ★ 右边三句右对齐 + 箭头上下对齐：
-           *   标签元素是"内联级网格项"，单靠 text-align 对它不生效 ✗ ——
-           *   标签框会跟着文字宽度走，把后面的箭头列一起推走（实测三行箭头 x 各不相同）。
-           *   正解是 justify-self: end：把这一项的盒子贴到列右端，而列宽又有固定值，
-           *   于是三行的标签右端与箭头 x 就都一致了。
-           */
-          justify-self: end; text-align: right;
-          white-space: nowrap;
-        }
-        .pl-row:hover .pl-tag { color: var(--accent, #7c9cf5); opacity: 1; }
-        .pl-arrow {
-          font-size: 18px; color: var(--accent, #7c9cf5); opacity: .5;
-          transition: transform .22s ease, opacity .22s ease;
-        }
-        /* 未接入：弱化 + 如实标注。可变淡，但**仍然可读**——它是蓝图的一部分 */
-        .pl-row.is-locked { cursor: default; }
-        .pl-row.is-locked .pl-name,
-        .pl-row.is-locked .pl-blurb,
-        .pl-row.is-locked .pl-no { opacity: .55; }
-        .pl-row.is-locked:hover { padding-left: 4px; color: inherit; }
-        .pl-row.is-locked:hover .pl-arrow { transform: none; opacity: .22; }
-        .pl-row.is-locked:hover .pl-blurb { color: var(--text-dim, #9aa7c6); }
-        .pl-badge {
-          font-size: 11px; letter-spacing: .08em; padding: 2px 8px;
-          border: 1px solid var(--line, rgba(255,255,255,.14));
-          border-radius: 999px; color: var(--text-dim, #9aa7c6);
-          white-space: nowrap;
-        }
-        /* 点了未接入的行：轻微晃一下，给一个"这里现在还没有"的反馈 */
-        .pl-row.is-nudged { animation: pl-nudge .4s ease; }
-        @keyframes pl-nudge {
-          0%, 100% { padding-left: 4px; }
-          35% { padding-left: 12px; }
-          70% { padding-left: 7px; }
-        }
-        .pl-foot {
-          margin-top: 64px; font-size: 11.5px; letter-spacing: .06em;
-          color: var(--text-dim, #9aa7c6); opacity: .75;
-        }
-        /* ---- 设置区：与模块列表同一套"极简学术风"，不另做卡片 ---- */
-        /**
-         * ★★ 2026-10-14（用户："放一排吧。如果放不了一排，那界面风格和语言可以放一排"）：
-         *   原先是 flex-direction: column，三组各占一行 ✗。改成**一行 flex + 可换行**：
-         *   宽度够就把三组排成一排；不够时换行（那时"界面风格 + 界面语言"仍会并排在同一行 ✓）。
-         *   ★ 顺带把"纯前端 · 数值由程序计算（防幻觉）· 模型由使用者自备（BYOK）"那行页脚删掉
-         *     （用户要求）。.pl-foot 的样式先留着，免得动了别处；实际已无元素引用它。
-         */
-        .pl-settings {
-          margin-top: 40px; padding-top: 22px;
-          border-top: 1px solid var(--line-soft, rgba(255,255,255,.08));
-          display: flex; flex-direction: row; flex-wrap: wrap;
-          align-items: center; justify-content: center;   /* ★ 居中（用户要求） */
-          gap: 12px 30px;
-        }
-        .pl-set-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .pl-set-label {
-          font-size: 12px; letter-spacing: .08em;
-          color: var(--text-dim, #9aa7c6);
-        }
-        .pl-seg { display: inline-flex; border: 1px solid var(--line, #2a3558); border-radius: 8px; overflow: hidden; }
-        .pl-seg-btn {
-          appearance: none; background: transparent; border: 0; cursor: pointer;
-          color: var(--text-dim, #9aa7c6); font-size: 12.5px; padding: 6px 12px;
-          font-family: inherit; transition: background .15s, color .15s;
-        }
-        .pl-seg-btn + .pl-seg-btn { border-left: 1px solid var(--line, #2a3558); }
-        .pl-seg-btn:hover { color: var(--text, #e8ecf7); }
-        .pl-seg-btn.is-on { background: var(--active, #2b3d6b); color: var(--text, #e8ecf7); }
-        .pl-set-hint { font-size: 11.5px; color: var(--text-dim, #9aa7c6); opacity: .8; }
-        .pl-set-link {
-          appearance: none; background: transparent; border: 0; padding: 0; cursor: pointer;
-          color: var(--accent, #55c2ff); font-size: 12.5px; font-family: inherit;
-          text-decoration: underline; text-underline-offset: 3px;
-        }
-        .pl-set-link:hover { filter: brightness(1.2); }
-        /**
-         * ★★ 2026-10-16（用户："手机端界面显示有问题"——真机截图：副标题末字被右边缘切掉、
-         *   悬浮球压住第 03 行）——**两个真因，都是层叠问题**：
-         *
-         *   ① **小屏列定义被特异性压住**：这里原先写的是单类选择器 .pl-row，
-         *      而桌面规则是 **.portal.lang-zh .pl-row**（0,3,0）—— 单类（0,1,0）
-         *      **永远盖不住它** ⇒ 窄屏仍按 5 列排（实测列宽 47.6 + 105 + 189 + 196 加间距
-         *      ≈ **626px**），页面被撑到比视口还宽 ✗。
-         *      ⇒ 小屏这条也要写成 .portal.lang-zh .pl-row（同特异性、靠后生效），
-         *        英文那套基础规则（18em…）同样要盖，故两条都写。
-         *
-         *   ② **.portal 自身会撑破视口**：桌面用 width: fit-content（版心随内容收窄），
-         *      而窄屏下网格的**固有最小宽度**把 fit-content 顶到 670px（视口 496）✗。
-         *      ⇒ 小屏改成 width: 100%（配合 box-sizing: border-box 与 22px 内边距）。
-         *
-         *   ★ 实测（手机视口）：修前 .portal 宽 **670** / 文档宽 670（视口 496）；
-         *     修后见提交说明里的读数（应等于视口宽、横向溢出 0）。
-         *   ★ 本注释在模板串内部：**不许出现反引号** —— 我这版第一稿正是因此把模板串
-         *     截断、整页白屏（node --check 当场报 SyntaxError），
-         *     上一轮新加的 tmp/check-tpl-backticks.mjs 一跑就抓到。
-         */
-        @media (max-width: 560px) {
-          .portal { width: 100%; max-width: 100%; padding: 64px 22px 48px; }
-          .pl-head h1 { font-size: 30px; }
-          .pl-head { margin-bottom: 48px; }
-          .pl-row,
-          .portal.lang-zh .pl-row { grid-template-columns: 2.6em 1fr auto; row-gap: 6px; }
-          .pl-blurb { grid-column: 2 / -1; }
-          .pl-tag { display: none; }
-          .pl-badge { display: none; }
-        }
-              /**
-         * ★★ 2026-10-14（用户："首页悬浮球醒目一点"）：
-         *   悬浮球是壳的元素（body 下的 .agent-fab），不在 .portal 里，
-         *   所以用本页 mount/unmount 挂/撤的 body.home-active 限定作用域：
-         *   只在首页放大到 72px、加一圈浅色外发光，并做 2.6s 的低强度呼吸
-         *   （遵守 prefers-reduced-motion）；离开首页自动复原。
-         */
-        body.home-active .agent-fab {
-          width: 72px; height: 72px;
-          right: 26px; bottom: 26px;
-          filter: drop-shadow(0 8px 22px rgba(26, 54, 93, .38));
-          animation: pl-fab-breathe 2.6s ease-in-out infinite;
-        }
-        @keyframes pl-fab-breathe {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.07); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          body.home-active .agent-fab { animation: none; }
-        }
-      </style>`
+      }
+      if (this._mql.addEventListener) this._mql.addEventListener('change', onChange)
+      else if (this._mql.addListener) this._mql.addListener(onChange)
+      this._cleanup.push(() => {
+        if (this._mql.removeEventListener) this._mql.removeEventListener('change', onChange)
+        else if (this._mql.removeListener) this._mql.removeListener(onChange)
+      })
+    }
+
+    // 页面不可见时停掉循环（省电；切回来时从当前时间继续）
+    const onVis = () => {
+      if (document.hidden) this._stopLoop()
+      else if (this._reduced) this._drawAll(0.8)
+      else this._startLoop()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    this._cleanup.push(() => document.removeEventListener('visibilitychange', onVis))
+
+    if (this._reduced) this._drawAll(0.8)
+    else this._startLoop()
+  }
+
+  _stopVisuals() {
+    this._stopLoop()
+    if (this._resizeObs) { try { this._resizeObs.disconnect() } catch (e) { /* ignore */ } this._resizeObs = null }
+    if (this._intersectObs) { try { this._intersectObs.disconnect() } catch (e) { /* ignore */ } this._intersectObs = null }
+    if (this._themeObs) { try { this._themeObs.disconnect() } catch (e) { /* ignore */ } this._themeObs = null }
+    this._cleanup.forEach((fn) => { try { fn() } catch (e) { /* ignore */ } })
+    this._cleanup = []
+    this._canvas = []
+    this._stopped = true
+  }
+
+  _startLoop() {
+    if (this._stopped) return
+    if (this._raf) return
+    const tick = (now) => {
+      this._raf = 0
+      if (this._stopped) return
+      const t = Math.max(0, (now - this._t0) / 1000)
+      // 指针缓动：直接赋值会让视差像"跳"，逐帧逼近才像有惯性
+      this._pointer.x += (this._pointer.tx - this._pointer.x) * 0.06
+      this._pointer.y += (this._pointer.ty - this._pointer.y) * 0.06
+      this._drawAll(t)
+      this._raf = requestAnimationFrame(tick)
+    }
+    this._raf = requestAnimationFrame(tick)
+  }
+
+  _stopLoop() {
+    if (this._raf) {
+      cancelAnimationFrame(this._raf)
+      this._raf = 0
+    }
+  }
+
+  _resizeAll() {
+    if (!this._canvas.length) return
+    const dpr = Math.min((typeof window !== 'undefined' && window.devicePixelRatio) || 1, 2)
+    this._canvas.forEach((e) => {
+      const rect = e.cv.getBoundingClientRect()
+      const w = Math.max(1, Math.round(rect.width))
+      const h = Math.max(1, Math.round(rect.height))
+      if (w === e.w && h === e.h && dpr === e.dpr) return
+      e.w = w
+      e.h = h
+      e.dpr = dpr
+      e.cv.width = Math.max(1, Math.round(w * dpr))
+      e.cv.height = Math.max(1, Math.round(h * dpr))
+    })
+  }
+
+  /** 从 CSS 令牌读画布调色板（深浅两套都由 CSS 决定，JS 不抄颜色值） */
+  _resolvePalette() {
+    const host = this._portal
+    if (!host || typeof getComputedStyle !== 'function') {
+      return createPalette(() => '', { dark: true })
+    }
+    const cs = getComputedStyle(host)
+    const dark = document.documentElement.getAttribute('data-theme') !== 'light'
+    return createPalette((name) => cs.getPropertyValue(name), { dark })
+  }
+
+  _drawAll(t) {
+    if (!this._palette) this._palette = this._resolvePalette()
+    const pal = this._palette
+    this._canvas.forEach((e) => {
+      if (!e.visible || e.w < 2 || e.h < 2) return
+      if (!e.ctx) return
+      e.ctx.setTransform(e.dpr, 0, 0, e.dpr, 0, 0)
+      e.ctx.clearRect(0, 0, e.w, e.h)
+      switch (e.kind) {
+        case 'bg': this._drawBg(e.ctx, e, t, pal); break
+        case 'holo': this._drawHolo(e.ctx, e, t, pal); break
+        case 'orbit': this._drawOrbit(e.ctx, e, t, pal); break
+        case 'symmetry': this._drawSymmetry(e.ctx, e, t, pal); break
+        case 'crystal': this._drawCrystal(e.ctx, e, t, pal); break
+        default: break
+      }
+    })
+  }
+
+  // -------------------------------------------------------------------------
+  // 绘制：整页背景（晶格 + 尘埃 + 透视地面 + 扫描线）
+  // -------------------------------------------------------------------------
+  _drawBg(ctx, e, t, pal) {
+    const w = e.w
+    const h = e.h
+    const dark = pal.dark
+    const px = this._pointer.x
+    const py = this._pointer.y
+    ctx.save()
+    ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over'
+
+    // ---- 远景尘埃（视差更强：转得慢、振幅小）----
+    const camDust = { w, h, focal: Math.min(w, h) * 0.85, dist: 7.4 }
+    const axD = -0.08 + py * 0.05
+    const ayD = t * 0.03 + px * 0.06
+    for (let i = 0; i < this._scenes.dust.length; i++) {
+      const p = this._scenes.dust[i]
+      const pr = toScreen(rotateXYZ([p.x * 1.9, p.y * 1.9, p.z * 1.9], axD, ayD), camDust)
+      if (!pr) continue
+      const depth = clamp01(1 - (pr.depth - (camDust.dist - 2.6)) / 3.6)
+      const tw = 0.55 + 0.45 * Math.sin(t * 0.9 + p.twinkle * TAU)
+      const size = p.size * (0.5 + depth * 0.9) * (dark ? 1 : 0.8)
+      drawDot(ctx, pr.x, pr.y, size, rgba(pal.node, 1), (0.05 + depth * 0.22 * tw) * (dark ? 1 : 0.7))
+    }
+
+    // ---- 立方晶格：整页的"结构"底纹 ----
+    const lat = this._scenes.bgLattice
+    const camL = { w, h, focal: Math.min(w, h) * 1.5, dist: 8.2 }
+    const axL = -0.14 + py * 0.07
+    const ayL = -t * 0.045 + px * 0.09
+    const scaleL = 2.05
+    const pts = lat.nodes.map((n) => toScreen(
+      rotateXYZ([n.x * scaleL, n.y * scaleL, n.z * scaleL], axL, ayL), camL))
+    const edgeAlpha = dark ? 0.085 : 0.15
+    for (let i = 0; i < lat.edges.length; i++) {
+      const a = pts[lat.edges[i][0]]
+      const b = pts[lat.edges[i][1]]
+      if (!a || !b) continue
+      const depth = clamp01(1 - ((a.depth + b.depth) / 2 - (camL.dist - 2.4)) / 4.4)
+      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.grid, 1), 1, edgeAlpha * (0.35 + depth * 0.65))
+    }
+    for (let i = 0; i < pts.length; i++) {
+      const pr = pts[i]
+      if (!pr) continue
+      const depth = clamp01(1 - (pr.depth - (camL.dist - 2.4)) / 4.4)
+      const r = (1 + depth * 1.8) * (dark ? 1 : 0.9)
+      drawDot(ctx, pr.x, pr.y, r * 3.4, rgba(pal.cyan, 1), (dark ? 0.05 : 0.06) * depth)
+      drawDot(ctx, pr.x, pr.y, r, rgba(pal.node, 1), (dark ? 0.38 : 0.5) * depth)
+    }
+
+    // ---- 透视地面：地平线在 80% 高度，竖线汇聚到消失点 ----
+    const horizon = h * 0.8
+    if (h > horizon + 20) {
+      const vx = w / 2 + px * w * 0.06
+      const floorAlpha = dark ? 0.075 : 0.11
+      for (let i = -10; i <= 10; i++) {
+        const x0 = w / 2 + i * (w / 9)
+        drawLine(ctx, vx + (x0 - vx) * 0.1, horizon, x0, h + 40, rgba(pal.grid, 1), 1, floorAlpha)
+      }
+      for (let i = 1; i <= 6; i++) {
+        const y = horizon + (h - horizon) * Math.pow(i / 6, 2.3)
+        drawLine(ctx, 0, y, w, y, rgba(pal.grid, 1), 1, floorAlpha * 0.85)
+      }
+    }
+
+    // ---- 缓慢下移的一道扫描线（只在深色主题；浅色下会显得像脏线）----
+    if (dark) {
+      const sy = ((t * 0.022) % 1) * (h + 120) - 60
+      const g = ctx.createLinearGradient(0, sy - 80, 0, sy + 80)
+      g.addColorStop(0, rgba(pal.cyan, 0))
+      g.addColorStop(0.5, rgba(pal.cyan, 0.05))
+      g.addColorStop(1, rgba(pal.cyan, 0))
+      ctx.fillStyle = g
+      ctx.fillRect(0, sy - 80, w, 160)
+    }
+
+    ctx.restore()
+  }
+
+  // -------------------------------------------------------------------------
+  // 绘制：主视觉全息（刻度环 + 立方八面体 + 3d_z² 点云 + 轨道环 + 原子核）
+  // -------------------------------------------------------------------------
+  _drawHolo(ctx, e, t, pal) {
+    const w = e.w
+    const h = e.h
+    const cx = w / 2
+    const cy = h / 2
+    const R = Math.min(w, h)
+    const dark = pal.dark
+    const px = this._pointer.x
+    const py = this._pointer.y
+    ctx.save()
+    ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over'
+
+    // ---- 1. 外刻度环（72 格，每 6 格一个长刻度；整体极慢旋转）----
+    const tickR = R * 0.468
+    const tickRot = t * 0.05
+    for (let i = 0; i < 72; i++) {
+      const a = (i / 72) * TAU + tickRot
+      const major = i % 6 === 0
+      const r0 = tickR
+      const r1 = tickR + (major ? R * 0.02 : R * 0.01)
+      drawLine(ctx,
+        cx + Math.cos(a) * r0, cy + Math.sin(a) * r0,
+        cx + Math.cos(a) * r1, cy + Math.sin(a) * r1,
+        rgba(pal.dim, 1), 1, major ? (dark ? 0.42 : 0.5) : (dark ? 0.15 : 0.22))
+    }
+
+    // ---- 2. 三条 3D 轨道环 ----
+    const cam = { w, h, focal: R * 1.4, dist: 3.5 }
+    const ax = -0.36 + py * 0.2
+    const ay = t * 0.2 + px * 0.26 + 0.3
+    for (let ri = 0; ri < this._scenes.rings.length; ri++) {
+      const ring = this._scenes.rings[ri]
+      const [u, v] = basisFor(ring.n)
+      const steps = 84
+      const pts2 = []
+      for (let s = 0; s <= steps; s++) {
+        const a = (s / steps) * TAU
+        const p = [
+          (u[0] * Math.cos(a) + v[0] * Math.sin(a)) * ring.r,
+          (u[1] * Math.cos(a) + v[1] * Math.sin(a)) * ring.r,
+          (u[2] * Math.cos(a) + v[2] * Math.sin(a)) * ring.r,
+        ]
+        pts2.push(toScreen(rotateXYZ(p, ax, ay), cam))
+      }
+      // 环体：分段画（近处亮、远处暗）
+      for (let s = 0; s < steps; s++) {
+        const a = pts2[s]
+        const b = pts2[s + 1]
+        if (!a || !b) continue
+        const depth = clamp01(1 - (a.depth - (cam.dist - 1.0)) / 2.2)
+        drawLine(ctx, a.x, a.y, b.x, b.y, rgba(ri === 0 ? pal.cyan : pal.violet, 1), 1,
+          (dark ? 0.1 : 0.24) + depth * (dark ? 0.2 : 0.2))
+      }
+      // 环上的电子：亮点 + 光晕
+      const ea = (t * ring.speed + ring.phase) % TAU
+      const ept = [
+        (u[0] * Math.cos(ea) + v[0] * Math.sin(ea)) * ring.r,
+        (u[1] * Math.cos(ea) + v[1] * Math.sin(ea)) * ring.r,
+        (u[2] * Math.cos(ea) + v[2] * Math.sin(ea)) * ring.r,
+      ]
+      const ep = toScreen(rotateXYZ(ept, ax, ay), cam)
+      if (ep) {
+        const col = [pal.cyan, pal.violet, pal.emerald][ri % 3]
+        const depth = clamp01(1 - (ep.depth - (cam.dist - 1.0)) / 2.2)
+        drawGlow(ctx, ep.x, ep.y, R * (0.012 + 0.03 * depth), col, 0.55 * depth + 0.15)
+        drawDot(ctx, ep.x, ep.y, R * 0.006 * (0.7 + depth), rgba(col, 1), 0.95)
+      }
+    }
+
+    // ---- 3. 立方八面体线框（FCC 的 12 配位多面体）----
+    const cob = this._scenes.cob
+    const camC = { w, h, focal: R * 1.3, dist: 3.2 }
+    const axC = ax * 0.8 + 0.1
+    const ayC = ay * 0.55 + 0.6
+    const cobPts = cob.verts.map((p) => toScreen(rotateXYZ(p, axC, ayC), camC))
+    for (let i = 0; i < cob.edges.length; i++) {
+      const a = cobPts[cob.edges[i][0]]
+      const b = cobPts[cob.edges[i][1]]
+      if (!a || !b) continue
+      const depth = clamp01(1 - ((a.depth + b.depth) / 2 - (camC.dist - 1)) / 2.0)
+      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.cyan, 1), 1, (dark ? 0.07 : 0.18) + depth * (dark ? 0.13 : 0.14))
+    }
+    for (let i = 0; i < cobPts.length; i++) {
+      const pr = cobPts[i]
+      if (!pr) continue
+      const depth = clamp01(1 - (pr.depth - (camC.dist - 1)) / 2.0)
+      drawGlow(ctx, pr.x, pr.y, R * (0.008 + 0.014 * depth), pal.cyan, 0.18 + depth * 0.3)
+      drawDot(ctx, pr.x, pr.y, R * 0.0032 * (0.6 + depth), rgba(pal.node, 1), 0.65 + depth * 0.3)
+    }
+
+    // ---- 4. 3d_z² 电子云：两个沿 z 的大瓣 + 赤道负相位圈 ----
+    const cloud = this._scenes.holoCloud
+    const axO = -0.42 + py * 0.24
+    const ayO = t * 0.34 + px * 0.3 + 0.15
+    const sc = R * 0.46
+    for (let i = 0; i < cloud.points.length; i++) {
+      const p = cloud.points[i]
+      const q = rotateXYZ([p.x, p.y, p.z], axO, ayO)
+      const depth = (q[2] + 1) / 2                     // 0 = 远，1 = 近
+      const x = cx + q[0] * sc
+      const y = cy - q[1] * sc
+      const col = p.phase > 0 ? pal.cyan : pal.violet
+      const size = R * (0.0022 + 0.0048 * depth) * (dark ? 1 : 1.45)
+      drawDot(ctx, x, y, size, rgba(col, 1), (dark ? 0.3 : 0.42) + depth * (dark ? 0.58 : 0.48))
+    }
+
+    // ---- 5. 原子核：脉动光晕 + 白核 ----
+    const pulse = 1 + 0.07 * Math.sin(t * 2.1)
+    drawGlow(ctx, cx, cy, R * 0.17 * pulse, pal.cyan, dark ? 0.5 : 0.42)
+    drawGlow(ctx, cx, cy, R * 0.09 * pulse, pal.violet, dark ? 0.35 : 0.4)
+    drawGlow(ctx, cx, cy, R * 0.06 * pulse, pal.node, dark ? 0.6 : 0.5)
+    drawDot(ctx, cx, cy, R * 0.014 * pulse, dark ? '#ffffff' : pal.ink, 0.95)
+
+    // ---- 6. 十字准星（很淡；仪器感）----
+    const crossA = dark ? 0.18 : 0.16
+    drawLine(ctx, cx - R * 0.5, cy, cx - R * 0.06, cy, rgba(pal.dim, 1), 1, crossA)
+    drawLine(ctx, cx + R * 0.06, cy, cx + R * 0.5, cy, rgba(pal.dim, 1), 1, crossA)
+    drawLine(ctx, cx, cy - R * 0.5, cx, cy - R * 0.06, rgba(pal.dim, 1), 1, crossA)
+    drawLine(ctx, cx, cy + R * 0.06, cx, cy + R * 0.5, rgba(pal.dim, 1), 1, crossA)
+
+    ctx.restore()
+  }
+
+  // -------------------------------------------------------------------------
+  // 绘制：模块卡 · 轨道（3d_z² 电子云）
+  // -------------------------------------------------------------------------
+  _drawOrbit(ctx, e, t, pal) {
+    const w = e.w
+    const h = e.h
+    const cx = w / 2
+    const cy = h / 2
+    const m = Math.min(w, h)
+    const dark = pal.dark
+    const px = this._pointer.x
+    const py = this._pointer.y
+    ctx.save()
+    ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over'
+
+    // 三根坐标轴（很淡，给点云一个空间参照）
+    const cam = { w, h, focal: m * 1.15, dist: 3.6 }
+    const ax = -0.5 + py * 0.12
+    const ay = t * 0.5 + px * 0.15 + 0.4
+    const axes = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    for (let i = 0; i < axes.length; i++) {
+      const dir = axes[i]
+      const a = toScreen(rotateXYZ([dir[0] * 1.35, dir[1] * 1.35, dir[2] * 1.35], ax, ay), cam)
+      const b = toScreen(rotateXYZ([-dir[0] * 1.35, -dir[1] * 1.35, -dir[2] * 1.35], ax, ay), cam)
+      if (!a || !b) continue
+      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.dim, 1), 1, dark ? 0.16 : 0.14)
+    }
+
+    const cloud = this._scenes.orbitCloud
+    const axO = -0.45 + py * 0.16
+    const ayO = t * 0.58 + px * 0.2 + 0.2
+    const sc = m * 0.38
+    for (let i = 0; i < cloud.points.length; i++) {
+      const p = cloud.points[i]
+      const q = rotateXYZ([p.x, p.y, p.z], axO, ayO)
+      const depth = (q[2] + 1) / 2
+      const col = p.phase > 0 ? pal.cyan : pal.violet
+      drawDot(ctx, cx + q[0] * sc, cy - q[1] * sc, (0.9 + 1.5 * depth) * (m / (dark ? 130 : 105)),
+        rgba(col, 1), (dark ? 0.26 : 0.4) + depth * (dark ? 0.6 : 0.5))
+    }
+
+    // 中心核
+    drawGlow(ctx, cx, cy, m * 0.1, pal.cyan, dark ? 0.42 : 0.5)
+    drawDot(ctx, cx, cy, m * 0.009, dark ? '#ffffff' : pal.ink, 0.92)
+    ctx.restore()
+  }
+
+  // -------------------------------------------------------------------------
+  // 绘制：模块卡 · 点群（甲烷 Td + C₃ 轴）
+  // -------------------------------------------------------------------------
+  _drawSymmetry(ctx, e, t, pal) {
+    const w = e.w
+    const h = e.h
+    const cx = w / 2
+    const cy = h / 2
+    const m = Math.min(w, h)
+    const dark = pal.dark
+    const px = this._pointer.x
+    const py = this._pointer.y
+    ctx.save()
+    ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over'
+
+    const mol = this._scenes.methane
+    const cam = { w, h, focal: m * 1.3, dist: 3.4 }
+    const ax = -0.4 + py * 0.12
+    const ay = t * 0.42 + px * 0.16 + 0.5
+    const rot = (p) => rotateXYZ([p[0], p[1], p[2]], ax, ay)
+    const atomPts = mol.atoms.map((a) => toScreen(rot([a.x, a.y, a.z]), cam))
+
+    // C₃ 轴：沿 C→H 方向延长，虚线（甲烷的 4 根 C₃ 轴正是 4 根 C-H 键所在直线）
+    for (let i = 0; i < mol.axes.length; i++) {
+      const d = mol.axes[i].dir
+      const a = toScreen(rot([d[0] * 1.5, d[1] * 1.5, d[2] * 1.5]), cam)
+      const b = toScreen(rot([-d[0] * 1.5, -d[1] * 1.5, -d[2] * 1.5]), cam)
+      if (!a || !b) continue
+      ctx.save()
+      ctx.setLineDash([3, 4])
+      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.violet, 1), 1, dark ? 0.4 : 0.4)
+      ctx.restore()
+    }
+
+    // 四面体的 H–H 棱（很淡，帮学生"看见"四面体）
+    for (let i = 0; i < mol.hEdges.length; i++) {
+      const a = atomPts[mol.hEdges[i][0]]
+      const b = atomPts[mol.hEdges[i][1]]
+      if (!a || !b) continue
+      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.violet, 1), 1, dark ? 0.13 : 0.15)
+    }
+
+    // C–H 键
+    for (let i = 0; i < mol.bonds.length; i++) {
+      const a = atomPts[mol.bonds[i][0]]
+      const b = atomPts[mol.bonds[i][1]]
+      if (!a || !b) continue
+      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.node, 1), Math.max(1.2, m * 0.014), dark ? 0.5 : 0.55)
+    }
+
+    // 原子球：H 小（紫），C 大（冷白）；近处亮
+    for (let i = 0; i < mol.atoms.length; i++) {
+      const pr = atomPts[i]
+      if (!pr) continue
+      const isC = mol.atoms[i].el === 'C'
+      const depth = clamp01(1 - (pr.depth - (cam.dist - 1)) / 2.1)
+      const base = isC ? m * 0.055 : m * 0.036
+      const r = base * (0.75 + depth * 0.45)
+      const col = isC ? pal.node : pal.violet
+      drawGlow(ctx, pr.x, pr.y, r * 2.4, col, (dark ? 0.35 : 0.34) * (0.45 + depth * 0.55))
+      drawDot(ctx, pr.x, pr.y, r, rgba(col, 1), 0.88)
+      drawDot(ctx, pr.x - r * 0.25, pr.y - r * 0.25, r * 0.35, dark ? '#ffffff' : pal.ink, 0.82)
+    }
+    ctx.restore()
+  }
+
+  // -------------------------------------------------------------------------
+  // 绘制：模块卡 · 晶体（NaCl 岩盐型晶胞）
+  // -------------------------------------------------------------------------
+  _drawCrystal(ctx, e, t, pal) {
+    const w = e.w
+    const h = e.h
+    const cx = w / 2
+    const cy = h / 2
+    const m = Math.min(w, h)
+    const dark = pal.dark
+    const px = this._pointer.x
+    const py = this._pointer.y
+    ctx.save()
+    ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over'
+
+    const lat = this._scenes.lattice
+    const cam = { w, h, focal: m * 1.15, dist: 3.6 }
+    const ax = -0.48 + py * 0.12
+    const ay = t * 0.4 + px * 0.16 + 0.55
+    const pts = lat.nodes.map((n) => toScreen(rotateXYZ([n.x, n.y, n.z], ax, ay), cam))
+
+    // 键（Na–Cl 最近邻）
+    for (let i = 0; i < lat.edges.length; i++) {
+      const a = pts[lat.edges[i][0]]
+      const b = pts[lat.edges[i][1]]
+      if (!a || !b) continue
+      const depth = clamp01(1 - ((a.depth + b.depth) / 2 - (cam.dist - 1)) / 2.2)
+      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.node, 1), 1, (dark ? 0.08 : 0.12) + depth * (dark ? 0.14 : 0.1))
+    }
+
+    // 晶胞棱（立方体轮廓）
+    const halfUnit = 1 / Math.sqrt(3)
+    const corners = []
+    for (let i = 0; i < 8; i++) {
+      const sx = (i & 1) ? 1 : -1
+      const sy = (i & 2) ? 1 : -1
+      const sz = (i & 4) ? 1 : -1
+      corners.push(toScreen(rotateXYZ([sx * halfUnit, sy * halfUnit, sz * halfUnit], ax, ay), cam))
+    }
+    const cubeEdges = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]]
+    ctx.save()
+    ctx.setLineDash([4, 4])
+    for (let i = 0; i < cubeEdges.length; i++) {
+      const a = corners[cubeEdges[i][0]]
+      const b = corners[cubeEdges[i][1]]
+      if (!a || !b) continue
+      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.cyan, 1), 1, dark ? 0.22 : 0.24)
+    }
+    ctx.restore()
+
+    // 原子球：两套格点两种颜色（Na 绿 / Cl 琥珀），近处亮
+    for (let i = 0; i < lat.nodes.length; i++) {
+      const pr = pts[i]
+      if (!pr) continue
+      const depth = clamp01(1 - (pr.depth - (cam.dist - 1)) / 2.2)
+      const base = (lat.nodes[i].kind === 0 ? 0.032 : 0.026) * m * (dark ? 1 : 1.18)
+      const r = base * (0.7 + depth * 0.5)
+      const col = lat.nodes[i].kind === 0 ? pal.emerald : pal.amber
+      drawGlow(ctx, pr.x, pr.y, r * 2.6, col, (dark ? 0.3 : 0.3) * (0.4 + depth * 0.6))
+      drawDot(ctx, pr.x, pr.y, r, rgba(col, 1), 0.85)
+      drawDot(ctx, pr.x - r * 0.3, pr.y - r * 0.3, r * 0.32, dark ? '#ffffff' : pal.ink, 0.75)
+    }
+    ctx.restore()
   }
 }
+
+// ---------------------------------------------------------------------------
+// 样式（静态模板串；里面只有一处 ${MONO} 字体栈插值，不含反引号 —— 见文件头）
+// ---------------------------------------------------------------------------
+const STYLE = `
+<style>
+/* ===========================================================================
+ * 首页样式 —— 结构探针 / 全息仪表
+ *
+ * ★ 颜色只在这里定义（作为 --pt-* 变量）。canvas 通过 getComputedStyle 读同一批
+ *   变量 —— 页面与画布共用一份调色板，切主题时不会出现"页面变了、画布没变"。
+ * ★ 字体：正文仍用 ui-kit 的 --font-ui（Times 优先，与全站一致）；只有 HUD/
+ *   编号/英文小标签用等宽栈 —— 那是"仪器读数"的视觉语言，不是正文。
+ * ★ 模板串内不许写反引号（本仓库已因此白屏七次）。
+ * =========================================================================== */
+
+.portal {
+  /* ---- 画布调色板（深色 / 默认） ---- */
+  --pt-cyan: #5ad8ff;
+  --pt-violet: #a78bfa;
+  --pt-emerald: #3fe0a4;
+  --pt-amber: #ffc46b;
+  --pt-node: #d6e9ff;
+  --pt-grid: #2c5488;
+  --pt-ink: #eaf2ff;
+  --pt-dim: #8fa6c8;
+  --pt-accent: #5ad8ff;
+  --pt-glow-a: rgba(90, 216, 255, .17);
+  --pt-glow-b: rgba(167, 139, 250, .13);
+  --pt-bg: #050a15;
+  --pt-card: rgba(12, 20, 38, .62);
+  --pt-line: rgba(120, 170, 255, .16);
+  --pt-line-strong: rgba(120, 190, 255, .34);
+  --pt-soft: rgba(90, 216, 255, .1);
+  --pt-title-a: #ffffff;
+  --pt-title-b: #7fe4ff;
+  --pt-title-c: #b9a6ff;
+  --pt-btn-ink: #04101f;
+  --pt-noise-opacity: .07;
+  --pt-mono: ${MONO};
+
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 20px clamp(20px, 3.6vw, 56px) 18px;
+  overflow: hidden;
+  color: var(--pt-ink);
+  background:
+    radial-gradient(120% 90% at 50% -10%, #0b1730 0%, transparent 60%),
+    linear-gradient(180deg, var(--pt-bg) 0%, #060c1a 55%, #040812 100%);
+}
+
+[data-theme="light"] .portal {
+  /* ---- 画布调色板（浅色 = 蓝图 / 实验室纸面） ---- */
+  --pt-cyan: #0b74c4;
+  --pt-violet: #6b4fd8;
+  --pt-emerald: #0e9d6b;
+  --pt-amber: #b26a00;
+  --pt-node: #1d4f91;
+  --pt-grid: #7d9cc4;
+  --pt-ink: #0f1c33;
+  --pt-dim: #4a5d7d;
+  --pt-accent: #0b74c4;
+  --pt-glow-a: rgba(11, 116, 196, .1);
+  --pt-glow-b: rgba(107, 79, 216, .08);
+  --pt-bg: #eef3fa;
+  --pt-card: rgba(255, 255, 255, .72);
+  --pt-line: rgba(20, 60, 120, .16);
+  --pt-line-strong: rgba(20, 60, 120, .34);
+  --pt-soft: rgba(11, 116, 196, .08);
+  --pt-title-a: #0a1730;
+  --pt-title-b: #0b74c4;
+  --pt-title-c: #6b4fd8;
+  --pt-btn-ink: #ffffff;
+  --pt-noise-opacity: .05;
+  background:
+    radial-gradient(120% 90% at 50% -10%, #ffffff 0%, transparent 62%),
+    linear-gradient(180deg, var(--pt-bg) 0%, #e9f0f9 55%, #e3ebf6 100%);
+}
+
+/* ---------- 背景层 ---------- */
+.pt-canvas { display: block; width: 100%; height: 100%; }
+.pt-canvas--bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+
+.pt-aurora {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  width: 60vw;
+  height: 60vw;
+  max-width: 900px;
+  max-height: 900px;
+  border-radius: 50%;
+}
+.pt-aurora--a {
+  top: -22vw; right: -12vw;
+  background: radial-gradient(closest-side, var(--pt-glow-a), transparent 72%);
+  animation: pt-drift-a 26s ease-in-out infinite alternate;
+}
+.pt-aurora--b {
+  bottom: -30vw; left: -18vw;
+  background: radial-gradient(closest-side, var(--pt-glow-b), transparent 72%);
+  animation: pt-drift-b 34s ease-in-out infinite alternate;
+}
+@keyframes pt-drift-a {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(-3vw, 2vw, 0) scale(1.08); }
+}
+@keyframes pt-drift-b {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(3vw, -2vw, 0) scale(1.06); }
+}
+
+/* 细网格：给"蓝图/坐标纸"的底子；用径向遮罩让边缘淡出 */
+.pt-grid-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, var(--pt-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--pt-line) 1px, transparent 1px);
+  background-size: 72px 72px;
+  opacity: .5;
+  -webkit-mask-image: radial-gradient(120% 90% at 50% 20%, #000 0%, transparent 78%);
+  mask-image: radial-gradient(120% 90% at 50% 20%, #000 0%, transparent 78%);
+}
+
+.pt-scanlines {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, .035) 0 1px, transparent 1px 3px);
+  opacity: .35;
+}
+[data-theme="light"] .pt-scanlines {
+  background: repeating-linear-gradient(to bottom, rgba(10, 30, 60, .04) 0 1px, transparent 1px 3px);
+  opacity: .4;
+}
+
+.pt-noise {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: var(--pt-noise-opacity);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.pt-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(120% 100% at 50% 40%, transparent 55%, rgba(0, 0, 0, .38) 100%);
+}
+[data-theme="light"] .pt-vignette {
+  background: radial-gradient(120% 100% at 50% 40%, transparent 58%, rgba(30, 60, 110, .1) 100%);
+}
+
+/* ---------- 顶栏 ---------- */
+.pt-top {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--pt-line);
+  animation: pt-rise .7s cubic-bezier(.2, .7, .2, 1) both;
+}
+.pt-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.pt-logo {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  color: var(--pt-cyan);
+  border: 1px solid var(--pt-line-strong);
+  border-radius: 10px;
+  background: var(--pt-soft);
+  box-shadow: 0 0 24px rgba(90, 216, 255, .14) inset;
+}
+.pt-logo svg { width: 24px; height: 24px; }
+.pt-brand-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pt-brand-name { font-size: 15.5px; font-weight: 600; letter-spacing: .18em; white-space: nowrap; }
+.pt-brand-en {
+  font-family: var(--pt-mono);
+  font-size: 8.5px;
+  letter-spacing: .26em;
+  color: var(--pt-dim);
+  white-space: nowrap;
+}
+.pt-top-meta { display: flex; align-items: center; gap: 16px; flex: 0 0 auto; }
+.pt-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--pt-mono);
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  color: var(--pt-dim);
+  padding: 5px 10px;
+  border: 1px solid var(--pt-line);
+  border-radius: 999px;
+  background: var(--pt-soft);
+}
+.pt-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--pt-emerald);
+  box-shadow: 0 0 0 3px rgba(63, 224, 164, .16);
+  animation: pt-pulse 2.2s ease-in-out infinite;
+}
+.pt-ver {
+  font-family: var(--pt-mono);
+  font-size: 10px;
+  letter-spacing: .18em;
+  color: var(--pt-dim);
+  opacity: .8;
+}
+@keyframes pt-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 3px rgba(63, 224, 164, .16); }
+  50% { opacity: .55; box-shadow: 0 0 0 6px rgba(63, 224, 164, .05); }
+}
+
+/* ---------- Hero ---------- */
+.pt-hero {
+  position: relative;
+  z-index: 2;
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(0, .96fr);
+  gap: clamp(20px, 3.2vw, 52px);
+  align-items: center;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: clamp(10px, 1.8vh, 26px) 0 clamp(6px, 1.4vh, 18px);
+}
+.pt-hero-copy { min-width: 0; }
+.pt-kicker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+  font-family: var(--pt-mono);
+  font-size: 10px;
+  letter-spacing: .3em;
+  color: var(--pt-cyan);
+  animation: pt-rise .6s .05s cubic-bezier(.2, .7, .2, 1) both;
+}
+.pt-kicker-rule {
+  display: inline-block;
+  width: 34px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--pt-cyan));
+  flex: 0 0 auto;
+}
+.pt-title {
+  margin: 0;
+  font-size: clamp(40px, 4.9vw, 74px);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: .05em;
+  animation: pt-rise .75s .12s cubic-bezier(.2, .7, .2, 1) both;
+}
+.pt-title-line { display: block; }
+.pt-title-line--accent {
+  background: linear-gradient(100deg, var(--pt-title-a) 0%, var(--pt-title-b) 46%, var(--pt-title-c) 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 26px rgba(90, 216, 255, .25));
+  animation: pt-sheen 9s ease-in-out infinite;
+}
+[data-theme="light"] .pt-title-line--accent {
+  filter: drop-shadow(0 2px 18px rgba(11, 116, 196, .18));
+}
+@keyframes pt-sheen {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+.pt-title-en {
+  display: block;
+  margin-top: 12px;
+  font-family: var(--pt-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .58em;
+  color: var(--pt-dim);
+  text-transform: uppercase;
+}
+.pt-slogan {
+  margin: 18px 0 0;
+  font-size: clamp(15px, 1.35vw, 18px);
+  letter-spacing: .08em;
+  color: var(--pt-ink);
+  animation: pt-rise .7s .2s cubic-bezier(.2, .7, .2, 1) both;
+}
+.pt-desc {
+  margin: 10px 0 0;
+  max-width: 42em;
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--pt-dim);
+  animation: pt-rise .7s .26s cubic-bezier(.2, .7, .2, 1) both;
+}
+.pt-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+  animation: pt-rise .7s .32s cubic-bezier(.2, .7, .2, 1) both;
+}
+.pt-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 46px;
+  padding: 0 22px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .12em;
+  cursor: pointer;
+  transition: transform .2s ease, box-shadow .25s ease, border-color .2s ease, background .2s ease;
+}
+.pt-btn:focus-visible { outline: 2px solid var(--pt-cyan); outline-offset: 3px; }
+.pt-btn--primary {
+  color: var(--pt-btn-ink);
+  background: linear-gradient(115deg, var(--pt-cyan) 0%, #8fe6ff 45%, var(--pt-violet) 100%);
+  box-shadow: 0 12px 34px rgba(90, 216, 255, .28), 0 1px 0 rgba(255, 255, 255, .5) inset;
+}
+.pt-btn--primary:hover { transform: translateY(-2px); box-shadow: 0 18px 40px rgba(90, 216, 255, .36), 0 1px 0 rgba(255, 255, 255, .5) inset; }
+.pt-btn--primary:active { transform: translateY(0); }
+.pt-btn-arrow { font-size: 16px; line-height: 1; transition: transform .2s ease; }
+.pt-btn--primary:hover .pt-btn-arrow { transform: translateX(4px); }
+.pt-btn--ghost {
+  color: var(--pt-ink);
+  background: var(--pt-soft);
+  border-color: var(--pt-line-strong);
+}
+.pt-btn--ghost:hover { border-color: var(--pt-cyan); background: rgba(90, 216, 255, .16); transform: translateY(-2px); }
+.pt-btn-pulse {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--pt-cyan);
+  box-shadow: 0 0 0 0 rgba(90, 216, 255, .5);
+  animation: pt-pulse-btn 2.4s ease-out infinite;
+}
+@keyframes pt-pulse-btn {
+  0% { box-shadow: 0 0 0 0 rgba(90, 216, 255, .45); }
+  70% { box-shadow: 0 0 0 8px rgba(90, 216, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(90, 216, 255, 0); }
+}
+.pt-feats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+  animation: pt-rise .7s .4s cubic-bezier(.2, .7, .2, 1) both;
+}
+.pt-feat {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border: 1px solid var(--pt-line);
+  border-radius: 999px;
+  background: var(--pt-soft);
+  font-size: 11.5px;
+  letter-spacing: .08em;
+  color: var(--pt-dim);
+}
+.pt-feat i {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--pt-cyan);
+  flex: 0 0 auto;
+}
+.pt-feat--scene i { background: var(--pt-cyan); }
+.pt-feat--visual i { background: var(--pt-violet); }
+.pt-feat--deterministic i { background: var(--pt-emerald); }
+.pt-feat--modular i { background: var(--pt-amber); }
+
+/* ---------- 主视觉（全息） ---------- */
+/* 主视觉与说明条合成一列：说明条在画布**下面**按文档流排（不绝对定位），
+   这样无论画布缩到多小都不会压到 HUD 或环上 —— 绝对定位的说明条在 720p
+   笔记本与平板上都会与左右 HUD 叠字（实测过两轮） */
+.pt-visual-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  justify-self: center;
+  width: 100%;
+  min-width: 0;
+  animation: pt-fade 1.1s .15s cubic-bezier(.2, .7, .2, 1) both;
+}
+.pt-hero-visual {
+  position: relative;
+  width: 100%;
+  max-width: min(46vh, 500px);
+  aspect-ratio: 1 / 1;
+}
+.pt-holo { position: absolute; inset: 5%; z-index: 2; }
+.pt-holo-ring {
+  position: absolute;
+  inset: 4%;
+  z-index: 1;
+  border-radius: 50%;
+  border: 1px solid var(--pt-line);
+  box-shadow: 0 0 60px rgba(90, 216, 255, .06) inset, 0 0 34px rgba(90, 216, 255, .05);
+}
+.pt-holo-ring::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 68%, var(--pt-cyan) 78%, transparent 88%);
+  -webkit-mask-image: radial-gradient(closest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+  mask-image: radial-gradient(closest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+  animation: pt-spin 18s linear infinite;
+  opacity: .55;
+}
+.pt-holo-ring2 {
+  position: absolute;
+  inset: 9.5%;
+  z-index: 1;
+  border-radius: 50%;
+  border: 1px dashed var(--pt-line-strong);
+  opacity: .5;
+  animation: pt-spin-rev 46s linear infinite;
+}
+.pt-holo-scan {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: 6%;
+  bottom: 6%;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 50%;
+}
+.pt-holo-scan::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  height: 22%;
+  background: linear-gradient(180deg, transparent, rgba(90, 216, 255, .07), transparent);
+  animation: pt-holo-scan 6.5s linear infinite;
+}
+@keyframes pt-spin { to { transform: rotate(360deg); } }
+@keyframes pt-spin-rev { to { transform: rotate(-360deg); } }
+@keyframes pt-holo-scan {
+  from { transform: translateY(-30%); }
+  to { transform: translateY(480%); }
+}
+.pt-hud {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: var(--pt-mono);
+  pointer-events: none;
+}
+.pt-hud-k { font-size: 8.5px; letter-spacing: .22em; color: var(--pt-dim); opacity: .75; }
+.pt-hud-v { font-size: 12.5px; letter-spacing: .06em; color: var(--pt-ink); white-space: nowrap; }
+.pt-hud--tl { top: 3%; left: 1%; }
+.pt-hud--tr { top: 3%; right: 1%; text-align: right; align-items: flex-end; }
+.pt-hud--bl { bottom: 3%; left: 1%; }
+.pt-hud--br { bottom: 3%; right: 1%; text-align: right; align-items: flex-end; }
+.pt-holo-caption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  max-width: 100%;
+  font-family: var(--pt-mono);
+  font-size: 10px;
+  letter-spacing: .18em;
+  color: var(--pt-dim);
+  text-align: center;
+}
+.pt-holo-sep { opacity: .5; }
+.pt-holo-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--pt-emerald);
+  box-shadow: 0 0 8px var(--pt-emerald);
+  animation: pt-pulse 2.2s ease-in-out infinite;
+}
+.pt-holo-live { color: var(--pt-cyan); letter-spacing: .14em; }
+
+/* ---------- 模块区 ---------- */
+.pt-modules {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: clamp(6px, 1.2vh, 14px) 0 0;
+}
+.pt-mod-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  animation: pt-rise .7s .3s cubic-bezier(.2, .7, .2, 1) both;
+}
+.pt-mod-kicker {
+  font-family: var(--pt-mono);
+  font-size: 9.5px;
+  letter-spacing: .28em;
+  color: var(--pt-dim);
+}
+.pt-mod-title h2 {
+  margin: 7px 0 0;
+  font-size: clamp(19px, 1.9vw, 26px);
+  font-weight: 700;
+  letter-spacing: .1em;
+}
+.pt-mod-lead {
+  margin-left: 16px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: .05em;
+  color: var(--pt-dim);
+}
+.pt-mod-order {
+  margin: 0 0 2px;
+  max-width: 34em;
+  text-align: right;
+  font-size: 11.5px;
+  letter-spacing: .06em;
+  color: var(--pt-dim);
+}
+.pt-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
+}
+.pt-card {
+  --pt-card-accent: var(--pt-cyan);
+  --pt-card-line: rgba(90, 216, 255, .55);
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 116px auto auto;
+  gap: 0;
+  padding: 12px 14px 11px;
+  border: 1px solid var(--pt-line);
+  border-radius: 14px;
+  background: linear-gradient(165deg, var(--pt-card) 0%, rgba(8, 14, 28, .42) 100%);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .18);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transition: transform .26s cubic-bezier(.2, .7, .2, 1), border-color .26s ease, box-shadow .26s ease;
+  animation: pt-rise .8s cubic-bezier(.2, .7, .2, 1) both;
+}
+[data-theme="light"] .pt-card {
+  background: linear-gradient(165deg, rgba(255, 255, 255, .86) 0%, rgba(240, 246, 255, .7) 100%);
+  box-shadow: 0 8px 24px rgba(30, 60, 110, .08);
+}
+.pt-card:nth-child(1) { animation-delay: .42s; }
+.pt-card:nth-child(2) { animation-delay: .5s; }
+.pt-card:nth-child(3) { animation-delay: .58s; }
+.pt-card[data-module="orbit"] { --pt-card-accent: var(--pt-cyan); --pt-card-line: rgba(90, 216, 255, .5); }
+.pt-card[data-module="symmetry"] { --pt-card-accent: var(--pt-violet); --pt-card-line: rgba(167, 139, 250, .5); }
+.pt-card[data-module="crystal"] { --pt-card-accent: var(--pt-emerald); --pt-card-line: rgba(63, 224, 164, .48); }
+.pt-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(90% 60% at 15% 0%, var(--pt-card-accent), transparent 60%);
+  opacity: .06;
+}
+.pt-card::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--pt-card-accent), transparent);
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+.pt-card:hover, .pt-card:focus-visible {
+  transform: translateY(-5px);
+  border-color: var(--pt-card-line);
+  box-shadow: 0 22px 46px rgba(0, 0, 0, .3), 0 0 40px -18px var(--pt-card-accent);
+  outline: none;
+}
+.pt-card:focus-visible { box-shadow: 0 0 0 2px var(--pt-card-accent), 0 22px 46px rgba(0, 0, 0, .3); }
+.pt-card:hover::after, .pt-card:focus-visible::after { opacity: .9; }
+.pt-card:hover .pt-card-arrow { transform: translate(2px, -2px); color: var(--pt-card-accent); }
+.pt-card:hover .pt-card-canvas { filter: brightness(1.22) saturate(1.08); }
+.pt-card:hover .pt-card-enter-arrow { transform: translateX(4px); }
+.pt-card.is-locked { cursor: default; opacity: .72; }
+.pt-card.is-locked:hover { transform: none; border-color: var(--pt-line); box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
+.pt-card.is-locked:hover::after { opacity: 0; }
+.pt-card.is-nudged { animation: pt-nudge .45s ease; }
+/* 「开始探索」的可见反馈：三张卡各闪两次（不是 hover，不需要鼠标） */
+.pt-card.is-flash { animation: pt-flash 1.1s ease 2; }
+@keyframes pt-flash {
+  0%, 100% { border-color: var(--pt-line); box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
+  35% {
+    border-color: var(--pt-card-accent);
+    box-shadow: 0 0 0 1px var(--pt-card-accent), 0 18px 42px rgba(0, 0, 0, .28),
+      0 0 34px -12px var(--pt-card-accent);
+  }
+}
+@keyframes pt-nudge {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(-5px); }
+  60% { transform: translateX(4px); }
+}
+.pt-card-glow {
+  position: absolute;
+  inset: auto -30% -60% -30%;
+  height: 70%;
+  background: radial-gradient(closest-side, var(--pt-card-accent), transparent 70%);
+  opacity: .05;
+  pointer-events: none;
+  transition: opacity .3s ease;
+}
+.pt-card:hover .pt-card-glow { opacity: .12; }
+.pt-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--pt-mono);
+  font-size: 9.5px;
+  letter-spacing: .18em;
+  color: var(--pt-dim);
+}
+.pt-card-no {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--pt-card-accent);
+  border-radius: 4px;
+  color: var(--pt-card-accent);
+  font-size: 10px;
+  letter-spacing: .1em;
+}
+.pt-card-code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-card-arrow {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--pt-dim);
+  transition: transform .25s ease, color .25s ease;
+}
+.pt-card-visual {
+  position: relative;
+  display: block;
+  margin: 6px -4px 2px;
+  min-height: 0;
+}
+.pt-card-canvas { position: absolute; inset: 0; transition: filter .3s ease; }
+.pt-card-demo {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  font-family: var(--pt-mono);
+  font-size: 9.5px;
+  letter-spacing: .1em;
+  color: var(--pt-dim);
+  opacity: .8;
+}
+.pt-card-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pt-card-name {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  line-height: 1.2;
+}
+.pt-card-sub { font-size: 12.5px; letter-spacing: .03em; color: var(--pt-card-accent); }
+.pt-card-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--pt-dim);
+}
+.pt-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--pt-line);
+}
+.pt-card-tag { font-size: 11px; letter-spacing: .06em; color: var(--pt-dim); white-space: nowrap; }
+.pt-card-enter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  letter-spacing: .1em;
+  color: var(--pt-card-accent);
+  white-space: nowrap;
+}
+.pt-card-enter-arrow { transition: transform .25s ease; }
+.pt-badge {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  font-family: var(--pt-mono);
+  font-size: 9px;
+  letter-spacing: .16em;
+  color: var(--pt-dim);
+  padding: 3px 8px;
+  border: 1px solid var(--pt-line);
+  border-radius: 999px;
+}
+
+/* ---------- 底部控制条 ---------- */
+.pt-foot {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-top: 8px;
+  animation: pt-rise .7s .55s cubic-bezier(.2, .7, .2, 1) both;
+}
+.pt-console {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  padding: 7px 4px;
+  border-top: 1px solid var(--pt-line);
+}
+.pt-console-title {
+  font-family: var(--pt-mono);
+  font-size: 9px;
+  letter-spacing: .3em;
+  color: var(--pt-dim);
+  opacity: .7;
+  text-transform: uppercase;
+}
+.pt-set { display: inline-flex; align-items: center; gap: 9px; }
+.pt-set-label { font-size: 11px; letter-spacing: .08em; color: var(--pt-dim); }
+.pt-seg {
+  display: inline-flex;
+  border: 1px solid var(--pt-line);
+  border-radius: 7px;
+  overflow: hidden;
+  background: rgba(8, 14, 28, .3);
+}
+[data-theme="light"] .pt-seg { background: rgba(255, 255, 255, .6); }
+.pt-seg-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 5px 11px;
+  font-family: inherit;
+  font-size: 11.5px;
+  letter-spacing: .05em;
+  color: var(--pt-dim);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.pt-seg-btn + .pt-seg-btn { border-left: 1px solid var(--pt-line); }
+.pt-seg-btn:hover { color: var(--pt-ink); }
+.pt-seg-btn.is-on { background: var(--pt-soft); color: var(--pt-cyan); }
+.pt-seg-btn:focus-visible { outline: 2px solid var(--pt-cyan); outline-offset: -2px; }
+.pt-foot-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  /* 右下角是智能体悬浮球（固定定位，72px）—— 给文字留出让位空间，别被它压住 */
+  padding: 6px 84px 0 0;
+  font-size: 10.5px;
+  letter-spacing: .06em;
+  color: var(--pt-dim);
+  opacity: .72;
+}
+.pt-foot-mono { font-family: var(--pt-mono); letter-spacing: .18em; }
+
+/* ---------- 入场动画 ---------- */
+@keyframes pt-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pt-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---------- 首页悬浮球（作用域在 body.home-active 上） ---------- */
+body.home-active .agent-fab {
+  width: 64px; height: 64px;
+  right: 22px; bottom: 22px;
+  filter: drop-shadow(0 8px 22px rgba(26, 54, 93, .38));
+  animation: pt-fab-breathe 2.6s ease-in-out infinite;
+}
+@keyframes pt-fab-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 1080px) {
+  .pt-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding-top: 10px;
+  }
+  .pt-visual-col { order: 2; margin-top: 2px; }
+  .pt-hero-visual { max-width: min(52vw, 360px); }
+  .pt-hero-copy { order: 1; }
+  .pt-mod-order { text-align: left; }
+}
+@media (max-width: 720px) {
+  .portal { padding: 16px 18px 20px; }
+  .pt-brand-en { display: none; }
+  .pt-top { padding-bottom: 11px; }
+  .pt-top-meta { gap: 10px; }
+  .pt-ver { display: none; }
+  .pt-kicker { font-size: 9px; letter-spacing: .2em; margin-bottom: 12px; }
+  .pt-title { font-size: clamp(34px, 9.6vw, 46px); letter-spacing: .03em; }
+  .pt-title-en { letter-spacing: .34em; font-size: 9.5px; }
+  .pt-slogan { font-size: 14.5px; line-height: 1.7; }
+  .pt-desc { font-size: 12.5px; }
+  .pt-actions { margin-top: 18px; }
+  .pt-btn { height: 44px; padding: 0 18px; font-size: 13px; }
+  .pt-feats { gap: 6px; margin-top: 16px; }
+  .pt-feat { font-size: 10.5px; padding: 4px 9px; }
+  .pt-hero-visual { max-width: min(74vw, 300px); }
+  .pt-hud--tl, .pt-hud--bl { left: -2%; }
+  .pt-hud--tr, .pt-hud--br { right: -2%; }
+  /* 手机上画布只占容器 90%，四周留白有限：底部两条 HUD 会压到点云/环上，
+     直接收起来，只留"波函数 / 点群"两条最关键的读数 */
+  .pt-hud--bl, .pt-hud--br { display: none; }
+  .pt-holo-caption { font-size: 9px; letter-spacing: .12em; gap: 7px; }
+  .pt-hud-v { font-size: 11px; }
+  .pt-hud-k { font-size: 8px; }
+  .pt-card { grid-template-rows: auto 112px auto auto; }
+  .pt-mod-lead { display: block; margin: 6px 0 0; }
+  .pt-foot-bottom { justify-content: center; text-align: center; padding-right: 0; }
+  .pt-console { gap: 8px 16px; }
+  .pt-console-title { width: 100%; text-align: center; }
+  body.home-active .agent-fab { width: 56px; height: 56px; right: 14px; bottom: 14px; }
+  .portal { padding-bottom: 92px; }
+}
+/* 英文排版：英文标题更长，字距收紧、字号降一档，避免在栏内折成三行；
+   同时压一压纵向留白 —— 英文的同一段话说出来总要长一截，否则一屏放不下四张卡 */
+.portal.lang-en .pt-title { letter-spacing: 0; font-size: clamp(32px, 3.5vw, 50px); line-height: 1.04; }
+.portal.lang-en .pt-title-en { letter-spacing: .34em; font-size: 9px; margin-top: 9px; }
+.portal.lang-en .pt-kicker { margin-bottom: 11px; }
+.portal.lang-en .pt-slogan { font-size: 13px; letter-spacing: .02em; margin-top: 12px; }
+.portal.lang-en .pt-desc { display: none; }
+.portal.lang-en .pt-actions { margin-top: 16px; }
+.portal.lang-en .pt-feats { margin-top: 12px; gap: 6px; }
+.portal.lang-en .pt-feat { font-size: 10.5px; padding: 4px 9px; }
+.portal.lang-en .pt-mod-lead { margin-left: 0; display: block; margin-top: 6px; }
+.portal.lang-en .pt-mod-order { max-width: none; font-size: 11px; }
+.portal.lang-en .pt-card-name { font-size: 18.5px; letter-spacing: .02em; }
+/* 矮屏（笔记本常见 768–820 高）：压缩纵向留白，让模块卡与底部控制条都进一屏 */
+@media (max-height: 820px) and (min-width: 1081px) {
+  .pt-hero { padding: 4px 0 2px; }
+  .pt-title { font-size: clamp(34px, 4vw, 56px); }
+  .pt-slogan { margin-top: 10px; }
+  .pt-desc { display: none; }
+  .pt-actions { margin-top: 14px; }
+  .pt-feats { margin-top: 12px; }
+  .pt-hero-visual { max-width: min(37vh, 400px); }
+  .pt-card { grid-template-rows: auto 104px auto auto; }
+  .pt-mod-kicker { display: none; }
+}
+/* 降低动效：全部停掉，只保留静态画面（canvas 也会被 JS 冻在一帧） */
+@media (prefers-reduced-motion: reduce) {
+  .portal *,
+  .portal *::before,
+  .portal *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  body.home-active .agent-fab { animation: none; }
+}
+</style>`
 
 export default HomePage
