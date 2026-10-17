@@ -784,12 +784,19 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '★ .portal 用 overflow: clip（hidden 会变成滚动容器 ⇒ "开始探索"后页面滚不回来）')
   ok(!/\.pt-holo-caption/.test(home), '说明条「结构全息投影 / 实时演算」已删除（用户要求）')
 
-  ok(/2<i>p<\/i><sub><i>z<\/i><\/sub>/.test(home),
-    '★ 轨道卡标签：2p 的 p 斜体、z 作下标且斜体（不再是 2p_z）')
+  /**
+   * ★ 2026-10-17 用户第五次复查："这里的 p、d 不用斜体吧" —— 对。
+   *   轨道字母 s/p/d/f 是**轨道标签**（正体），斜体只留给变量（ψ、θ、Y、x/y/z 轴、Bragg 的 d）。
+   *   守卫改成双向：既要有正体写法，也要确保不再包 <i>（防止排版规则又被"顺手改回去"）。
+   */
+  ok(/2p<sub>z<\/sub>/.test(home) && !/2<i>p<\/i>/.test(home),
+    '★ 轨道卡标签：2p 正体、z 作下标（轨道字母是标签，不是变量）')
   ok(/<i>T<\/i><sub>d<\/sub> · 24/.test(home),
-    '★ 点群卡标签：Schoenflies T 斜体、d 作下标（不是正体 Td）')
-  ok(/<i>ψ<\/i><sub>3,2,0<\/sub> · 3<i>d<\/i><sub><i>z<\/i>²<\/sub>/.test(home),
-    '★ 主视觉 HUD：ψ 与 3d_z² 用斜体变量 + 下标（量子数正体）')
+    '★ 点群卡标签：Schoenflies T 斜体、d 作下标（T 是符号中的字符，惯例斜体）')
+  ok(/<i>ψ<\/i><sub>3,2,0<\/sub> · 3d<sub>z²<\/sub>/.test(home) && !/3<i>d<\/i>/.test(home),
+    '★ 主视觉 HUD：3d_z² 正体（ψ 仍斜体 —— 那才是物理量）')
+  ok(/2<i>d<\/i> sin<i>θ<\/i>/.test(home),
+    'Bragg 式里的 d 是面间距（物理量）→ 保持斜体；与轨道字母区分开')
   ok(/NODAL CONES/.test(home) && /54\.74/.test(home) && /125\.26/.test(home),
     '★ 主视觉 HUD 的"节锥"角度与画面里真画出来的锥线框对应（图文对应）')
   ok(/\.pt-hud-v i, \.pt-card-demo i \{/.test(flat)

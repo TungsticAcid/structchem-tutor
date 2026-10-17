@@ -62,9 +62,11 @@ const MODULE_COPY = {
   crystal: { sub: 'shell.home.crystal.sub', desc: 'shell.home.crystal.desc', tag: 'shell.home.crystal.tag' },
 }
 
-/** 卡片画布上角的"正在演示什么"（化学标识；变量用斜体、下标用 <sub>，见文件头排版约定） */
+/** 卡片画布上角的"正在演示什么"（化学标识；见文件头排版约定。
+ *  ★ 2026-10-17 用户第五次复查：`p`、`d` 这类**轨道字母不斜体** ——
+ *    它们是轨道标签（s/p/d/f），不是物理量；斜体的只能是变量（ψ、θ、Y、n、l、m、x/y/z 轴）。 */
 const MODULE_DEMO = {
-  orbit: '2<i>p</i><sub><i>z</i></sub>',
+  orbit: '2p<sub>z</sub>',
   symmetry: '<i>T</i><sub>d</sub> · 24',
   // Fm3̄m 是 Hermann–Mauguin 空间群符号：**正体**，3 上有横杠（用 CSS overline 画，
   // 组合字符 3̄ 在有些字体里横杠几乎看不见）
@@ -411,7 +413,7 @@ export class HomePage {
               <div class="pt-holo-ring2" aria-hidden="true"></div>
               <div class="pt-holo-scan" aria-hidden="true"></div>
               <canvas class="pt-canvas pt-holo" data-canvas="holo" aria-hidden="true"></canvas>
-              <div class="pt-hud pt-hud--tl" aria-hidden="true"><span class="pt-hud-k">WAVE FUNCTION</span><span class="pt-hud-v"><i>ψ</i><sub>3,2,0</sub> · 3<i>d</i><sub><i>z</i>²</sub></span></div>
+              <div class="pt-hud pt-hud--tl" aria-hidden="true"><span class="pt-hud-k">WAVE FUNCTION</span><span class="pt-hud-v"><i>ψ</i><sub>3,2,0</sub> · 3d<sub>z²</sub></span></div>
               <div class="pt-hud pt-hud--tr" aria-hidden="true"><span class="pt-hud-k">NODAL CONES</span><span class="pt-hud-v"><i>θ</i> = 54.74° / 125.26°</span></div>
               <div class="pt-hud pt-hud--bl" aria-hidden="true"><span class="pt-hud-k">PHASE</span><span class="pt-hud-v"><span class="pt-phase-pos">+1</span> / <span class="pt-phase-neg">−1</span></span></div>
               <div class="pt-hud pt-hud--br" aria-hidden="true"><span class="pt-hud-k">ANGULAR PART</span><span class="pt-hud-v">|<i>Y</i>| ∝ |3cos<sup>2</sup><i>θ</i> − 1|</span></div>
