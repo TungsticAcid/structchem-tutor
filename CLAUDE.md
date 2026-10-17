@@ -97,6 +97,25 @@
 守卫：`test-shell` 新增 8 项棘轮（斜投影 / 无透视 / 深度排序 / 图例 / overflow clip / 说明条已删 /
 三处排版写法），全套 **134 项**；`test-home-visuals` 换成斜投影 + 球坐标网格 + 节锥的独立重算（**91 项**）。
 
+**第三次复查（同日）**：「颜色和风格按照晶典在线程序中的，只是视角按照我发的图」。
+
+晶典卡**不再自己配色**，改为直接消费模块真源（`projects/crystal/H5/src/`）：
+
+| 维度 | 来源（与晶典在线同一份） |
+|---|---|
+| 元素色 | `getElementColor('Cl'/'Na')` —— 模块设置入口，**尊重用户在设置里的逐元素覆盖**（Cl 绿 #34A853 · Na 蓝 #4285F4） |
+| 原子半径 | `getCrystalData('naCl')` 的 `radius`（离子半径：**Cl⁻ 1.81 > Na⁺ 1.02** ⇒ 绿球比蓝球大，与模块一致） |
+| 球棍比例 | `scene-builder.js` 的 `BALL_STICK_FACTOR = 0.3`、`view-props` 的 `stickRadius = 0.08` |
+| 键 | **两段双色**（靠 Cl 端绿、靠 Na 端蓝）—— 模块的键就是两根半截圆柱 |
+| 球面 | 按 `MeshStandardMaterial`（metalness .55 / roughness .32）的金属感做径向渐变 + 镜面高光点 |
+| 视角 | 不变：教材图的 **cabinet 斜投影**（`projectOblique`，平行线平行、深度缩短一半） |
+
+★ 判据不是"看起来像"，而是**消费同一份真源**（否则模块以后改配色又会漂）。守卫新增 4 条棘轮：
+"home.js 真的 import 了 `crystal-loader.js` / `data/settings.js`"、"调用
+`getCrystalData('naCl')` / `getElementColor('Cl')`"、"两个模块常量"、"两段双色键" ——
+`test-shell` **138 项**。实测（深/浅两套主题截图）：绿球大、蓝球小、键双色、金属高光，
+与晶典在线 `#/viewer/naCl` 的球棍图同观感；白色背景/深色背景下的对比都清楚。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。

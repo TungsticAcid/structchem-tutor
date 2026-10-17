@@ -758,7 +758,21 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(!/focal:/.test(crystalDraw), '★ 晶典卡：不再有透视相机参数（focal/dist）')
   ok(/items\.sort\(/.test(crystalDraw), '★ 晶典卡：键与球按深度排序（画家算法，Canvas 没有 z-buffer）')
   ok(/Cl⁻/.test(crystalDraw) && /Na⁺/.test(crystalDraw),
-    '★ 晶典卡：有离子图例（Cl⁻ 大浅 / Na⁺ 小深，与教材一致）')
+    '★ 晶典卡：有离子图例（Cl⁻ / Na⁺）')
+
+  // ★★ 2026-10-17 第三次复查：「颜色和风格按照晶典在线程序中的，只是视角按照我发的图」
+  //   —— 判据不只是"看起来像"，而是**真的消费模块真源**（否则以后模块改了配色又会漂）。
+  ok(/from '@crystal\/lib\/crystal-loader\.js'/.test(home)
+    && /from '@crystal\/data\/settings\.js'/.test(home),
+    '★ 晶典卡：颜色/尺寸读晶典在线模块的数据与设置（不另配一套配色）')
+  ok(/getCrystalData\('naCl'\)/.test(home) && /getElementColor\('Cl'\)/.test(home),
+    '★ 晶典卡：晶体数据用 getCrystalData、元素色用 getElementColor（尊重用户逐元素覆盖）')
+  ok(/BALL_STICK_FACTOR = 0\.3/.test(crystalDraw)
+    && /STICK_RADIUS_A = 0\.08/.test(crystalDraw),
+    '★ 晶典卡：球棍比例来自模块常量（BALL_STICK_FACTOR 0.3 / stickRadius 0.08）')
+  ok(/const midX = \(ps\.x \+ pe\.x\) \/ 2/.test(crystalDraw)
+    && /rgba\(colorOf\(it\.b\.kind\)/.test(crystalDraw),
+    '★ 晶典卡：键是两段双色（靠 Cl 端绿、靠 Na 端蓝 —— 与晶典在线一致）')
 
   ok(/overflow: hidden;\s*overflow: clip;/.test(flat),
     '★ .portal 用 overflow: clip（hidden 会变成滚动容器 ⇒ "开始探索"后页面滚不回来）')

@@ -40,9 +40,14 @@
 import { t, tsrc } from '@i18n/index.js'
 import {
   TAU, clamp01, rotateXYZ, project, projectOblique, createPalette, rgba,
-  createSphericalCage, createNodalCones, createMethane, createLatticeScene,
-  createOrbitalCloud, createDust, createBackgroundLattice,
+  mixColor, parseColor, createSphericalCage, createNodalCones, createMethane,
+  createLatticeScene, createOrbitalCloud, createDust, createBackgroundLattice,
 } from './home-visuals.js'
+// ★ 晶典卡的配色/尺寸不另配一套：直接读**晶典在线模块自己的**数据与设置
+//   （元素色尊重用户在设置里的覆盖；半径/晶格常数来自 naCl 的晶体数据）。
+//   含义见 _resolveCrystalStyle 的注释。
+import { getCrystalData } from '@crystal/lib/crystal-loader.js'
+import { getElementColor } from '@crystal/data/settings.js'
 
 /**
  * 模块 id → 卡片文案的键。
@@ -601,6 +606,7 @@ export class HomePage {
 
   /** 从 CSS 令牌读画布调色板（深浅两套都由 CSS 决定，JS 不抄颜色值） */
   _resolvePalette() {
+    this._crystalStyle = this._resolveCrystalStyle()
     const host = this._portal
     if (!host || typeof getComputedStyle !== 'function') {
       return createPalette(() => '', { dark: true })
@@ -608,6 +614,37 @@ export class HomePage {
     const cs = getComputedStyle(host)
     const dark = document.documentElement.getAttribute('data-theme') !== 'light'
     return createPalette((name) => cs.getPropertyValue(name), { dark })
+  }
+
+  /**
+   * 晶典卡的配色与尺寸 —— 真源是**晶典在线模块自己**（用户 2026-10-17 第三次复查：
+   * 「颜色和风格按照晶典在线程序中的，只是视角按照我发的图」）。
+   *
+   *   · 元素颜色：`getElementColor()`（模块的设置入口，尊重用户逐元素覆盖）；
+   *   · 原子半径：NaCl 晶体数据里的 `radius`（= 离子半径：Cl⁻ 1.81 > Na⁺ 1.02，
+   *     所以卡片上**绿球比蓝球大** —— 与晶典在线一致，不是反过来的）；
+   *   · 晶格常数：`data.lattice.a`（5.62 Å）。
+   * 取不到时用模块默认值兜底（数值与原数据一致），绝不悄悄换成另一套配色。
+   */
+  _resolveCrystalStyle() {
+    let data = null
+    try { data = getCrystalData('naCl') } catch (e) { data = null }
+    const groups = (data && Array.isArray(data.atoms)) ? data.atoms : []
+    const clGroup = groups.find((g) => g.element === 'Cl') || { color: '#34A853', radius: 1.81 }
+    const naGroup = groups.find((g) => g.element === 'Na') || { color: '#4285F4', radius: 1.02 }
+    let clHex = clGroup.color
+    let naHex = naGroup.color
+    try { clHex = getElementColor('Cl') || clHex } catch (e) { /* 用数据里的颜色 */ }
+    try { naHex = getElementColor('Na') || naHex } catch (e) { /* 同上 */ }
+    const asColor = (hex, fallback) => parseColor(hex) || parseColor(fallback) || { r: 136, g: 136, b: 136, a: 1 }
+    const latticeA = data && data.lattice && typeof data.lattice.a === 'number' ? data.lattice.a : 5.62
+    return {
+      clColor: asColor(clHex, '#34A853'),
+      naColor: asColor(naHex, '#4285F4'),
+      clRadius: typeof clGroup.radius === 'number' ? clGroup.radius : 1.81,
+      naRadius: typeof naGroup.radius === 'number' ? naGroup.radius : 1.02,
+      latticeA,
+    }
   }
 
   _drawAll(t) {
@@ -969,15 +1006,21 @@ export class HomePage {
   }
 
   // -------------------------------------------------------------------------
-  // 绘制：模块卡 · 晶体（NaCl 晶胞 —— 教材式斜投影球棍图）
+  // 绘制：模块卡 · 晶体（NaCl —— **晶典在线的元素配色/球棍风格** + 教材图的视角）
   //
-  //   2026-10-17 用户贴了一张教材里的 NaCl 晶胞图：「最好做成这种视图，化学家喜欢用这种视图」。
-  //   那种图的画法要点（也是本函数的四条约定）：
-  //     · **斜投影（正交）**：正面不变形、平行线永远平行 —— 不是透视投影；
-  //     · 深度轴朝右上约 38°、长度缩短一半（cabinet projection）；
-  //     · 球是**带轮廓的圆**：Cl⁻ 大而浅、Na⁺ 小而深（教材惯例，与离子半径一致）；
-  //     · 键是细直线；键与球放在同一张表里按深度排序（远的先画，画家算法）。
-  //   不再做任何旋转动画：教材插图的价值在于"永远是一个正面的晶胞"。
+  //   用户 2026-10-17 第三次复查：「颜色和风格按照晶典在线程序中的，只是视角按照我发的图」。
+  //   因此：
+  //     · 视角：保持教材图的 cabinet 斜投影（projectOblique：正面不变形、平行线平行、
+  //       深度轴 38° 缩短一半）；
+  //     · 颜色/尺寸：**不另配一套**，直接与晶典在线的场景构建器同一份真源 ——
+  //         - 元素色 = getElementColor('Cl'/'Na')（模块设置，尊重用户的逐元素覆盖）
+  //         - 原子半径 = NaCl 晶体数据里的 radius（离子半径：Cl⁻ 1.81 > Na⁺ 1.02，
+  //           所以卡片上**绿球比蓝球大**，与晶典在线一致）
+  //         - 球棍比例 = scene-builder 的 BALL_STICK_FACTOR 0.3、stickRadius 0.08
+  //         - 键是**两段双色**（靠 Cl 一侧 Cl 色、靠 Na 一侧 Na 色）—— 模块就是这样画的；
+  //     · 球面按 MeshStandardMaterial 的金属感（metalness .55 / roughness .32）用
+  //       径向渐变近似：左上高光 → 本色 → 右下暗边 + 镜面高光点。
+  //   模块文件：projects/crystal/H5/src/{data/settings.js, data/crystals/naCl.js, lib/scene-builder.js}
   // -------------------------------------------------------------------------
   _drawCrystal(ctx, e, t, pal) {
     const w = e.w
@@ -986,6 +1029,7 @@ export class HomePage {
     const cy = h / 2
     const m = Math.min(w, h)
     const dark = pal.dark
+    const style = this._crystalStyle || this._resolveCrystalStyle()
     const lat = this._scenes.lattice
 
     // 斜投影参数：与屏幕水平方向 38°、深度缩短一半（教材插图的常用比例）
@@ -993,16 +1037,28 @@ export class HomePage {
     const opts = { cx, cy, scale, alpha: 0.6632251, depth: 0.5 }
     const screen = (p) => projectOblique(p, opts)
 
-    // 教材配色：浅色球 = Cl⁻；深色球 = Na⁺。轮廓色随主题取反，保证两种底色上都清楚。
-    const fillCl = dark ? rgba(pal.node, 1) : 'rgba(255,255,255,1)'
-    const fillNa = dark ? rgba(pal.bg, 1) : rgba(pal.ink, 1)
-    const lineCl = dark ? rgba(pal.bg, 0.95) : 'rgba(28,38,52,0.92)'
-    const lineNa = dark ? rgba(pal.node, 0.82) : rgba(pal.ink, 0.95)
-    const bondColor = dark ? rgba(pal.node, 0.4) : 'rgba(28,38,52,0.6)'
-    const hilite = 'rgba(255,255,255,0.85)'
-    // 离子半径：Cl⁻ 明显大于 Na⁺（正交/斜投影下，球的大小与深度无关）
-    const rCl = scale * 0.08
-    const rNa = scale * 0.052
+    // ---- 尺寸：全部从模块常量/数据换算（不手写像素比例）----
+    // 卡片格点间距 = 1/√3 × scale；NaCl 最近邻距离 = a/2（岩盐型：Cl 在 0、Na 在 a/2）
+    const neighborPx = scale / Math.sqrt(3)
+    const pxPerA = neighborPx / (style.latticeA / 2)      // 每 Å 对应多少屏幕像素
+    const BALL_STICK_FACTOR = 0.3                           // scene-builder.js 同名常量
+    const STICK_RADIUS_A = 0.08                             // view-props 的 stickRadius 默认值
+    const rCl = style.clRadius * BALL_STICK_FACTOR * pxPerA
+    const rNa = style.naRadius * BALL_STICK_FACTOR * pxPerA
+    const bondW = Math.max(1, 2 * STICK_RADIUS_A * pxPerA)
+    const colorOf = (kind) => (kind === 0 ? style.clColor : style.naColor)
+    const radiusOf = (kind) => (kind === 0 ? rCl : rNa)
+
+    /** 金属球面：左上高光 → 本色 → 右下暗边（近似模块的 MeshStandardMaterial 观感） */
+    const sphereFill = (pr, r, base) => {
+      const g = ctx.createRadialGradient(
+        pr.x - r * 0.38, pr.y - r * 0.38, Math.max(0.6, r * 0.08),
+        pr.x, pr.y, r * 1.06)
+      g.addColorStop(0, rgba(mixColor(base, { r: 255, g: 255, b: 255, a: 1 }, 0.62), 1))
+      g.addColorStop(0.42, rgba(base, 1))
+      g.addColorStop(1, rgba(mixColor(base, { r: 0, g: 0, b: 0, a: 1 }, 0.42), 1))
+      return g
+    }
 
     // 画家算法：键与球放进同一张表，按 z 从远到近画（+z = 远离观察者，朝右上）
     const items = []
@@ -1019,68 +1075,47 @@ export class HomePage {
     for (let k = 0; k < items.length; k++) {
       const it = items[k]
       if (it.kind === 'bond') {
-        const a = screen([it.a.x, it.a.y, it.a.z])
-        const b = screen([it.b.x, it.b.y, it.b.z])
-        drawLine(ctx, a.x, a.y, b.x, b.y, bondColor, 1, dark ? 0.8 : 0.95)
+        const ps = screen([it.a.x, it.a.y, it.a.z])
+        const pe = screen([it.b.x, it.b.y, it.b.z])
+        const midX = (ps.x + pe.x) / 2
+        const midY = (ps.y + pe.y) / 2
+        // 模块的键 = 两根半截圆柱：靠哪端就用哪个元素的颜色（双色键是晶典在线的特征之一）
+        drawLine(ctx, ps.x, ps.y, midX, midY, rgba(colorOf(it.a.kind), 1), bondW, 1)
+        drawLine(ctx, midX, midY, pe.x, pe.y, rgba(colorOf(it.b.kind), 1), bondW, 1)
         continue
       }
-      const isCl = it.node.kind === 0
-      const pr = screen([it.node.x, it.node.y, it.node.z])
-      const r = isCl ? rCl : rNa
-      // 球面用径向渐变做一点体积感（教材插图里的球都是"有明暗的圆"，不是纯色圆）
-      const grad = ctx.createRadialGradient(
-        pr.x - r * 0.34, pr.y - r * 0.34, Math.max(0.5, r * 0.12),
-        pr.x, pr.y, r)
-      if (isCl) {
-        grad.addColorStop(0, 'rgba(255,255,255,1)')
-        grad.addColorStop(1, dark ? 'rgba(186,206,232,1)' : 'rgba(226,234,244,1)')
-      } else {
-        grad.addColorStop(0, dark ? rgba(pal.node, 0.26) : 'rgba(72,88,112,1)')
-        grad.addColorStop(1, dark ? rgba(pal.bg, 1) : rgba(pal.ink, 1))
-      }
+      const node = it.node
+      const pr = screen([node.x, node.y, node.z])
+      const base = colorOf(node.kind)
+      const r = radiusOf(node.kind)
       ctx.beginPath()
       ctx.arc(pr.x, pr.y, r, 0, TAU)
-      ctx.fillStyle = grad
+      ctx.fillStyle = sphereFill(pr, r, base)
       ctx.fill()
-      ctx.strokeStyle = isCl ? lineCl : lineNa
-      ctx.lineWidth = Math.max(1, r * 0.22)
-      ctx.stroke()
-      if (isCl && !dark) {
-        // 浅色主题的白色球面上，高光改用一道淡弧（白球 + 白高光等于没有）
-        ctx.beginPath()
-        ctx.arc(pr.x, pr.y, r * 0.7, Math.PI * 1.08, Math.PI * 1.6)
-        ctx.strokeStyle = 'rgba(28,38,52,0.2)'
-        ctx.lineWidth = Math.max(1, r * 0.1)
-        ctx.stroke()
-      }
-      drawDot(ctx, pr.x - r * 0.32, pr.y - r * 0.32, r * 0.26, hilite, 0.85)
+      drawDot(ctx, pr.x - r * 0.34, pr.y - r * 0.34, r * 0.2, 'rgba(255,255,255,0.85)', 0.9)
     }
 
-    // 图例：教材左下角那两行"大球 Cl / 小球 Na"在小卡片里也不能省
+    // ---- 图例：与晶典在线一致（Cl⁻ 大球绿、Na⁺ 小球蓝）----
     const lx = Math.max(8, w * 0.025)
-    const ly = Math.max(12, h * 0.22)
-    const lr = Math.max(2.6, rNa * 1.2)
+    const ly = Math.max(13, h * 0.24)
+    const lrCl = Math.max(3, rCl * 0.9)
+    const lrNa = Math.max(2.2, rNa * 0.9)
     ctx.font = '9px "Cascadia Mono", Consolas, "Microsoft YaHei", monospace'
     ctx.textAlign = 'left'
     ctx.textBaseline = 'middle'
-    ctx.globalAlpha = dark ? 0.78 : 0.82
+    ctx.globalAlpha = dark ? 0.82 : 0.88
     ctx.beginPath()
-    ctx.arc(lx + lr, ly, lr, 0, TAU)
-    ctx.fillStyle = fillCl
+    ctx.arc(lx + lrCl, ly, lrCl, 0, TAU)
+    ctx.fillStyle = sphereFill({ x: lx + lrCl, y: ly }, lrCl, style.clColor)
     ctx.fill()
-    ctx.strokeStyle = lineCl
-    ctx.lineWidth = 1
-    ctx.stroke()
     ctx.fillStyle = rgba(pal.dim, 1)
-    ctx.fillText('Cl⁻', lx + lr * 2 + 5, ly)
+    ctx.fillText('Cl⁻', lx + lrCl * 2 + 6, ly)
     ctx.beginPath()
-    ctx.arc(lx + lr, ly + 15, lr * 0.72, 0, TAU)
-    ctx.fillStyle = fillNa
+    ctx.arc(lx + lrCl, ly + 15, lrNa, 0, TAU)
+    ctx.fillStyle = sphereFill({ x: lx + lrCl, y: ly + 15 }, lrNa, style.naColor)
     ctx.fill()
-    ctx.strokeStyle = lineNa
-    ctx.stroke()
     ctx.fillStyle = rgba(pal.dim, 1)
-    ctx.fillText('Na⁺', lx + lr * 2 + 5, ly + 15)
+    ctx.fillText('Na⁺', lx + lrCl * 2 + 6, ly + 15)
     ctx.globalAlpha = 1
     ctx.textAlign = 'start'
     ctx.textBaseline = 'alphabetic'
