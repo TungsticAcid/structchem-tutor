@@ -834,6 +834,13 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/\.pt-deco \{[^}]*pointer-events: none/.test(flat), '点缀层 pointer-events:none（不挡点击）')
   ok(/from '@crystal\/data\/elements\.js'/.test(home) && /_renderElementTiles\(/.test(home),
     '元素小块读模块的 elements.js（不另抄一份周期表）')
+  // ★ 2026-10-18 用户复查：原子序数/原子量是数字、量值 → 正体（不斜体）；
+  //   原子量统一按 4 位有效数字显示（数据源每条记录精度不一，不能直接 toString）。
+  ok(/<span class="pt-el-z">/.test(home) && /<span class="pt-el-mass">/.test(home)
+    && !/<i class="pt-el-z"/.test(home) && !/<i class="pt-el-mass"/.test(home),
+    '元素小块的原子序数/原子量用正体（数字不斜体）')
+  ok(/_formatAtomicMass\(/.test(home) && /toPrecision\(4\)/.test(home),
+    '原子量统一按 4 位有效数字显示（元素数据各记录精度不一，不能直接 toString）')
   // ★ 2026-10-18 用户复查：五个元素小块按**元素周期表的相对位置**摆，而不是两列堆叠。
   //   组距 p=56px、周期行距 24%（等距）：H(top 10%) / C·O(top 34%) / Na·Cl(top 58%)；
   //   C 在 O 左边 2p（相隔两个族 C→N→O），O 在 Cl 左边 1p 且高一个周期（O 第 2 周期、Cl 第 3 周期）。

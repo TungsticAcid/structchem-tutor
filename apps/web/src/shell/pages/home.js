@@ -336,13 +336,26 @@ export class HomePage {
     return symbols.map((sym) => {
       const el = elementsData && elementsData[sym]
       if (!el) return ''
-      const mass = typeof el.atomicMass === 'number' ? el.atomicMass : ''
+      // ★ 原子序数 / 原子量都是数字、量值 —— 按排版规则用**正体**（这里是 <span>，不斜体）。
+      const mass = this._formatAtomicMass(el.atomicMass)
       return '<span class="pt-el pt-el--' + sym + '" data-el="' + sym + '">'
-        + '<i class="pt-el-z">' + el.atomicNumber + '</i>'
+        + '<span class="pt-el-z">' + el.atomicNumber + '</span>'
         + '<b class="pt-el-sym">' + sym + '</b>'
-        + '<i class="pt-el-mass">' + mass + '</i>'
+        + '<span class="pt-el-mass">' + mass + '</span>'
         + '</span>'
     }).join('')
+  }
+
+  /**
+   * 原子量统一按 **4 位有效数字**显示（H 1.008 · C 12.01 · O 16.00 · Na 22.99 · Cl 35.45）。
+   * ★ 用户问"为什么原子量的有效数字位数不同"：因为数据源 elements.js 每条记录本身的精度不一
+   *   （1.008 / 12.011 / 15.999 / 22.990 / 35.45），直接 toString() 就会 1.008、12.011、22.99 混排。
+   *   这里统一到 4 位有效数字：1.008 的 4 位是 1,0,0,8（所以有 3 位小数），12.01 的 4 位是
+   *   1,2,0,1（2 位小数）—— 小数位不同是有效数字规则决定的，不是排版错误。
+   */
+  _formatAtomicMass(v) {
+    if (typeof v !== 'number' || !isFinite(v)) return ''
+    return v.toPrecision(4)
   }
 
   _render() {
@@ -1527,6 +1540,27 @@ const STYLE = `
   .pt-el--C, .pt-el--O { display: none; }
 }
 [data-theme="light"] .pt-el { background: rgba(255, 255, 255, .35); }
+/* ★ 原子序数 / 原子量是数字、量值 → **正体**（不斜体）；元素符号是正体衬线字母。 */
+.pt-el-z {
+  justify-self: start;
+  font: 7.5px/1 var(--pt-mono);
+  font-style: normal;
+  letter-spacing: .04em;
+}
+.pt-el-sym {
+  font-family: var(--font-symbol, "Times New Roman", serif);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--pt-ink);
+  opacity: .82;
+}
+.pt-el-mass {
+  font: 6.5px/1 var(--pt-mono);
+  font-style: normal;
+  letter-spacing: .02em;
+  opacity: .8;
+}
 
 .pt-deco-art { width: 40px; height: 40px; color: var(--pt-dim); opacity: .38; }
 .pt-deco-art--bohr { opacity: .42; }
