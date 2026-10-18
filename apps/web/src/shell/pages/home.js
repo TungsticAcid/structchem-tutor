@@ -326,13 +326,18 @@ export class HomePage {
    *     · 元素数据不另抄：原子序数/相对原子质量直接读模块的 elements.js（改一处全站一致）；
    *     · 图形只有线稿（苯环、晶胞），颜色只用主题的 --pt-dim/--pt-line，保持灰阶高级感；
    *     · 窄屏（<1360px）整层隐藏：那时页面左右留白不足，放上去会压到正文。
+   *
+   * ★ 2026-10-18 用户复查：五个元素小块要**按元素周期表的相对位置**摆，而不是两列堆叠：
+   *   H 在左上、Na 在左下（同一竖列，都在界面最左），Cl 在界面最右且与 Na 同高；
+   *   O 在 Cl 的左上方、高度在 H 与 Na 之间；C 在 O 左边（与 O 同一行）。
+   *   位置写在 CSS 的 `.pt-el--H/--Na/--C/--O/--Cl` 里（top 用百分比，随页面高度缩放）。
    */
   _renderElementTiles(symbols) {
     return symbols.map((sym) => {
       const el = elementsData && elementsData[sym]
       if (!el) return ''
       const mass = typeof el.atomicMass === 'number' ? el.atomicMass : ''
-      return '<span class="pt-el" data-el="' + sym + '">'
+      return '<span class="pt-el pt-el--' + sym + '" data-el="' + sym + '">'
         + '<i class="pt-el-z">' + el.atomicNumber + '</i>'
         + '<b class="pt-el-sym">' + sym + '</b>'
         + '<i class="pt-el-mass">' + mass + '</i>'
@@ -354,8 +359,12 @@ export class HomePage {
         <div class="pt-vignette" aria-hidden="true"></div>
 
         <div class="pt-deco" aria-hidden="true">
+          ${this._renderElementTiles(['H'])}
+          ${this._renderElementTiles(['Na'])}
+          ${this._renderElementTiles(['C'])}
+          ${this._renderElementTiles(['O'])}
+          ${this._renderElementTiles(['Cl'])}
           <div class="pt-deco-col pt-deco-col--l">
-            <div class="pt-el-stack">${this._renderElementTiles(['H', 'C', 'O'])}</div>
             <svg class="pt-deco-art" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.1">
               <path d="M50 12 82 31v38L50 88 18 69V31z"/>
               <circle cx="50" cy="50" r="20"/>
@@ -380,7 +389,6 @@ export class HomePage {
             <span class="pt-deco-tag pt-deco-tag--tight">Bohr · 1913</span>
           </div>
           <div class="pt-deco-col pt-deco-col--r">
-            <div class="pt-el-stack">${this._renderElementTiles(['Na', 'Cl'])}</div>
             <svg class="pt-deco-art" viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.1">
               <path d="M22 36h44v44H22z"/>
               <path d="M38 20h44v44H38z"/>
@@ -1471,13 +1479,27 @@ const STYLE = `
 .pt-deco-col > *:nth-child(3) { animation-duration: 11.5s; animation-delay: -7s; }
 .pt-deco-col > *:nth-child(4) { animation-duration: 14s; animation-delay: -2s; }
 .pt-deco-col > *:nth-child(5) { animation-duration: 12.5s; animation-delay: -5.5s; }
+/* ★ 元素小块按周期表位置独立定位后，左列只剩线稿/记号 ——
+ *   收成上半段的一小簇，避开 H（~11%）与 Na（~58%）两个元素小块。 */
+.pt-deco-col--l {
+  justify-content: flex-start;
+  gap: 11px;
+  padding-top: 20vh;
+  padding-bottom: 28vh;
+}
 @keyframes pt-float {
   from { transform: translateY(-4px); }
   to { transform: translateY(5px); }
 }
 
-.pt-el-stack { display: flex; flex-direction: column; gap: 8px; }
+/* ★ 2026-10-18 用户复查：五个元素小块按**元素周期表的相对位置**摆放（不再是两列堆叠）。
+ *   H 左上 / Na 左下（同一竖列，界面最左）；Cl 界面最右、与 Na 同高；
+ *   O 在 Cl 左上方、高度介于 H 与 Na 之间；C 在 O 左边（与 O 同一行）。
+ *   top 用百分比（随页面高度缩放），H/Na 贴左边、C/O/Cl 贴右边。
+ *   元素小块现在脱离左右两列单独定位，所以列里只剩线稿/记号。 */
 .pt-el {
+  position: absolute;
+  z-index: 1;
   display: grid;
   grid-template-rows: auto 1fr auto;
   place-items: center;
@@ -1490,18 +1512,18 @@ const STYLE = `
   background: rgba(12, 20, 38, .18);
   color: var(--pt-dim);
   opacity: .72;
+  animation: pt-float 10s ease-in-out infinite alternate;
+}
+.pt-el--H { left: 8px; top: 11%; animation-delay: -1.5s; }
+.pt-el--Na { left: 8px; top: 58%; animation-delay: -6s; }
+.pt-el--C { right: 112px; top: 38%; animation-delay: -3.5s; }
+.pt-el--O { right: 60px; top: 38%; animation-delay: -7.5s; }
+.pt-el--Cl { right: 8px; top: 58%; animation-delay: -4.5s; }
+/* 窄屏时页面边缘留白变窄：中间行的 C/O 先隐藏，避免压到全息图（H/Na/Cl 仍贴边） */
+@media (max-width: 1399px) {
+  .pt-el--C, .pt-el--O { display: none; }
 }
 [data-theme="light"] .pt-el { background: rgba(255, 255, 255, .35); }
-.pt-el-z { justify-self: start; font: 7.5px/1 var(--pt-mono); letter-spacing: .04em; }
-.pt-el-sym {
-  font-family: var(--font-symbol, "Times New Roman", serif);
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--pt-ink);
-  opacity: .82;
-}
-.pt-el-mass { font: 6.5px/1 var(--pt-mono); letter-spacing: .02em; opacity: .8; }
 
 .pt-deco-art { width: 40px; height: 40px; color: var(--pt-dim); opacity: .38; }
 .pt-deco-art--bohr { opacity: .42; }

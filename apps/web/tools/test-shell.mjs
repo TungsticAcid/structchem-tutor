@@ -834,6 +834,17 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/\.pt-deco \{[^}]*pointer-events: none/.test(flat), '点缀层 pointer-events:none（不挡点击）')
   ok(/from '@crystal\/data\/elements\.js'/.test(home) && /_renderElementTiles\(/.test(home),
     '元素小块读模块的 elements.js（不另抄一份周期表）')
+  // ★ 2026-10-18 用户复查：五个元素小块按**元素周期表的相对位置**摆，而不是两列堆叠。
+  ok(/\.pt-el--H \{ left: 8px; top: 11%/.test(flat)
+    && /\.pt-el--Na \{ left: 8px; top: 58%/.test(flat)
+    && /\.pt-el--Cl \{ right: 8px; top: 58%/.test(flat)
+    && /\.pt-el--O \{ right: 60px; top: 38%/.test(flat)
+    && /\.pt-el--C \{ right: 112px; top: 38%/.test(flat),
+    '★ 元素小块按周期表相对位置：H/Na 最左、Cl 最右且与 Na 同高、O 在 Cl 左上方、C 在 O 左边')
+  ok(/pt-el--H/.test(home) && /pt-el--Cl/.test(home) && !/pt-el-stack/.test(home),
+    '元素小块已从两列堆叠改为独立绝对定位（不再有 pt-el-stack）')
+  ok(/@media \(max-width: 1399px\) \{\s*\.pt-el--C, \.pt-el--O \{ display: none/.test(flat),
+    '窄屏（<1400px）隐藏中间行的 C/O，避免压到全息图；H/Na/Cl 仍贴边')
   ok(/@media \(max-width: 1359px\) \{\s*\.pt-deco \{ display: none/.test(flat),
     '窄屏隐藏点缀层（页边距不足时会压正文）')
   ok(/pt-chem-strip/.test(home) && /\(111\)/.test(home),
