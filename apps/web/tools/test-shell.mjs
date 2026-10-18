@@ -855,8 +855,11 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '轨道卡点缀：定态薛定谔方程 Ĥψ = Eψ')
   ok(/CARD_FORMULA[\s\S]*?<i>Γ<\/i>[\s\S]*?√[\s\S]*?<i>δ<\/i>/.test(home),
     '点群卡点缀：大正交定理（Γ、√、δ 都在；按变量斜体排版）')
-  ok(/crystal: '[^']*ψ[^']*e<sup><i>ik<\/i>·<i>r<\/i><\/sup>/.test(home),
-    '晶典卡点缀：布洛赫定理 ψ_k(r) = e^{ik·r} u_k(r)')
+  ok(/crystal: '[^']*ψ[^']*e<sup>i<i>k<\/i>·<i>r<\/i><\/sup>/.test(home)
+    && !/e<sup><i>ik<\/i>/.test(home),
+    '晶典卡点缀：布洛赫定理 ψ_k(r) = e^{i k·r} u_k(r)；★ 虚数单位 i 正体、k/r 斜体')
+  ok(/虚数单位 i /.test(home) && /虚数单位要用正体/.test(home),
+    '排版规则里明确记下"虚数单位用正体"（用户 2026-10-18 复查）')
   ok(/pt-card-formula/.test(home)
     && /\.pt-card-formula \{[^}]*opacity: \.4[^}]*pointer-events: none/.test(flat)
     && /@media \(max-width: 1099px\) \{\s*\.pt-card-formula \{ display: none/.test(flat),
