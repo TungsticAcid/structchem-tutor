@@ -835,12 +835,14 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/from '@crystal\/data\/elements\.js'/.test(home) && /_renderElementTiles\(/.test(home),
     '元素小块读模块的 elements.js（不另抄一份周期表）')
   // ★ 2026-10-18 用户复查：五个元素小块按**元素周期表的相对位置**摆，而不是两列堆叠。
-  ok(/\.pt-el--H \{ left: 8px; top: 11%/.test(flat)
+  //   组距 p=56px、周期行距 24%（等距）：H(top 10%) / C·O(top 34%) / Na·Cl(top 58%)；
+  //   C 在 O 左边 2p（相隔两个族 C→N→O），O 在 Cl 左边 1p 且高一个周期（O 第 2 周期、Cl 第 3 周期）。
+  ok(/\.pt-el--H \{ left: 8px; top: 10%/.test(flat)
     && /\.pt-el--Na \{ left: 8px; top: 58%/.test(flat)
     && /\.pt-el--Cl \{ right: 8px; top: 58%/.test(flat)
-    && /\.pt-el--O \{ right: 60px; top: 38%/.test(flat)
-    && /\.pt-el--C \{ right: 112px; top: 38%/.test(flat),
-    '★ 元素小块按周期表相对位置：H/Na 最左、Cl 最右且与 Na 同高、O 在 Cl 左上方、C 在 O 左边')
+    && /\.pt-el--O \{ right: 64px; top: 34%/.test(flat)
+    && /\.pt-el--C \{ right: 176px; top: 34%/.test(flat),
+    '★ 元素小块按周期表相对位置：H/Na 同族最左；Cl 与 Na 同周期最右；C/O 同周期且 C 隔两族在左；O 在 Cl 左上')
   ok(/pt-el--H/.test(home) && /pt-el--Cl/.test(home) && !/pt-el-stack/.test(home),
     '元素小块已从两列堆叠改为独立绝对定位（不再有 pt-el-stack）')
   ok(/@media \(max-width: 1399px\) \{\s*\.pt-el--C, \.pt-el--O \{ display: none/.test(flat),

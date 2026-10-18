@@ -1492,11 +1492,14 @@ const STYLE = `
   to { transform: translateY(5px); }
 }
 
-/* ★ 2026-10-18 用户复查：五个元素小块按**元素周期表的相对位置**摆放（不再是两列堆叠）。
- *   H 左上 / Na 左下（同一竖列，界面最左）；Cl 界面最右、与 Na 同高；
- *   O 在 Cl 左上方、高度介于 H 与 Na 之间；C 在 O 左边（与 O 同一行）。
- *   top 用百分比（随页面高度缩放），H/Na 贴左边、C/O/Cl 贴右边。
- *   元素小块现在脱离左右两列单独定位，所以列里只剩线稿/记号。 */
+/* ★ 2026-10-18 用户复查：五个元素小块按**元素周期表的相对位置**摆放（不是两列堆叠）。
+ *   坐标按"组（列）/周期（行）"给：组距 p = 56px，周期行距 = 24%（等间距）。
+ *     · H：第 1 周期、第 1 族 —— 左上（left:8px; top:10%）
+ *     · C：第 2 周期、第 14 族 —— C 与 O 同周期，相隔**两个族**（C→N→O），故 C 在 O 左边 2p
+ *     · O：第 2 周期、第 16 族 —— Cl 左边 1p、上边一个周期
+ *     · Cl：第 3 周期、第 17 族 —— 界面最右（right:8px），与 Na 同周期同高
+ *     · Na：第 3 周期、第 1 族 —— 界面最左（left:8px; top:58%），与 H 同族同列
+ *   H 与 Na 之间空出一行（第 2 周期第 1 族是 Li，未画出）；Na 与 Cl 同高（都是第 3 周期）。 */
 .pt-el {
   position: absolute;
   z-index: 1;
@@ -1514,10 +1517,10 @@ const STYLE = `
   opacity: .72;
   animation: pt-float 10s ease-in-out infinite alternate;
 }
-.pt-el--H { left: 8px; top: 11%; animation-delay: -1.5s; }
+.pt-el--H { left: 8px; top: 10%; animation-delay: -1.5s; }
 .pt-el--Na { left: 8px; top: 58%; animation-delay: -6s; }
-.pt-el--C { right: 112px; top: 38%; animation-delay: -3.5s; }
-.pt-el--O { right: 60px; top: 38%; animation-delay: -7.5s; }
+.pt-el--C { right: 176px; top: 34%; animation-delay: -3.5s; }
+.pt-el--O { right: 64px; top: 34%; animation-delay: -7.5s; }
 .pt-el--Cl { right: 8px; top: 58%; animation-delay: -4.5s; }
 /* 窄屏时页面边缘留白变窄：中间行的 C/O 先隐藏，避免压到全息图（H/Na/Cl 仍贴边） */
 @media (max-width: 1399px) {
