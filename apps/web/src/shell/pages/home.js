@@ -260,17 +260,6 @@ export class HomePage {
     return rows.join('')
   }
 
-  _renderFeats() {
-    const items = [
-      ['visual', 'shell.home.featVisual'],
-      ['scene', 'shell.home.featScene'],
-      ['deterministic', 'shell.home.featDeterministic'],
-      ['modular', 'shell.home.featModular'],
-    ]
-    return items.map(([kind, key]) =>
-      '<li class="pt-feat pt-feat--' + kind + '"><i aria-hidden="true"></i>' + t(key) + '</li>').join('')
-  }
-
   /**
    * 一张模块卡。
    * ★ 已接入的用 `<a href="#/id">`：中键/回车/新标签页都能用，且 hash 变化由
@@ -307,7 +296,6 @@ export class HomePage {
       + '<span class="pt-card-body">'
       + '<span class="pt-card-name">' + title + '</span>'
       + (copy ? '<span class="pt-card-sub">' + t(copy.sub) + '</span>' : '')
-      + (copy ? '<span class="pt-card-desc">' + t(copy.desc) + '</span>' : '')
       + '</span>'
       + '<span class="pt-card-foot">'
       + (copy ? '<span class="pt-card-tag">' + t(copy.tag) + '</span>' : '<span></span>')
@@ -442,7 +430,6 @@ export class HomePage {
 
         <main class="pt-hero">
           <div class="pt-hero-copy">
-            <p class="pt-kicker"><span class="pt-kicker-rule" aria-hidden="true"></span>SCENE-AWARE · HUB + 3 MODULES</p>
             <h1 class="pt-title">
               <span class="pt-title-line">${t('shell.home.titleSm')}</span>
               <span class="pt-title-line pt-title-line--accent">${t('shell.home.titleLg')}</span>
@@ -458,7 +445,6 @@ export class HomePage {
                 <span class="pt-btn-pulse" aria-hidden="true"></span>${t('shell.home.askAgent')}
               </button>
             </div>
-            <ul class="pt-feats">${this._renderFeats()}</ul>
           </div>
 
           <div class="pt-visual-col">
@@ -476,17 +462,11 @@ export class HomePage {
         </main>
 
         <section class="pt-modules" id="pt-modules">
-          <div class="pt-chem-strip" aria-hidden="true">
-            <span class="pt-chem-strip-rule"></span>
-            <span class="pt-chem-strip-items">Fm<span class="pt-bar">3</span>m · <i>T</i><sub>d</sub> · <i>O</i><sub>h</sub> · <i>D</i><sub>6h</sub> · <i>C</i><sub>2v</sub> · (111)</span>
-            <span class="pt-chem-strip-rule"></span>
-          </div>
           <div class="pt-mod-head">
             <div class="pt-mod-title">
               <span class="pt-mod-kicker">[ MODULES 01 — 03 · TEACHING ORDER ]</span>
-              <h2>${t('shell.home.modulesTitle')}<span class="pt-mod-lead">${t('shell.home.modulesLead')}</span></h2>
+              <h2>${t('shell.home.modulesTitle')}</h2>
             </div>
-            <p class="pt-mod-order">${t('shell.home.modulesOrder')}</p>
           </div>
           <div class="pt-cards">${cards}</div>
         </section>

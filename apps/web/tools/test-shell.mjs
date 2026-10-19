@@ -856,14 +856,14 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '窄屏（<1400px）隐藏中间行的 C/O，避免压到全息图；H/Na/Cl 仍贴边')
   ok(/@media \(max-width: 1359px\) \{\s*\.pt-deco \{ display: none/.test(flat),
     '窄屏隐藏点缀层（页边距不足时会压正文）')
-  ok(/pt-chem-strip/.test(home) && /\(111\)/.test(home),
-    '化学记号条：点群 + Miller 指数（不是随手编的符号）')
-  // ★ 2026-10-18 用户再次复查（第三条）："记号条太长了" —— 三条公式从 strip 挪到三张卡片里，
-  //   记号条只留 1 个空间群 + 4 个点群 + (111)。
-  ok(!/13\.6 eV/.test(home) && !/<i>λ<\/i> = <i>h<\/i>\/<i>p<\/i>/.test(home),
-    '★ 记号条已缩短：薛定谔/德布罗意/玻尔能级不再挤在 strip 里')
-  ok(/P6<sub>3<\/sub>\/mmc/.test(home) === false && /Fd<span class="pt-bar">3<\/span>m/.test(home) === false,
-    '★ 空间群已按用户要求减少：Strip 里只保留 NaCl 的 Fm3̄m，删掉 Im3̄m / Fd3̄m / P6₃/mmc')
+  // ★ 2026-10-19 用户复查（6 张截图）：「把这些字符都删掉」—— 顶部 kicker（SCENE-AWARE…）、
+  //   四个特性胶囊、化学记号条、模块副标题（一个中枢…）、授课顺序说明、三张卡片的描述句。
+  //   这里钉住"排版里不再渲染它们"（CSS 里残留的死规则不算渲染）。
+  ok(!/<p class="pt-kicker"/.test(home) && !/<ul class="pt-feats"/.test(home)
+    && !/<div class="pt-chem-strip"/.test(home) && !/<span class="pt-mod-lead"/.test(home)
+    && !/<p class="pt-mod-order"/.test(home) && !/<span class="pt-card-desc"/.test(home)
+    && !/_renderFeats/.test(home),
+    '★ 六处文字已删除：kicker / 特性胶囊 / 化学记号条 / 模块副标题 / 授课顺序 / 卡片描述')
   ok(/pt-deco-art--bohr/.test(home) && /<ellipse/.test(home) && /Bohr · 1913/.test(home),
     '点缀：玻尔模型线稿（轨道 + 电子）+ 年代标签')
   ok(/pt-deco-tag--tight/.test(home) && /\.pt-deco-tag--tight \{[^}]*white-space: nowrap/.test(flat),

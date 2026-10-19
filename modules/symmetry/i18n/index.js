@@ -399,6 +399,7 @@ export const text = Object.assign(
     // XYZ 注释行（数据，不进界面；给了英文等价值以免将来被哪个入口直接显示出来）
     '三苯甲烷 C19H16 (C3)': 'Triphenylmethane C19H16 (C3)',
     '环八硫 S8 (D4d)': 'Octasulfur S8 (D4d)',
+    '三乙二胺合钴 [Co(en)3]3+ C6H24CoN6 (D3)': 'Tris(ethylenediamine)cobalt(III) [Co(en)3]3+ C6H24CoN6 (D3)',
 
     // ---- 特征标表的列标题 ----
     'd 轨道': 'd orbitals',
