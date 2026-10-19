@@ -1655,7 +1655,7 @@ const STYLE = `
   width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  padding: clamp(10px, 1.8vh, 26px) 0 clamp(6px, 1.4vh, 18px);
+  padding: clamp(6px, 1vh, 16px) 0 clamp(2px, .6vh, 8px);
 }
 .pt-hero-copy { min-width: 0; }
 .pt-kicker {
@@ -1942,7 +1942,7 @@ const STYLE = `
   width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  padding: clamp(6px, 1.2vh, 14px) 0 0;
+  padding: clamp(4px, .8vh, 10px) 0 0;
 }
 /**
  * 化学记号条：一行极淡的空间群 / 点群符号，压在 hero 与模块区之间。
@@ -2203,16 +2203,16 @@ const STYLE = `
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-top: 10px;
-  padding-top: 9px;
+  margin-top: 6px;
+  padding-top: 6px;
   border-top: 1px solid var(--pt-line);
 }
-.pt-card-tag { font-size: 11px; letter-spacing: .06em; color: var(--pt-dim); white-space: nowrap; }
+.pt-card-tag { font-size: 22px; letter-spacing: .06em; color: var(--pt-dim); white-space: nowrap; }
 .pt-card-enter {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
+  gap: 10px;
+  font-size: 23px;
   letter-spacing: .1em;
   color: var(--pt-card-accent);
   white-space: nowrap;
@@ -2238,7 +2238,7 @@ const STYLE = `
   width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  padding-top: 8px;
+  padding-top: 4px;
   animation: pt-rise .7s .55s cubic-bezier(.2, .7, .2, 1) both;
 }
 .pt-console {
@@ -2246,20 +2246,20 @@ const STYLE = `
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 10px 26px;
-  padding: 7px 4px;
+  gap: 12px 28px;
+  padding: 3px 4px;
   border-top: 1px solid var(--pt-line);
 }
 .pt-console-title {
   font-family: var(--pt-mono);
-  font-size: 9px;
-  letter-spacing: .3em;
+  font-size: 18px;
+  letter-spacing: .24em;
   color: var(--pt-dim);
   opacity: .7;
   text-transform: uppercase;
 }
-.pt-set { display: inline-flex; align-items: center; gap: 9px; }
-.pt-set-label { font-size: 11px; letter-spacing: .08em; color: var(--pt-dim); }
+.pt-set { display: inline-flex; align-items: center; gap: 12px; }
+.pt-set-label { font-size: 22px; letter-spacing: .08em; color: var(--pt-dim); }
 .pt-seg {
   display: inline-flex;
   border: 1px solid var(--pt-line);
@@ -2272,9 +2272,9 @@ const STYLE = `
   appearance: none;
   border: 0;
   background: transparent;
-  padding: 5px 11px;
+  padding: 9px 18px;
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: 23px;
   letter-spacing: .05em;
   color: var(--pt-dim);
   cursor: pointer;
@@ -2291,7 +2291,7 @@ const STYLE = `
   gap: 16px;
   flex-wrap: wrap;
   /* 右下角是智能体悬浮球（固定定位，72px）—— 给文字留出让位空间，别被它压住 */
-  padding: 6px 84px 0 0;
+  padding: 4px 84px 0 0;
   font-size: 10.5px;
   letter-spacing: .06em;
   color: var(--pt-dim);

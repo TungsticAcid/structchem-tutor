@@ -856,6 +856,13 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '窄屏（<1400px）隐藏中间行的 C/O，避免压到全息图；H/Na/Cl 仍贴边')
   ok(/@media \(max-width: 1359px\) \{\s*\.pt-deco \{ display: none/.test(flat),
     '窄屏隐藏点缀层（页边距不足时会压正文）')
+  // ★ 2026-10-19 用户复查：底部控制条与卡片页脚的字号按截图要求"大一倍"（原值 ×2）。
+  ok(/\.pt-card-tag \{ font-size: 22px/.test(flat)
+    && /\.pt-console-title \{[^}]*font-size: 18px/.test(flat)
+    && /\.pt-set-label \{ font-size: 22px/.test(flat)
+    && /\.pt-seg-btn \{[^}]*font-size: 23px/.test(flat)
+    && /\.pt-card-enter \{[^}]*font-size: 23px/.test(flat),
+    '★ 卡片页脚 / 底部控制条字体已放大一倍（11/11.5/9/11.5 → 22/23/18/22/23px）')
   // ★ 2026-10-19 用户复查（6 张截图）：「把这些字符都删掉」—— 顶部 kicker（SCENE-AWARE…）、
   //   四个特性胶囊、化学记号条、模块副标题（一个中枢…）、授课顺序说明、三张卡片的描述句。
   //   这里钉住"排版里不再渲染它们"（CSS 里残留的死规则不算渲染）。
