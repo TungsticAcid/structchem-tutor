@@ -717,8 +717,16 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/\.pt-card \{[^}]*overflow: hidden/.test(flat), '卡片裁切内部溢出的装饰光斑（不产生横向溢出）')
   ok(/\.pt-canvas \{ display: block; width: 100%; height: 100%/.test(flat),
     '五块画布统一 width/height: 100%（跟随父容器，不写死尺寸）')
-  ok(/\.pt-hud \{ position: absolute/.test(flat) && !/\.pt-hud--tl \{[^}]*left: \d+px/.test(flat),
-    'HUD 绝对定位但不用固定像素偏移（窄屏不会越界）')
+  // ★ 2026-10-20 用户复查：主视觉四角 HUD 已整体删除（图 2）。
+  ok(!/class="pt-hud/.test(home), '主视觉 HUD 已按用户要求删除')
+  // ★ 2026-10-20 用户复查（图 3/4）：顶部品牌块（logo + 站名 + 英文）与状态/版本号删除。
+  ok(!/<header class="pt-top"/.test(home) && !/class="pt-brand/.test(home)
+    && !/class="pt-status"/.test(home) && !/class="pt-ver"/.test(home),
+    '顶部品牌 / 场景感知状态 / 版本号已按用户要求删除')
+  // ★ 2026-10-20：卡片页脚「进入模块」四个字删除，只保留箭头（aria-label 保留可访问名）。
+  ok(/pt-card-enter" aria-label=/.test(home)
+    && /pt-card-enter-arrow" aria-hidden="true">→/.test(home),
+    '卡片「进入模块」文字已删除，只保留箭头')
 }
 
 // ---------------------------------------------------------------------------
@@ -763,8 +771,8 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/projectOblique\(/.test(crystalDraw), '★ 晶典卡：教材式斜投影（projectOblique）')
   ok(!/focal:/.test(crystalDraw), '★ 晶典卡：不再有透视相机参数（focal/dist）')
   ok(/items\.sort\(/.test(crystalDraw), '★ 晶典卡：键与球按深度排序（画家算法，Canvas 没有 z-buffer）')
-  ok(/Cl⁻/.test(crystalDraw) && /Na⁺/.test(crystalDraw),
-    '★ 晶典卡：有离子图例（Cl⁻ / Na⁺）')
+  ok(/Cl⁻/.test(crystalDraw) === false && /Na⁺/.test(crystalDraw) === false,
+    '★ 晶典卡：离子图例（Cl⁻ / Na⁺）已按用户要求删除')
 
   // ★★ 2026-10-17 第三次复查：「颜色和风格按照晶典在线程序中的，只是视角按照我发的图」
   //   —— 判据不只是"看起来像"，而是**真的消费模块真源**（否则以后模块改了配色又会漂）。
@@ -807,8 +815,8 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '★ 轨道卡标签：2p 正体、z 作下标（轨道字母是标签，不是变量）')
   ok(/<i>T<\/i><sub>d<\/sub> · 24/.test(home),
     '★ 点群卡标签：Schoenflies T 斜体、d 作下标（T 是符号中的字符，惯例斜体）')
-  ok(/<i>ψ<\/i><sub>3,2,0<\/sub> · 3d<sub>z²<\/sub>/.test(home) && !/3<i>d<\/i>/.test(home),
-    '★ 主视觉 HUD：3d_z² 正体（ψ 仍斜体 —— 那才是物理量）')
+  ok(!/<i>ψ<\/i><sub>3,2,0<\/sub>/.test(home),
+    '主视觉 HUD（ψ₃,₂,₀ · 3d_z² 等读数）已按用户要求整体删除')
   ok(/2<i>d<\/i> sin<i>θ<\/i>/.test(home),
     'Bragg 式里的 d 是面间距（物理量）→ 保持斜体；与轨道字母区分开')
   ok(/NODAL CONES/.test(home) && /54\.74/.test(home) && /125\.26/.test(home),

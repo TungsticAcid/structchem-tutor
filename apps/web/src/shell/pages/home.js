@@ -298,8 +298,8 @@ export class HomePage {
       + '</span>'
       + '<span class="pt-card-foot">'
       + (copy ? '<span class="pt-card-tag">' + t(copy.tag) + '</span>' : '<span></span>')
-      + '<span class="pt-card-enter">' + t('shell.home.enterModule')
-      + ' <span class="pt-card-enter-arrow" aria-hidden="true">→</span></span>'
+      + '<span class="pt-card-enter" aria-label="' + t('shell.home.enterModule') + '">'
+      + '<span class="pt-card-enter-arrow" aria-hidden="true">→</span></span>'
       + '</span>'
       + badge
       + '</' + tag + '>'
@@ -407,26 +407,6 @@ export class HomePage {
           </div>
         </div>
 
-        <header class="pt-top">
-          <div class="pt-brand">
-            <span class="pt-logo" aria-hidden="true">
-              <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round">
-                <path d="M16 3.2 27 9.4v12.4L16 28 5 21.8V9.4z"/>
-                <path d="M16 9.2v13.6M9.5 12.9l13 6.2M22.5 12.9l-13 6.2" opacity=".65"/>
-                <circle cx="16" cy="16" r="2.6" fill="currentColor" stroke="none"/>
-              </svg>
-            </span>
-            <span class="pt-brand-text">
-              <span class="pt-brand-name">${t('shell.home.brand')}</span>
-              <span class="pt-brand-en">STRUCTURAL CHEMISTRY · AI TEACHING AGENT</span>
-            </span>
-          </div>
-          <div class="pt-top-meta">
-            <span class="pt-status"><i class="pt-dot" aria-hidden="true"></i>${t('shell.home.status')}</span>
-            <span class="pt-ver">v0.1.0</span>
-          </div>
-        </header>
-
         <main class="pt-hero">
           <div class="pt-hero-copy">
             <h1 class="pt-title">
@@ -452,10 +432,6 @@ export class HomePage {
               <div class="pt-holo-ring2" aria-hidden="true"></div>
               <div class="pt-holo-scan" aria-hidden="true"></div>
               <canvas class="pt-canvas pt-holo" data-canvas="holo" aria-hidden="true"></canvas>
-              <div class="pt-hud pt-hud--tl" aria-hidden="true"><span class="pt-hud-k">WAVE FUNCTION</span><span class="pt-hud-v"><i>ψ</i><sub>3,2,0</sub> · 3d<sub>z²</sub></span></div>
-              <div class="pt-hud pt-hud--tr" aria-hidden="true"><span class="pt-hud-k">NODAL CONES</span><span class="pt-hud-v"><i>θ</i> = 54.74° / 125.26°</span></div>
-              <div class="pt-hud pt-hud--bl" aria-hidden="true"><span class="pt-hud-k">PHASE</span><span class="pt-hud-v"><span class="pt-phase-pos">+1</span> / <span class="pt-phase-neg">−1</span></span></div>
-              <div class="pt-hud pt-hud--br" aria-hidden="true"><span class="pt-hud-k">ANGULAR PART</span><span class="pt-hud-v">|<i>Y</i>| ∝ |3cos<sup>2</sup><i>θ</i> − 1|</span></div>
             </div>
           </div>
         </main>
@@ -1247,30 +1223,8 @@ export class HomePage {
       ctx.restore()
     }
 
-    // ---- 图例：与晶典在线一致（Cl⁻ 大球绿、Na⁺ 小球蓝）----
-    const lx = Math.max(8, w * 0.025)
-    const ly = Math.max(13, h * 0.24)
-    const lrCl = Math.max(3, rCl * 0.9)
-    const lrNa = Math.max(2.2, rNa * 0.9)
-    ctx.font = '9px "Cascadia Mono", Consolas, "Microsoft YaHei", monospace'
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'middle'
-    ctx.globalAlpha = dark ? 0.82 : 0.88
-    ctx.beginPath()
-    ctx.arc(lx + lrCl, ly, lrCl, 0, TAU)
-    ctx.fillStyle = sphereFill({ x: lx + lrCl, y: ly }, lrCl, style.clColor)
-    ctx.fill()
-    ctx.fillStyle = rgba(pal.dim, 1)
-    ctx.fillText('Cl⁻', lx + lrCl * 2 + 6, ly)
-    ctx.beginPath()
-    ctx.arc(lx + lrCl, ly + 15, lrNa, 0, TAU)
-    ctx.fillStyle = sphereFill({ x: lx + lrCl, y: ly + 15 }, lrNa, style.naColor)
-    ctx.fill()
-    ctx.fillStyle = rgba(pal.dim, 1)
-    ctx.fillText('Na⁺', lx + lrCl * 2 + 6, ly + 15)
-    ctx.globalAlpha = 1
-    ctx.textAlign = 'start'
-    ctx.textBaseline = 'alphabetic'
+    // ---- 图例已按用户要求删除（2026-10-20）----
+
   }
 }
 
