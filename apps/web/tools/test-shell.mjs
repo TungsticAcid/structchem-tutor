@@ -876,6 +876,11 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /\.pt-seg-btn \{[^}]*font-size: 23px/.test(flat)
     && /\.pt-card-enter \{[^}]*font-size: 23px/.test(flat),
     '★ 卡片页脚 / 底部控制条字体已放大一倍（11/11.5/9/11.5 → 22/23/18/22/23px）')
+  // ★ 2026-10-20 用户复查：未选中的分段按钮必须与页面同底色（不能出现白色/深色底块与分隔线）。
+  ok(/\.pt-seg \{[^}]*background: transparent/.test(flat)
+    && !/\.pt-seg-btn \+ \.pt-seg-btn \{ border-left/.test(flat)
+    && /\.pt-seg-btn\.is-on \{ background: var\(--pt-soft\)/.test(flat),
+    '未选中的分段按钮与页面同底色（无容器底色/分隔线，仅选中项有药丸底）')
   // ★ 2026-10-20 用户复查：卡片标题要比「进入模块」（23px）再大一点 → 26px；
   //   三张卡片的页脚文案换成三个模块的正式描述（不再用"可观察/易剖析/得贯通"）。
   ok(/\.pt-card-name \{[^}]*font-size: 26px/.test(flat)

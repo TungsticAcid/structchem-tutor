@@ -2221,15 +2221,16 @@ const STYLE = `
 .pt-set-label { font-size: 22px; letter-spacing: .08em; color: var(--pt-dim); }
 .pt-seg {
   display: inline-flex;
-  border: 1px solid var(--pt-line);
+  border: 0;
   border-radius: 7px;
-  overflow: hidden;
-  background: rgba(8, 14, 28, .3);
+  overflow: visible;
+  background: transparent;
+  gap: 2px;
 }
-[data-theme="light"] .pt-seg { background: rgba(255, 255, 255, .6); }
 .pt-seg-btn {
   appearance: none;
   border: 0;
+  border-radius: 7px;
   background: transparent;
   padding: 9px 18px;
   font-family: inherit;
@@ -2239,7 +2240,6 @@ const STYLE = `
   cursor: pointer;
   transition: background .15s ease, color .15s ease;
 }
-.pt-seg-btn + .pt-seg-btn { border-left: 1px solid var(--pt-line); }
 .pt-seg-btn:hover { color: var(--pt-ink); }
 .pt-seg-btn.is-on { background: var(--pt-soft); color: var(--pt-cyan); }
 .pt-seg-btn:focus-visible { outline: 2px solid var(--pt-cyan); outline-offset: -2px; }
