@@ -1508,7 +1508,12 @@ const STYLE = `
   text-align: center;
   white-space: normal;
 }
-.pt-deco-tag--dim { opacity: .46; }
+.pt-deco-tag--dim {
+  opacity: .46;
+  /* 布拉格公式里的 d / sin / n / λ 也全部用 Times（用户：公式中所有英文字符都要新罗马） */
+  font-family: var(--font-symbol, "Times New Roman", "Cambria Math", serif);
+  letter-spacing: 0;
+}
 /* ★ 用户实测发现「σ · π · δ」被 max-width 折成了两行 —— 短记号强制单行，字号略收小 */
 .pt-deco-tag--tight {
   max-width: none;
@@ -2111,7 +2116,9 @@ const STYLE = `
   max-width: calc(100% - 6px);
   overflow: hidden;
   white-space: normal;
-  font-family: var(--pt-mono);
+  /* ★ 用户 2026-10-20：「公式中所有英文字符都要用新罗马」⇒ 整条公式用 Times，
+     不再混用等宽字；变量仍由 i 标记保持斜体。 */
+  font-family: var(--font-symbol, "Times New Roman", "Cambria Math", serif);
   font-size: 9px;
   line-height: 1.5;
   letter-spacing: .01em;

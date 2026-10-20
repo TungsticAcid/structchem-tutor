@@ -409,6 +409,15 @@ build-web 通过。
 - 守卫 +1（源码不再引用 `shell.home.setTheme`、语言标签仍在），`test-shell` **169 项**全过；
   build-web 通过。
 
+**第二十二次复查（2026-10-20）**：用户「公式中所有英文字符都要用新罗马」。
+
+- `.pt-card-formula` 的字体从 `var(--pt-mono)` 改为 `var(--font-symbol, "Times New Roman",
+  "Cambria Math", serif)` —— 三张卡片的公式（定态薛定谔 / 大正交定理 / 布洛赫定理）
+  **整条公式统一 Times**，变量斜体仍由 `<i>` 控制，函数/算符正体。
+- 页边距的布拉格公式 `.pt-deco-tag--dim` 同步改用 Times（d / sin / n / λ 都在公式里）。
+- 守卫 +1（两处 font-family 均为 Times 且不再含 `--pt-mono`），`test-shell` **170 项**全过；
+  build-web 通过。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。

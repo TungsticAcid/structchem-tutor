@@ -877,8 +877,11 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /\.pt-seg-btn \{[^}]*font-size: 23px/.test(flat)
     && /\.pt-card-enter \{[^}]*font-size: 23px/.test(flat),
     '★ 卡片页脚 / 底部控制条字体已放大一倍（11/11.5/9/11.5 → 22/23/18/22/23px）')
-  // ★ 2026-10-20 用户复查：未选中的分段按钮必须与页面同底色（不能出现白色/深色底块）；
-  //   但保留淡淡的边框与分割线（用户追加：可以跟之前一样有淡淡的边框和分割线）。
+  // ★ 2026-10-20：用户要求「公式中所有英文字符都要用新罗马」。
+  ok(/\.pt-card-formula \{[^}]*font-family: var\(--font-symbol, "Times New Roman"/.test(flat)
+    && /\.pt-deco-tag--dim \{[^}]*font-family: var\(--font-symbol, "Times New Roman"/.test(flat)
+    && !/\.pt-card-formula \{[^}]*var\(--pt-mono\)/.test(flat),
+    '公式（三张卡片 + 布拉格式）全部改用 Times New Roman，不再混用等宽字')
   ok(/\.pt-seg \{[^}]*background: transparent/.test(flat)
     && /\.pt-seg \{[^}]*border: 1px solid var\(--pt-line\)/.test(flat)
     && /\.pt-seg-btn \+ \.pt-seg-btn \{ border-left: 1px solid var\(--pt-line\)/.test(flat)
