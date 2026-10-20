@@ -246,7 +246,7 @@ export class HomePage {
         + '" data-set="' + kind + '" data-v="' + v + '">' + label + '</button>').join('') + '</span>'
     const rows = []
     if (this._ui.getTheme && this._ui.onTheme) {
-      rows.push('<span class="pt-set"><span class="pt-set-label">' + t('shell.home.setTheme') + '</span>'
+      rows.push('<span class="pt-set">'
         + seg('theme', this._ui.getTheme() || 'system', [
           ['system', t('shell.home.themeSystem')],
           ['light', t('shell.home.themeLight')],

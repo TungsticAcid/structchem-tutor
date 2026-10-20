@@ -884,6 +884,9 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /\.pt-seg-btn \+ \.pt-seg-btn \{ border-left: 1px solid var\(--pt-line\)/.test(flat)
     && /\.pt-seg-btn\.is-on \{ background: var\(--pt-soft\)/.test(flat),
     '未选中的分段按钮与页面同底色，保留淡边框/分割线，仅选中项有药丸底')
+  // ★ 2026-10-20：用户要求删掉「界面风格」标签（按钮组保留，语言标签保留）。
+  ok(!/shell\.home\.setTheme/.test(home) && /shell\.home\.setLang/.test(home),
+    '「界面风格」标签已删除（主题按钮组与「界面语言」标签保留）')
   // ★ 2026-10-20 用户复查：卡片标题要比「进入模块」（23px）再大一点 → 26px；
   //   三张卡片的页脚文案换成三个模块的正式描述（不再用"可观察/易剖析/得贯通"）。
   ok(/\.pt-card-name \{[^}]*font-size: 26px/.test(flat)
