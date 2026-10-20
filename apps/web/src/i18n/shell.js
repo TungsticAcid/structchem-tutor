@@ -194,13 +194,13 @@ export const zh = {
   'shell.home.footer': '结构化学教学智能体 · 2026 | 面向结构化学课程的教学科研工具',
   'shell.home.orbit.sub': '类氢原子轨道三维可视化',
   'shell.home.orbit.desc': '直观观测 s/p/d/f 轨道的三维形态、相位与截面，把抽象波函数可视化。',
-  'shell.home.orbit.tag': '微观世界可观察',
+  'shell.home.orbit.tag': '类氢原子轨道三维可视化',
   'shell.home.symmetry.sub': '分子对称性与分子点群',
   'shell.home.symmetry.desc': '识别对称操作，判定分子点群，拆解对称元素，理解分子结构规律。',
-  'shell.home.symmetry.tag': '结构规律易剖析',
+  'shell.home.symmetry.tag': '分子对称性与分子点群',
   'shell.home.crystal.sub': '晶体结构与点阵型式',
   'shell.home.crystal.desc': '解析晶胞与点阵类型，可视化晶体堆积，打通结构—性质关联。',
-  'shell.home.crystal.tag': '构效关系得贯通',
+  'shell.home.crystal.tag': '晶体结构与点阵型式',
   'shell.lib.count': '{n} 种',
   /**
    * ★ 练习改由模型出题（用户报「练习功能应由 LLM 出题」）。
@@ -398,15 +398,15 @@ export const en = {
   'shell.home.orbit.sub': '3D visualization of hydrogenic orbitals',
   'shell.home.orbit.desc': 'Observe the 3D shapes, phases and cross-sections of s/p/d/f orbitals — '
     + 'making abstract wavefunctions visible.',
-  'shell.home.orbit.tag': 'Observe the microscopic world',
+  'shell.home.orbit.tag': '3D visualization of hydrogenic orbitals',
   'shell.home.symmetry.sub': 'Molecular symmetry and point groups',
   'shell.home.symmetry.desc': 'Identify symmetry operations, determine point groups and break down '
     + 'symmetry elements to grasp the rules of molecular structure.',
-  'shell.home.symmetry.tag': 'Uncover structural principles',
+  'shell.home.symmetry.tag': 'Molecular symmetry and point groups',
   'shell.home.crystal.sub': 'Crystal structures and lattice types',
   'shell.home.crystal.desc': 'Analyze unit cells and lattice types, visualize crystal packing and '
     + 'connect structure with properties.',
-  'shell.home.crystal.tag': 'Master structure–effect correlations',
+  'shell.home.crystal.tag': 'Crystal structures and lattice types',
   'shell.lib.count': '{n} items',
   'shell.practice.askLlm': 'I want to practise “{kp}”. '
     + 'Call the **generateQuiz tool** to produce one question (do not write the stem or the options yourself '
@@ -529,9 +529,6 @@ export const text = {
   '类氢原子轨道三维可视化': 'Hydrogen-like orbitals in 3D',
   '分子对称性与分子点群': 'Symmetry and point groups',
   '晶体结构与点阵型式': 'Crystal structures and lattices',
-  '微观世界可观察': 'The microscopic world, visible',
-  '结构规律易剖析': 'Structural rules, dissected',
-  '构效关系得贯通': 'Structure–property links',
   '场景感知式 AI 教学智能体 —— 揭秘微观结构 · 启发深度思考 · 引导自主学习':
     'A context-aware AI teaching agent — reveal · inspire · guide',
   '径向分布 · 角度分布 · 节面': 'Radial distribution · angular distribution · nodal surfaces',

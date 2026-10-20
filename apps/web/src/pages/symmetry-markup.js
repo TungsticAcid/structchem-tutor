@@ -297,17 +297,50 @@ export const SYMMETRY_CSS = `    .sym-page {
     #info-panel .orb-row .orb-label { color: var(--panel-dim, #9aa3b5); flex-shrink: 0; }
 
     /* 特征标表 */
-    /* ★★ 2026-10-14：入口 12 → 13.5（与面板内 h4 一致）、表体数字 11 → 12、基函数列 10 → 11。
-       ★ 列标题（th）**故意留在 11px**：表是 8 列挤在 270px 里，"不可约表示"那一列只有
-         30px 宽（可用 22px）—— 11px 时两个汉字正好一行（3 行），12px 就变成
-         一个汉字一行（5 行）、表头行高 49 → 87px ✗（实测对照）。这里受**宽度**限制，
-         不是字号偏好，所以只放数字那一档。 */
+    /* ★★ 2026-10-20（用户："特征标表会存在文字太宽显示不开的情况，应有左右滚动条"）：
+       面板只有 330px，8 列 + 基函数列按 max-content 排会超出 —— 让 **表体自己横向滚动**，
+       表格改用 width:max-content（min-width:100% 保证窄表时仍铺满）。表头折行不再被挤扁。 */
+    #character-table-wrap { max-width: 100%; }
     #character-table-wrap .ct-header {
       font-size: 1.205rem; color: var(--panel-dim, #9aa3b5); font-weight: 600;
       padding: 8px 6px; cursor: pointer; user-select: none;
       border-top: 1px solid var(--border); margin-top: 12px;
     }
-    #character-table-wrap .ct-table { border-collapse: collapse; width: 100%; font-size: 1.071rem; margin-top: 6px; }
+    #character-table-wrap .ct-body {
+      overflow-x: scroll; overflow-y: hidden; max-width: 100%;
+      /* 让滚动条**固定可见**（Windows 的 overlay 滚动条平时是隐藏的，用户会以为不能滚） */
+      scrollbar-width: thin;
+      scrollbar-color: rgba(124, 156, 245, 0.6) rgba(124, 156, 245, 0.12);
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 3px;
+    }
+    #character-table-wrap .ct-body::-webkit-scrollbar { height: 10px; }
+    #character-table-wrap .ct-body::-webkit-scrollbar-track {
+      background: rgba(124, 156, 245, 0.12); border-radius: 999px;
+    }
+    #character-table-wrap .ct-body::-webkit-scrollbar-thumb {
+      background: rgba(124, 156, 245, 0.45); border-radius: 999px;
+    }
+    #character-table-wrap .ct-body::-webkit-scrollbar-thumb:hover {
+      background: rgba(124, 156, 245, 0.7);
+    }
+    /* ★ 2026-10-20：始终可见的自定义横向滚动条（overlay 系统滚动条会藏起来） */
+    #character-table-wrap .ct-scrollbar {
+      position: relative; height: 8px; margin-top: 6px;
+      border-radius: 999px; background: rgba(124, 156, 245, 0.14);
+      cursor: pointer; touch-action: none;
+    }
+    #character-table-wrap .ct-scrollbar[hidden] { display: none; }
+    #character-table-wrap .ct-scrollbar-thumb {
+      position: absolute; top: 0; bottom: 0; left: 0; min-width: 28px;
+      border-radius: 999px; background: rgba(124, 156, 245, 0.62);
+      cursor: grab;
+    }
+    #character-table-wrap .ct-scrollbar-thumb:active { cursor: grabbing; }
+    #character-table-wrap .ct-table {
+      border-collapse: collapse; width: max-content; min-width: 100%;
+      font-size: 1.071rem; margin-top: 6px;
+    }
     #character-table-wrap .ct-table th, #character-table-wrap .ct-table td {
       border: 1px solid var(--border); padding: 3px 4px; text-align: center;
     }

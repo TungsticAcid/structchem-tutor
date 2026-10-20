@@ -346,6 +346,10 @@ function renderCharacterTable(ct, callbacks = {}) {
   header.addEventListener('click', () => {
     body.hidden = !body.hidden
     header.textContent = t('ct.title') + ' ' + (body.hidden ? '▸' : '▾')
+    // 表格是在折叠状态下渲染的（clientWidth=0），展开后必须重新量一次，
+    // 否则自定义滚动条会一直停在 hidden（实测：展开后 scrollWidth 396 > clientWidth 300，
+    // 但 syncBar 仍按两次 0 宽判定"不需要滚动"）。
+    requestAnimationFrame(syncBar)
   })
 
   // 表格
@@ -398,4 +402,70 @@ function renderCharacterTable(ct, callbacks = {}) {
   body.appendChild(table)
   wrap.appendChild(header)
   wrap.appendChild(body)
+
+  // ★★ 2026-10-20（用户："特征标表会存在文字太宽显示不开的情况，应有左右滚动条"）：
+  //   Windows 的 overlay 滚动条平时是"悬停才出现"的（实测 offsetHeight===clientHeight，
+  //   即浏览器根本没给滚动条留位置），只靠原生滚动条用户会以为不能滚。这里在表体下面
+  //   **画一条始终可见的自定义滚动条**，并支持拖动/点击跳转；原生滚动仍然保留
+  //   （触控板横滑、Shift+滚轮照样生效）。
+  const bar = document.createElement('div')
+  bar.className = 'ct-scrollbar'
+  bar.setAttribute('role', 'scrollbar')
+  bar.setAttribute('aria-orientation', 'horizontal')
+  const thumb = document.createElement('div')
+  thumb.className = 'ct-scrollbar-thumb'
+  bar.appendChild(thumb)
+  wrap.appendChild(bar)
+
+  const maxScroll = () => Math.max(0, body.scrollWidth - body.clientWidth)
+  const syncBar = () => {
+    const max = maxScroll()
+    if (max <= 0) { bar.hidden = true; return }
+    bar.hidden = false
+    const trackW = bar.clientWidth
+    const ratio = body.clientWidth / Math.max(1, body.scrollWidth)
+    const thumbW = Math.max(28, Math.round(trackW * ratio))
+    const travel = Math.max(0, trackW - thumbW)
+    const x = max > 0 ? (body.scrollLeft / max) * travel : 0
+    thumb.style.width = thumbW + 'px'
+    thumb.style.transform = 'translateX(' + x + 'px)'
+    bar.setAttribute('aria-valuenow', String(Math.round(body.scrollLeft)))
+    bar.setAttribute('aria-valuemax', String(max))
+  }
+
+  body.addEventListener('scroll', syncBar, { passive: true })
+  let dragging = false
+  let dragX = 0
+  let dragLeft = 0
+  let dragTravel = 0
+  thumb.addEventListener('pointerdown', (e) => {
+    dragging = true
+    dragX = e.clientX
+    dragLeft = body.scrollLeft
+    const trackW = bar.clientWidth
+    const ratio = body.clientWidth / Math.max(1, body.scrollWidth)
+    dragTravel = Math.max(0, trackW - Math.max(28, Math.round(trackW * ratio)))
+    try { thumb.setPointerCapture(e.pointerId) } catch { /* 老浏览器忽略 */ }
+    e.preventDefault()
+  })
+  thumb.addEventListener('pointermove', (e) => {
+    if (!dragging) return
+    const max = maxScroll()
+    if (dragTravel <= 0 || max <= 0) return
+    body.scrollLeft = dragLeft + ((e.clientX - dragX) * max) / dragTravel
+  })
+  const endDrag = () => { dragging = false }
+  thumb.addEventListener('pointerup', endDrag)
+  thumb.addEventListener('pointercancel', endDrag)
+  bar.addEventListener('pointerdown', (e) => {
+    if (e.target === thumb) return
+    const rect = bar.getBoundingClientRect()
+    const max = maxScroll()
+    const ratio = body.clientWidth / Math.max(1, body.scrollWidth)
+    const thumbW = Math.max(28, Math.round(rect.width * ratio))
+    const travel = Math.max(1, rect.width - thumbW)
+    const x = Math.min(travel, Math.max(0, e.clientX - rect.left - thumbW / 2))
+    body.scrollLeft = (x / travel) * max
+  })
+  requestAnimationFrame(syncBar)
 }

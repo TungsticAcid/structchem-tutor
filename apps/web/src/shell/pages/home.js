@@ -295,7 +295,6 @@ export class HomePage {
       + '</span>'
       + '<span class="pt-card-body">'
       + '<span class="pt-card-name">' + title + '</span>'
-      + (copy ? '<span class="pt-card-sub">' + t(copy.sub) + '</span>' : '')
       + '</span>'
       + '<span class="pt-card-foot">'
       + (copy ? '<span class="pt-card-tag">' + t(copy.tag) + '</span>' : '<span></span>')
@@ -2018,9 +2017,9 @@ const STYLE = `
   --pt-card-line: rgba(90, 216, 255, .55);
   position: relative;
   display: grid;
-  grid-template-rows: auto 116px auto auto;
+  grid-template-rows: auto 100px auto auto;
   gap: 0;
-  padding: 12px 14px 11px;
+  padding: 10px 14px 9px;
   border: 1px solid var(--pt-line);
   border-radius: 14px;
   background: linear-gradient(165deg, var(--pt-card) 0%, rgba(8, 14, 28, .42) 100%);
@@ -2182,7 +2181,7 @@ const STYLE = `
 }
 .pt-card-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .pt-card-name {
-  font-size: 20px;
+  font-size: 26px;
   font-weight: 700;
   letter-spacing: .08em;
   line-height: 1.2;
@@ -2199,19 +2198,27 @@ const STYLE = `
   color: var(--pt-dim);
 }
 .pt-card-foot {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 4px 10px;
   margin-top: 6px;
-  padding-top: 6px;
+  padding-top: 5px;
   border-top: 1px solid var(--pt-line);
 }
-.pt-card-tag { font-size: 22px; letter-spacing: .06em; color: var(--pt-dim); white-space: nowrap; }
+.pt-card-tag {
+  grid-column: 1 / -1;
+  font-size: 22px;
+  letter-spacing: .04em;
+  line-height: 1.35;
+  color: var(--pt-dim);
+  white-space: normal;
+}
 .pt-card-enter {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  justify-self: end;
   font-size: 23px;
   letter-spacing: .1em;
   color: var(--pt-card-accent);
@@ -2376,7 +2383,7 @@ body.home-active .agent-fab {
 .portal.lang-en .pt-feat { font-size: 10.5px; padding: 4px 9px; }
 .portal.lang-en .pt-mod-lead { margin-left: 0; display: block; margin-top: 6px; }
 .portal.lang-en .pt-mod-order { max-width: none; font-size: 11px; }
-.portal.lang-en .pt-card-name { font-size: 18.5px; letter-spacing: .02em; }
+.portal.lang-en .pt-card-name { font-size: 24px; letter-spacing: .02em; }
 /* 矮屏（笔记本常见 768–820 高）：压缩纵向留白，让模块卡与底部控制条都进一屏 */
 @media (max-height: 820px) and (min-width: 1081px) {
   .pt-hero { padding: 4px 0 2px; }

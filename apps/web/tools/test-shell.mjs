@@ -857,12 +857,29 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/@media \(max-width: 1359px\) \{\s*\.pt-deco \{ display: none/.test(flat),
     '窄屏隐藏点缀层（页边距不足时会压正文）')
   // ★ 2026-10-19 用户复查：底部控制条与卡片页脚的字号按截图要求"大一倍"（原值 ×2）。
-  ok(/\.pt-card-tag \{ font-size: 22px/.test(flat)
+  ok(/\.pt-card-tag \{[^}]*font-size: 22px/.test(flat)
     && /\.pt-console-title \{[^}]*font-size: 18px/.test(flat)
-    && /\.pt-set-label \{ font-size: 22px/.test(flat)
+    && /\.pt-set-label \{[^}]*font-size: 22px/.test(flat)
     && /\.pt-seg-btn \{[^}]*font-size: 23px/.test(flat)
     && /\.pt-card-enter \{[^}]*font-size: 23px/.test(flat),
     '★ 卡片页脚 / 底部控制条字体已放大一倍（11/11.5/9/11.5 → 22/23/18/22/23px）')
+  // ★ 2026-10-20 用户复查：卡片标题要比「进入模块」（23px）再大一点 → 26px；
+  //   三张卡片的页脚文案换成三个模块的正式描述（不再用"可观察/易剖析/得贯通"）。
+  ok(/\.pt-card-name \{[^}]*font-size: 26px/.test(flat)
+    && /\.pt-card-enter \{[^}]*font-size: 23px/.test(flat),
+    '★ 卡片标题 26px，比「进入模块」23px 略大')
+  ok(!/<span class="pt-card-sub"/.test(home),
+    '卡片副标题已并入页脚（避免与页脚新文案重复）')
+  {
+    const shellI18n = readFileSync(resolve(REPO, 'apps/web/src/i18n/shell.js'), 'utf8')
+    ok(!/微观世界可观察/.test(shellI18n)
+      && !/结构规律易剖析/.test(shellI18n)
+      && !/构效关系得贯通/.test(shellI18n)
+      && /shell\.home\.orbit\.tag': '类氢原子轨道三维可视化'/.test(shellI18n)
+      && /shell\.home\.symmetry\.tag': '分子对称性与分子点群'/.test(shellI18n)
+      && /shell\.home\.crystal\.tag': '晶体结构与点阵型式'/.test(shellI18n),
+      '★ 三张卡片页脚文案已按要求替换（旧的三句已删除）')
+  }
   // ★ 2026-10-19 用户复查（6 张截图）：「把这些字符都删掉」—— 顶部 kicker（SCENE-AWARE…）、
   //   四个特性胶囊、化学记号条、模块副标题（一个中枢…）、授课顺序说明、三张卡片的描述句。
   //   这里钉住"排版里不再渲染它们"（CSS 里残留的死规则不算渲染）。
@@ -891,6 +908,19 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /\.pt-card-formula \{[^}]*opacity: \.4[^}]*pointer-events: none/.test(flat)
     && /@media \(max-width: 1099px\) \{\s*\.pt-card-formula \{ display: none/.test(flat),
     '卡片公式是低透明度点缀（不拦点击；窄卡片隐藏，避免截出半行）')
+
+  // ★ 2026-10-20 用户复查（点群观鉴）：特征标表列多、面板窄，必须有左右滚动条。
+  {
+    const symMarkup = readFileSync(resolve(REPO, 'apps/web/src/pages/symmetry-markup.js'), 'utf8')
+    const symFlat = symMarkup.replace(/\s+/g, ' ')
+    const symInfo = readFileSync(resolve(REPO, 'modules/symmetry/ui/info.js'), 'utf8')
+    ok(/\.ct-body \{ overflow-x: scroll;/.test(symFlat)
+      && /\.ct-table \{[^}]*width: max-content/.test(symFlat)
+      && /\.ct-body::-webkit-scrollbar \{ height: 10px/.test(symFlat)
+      && /\.ct-scrollbar-thumb \{/.test(symFlat)
+      && /ct-scrollbar/.test(symInfo) && /pointermove/.test(symInfo),
+      '★ 特征标表超出面板宽度时可横向滚动（表格 max-content + 始终可见的自定义滚动条，可拖动）')
+  }
 }
 
 console.log('')
