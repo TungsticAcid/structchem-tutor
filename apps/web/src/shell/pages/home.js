@@ -43,6 +43,9 @@ import {
   mixColor, parseColor, createSphericalCage, createNodalCones, createMethane,
   createLatticeScene, createOrbitalCloud, createDust, createBackgroundLattice,
 } from './home-visuals.js'
+// ★ 轨道卡 4d_z² 的颜色不另配一套：直接取**轨道视界模块自己的相位色**
+//   （phaseColor：相位 0 → 红、相位 π → 青；与模块三维视图同一出口）。
+import { OM as orbitMath } from '@modules/orbit/core/math.js'
 // ★ 晶典卡的配色/尺寸不另配一套：直接读**晶典在线模块自己的**数据与设置
 //   （元素色尊重用户在设置里的覆盖；半径/晶格常数来自 naCl 的晶体数据）。
 //   含义见 _resolveCrystalStyle 的注释。
@@ -50,6 +53,19 @@ import { getCrystalData } from '@crystal/lib/crystal-loader.js'
 import { getElementColor } from '@crystal/data/settings.js'
 // ★ 装饰用的元素小块（原子序数 / 相对原子质量）也读模块的元素数据 —— 不另抄一份周期表。
 import elementsData from '@crystal/data/elements.js'
+
+/**
+ * 轨道卡 4d_z² 的相位色 —— **与轨道视界模块同源**（phaseColor 的 0..1 sRGB）。
+ * 相位 0（正瓣）→ 红；相位 π（负瓣/赤道环）→ 青。用户 2026-10-20：「颜色与轨道视界一致，
+ * 当前的蓝色太深」—— 直接用模块的相位色，不再用首页主题的浅蓝。
+ */
+const ORBIT_PHASE = {
+  pos: orbitMath.phaseColor(0, 0.62),
+  neg: orbitMath.phaseColor(Math.PI, 0.62),
+}
+
+/** 等值面阈值：取峰值的 17%（模块页面默认 8%；阈值越高，同一张等值面越小） */
+const ORBIT_ISO_LEVEL = 0.17
 
 /**
  * 模块 id → 卡片文案的键。
@@ -1001,11 +1017,31 @@ export class HomePage {
 
     // 鼠标垂直高度 → 目标倾角，做一点阻尼（不做硬跟手，避免抖动）
     this._orbitTilt += ((this._orbitMouseY || 0) * 0.85 - this._orbitTilt) * 0.08
-    const ang = t * 0.45 + this._orbitTilt
-    const ca = Math.cos(ang)
-    const sa = Math.sin(ang)
-    const s = m * 0.27
-    const rot = (p) => [p[0], p[1] * ca - p[2] * sa, p[1] * sa + p[2] * ca]
+    const spin = t * 0.45
+    const tilt = this._orbitTilt
+    const ca = Math.cos(spin)
+    const sa = Math.sin(spin)
+    const cb = Math.cos(tilt)
+    const sb = Math.sin(tilt)
+    // 阈值 17%：模块默认 8% 时的同一张面在更高阈值下会缩小（体积比开立方）
+    const s = m * 0.31 * Math.cbrt(0.08 / ORBIT_ISO_LEVEL)
+    /**
+     * ★ 用户 2026-10-20：「旋转方向应该是左右旋转，将 x 轴正方向置为屏幕内向上方向
+     *   （没有上下旋转时）」。
+     *   · 屏幕基：**screenY = 物体 x**（所以 x 正方向朝上）、screenX = 物体 z、depth = 物体 y；
+     *   · 自动旋转绕 **x 轴**（= 屏幕竖直轴）⇒ 左右旋转（yaw），叶瓣/环面左右转过去；
+     *   · 鼠标上下只叠加绕**屏幕水平轴**的倾角 ⇒ 上下翻转。
+     * 返回 [screenX, screenY, depth]。
+     */
+    const rot = (p) => {
+      // 左右旋转：绕 x 轴（x 在屏幕上是竖直的）
+      const y1 = p[1] * ca - p[2] * sa
+      const z1 = p[1] * sa + p[2] * ca
+      // 上下翻转：绕屏幕水平轴（此时物体 x 在屏幕上是竖直的，绕 screenX=z1 倾）
+      const x2 = p[0] * cb + y1 * sb
+      const y2 = y1 * cb - p[0] * sb
+      return [z1, x2, y2]
+    }
     const proj = (p) => ({ x: cx + p[0] * s, y: cy - p[1] * s, z: p[2] })
 
     // 光从左上前方来（正交投影下方向固定）
@@ -1098,8 +1134,8 @@ export class HomePage {
       })
     }
 
-    // 2a. 上下两条 z 向叶瓣（椭球面）
-    const lobe = { r: pal.cyan.r, g: pal.cyan.g, b: pal.cyan.b }
+    // 2a. 上下两条 z 向叶瓣（椭球面）—— z 是 4d_z² 主轴；颜色同图 3 的青色叶瓣
+    const lobe = { r: ORBIT_PHASE.neg[0] * 255, g: ORBIT_PHASE.neg[1] * 255, b: ORBIT_PHASE.neg[2] * 255 }
     const addLobe = (zc) => {
       const rx = 0.56, ry = 0.56, rz = 0.44
       const NT = 9, NP = 16
@@ -1117,8 +1153,8 @@ export class HomePage {
     addLobe(1.02)
     addLobe(-1.02)
 
-    // 2b. 赤道环面（4d_z² 的中间"甜甜圈"）
-    const torus = { r: 244, g: 82, b: 104 }
+    // 2b. 赤道环面（4d_z² 的中间"甜甜圈"，环面在 xy 平面；颜色同图 3 的红色环）
+    const torus = { r: ORBIT_PHASE.pos[0] * 255, g: ORBIT_PHASE.pos[1] * 255, b: ORBIT_PHASE.pos[2] * 255 }
     const RR = 0.66, rr = 0.20
     const NU = 18, NV = 9
     for (let i = 0; i < NU; i++) {

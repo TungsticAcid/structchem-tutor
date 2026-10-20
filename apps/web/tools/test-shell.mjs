@@ -823,8 +823,14 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/this\._orbitMouseY/.test(home) && /this\._orbitTilt/.test(home)
     && /window\.addEventListener\('pointermove'/.test(home),
     '★ 鼠标垂直高度被记录（驱动 4d_z² 上下倾角）')
-  ok(/const ang = t \* 0\.45 \+ this\._orbitTilt/.test(home),
-    '★ 4d_z² 绕轨道 x 轴自动旋转（鼠标只改同一根轴的倾角）')
+  ok(/const spin = t \* 0\.45/.test(home) && /return \[z1, x2, y2\]/.test(home),
+    '★ 4d_z² 绕 x 轴自动旋转（x 正方向朝屏幕上方 ⇒ 左右旋转）')
+  ok(/ORBIT_ISO_LEVEL = 0\.17/.test(home)
+    && /orbitMath\.phaseColor/.test(home)
+    && /ORBIT_PHASE/.test(home)
+    && /lobe = \{ r: ORBIT_PHASE\.neg/.test(home)
+    && /torus = \{ r: ORBIT_PHASE\.pos/.test(home),
+    '★ 等值面阈值 17%，颜色取轨道视界 phaseColor（青色叶瓣 / 红色环面，同图 3）')
   // ★ 2026-10-20 用户复查（图 1）：TEACHING AI AGENT 与口号删除。
   ok(!/<span class="pt-title-en"/.test(home) && !/<p class="pt-slogan"/.test(home),
     'TEACHING AI AGENT / 揭秘书…口号已按截图删除')
