@@ -66,7 +66,7 @@ const MODULE_COPY = {
  *  ★ 2026-10-17 用户第五次复查：`p`、`d` 这类**轨道字母不斜体** ——
  *    它们是轨道标签（s/p/d/f），不是物理量；斜体的只能是变量（ψ、θ、Y、n、l、m、x/y/z 轴）。 */
 const MODULE_DEMO = {
-  orbit: '2p<sub>z</sub>',
+  orbit: '4d<sub>z²</sub>',
   symmetry: '<i>T</i><sub>d</sub> · 24',
   // Fm3̄m 是 Hermann–Mauguin 空间群符号：**正体**，3 上有横杠（用 CSS overline 画，
   // 组合字符 3̄ 在有些字体里横杠几乎看不见）
@@ -180,7 +180,6 @@ export class HomePage {
       holoCloud: createOrbitalCloud('dz2', { count: 280, seed: 5, spread: 0.72 }),
       cage: createSphericalCage(),
       cones: createNodalCones(54.7356, { generatrices: 18 }),
-      orbitCloud: createOrbitalCloud('pz', { count: 260, seed: 9, spread: 0.62 }),
       methane: createMethane(),
       lattice: createLatticeScene({ n: 3 }),
     }
@@ -191,6 +190,9 @@ export class HomePage {
     this._stopped = true
     this._reduced = false
     this._pointer = { tx: 0, ty: 0, x: 0, y: 0 }
+    // 轨道卡：鼠标垂直位置 → 绕 x 轴的上下倾角（0 = 页面顶部，1 = 页面底部）
+    this._orbitMouseY = 0
+    this._orbitTilt = 0
     this._t0 = 0
     this._palette = null
     this._resizeObs = null
@@ -412,9 +414,7 @@ export class HomePage {
             <h1 class="pt-title">
               <span class="pt-title-line">${t('shell.home.titleSm')}</span>
               <span class="pt-title-line pt-title-line--accent">${t('shell.home.titleLg')}</span>
-              <span class="pt-title-en">TEACHING AI AGENT</span>
             </h1>
-            <p class="pt-slogan">${t('shell.home.slogan')}</p>
             <p class="pt-desc">${t('shell.home.desc')}</p>
             <div class="pt-actions">
               <button type="button" class="pt-btn pt-btn--primary" data-act="explore">
@@ -548,6 +548,17 @@ export class HomePage {
         hero.removeEventListener('pointermove', onMove)
         hero.removeEventListener('pointerleave', onLeave)
       })
+    }
+
+    // 6) 轨道卡：感知**整页鼠标的垂直高度**（用户 2026-10-20）
+    //    —— 竖直在页面上下移动时，4d_z² 等值面绕轨道 x 轴上下翻转。
+    const onGlobalMove = (ev) => {
+      const vh = (typeof window !== 'undefined' && window.innerHeight) || 1
+      this._orbitMouseY = clamp01(ev.clientY / vh) * 2 - 1
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pointermove', onGlobalMove, { passive: true })
+      this._cleanup.push(() => window.removeEventListener('pointermove', onGlobalMove))
     }
   }
 
@@ -970,7 +981,14 @@ export class HomePage {
   }
 
   // -------------------------------------------------------------------------
-  // 绘制：模块卡 · 轨道（3d_z² 电子云）
+  // 绘制：模块卡 · 轨道（4d_z² 等值面 + 节面，绕 x 轴自动旋转）
+  //
+  // 用户 2026-10-20：
+  //   「将图 2 中的元素从电子云换成 4d_z² 的等值面图，并显示节面（如图 3），
+  //     绕着轨道的 x 轴自动旋转，并感知鼠标垂直高度变化发生上下旋转。」
+  // 实现：参数化 4d_z² 的**等值面**（上下两条 z 方向叶瓣 + 赤道环面）用四边形
+  // 画布片元做正交投影 + 画家排序 + 法向光照；节面是两个 54.74° 的半透明锥面。
+  // ★ 旋转只绕**轨道的 x 轴**：鼠标竖直位置改变同一根 x 轴上的倾角。
   // -------------------------------------------------------------------------
   _drawOrbit(ctx, e, t, pal) {
     const w = e.w
@@ -979,40 +997,160 @@ export class HomePage {
     const cy = h / 2
     const m = Math.min(w, h)
     const dark = pal.dark
-    const px = this._pointer.x
-    const py = this._pointer.y
+    const TAU_ = Math.PI * 2
+
+    // 鼠标垂直高度 → 目标倾角，做一点阻尼（不做硬跟手，避免抖动）
+    this._orbitTilt += ((this._orbitMouseY || 0) * 0.85 - this._orbitTilt) * 0.08
+    const ang = t * 0.45 + this._orbitTilt
+    const ca = Math.cos(ang)
+    const sa = Math.sin(ang)
+    const s = m * 0.27
+    const rot = (p) => [p[0], p[1] * ca - p[2] * sa, p[1] * sa + p[2] * ca]
+    const proj = (p) => ({ x: cx + p[0] * s, y: cy - p[1] * s, z: p[2] })
+
+    // 光从左上前方来（正交投影下方向固定）
+    const L = (() => {
+      const v = [-0.35, 0.62, 0.72]
+      const n = Math.hypot(v[0], v[1], v[2]) || 1
+      return [v[0] / n, v[1] / n, v[2] / n]
+    })()
+
     ctx.save()
     ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over'
 
-    // 三根坐标轴（很淡，给点云一个空间参照）
-    const cam = { w, h, focal: m * 1.15, dist: 3.6 }
-    const ax = -0.5 + py * 0.12
-    const ay = t * 0.5 + px * 0.15 + 0.4
-    const axes = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
-    for (let i = 0; i < axes.length; i++) {
-      const dir = axes[i]
-      const a = toScreen(rotateXYZ([dir[0] * 1.35, dir[1] * 1.35, dir[2] * 1.35], ax, ay), cam)
-      const b = toScreen(rotateXYZ([-dir[0] * 1.35, -dir[1] * 1.35, -dir[2] * 1.35], ax, ay), cam)
-      if (!a || !b) continue
-      drawLine(ctx, a.x, a.y, b.x, b.y, rgba(pal.dim, 1), 1, dark ? 0.16 : 0.14)
+    // ---- 1. 节面：两个半透明锥面（d_z² 的角度节面 cos²θ = 1/3 ⇒ 54.74°）----
+    const coneTan = Math.tan(54.7356 * Math.PI / 180)
+    const coneCol = { r: 255, g: 150, b: 190 }
+    const coneFill = dark ? 0.05 : 0.045
+    const coneEdge = dark ? 0.2 : 0.24
+    ctx.lineWidth = 1
+    for (const sign of [1, -1]) {
+      const z0 = 0.28
+      const z1 = 1.12
+      const steps = 5
+      for (let i = 0; i < steps; i++) {
+        const za = z0 + ((z1 - z0) * i) / steps
+        const zb = z0 + ((z1 - z0) * (i + 1)) / steps
+        const ra = za * coneTan
+        const rb = zb * coneTan
+        ctx.beginPath()
+        for (let k = 0; k <= 40; k++) {
+          const a = (k / 40) * TAU_
+          const p = proj(rot([Math.cos(a) * ra, Math.sin(a) * ra, sign * za]))
+          if (k === 0) ctx.moveTo(p.x, p.y)
+          else ctx.lineTo(p.x, p.y)
+        }
+        for (let k = 40; k >= 0; k--) {
+          const a = (k / 40) * TAU_
+          const p = proj(rot([Math.cos(a) * rb, Math.sin(a) * rb, sign * zb]))
+          ctx.lineTo(p.x, p.y)
+        }
+        ctx.closePath()
+        ctx.fillStyle = rgba(coneCol, coneFill)
+        ctx.fill()
+      }
+      // 只有三条纬环 + 8 条母线（与图 3 的"网格锥"同观感；全部纬环会像鸟笼）
+      for (const zr of [z0, (z0 + z1) / 2, z1]) {
+        const rad = zr * coneTan
+        ctx.beginPath()
+        for (let k = 0; k <= 40; k++) {
+          const a = (k / 40) * TAU_
+          const p = proj(rot([Math.cos(a) * rad, Math.sin(a) * rad, sign * zr]))
+          if (k === 0) ctx.moveTo(p.x, p.y)
+          else ctx.lineTo(p.x, p.y)
+        }
+        ctx.strokeStyle = rgba(coneCol, coneEdge)
+        ctx.stroke()
+      }
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * TAU_
+        const top = rot([Math.cos(a) * z1 * coneTan, Math.sin(a) * z1 * coneTan, sign * z1])
+        const p0 = proj([0, 0, 0])
+        const p1 = proj(top)
+        ctx.beginPath()
+        ctx.moveTo(p0.x, p0.y)
+        ctx.lineTo(p1.x, p1.y)
+        ctx.strokeStyle = rgba(coneCol, coneEdge * 0.7)
+        ctx.stroke()
+      }
     }
 
-    const cloud = this._scenes.orbitCloud
-    const axO = -0.45 + py * 0.16
-    const ayO = t * 0.58 + px * 0.2 + 0.2
-    const sc = m * 0.38
-    for (let i = 0; i < cloud.points.length; i++) {
-      const p = cloud.points[i]
-      const q = rotateXYZ([p.x, p.y, p.z], axO, ayO)
-      const depth = (q[2] + 1) / 2
-      const col = p.phase > 0 ? pal.cyan : pal.violet
-      drawDot(ctx, cx + q[0] * sc, cy - q[1] * sc, (0.9 + 1.5 * depth) * (m / (dark ? 130 : 105)),
-        rgba(col, 1), (dark ? 0.26 : 0.4) + depth * (dark ? 0.6 : 0.5))
+    // ---- 2. 等值面片元（收集后按深度排序）----
+    const quads = []
+    const addQuad = (v0, v1, v2, v3, col, alpha) => {
+      const a = rot(v0), b = rot(v1), c = rot(v2), d = rot(v3)
+      const ex = b[0] - a[0], ey = b[1] - a[1], ez = b[2] - a[2]
+      const fx = d[0] - a[0], fy = d[1] - a[1], fz = d[2] - a[2]
+      let nx = ey * fz - ez * fy
+      let ny = ez * fx - ex * fz
+      let nz = ex * fy - ey * fx
+      const nl = Math.hypot(nx, ny, nz) || 1
+      nx /= nl; ny /= nl; nz /= nl
+      const dot = Math.max(0, nx * L[0] + ny * L[1] + nz * L[2])
+      const lit = 0.3 + 0.68 * dot
+      quads.push({
+        pts: [proj(a), proj(b), proj(c), proj(d)],
+        depth: (a[2] + b[2] + c[2] + d[2]) / 4,
+        r: Math.min(255, col.r * lit),
+        g: Math.min(255, col.g * lit),
+        b: Math.min(255, col.b * lit),
+        alpha,
+      })
     }
 
-    // 中心核
-    drawGlow(ctx, cx, cy, m * 0.1, pal.cyan, dark ? 0.42 : 0.5)
-    drawDot(ctx, cx, cy, m * 0.009, dark ? '#ffffff' : pal.ink, 0.92)
+    // 2a. 上下两条 z 向叶瓣（椭球面）
+    const lobe = { r: pal.cyan.r, g: pal.cyan.g, b: pal.cyan.b }
+    const addLobe = (zc) => {
+      const rx = 0.56, ry = 0.56, rz = 0.44
+      const NT = 9, NP = 16
+      for (let i = 0; i < NT; i++) {
+        const th0 = (Math.PI * i) / NT
+        const th1 = (Math.PI * (i + 1)) / NT
+        for (let j = 0; j < NP; j++) {
+          const ph0 = (TAU_ * j) / NP
+          const ph1 = (TAU_ * (j + 1)) / NP
+          const pt = (th, ph) => [rx * Math.sin(th) * Math.cos(ph), ry * Math.sin(th) * Math.sin(ph), zc + rz * Math.cos(th)]
+          addQuad(pt(th0, ph0), pt(th1, ph0), pt(th1, ph1), pt(th0, ph1), lobe, dark ? 0.84 : 0.9)
+        }
+      }
+    }
+    addLobe(1.02)
+    addLobe(-1.02)
+
+    // 2b. 赤道环面（4d_z² 的中间"甜甜圈"）
+    const torus = { r: 244, g: 82, b: 104 }
+    const RR = 0.66, rr = 0.20
+    const NU = 18, NV = 9
+    for (let i = 0; i < NU; i++) {
+      const u0 = (TAU_ * i) / NU
+      const u1 = (TAU_ * (i + 1)) / NU
+      for (let j = 0; j < NV; j++) {
+        const v0 = (TAU_ * j) / NV
+        const v1 = (TAU_ * (j + 1)) / NV
+        const pt = (u, v) => [(RR + rr * Math.cos(v)) * Math.cos(u), (RR + rr * Math.cos(v)) * Math.sin(u), rr * Math.sin(v)]
+        addQuad(pt(u0, v0), pt(u1, v0), pt(u1, v1), pt(u0, v1), torus, dark ? 0.92 : 0.96)
+      }
+    }
+
+    quads.sort((a, b) => a.depth - b.depth)
+    for (let i = 0; i < quads.length; i++) {
+      const q = quads[i]
+      ctx.beginPath()
+      ctx.moveTo(q.pts[0].x, q.pts[0].y)
+      ctx.lineTo(q.pts[1].x, q.pts[1].y)
+      ctx.lineTo(q.pts[2].x, q.pts[2].y)
+      ctx.lineTo(q.pts[3].x, q.pts[3].y)
+      ctx.closePath()
+      ctx.fillStyle = `rgba(${q.r.toFixed(0)},${q.g.toFixed(0)},${q.b.toFixed(0)},${q.alpha})`
+      ctx.fill()
+      // 同色描边补缝（只描 0.6px，避免片元之间出现白线）
+      ctx.strokeStyle = ctx.fillStyle
+      ctx.lineWidth = 0.6
+      ctx.stroke()
+    }
+
+    // 中心微光
+    drawGlow(ctx, cx, cy, m * 0.07, pal.cyan, dark ? 0.28 : 0.36)
     ctx.restore()
   }
 
