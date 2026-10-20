@@ -394,6 +394,14 @@ build-web 通过。
 - 守卫：容器透明 + 有 1px 淡边框 + 有淡分隔线 + 仅选中项有药丸底，`test-shell` **168 项**全过；
   build-web 通过。
 
+**第二十次复查（2026-10-20）**：用户「这里的 z 是否按要求斜体并用新罗马」（附 `2p_z` 截图）。
+
+- 轨道卡标签由 `2p<sub>z</sub>` 改为 `2p<sub><i>z</i></sub>`：**p 保持正体**（轨道字母），
+  **下标 z 用 `--font-symbol`（Times New Roman 优先）+ 斜体**。
+- 实测 computed style：`font-family` 首选 `"Times New Roman"`、`font-style: italic`、字号 7.56px；
+  DOM 为 `<span class="pt-card-demo">2p<sub><i>z</i></sub></span>`。
+- 守卫改为「p 正体 + z 下标 + Times 斜体」，`test-shell` **168 项**全过。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。

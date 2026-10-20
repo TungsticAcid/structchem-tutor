@@ -811,8 +811,9 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
    *   轨道字母 s/p/d/f 是**轨道标签**（正体），斜体只留给变量（ψ、θ、Y、x/y/z 轴、Bragg 的 d）。
    *   守卫改成双向：既要有正体写法，也要确保不再包 <i>（防止排版规则又被"顺手改回去"）。
    */
-  ok(/2p<sub>z<\/sub>/.test(home) && !/2<i>p<\/i>/.test(home),
-    '★ 轨道卡标签：2p 正体、z 作下标（轨道字母是标签，不是变量）')
+  ok(/2p<sub><i>z<\/i><\/sub>/.test(home) && !/2<i>p<\/i>/.test(home)
+    && /\.pt-card-demo sub i[^}]*font-family: var\(--font-symbol, "Times New Roman"/.test(flat),
+    '★ 轨道卡标签：p 正体、z 作下标且用 Times 斜体（用户要求）')
   ok(/const cloud = this\._scenes\.orbitCloud/.test(home),
     '★ 轨道卡：回到 2p_z 电子云点集（用户 2026-10-20 要求回退）')
   // ★ 2026-10-20 用户复查（图 1）：TEACHING AI AGENT 与口号删除。

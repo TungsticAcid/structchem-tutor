@@ -66,7 +66,7 @@ const MODULE_COPY = {
  *  ★ 2026-10-17 用户第五次复查：`p`、`d` 这类**轨道字母不斜体** ——
  *    它们是轨道标签（s/p/d/f），不是物理量；斜体的只能是变量（ψ、θ、Y、n、l、m、x/y/z 轴）。 */
 const MODULE_DEMO = {
-  orbit: '2p<sub>z</sub>',
+  orbit: '2p<sub><i>z</i></sub>',
   symmetry: '<i>T</i><sub>d</sub> · 24',
   // Fm3̄m 是 Hermann–Mauguin 空间群符号：**正体**，3 上有横杠（用 CSS overline 画，
   // 组合字符 3̄ 在有些字体里横杠几乎看不见）
