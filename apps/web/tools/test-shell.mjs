@@ -811,26 +811,10 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
    *   轨道字母 s/p/d/f 是**轨道标签**（正体），斜体只留给变量（ψ、θ、Y、x/y/z 轴、Bragg 的 d）。
    *   守卫改成双向：既要有正体写法，也要确保不再包 <i>（防止排版规则又被"顺手改回去"）。
    */
-  ok(/4d<sub>z²<\/sub>/.test(home) && !/2p<sub>z<\/sub>/.test(home),
-    '★ 轨道卡标签：改为 4d_z²（轨道字母正体、z² 作下标）')
-  // ★ 2026-10-20：轨道卡从 2p 电子云换成 4d_z² 等值面（含节面）；绕 x 轴自动旋转，
-  //   鼠标垂直高度驱动同一根轴的上下倾角。
-  ok(/_drawOrbit\(ctx, e, t, pal\)/.test(home)
-    && /Math\.tan\(54\.7356/.test(home)
-    && /节面/.test(home),
-    '★ 轨道卡：4d_z² 等值面 + 54.74° 节锥（不再是点云）')
-  ok(!/orbitCloud/.test(home), '轨道卡不再创建/使用 2p 电子云点集')
-  ok(/this\._orbitMouseY/.test(home) && /this\._orbitTilt/.test(home)
-    && /window\.addEventListener\('pointermove'/.test(home),
-    '★ 鼠标垂直高度被记录（驱动 4d_z² 上下倾角）')
-  ok(/const spin = t \* 0\.45/.test(home) && /return \[z1, x2, y2\]/.test(home),
-    '★ 4d_z² 绕 x 轴自动旋转（x 正方向朝屏幕上方 ⇒ 左右旋转）')
-  ok(/ORBIT_ISO_LEVEL = 0\.17/.test(home)
-    && /orbitMath\.phaseColor/.test(home)
-    && /ORBIT_PHASE/.test(home)
-    && /lobe = \{ r: ORBIT_PHASE\.neg/.test(home)
-    && /torus = \{ r: ORBIT_PHASE\.pos/.test(home),
-    '★ 等值面阈值 17%，颜色取轨道视界 phaseColor（青色叶瓣 / 红色环面，同图 3）')
+  ok(/2p<sub>z<\/sub>/.test(home) && !/2<i>p<\/i>/.test(home),
+    '★ 轨道卡标签：2p 正体、z 作下标（轨道字母是标签，不是变量）')
+  ok(/const cloud = this\._scenes\.orbitCloud/.test(home),
+    '★ 轨道卡：回到 2p_z 电子云点集（用户 2026-10-20 要求回退）')
   // ★ 2026-10-20 用户复查（图 1）：TEACHING AI AGENT 与口号删除。
   ok(!/<span class="pt-title-en"/.test(home) && !/<p class="pt-slogan"/.test(home),
     'TEACHING AI AGENT / 揭秘书…口号已按截图删除')

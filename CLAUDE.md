@@ -372,6 +372,17 @@ build-web 通过。
 `lobe/ torus` 颜色来源，`test-shell` **171 项**全过；`check-i18n` 全绿；build-web 通过。
 ★ 继续**不推送**。
 
+**第十八次复查（2026-10-20）**：用户「这个图回退到之前的 2pz 吧」。
+
+- 轨道卡整段回退到 **2p_z 电子云**（旧 `_drawOrbit`：三根淡坐标轴 + 260 个按相位着色的点 +
+  中心核）；`MODULE_DEMO.orbit` 恢复 `2p<sub>z</sub>`，`_scenes.orbitCloud` 恢复。
+- 4d_z² 的等值面/节面/phaseColor/阈值 17%/整页鼠标垂直倾角**全部删除**（连同
+  `@modules/orbit/core/math.js` 的 import、`ORBIT_PHASE` / `ORBIT_ISO_LEVEL`、
+  `_orbitMouseY` / `_orbitTilt`、window 上的 pointermove 监听）。
+- hero 的 `TEACHING AI AGENT` 与口号删除**保留**（那是第十六次独立的一条）。
+- 守卫恢复为 `2p<sub>z</sub>` + `orbitCloud`，删掉 4d 相关 4 条，`test-shell` **167 项**全过。
+★ 第十六、十七次里描述的 4d 等值面方案**已被本次回退覆盖**，不要再据此恢复。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。
