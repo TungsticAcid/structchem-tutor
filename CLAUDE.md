@@ -512,6 +512,14 @@ i18n 中英文新名；`test-shell` **183 项**全过；`check-i18n` 全绿；bu
 - 守卫 +1（只对 `.pt-btn` 写 `animation='none'`，且不存在无条件赋值），`test-shell` **184 项**全过；
   check-i18n / build-web 通过。
 
+**第二十九次复查（2026-10-21）**：用户「删掉这仨箭头」（附三张卡片截图）。
+
+- 三张模块卡右下角的 `.pt-card-enter`（只剩一个 `→` + aria-label）整段删除：
+  markup 不再渲染、`.pt-card-enter` / `.pt-card-enter-arrow` CSS 与 hover 位移一并删掉；
+- `.pt-card-foot` 由「描述 + 箭头」两列 grid 改回普通块级，页脚只剩模块描述文字；
+- 守卫改为 **`!pt-card-enter`**（markup 与 CSS 均不得再引用），并保留标题 26px 判据；
+  `test-shell` **184 项**全过；check-i18n / build-web 通过。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。

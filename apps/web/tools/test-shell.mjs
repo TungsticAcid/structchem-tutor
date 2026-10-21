@@ -723,10 +723,9 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(!/<header class="pt-top"/.test(home) && !/class="pt-brand/.test(home)
     && !/class="pt-status"/.test(home) && !/class="pt-ver"/.test(home),
     '顶部品牌 / 场景感知状态 / 版本号已按用户要求删除')
-  // ★ 2026-10-20：卡片页脚「进入模块」四个字删除，只保留箭头（aria-label 保留可访问名）。
-  ok(/pt-card-enter" aria-label=/.test(home)
-    && /pt-card-enter-arrow" aria-hidden="true">→/.test(home),
-    '卡片「进入模块」文字已删除，只保留箭头')
+  // ★ 2026-10-21：用户「删掉这仨箭头」—— 三张卡页脚只保留描述文字。
+  ok(!/pt-card-enter/.test(home),
+    '★ 三张卡片右下角的「→」箭头已删除（markup 与 CSS 都不再引用）')
 }
 
 // ---------------------------------------------------------------------------
@@ -939,8 +938,7 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /\.pt-console-title \{[^}]*font-size: 22px/.test(flat)
     && /\.pt-console-title \{[^}]*font-family: inherit/.test(flat)
     && /\.pt-set-label \{[^}]*font-size: 22px/.test(flat)
-    && /\.pt-seg-btn \{[^}]*font-size: 23px/.test(flat)
-    && /\.pt-card-enter \{[^}]*font-size: 23px/.test(flat),
+    && /\.pt-seg-btn \{[^}]*font-size: 23px/.test(flat),
     '★ 卡片页脚 / 底部控制条字体已放大；「界面风格」与「界面语言」同为 22px 同字体')
   // ★ 2026-10-21：三张卡片标题要有「不杂乱、有学术感」的特效。
   ok(/\.pt-card-name \{[^}]*background-clip: text/.test(flat)
@@ -961,11 +959,11 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   // ★ 2026-10-20：用户要求删掉「界面风格」标签（按钮组保留，语言标签保留）。
   ok(!/shell\.home\.setTheme/.test(home) && /shell\.home\.setLang/.test(home),
     '「界面风格」标签已删除（主题按钮组与「界面语言」标签保留）')
-  // ★ 2026-10-20 用户复查：卡片标题要比「进入模块」（23px）再大一点 → 26px；
-  //   三张卡片的页脚文案换成三个模块的正式描述（不再用"可观察/易剖析/得贯通"）。
+  // ★ 2026-10-21 用户复查：三张卡片页脚文案是三个模块的正式描述（不再是"可观察/易剖析/得贯通"），
+  //   右下角箭头已删除，标题保持 26px。
   ok(/\.pt-card-name \{[^}]*font-size: 26px/.test(flat)
-    && /\.pt-card-enter \{[^}]*font-size: 23px/.test(flat),
-    '★ 卡片标题 26px，比「进入模块」23px 略大')
+    && !/pt-card-enter/.test(home),
+    '★ 卡片标题 26px；页脚只保留描述文字，箭头已删除')
   ok(!/<span class="pt-card-sub"/.test(home),
     '卡片副标题已并入页脚（避免与页脚新文案重复）')
   {

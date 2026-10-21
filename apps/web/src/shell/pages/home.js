@@ -312,8 +312,6 @@ export class HomePage {
       + '</span>'
       + '<span class="pt-card-foot">'
       + (copy ? '<span class="pt-card-tag">' + t(copy.tag) + '</span>' : '<span></span>')
-      + '<span class="pt-card-enter" aria-label="' + t('shell.home.enterModule') + '">'
-      + '<span class="pt-card-enter-arrow" aria-hidden="true">→</span></span>'
       + '</span>'
       + badge
       + '</' + tag + '>'
@@ -2188,7 +2186,6 @@ const STYLE = `
 .pt-card:hover::after, .pt-card:focus-visible::after { opacity: .9; }
 .pt-card:hover .pt-card-arrow { transform: translate(2px, -2px); color: var(--pt-card-accent); }
 .pt-card:hover .pt-card-canvas { filter: brightness(1.22) saturate(1.08); }
-.pt-card:hover .pt-card-enter-arrow { transform: translateX(4px); }
 .pt-card.is-locked { cursor: default; opacity: .72; }
 .pt-card.is-locked:hover { transform: none; border-color: var(--pt-line); box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
 .pt-card.is-locked:hover::after { opacity: 0; }
@@ -2353,33 +2350,17 @@ const STYLE = `
   color: var(--pt-dim);
 }
 .pt-card-foot {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 4px 10px;
   margin-top: 6px;
   padding-top: 5px;
   border-top: 1px solid var(--pt-line);
 }
 .pt-card-tag {
-  grid-column: 1 / -1;
   font-size: 22px;
   letter-spacing: .04em;
   line-height: 1.35;
   color: var(--pt-dim);
   white-space: normal;
 }
-.pt-card-enter {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  justify-self: end;
-  font-size: 23px;
-  letter-spacing: .1em;
-  color: var(--pt-card-accent);
-  white-space: nowrap;
-}
-.pt-card-enter-arrow { transition: transform .25s ease; }
 .pt-badge {
   position: absolute;
   top: 12px;
