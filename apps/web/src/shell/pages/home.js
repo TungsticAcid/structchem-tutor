@@ -423,7 +423,6 @@ export class HomePage {
               <circle cx="82" cy="64" r="2.2" fill="currentColor" stroke="none"/>
               <circle cx="38" cy="64" r="2.2" fill="currentColor" stroke="none"/>
             </svg>
-            <span class="pt-deco-tag">NaCl<br>Fm<span class="pt-bar">3</span>m</span>
             <span class="pt-deco-tag pt-deco-tag--dim">2<i>d</i> sin<i>θ</i><br>= <i>n</i><i>λ</i></span>
           </div>
         </div>

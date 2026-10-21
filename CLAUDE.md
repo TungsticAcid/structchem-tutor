@@ -595,6 +595,13 @@ i18n 中英文新名；`test-shell` **183 项**全过；`check-i18n` 全绿；bu
 - 守卫更新：新增"200% 图宽 + 0→200% 位移"无缝判据、orbit accent/line/title-2 红蓝判据；
   `test-shell` **189 项**、`test-home-visuals` **91 项**全过；check-i18n / build-web 通过。
 
+**第三十五次复查（2026-10-21）**：用户「删除红框内容」（右侧页边距里的 `NaCl / Fm3̄m` 标签）。
+
+- 删除右页边距装饰块里的 `<span class="pt-deco-tag">NaCl<br>Fm3m</span>`；
+  它上方的**晶胞线稿 SVG** 与下方的**布拉格公式** `2d sinθ = nλ` 都保留；
+- 守卫 +1：`!/pt-deco-tag">NaCl<br>Fm/`（确认页边距标签已删、其余点缀仍在）；
+  `test-shell` **190 项**全过；check-i18n / build-web 通过。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。

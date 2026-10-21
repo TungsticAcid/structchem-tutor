@@ -900,6 +900,9 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '主视觉 HUD（ψ₃,₂,₀ · 3d_z² 等读数）已按用户要求整体删除')
   ok(/2<i>d<\/i> sin<i>θ<\/i>/.test(home),
     'Bragg 式里的 d 是面间距（物理量）→ 保持斜体；与轨道字母区分开')
+  // ★ 2026-10-21 用户「删除红框内容」：右侧页边距里的 NaCl / Fm3̄m 标签删掉。
+  ok(!/pt-deco-tag">NaCl<br>Fm/.test(home),
+    '★ 页边距的 NaCl / Fm3̄m 标签已删除（晶胞线稿与布拉格公式保留）')
   ok(/NODAL CONES/.test(home) && /54\.74/.test(home) && /125\.26/.test(home),
     '★ 主视觉 HUD 的"节锥"角度与画面里真画出来的锥线框对应（图文对应）')
   ok(/\.pt-hud-v i, \.pt-card-demo i \{/.test(flat)
