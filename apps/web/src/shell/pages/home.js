@@ -1720,13 +1720,18 @@ const STYLE = `
    只隐藏底部的版权行，保留 .pt-console；绝对定位在不占 hero 高度的前提下贴底。 */
 .portal.is-intro .pt-foot {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 50%;
+  right: auto;
   bottom: 18px;
+  width: 100%;
+  max-width: 1280px;
+  transform: translateX(-50%);
   z-index: 3;
   margin: 0;
+  animation: none;
 }
-.portal.is-intro .pt-foot-bottom { display: none; }
+/* 版权行仍占位（保证首屏 console 的垂直位置与第二幕逐像素一致），只是不可见 */
+.portal.is-intro .pt-foot-bottom { visibility: hidden; pointer-events: none; }
 .portal.is-intro .pt-hero {
   grid-template-columns: minmax(0, 1fr);
   place-content: center;
@@ -2409,7 +2414,6 @@ const STYLE = `
   max-width: 1280px;
   margin: 0 auto;
   padding-top: 4px;
-  animation: pt-rise .7s .55s cubic-bezier(.2, .7, .2, 1) both;
 }
 .pt-console {
   display: flex;

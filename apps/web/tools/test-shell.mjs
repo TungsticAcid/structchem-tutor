@@ -750,10 +750,10 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '★ 首屏 → 探索态用 FLIP：标题/按钮从放大居中的 rect 过渡到最终 rect')
   ok(/\.portal\.is-intro \.pt-deco, \.portal\.is-intro \.pt-modules \{ position: absolute/.test(flat)
     && /\.portal\.is-intro \.pt-desc, \.portal\.is-intro \.pt-visual-col \{ display: none; \}/.test(flat)
-    && /\.portal\.is-intro \.pt-foot-bottom \{ display: none; \}/.test(flat),
-    '★ 首屏隐藏模块/装饰/全息图/描述与版权行，只留标题 + 两个按钮')
-  ok(/\.portal\.is-intro \.pt-foot \{[^}]*position: absolute[^}]*bottom: 18px/.test(flat),
-    '★ 首屏底部保留 console（可切界面风格/语言），位置与第二幕一致')
+    && /\.portal\.is-intro \.pt-foot-bottom \{ visibility: hidden/.test(flat),
+    '★ 首屏隐藏模块/装饰/全息图/描述；版权行隐藏但保留占位')
+  ok(/\.portal\.is-intro \.pt-foot \{[^}]*left: 50%[^}]*bottom: 18px[^}]*transform: translateX\(-50%\)/.test(flat),
+    '★ 首屏 footer 与第二幕同宽居中、同底边（版权行占位保证 console 垂直位置一致）')
   ok(/\.portal\.is-intro \.pt-title \{[^}]*font-size: clamp\(64px, 9\.4vw, 148px\)/.test(flat)
     && /\.portal\.is-intro \.pt-btn \{[^}]*font-size: clamp\(22px, 2\.1vw, 32px\)/.test(flat),
     '★ 首屏标题与两个按钮放大，占据页面')
