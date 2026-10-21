@@ -737,9 +737,17 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
 {
   const home = readFileSync(resolve(REPO, 'apps/web/src/shell/pages/home.js'), 'utf8')
   const flat = home.replace(/\s+/g, ' ')
-  ok(/let homeExplored = false/.test(home)
+  ok(/let homeExplored = readHomeExplored\(\)/.test(home)
     && /\$\{homeExplored \? ' is-explored' : ' is-intro'\}/.test(home),
-    '首屏/探索态由页面内存状态 homeExplored 控制（换语言重挂不重播）')
+    '首屏/探索态由 homeExplored 控制（持久化 + 换语言重挂不重播）')
+  // ★ 用户 2026-10-21：进入模块后刷新、再返回首页，应仍是第二幕。
+  //   状态写 sessionStorage（同标签页跨刷新保留），不可以只靠模块内存。
+  ok(/const HOME_EXPLORED_KEY = 'chem-agent:home-explored'/.test(home)
+    && /let homeExplored = readHomeExplored\(\)/.test(home)
+    && /sessionStorage\.getItem\(HOME_EXPLORED_KEY\)/.test(home)
+    && /sessionStorage\.setItem\(HOME_EXPLORED_KEY, '1'\)/.test(home)
+    && /rememberHomeExplored\(\)/.test(home),
+    '★ 首页探索状态持久化到 sessionStorage（模块刷新后返回仍是第二幕）')
   ok(!/\.pt-card\.is-flash/.test(home) && !/@keyframes pt-flash/.test(home),
     '★ 删除旧「开始探索」的闪卡反馈（用户报的"闪两次再消失"bug）')
   ok(/_playExploreTransition\(root\)/.test(home)

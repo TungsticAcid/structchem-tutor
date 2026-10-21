@@ -63,12 +63,21 @@ const MODULE_COPY = {
 }
 
 /**
- * 首页是否已经"探索"过（模块内存状态，不写 localStorage）。
+ * 首页是否已经"探索"过。
  * · 首次进入：只显示大标题 + 两个按钮，其余内容隐藏；
  * · 点「开始探索」：标题/按钮 FLIP 收拢到当前排版位置，模块与底栏浮现；
- * · 只存在页面内存里 ⇒ 换语言/主题重挂载时不会重播入场；刷新页面则重新入场。
+ * · ★ 用户 2026-10-21：状态要跨刷新保留 —— 进入模块后刷新、再返回首页，
+ *   必须仍是第二幕。所以写 sessionStorage（同一标签页内有效，关掉标签页后
+ *   下次进来仍是一次全新首幕）；存不了（隐私模式等）则退回纯内存。
  */
-let homeExplored = false
+const HOME_EXPLORED_KEY = 'chem-agent:home-explored'
+function readHomeExplored() {
+  try { return sessionStorage.getItem(HOME_EXPLORED_KEY) === '1' } catch (e) { return false }
+}
+function rememberHomeExplored() {
+  try { sessionStorage.setItem(HOME_EXPLORED_KEY, '1') } catch (e) { /* 隐私模式：只留内存态 */ }
+}
+let homeExplored = readHomeExplored()
 
 /** 卡片画布上角的"正在演示什么"（化学标识；见文件头排版约定。
  *  ★ 2026-10-17 用户第五次复查：`p`、`d` 这类**轨道字母不斜体** ——
@@ -508,6 +517,7 @@ export class HomePage {
           return
         }
         homeExplored = true
+        rememberHomeExplored()
         this._playExploreTransition(root)
       }
       explore.addEventListener('click', onClick)

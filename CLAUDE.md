@@ -562,6 +562,22 @@ i18n 中英文新名；`test-shell` **183 项**全过；`check-i18n` 全绿；bu
 守卫更新：orbit 第二主色改为 `var(--pt-orb-red)`，新增深/浅两个相位红值断言；
 `test-shell` **187 项**全过；check-i18n / build-web 通过。
 
+**第三十三次复查（2026-10-21）**：用户「进入首页第二幕后，点模块卡进入、再返回，是第二幕；
+但如果进入模块后刷新页面、再点返回，就变成第一幕了。应该统一为第二幕」。
+
+- 真因：`homeExplored` 只是**模块级内存变量**，模块路由刷新页面时整个 JS 重新加载，
+  变量回到 `false` ⇒ 返回首页重新显示首幕。
+- 改：探索状态写 **`sessionStorage`**（键 `chem-agent:home-explored`）：
+  - 模块初始化时 `let homeExplored = readHomeExplored()`；
+  - 点「开始探索」时 `homeExplored = true; rememberHomeExplored()`；
+  - 读写都包在 try/catch 里，隐私模式等存不了时退回纯内存（同页有效，刷新后可再入场）。
+  选 sessionStorage 而不是 localStorage：同一标签页内刷新/往返保留第二幕，
+  关掉标签页后下次进来仍是一次全新首幕。
+- 实测（真实 CDP，完整流程）：首页初始 `is-intro` → 点探索（storage=`1`）→ 跳 `#/orbit`
+  → `Page.reload` → 再回 `#/`（模拟返回）→ portal class **`lang-zh is-explored`** ✓。
+- 守卫更新：原"内存变量"判据改为 `readHomeExplored()` + sessionStorage 读写 + `rememberHomeExplored()`；
+  `test-shell` **188 项**全过；check-i18n / build-web 通过。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。
