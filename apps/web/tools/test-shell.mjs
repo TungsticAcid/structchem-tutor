@@ -748,9 +748,12 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /el\.style\.transform = 'translate\(/.test(home)
     && /transition = 'transform \.95s/.test(home),
     '★ 首屏 → 探索态用 FLIP：标题/按钮从放大居中的 rect 过渡到最终 rect')
-  ok(/\.portal\.is-intro \.pt-deco, \.portal\.is-intro \.pt-modules, \.portal\.is-intro \.pt-foot \{ position: absolute/.test(flat)
-    && /\.portal\.is-intro \.pt-desc, \.portal\.is-intro \.pt-visual-col \{ display: none; \}/.test(flat),
-    '★ 首屏隐藏模块/底栏/装饰/全息图/描述，只留标题 + 两个按钮')
+  ok(/\.portal\.is-intro \.pt-deco, \.portal\.is-intro \.pt-modules \{ position: absolute/.test(flat)
+    && /\.portal\.is-intro \.pt-desc, \.portal\.is-intro \.pt-visual-col \{ display: none; \}/.test(flat)
+    && /\.portal\.is-intro \.pt-foot-bottom \{ display: none; \}/.test(flat),
+    '★ 首屏隐藏模块/装饰/全息图/描述与版权行，只留标题 + 两个按钮')
+  ok(/\.portal\.is-intro \.pt-foot \{[^}]*position: absolute[^}]*bottom: 18px/.test(flat),
+    '★ 首屏底部保留 console（可切界面风格/语言），位置与第二幕一致')
   ok(/\.portal\.is-intro \.pt-title \{[^}]*font-size: clamp\(64px, 9\.4vw, 148px\)/.test(flat)
     && /\.portal\.is-intro \.pt-btn \{[^}]*font-size: clamp\(22px, 2\.1vw, 32px\)/.test(flat),
     '★ 首屏标题与两个按钮放大，占据页面')
@@ -772,6 +775,13 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '探索态：模块/底栏/视觉区淡入上浮，不再闪卡')
   ok(/is-morphing/.test(home) && /classList\.remove\('is-morphing'\)/.test(home),
     '转场期间用 is-morphing 防重复点击（避免二次点击打断 FLIP）')
+  // ★ 2026-10-21：「界面设定」改名「界面风格」，中英文都换；首屏也能看到同一组控件。
+  {
+    const shellI18n = readFileSync(resolve(REPO, 'apps/web/src/i18n/shell.js'), 'utf8')
+    ok(/'shell\.home\.consoleLabel': '界面风格'/.test(shellI18n)
+      && /'shell\.home\.consoleLabel': 'Interface style'/.test(shellI18n),
+      '「界面设定」已改名「界面风格」（中文 + 英文同步）')
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -917,11 +927,12 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '窄屏隐藏点缀层（页边距不足时会压正文）')
   // ★ 2026-10-19 用户复查：底部控制条与卡片页脚的字号按截图要求"大一倍"（原值 ×2）。
   ok(/\.pt-card-tag \{[^}]*font-size: 22px/.test(flat)
-    && /\.pt-console-title \{[^}]*font-size: 18px/.test(flat)
+    && /\.pt-console-title \{[^}]*font-size: 22px/.test(flat)
+    && /\.pt-console-title \{[^}]*font-family: inherit/.test(flat)
     && /\.pt-set-label \{[^}]*font-size: 22px/.test(flat)
     && /\.pt-seg-btn \{[^}]*font-size: 23px/.test(flat)
     && /\.pt-card-enter \{[^}]*font-size: 23px/.test(flat),
-    '★ 卡片页脚 / 底部控制条字体已放大一倍（11/11.5/9/11.5 → 22/23/18/22/23px）')
+    '★ 卡片页脚 / 底部控制条字体已放大；「界面风格」与「界面语言」同为 22px 同字体')
   // ★ 2026-10-21：三张卡片标题要有「不杂乱、有学术感」的特效。
   ok(/\.pt-card-name \{[^}]*background-clip: text/.test(flat)
     && /\.pt-card-name \{[^}]*animation: pt-title-sheen/.test(flat)

@@ -184,7 +184,7 @@ export const zh = {
   'shell.home.modulesLead': '一个中枢 · 三个可插拔教学模块',
   'shell.home.modulesOrder': '按授课顺序：原子结构 → 分子对称性 → 晶体结构',
   'shell.home.enterModule': '进入模块',
-  'shell.home.consoleLabel': '界面设定',
+  'shell.home.consoleLabel': '界面风格',
   'shell.home.visualHint': '实时渲染的结构化学演示：3d_z² 电子云、节锥与球坐标网格',
   /**
    * ★★ 2026-10-14（用户："现在还没有申请下软著"）：
@@ -391,7 +391,7 @@ export const en = {
   'shell.home.modulesLead': 'One hub · three pluggable teaching modules',
   'shell.home.modulesOrder': 'In teaching order: atomic structure → molecular symmetry → crystal structure',
   'shell.home.enterModule': 'Open module',
-  'shell.home.consoleLabel': 'Interface',
+  'shell.home.consoleLabel': 'Interface style',
   'shell.home.visualHint': 'Live-rendered structural chemistry: a 3d_z² electron cloud, nodal cones and a spherical grid',
   'shell.home.footer': 'Structural Chemistry Teaching AI Agent · 2026 | A teaching and research '
     + 'tool for structural chemistry courses',

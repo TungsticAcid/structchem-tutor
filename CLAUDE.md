@@ -449,6 +449,24 @@ build-web 通过。
 
 验证：1440×1000 / 900 深/浅截图（首屏、探索态均完整）；用真实 CDP 在点击后 150ms 读取 rect 证明标题行/按钮没有跳变；`test-shell` **181 项**全过；build-web 通过。
 
+**第二十五次复查（2026-10-21）**：用户两条 ——
+
+1. **「界面设定」改为「界面风格」，字体与「界面语言」一致**：
+   - `shell.home.consoleLabel` 中文 `界面设定 → 界面风格`、英文 `Interface → Interface style`；
+   - `.pt-console-title` 从 `--pt-mono / 18px / .24em / uppercase / opacity .7` 改为
+     **`font-family: inherit; font-size: 22px; letter-spacing: .08em; color: var(--pt-dim)`**，
+     与 `.pt-set-label`（界面语言）完全一致。
+2. **首屏也要有界面风格/语言设置，位置与第二幕暂时一致**：
+   - `is-intro` 不再隐藏整个 `.pt-foot`，只隐藏 `.pt-foot-bottom`（版权行）；
+   - `.pt-foot` 在首屏用 `position:absolute; left:0; right:0; bottom:18px; z-index:3` 贴底，
+     保留 `.pt-console`（首屏与探索态同一组控件、同一水平位置）；
+   - 探索态不再给整块 `.pt-foot` 做淡入（它本来就在），只让版权行浮现。
+   - 实测首屏点「浅色」+「English」：`html[data-theme=light]`、portal 仍 `is-intro`、
+     `.pt-console` visibility visible、标签变 `Interface style / Language`。
+
+守卫更新/新增：console 字体 22px 一致、首屏 foot 绝对定位保留 console、copyright 隐藏、
+i18n 中英文新名；`test-shell` **183 项**全过；`check-i18n` 全绿；build-web 通过。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。

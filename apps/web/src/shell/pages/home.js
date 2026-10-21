@@ -1706,8 +1706,7 @@ const STYLE = `
  * 模块、底栏、装饰、全息图全部让位并隐藏。点击开始探索后再以 FLIP 收拢到当前排版。
  */
 .portal.is-intro .pt-deco,
-.portal.is-intro .pt-modules,
-.portal.is-intro .pt-foot {
+.portal.is-intro .pt-modules {
   position: absolute;
   left: 0;
   right: 0;
@@ -1717,7 +1716,17 @@ const STYLE = `
 }
 .portal.is-intro .pt-deco { inset: 0; }
 .portal.is-intro .pt-modules { top: 100%; }
-.portal.is-intro .pt-foot { bottom: 0; }
+/* ★ 用户 2026-10-21：首屏也要能切界面风格/语言，且位置与第二幕保持一致（底部）。
+   只隐藏底部的版权行，保留 .pt-console；绝对定位在不占 hero 高度的前提下贴底。 */
+.portal.is-intro .pt-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  z-index: 3;
+  margin: 0;
+}
+.portal.is-intro .pt-foot-bottom { display: none; }
 .portal.is-intro .pt-hero {
   grid-template-columns: minmax(0, 1fr);
   place-content: center;
@@ -1764,11 +1773,13 @@ const STYLE = `
 /* 去掉首屏里标题/按钮的入场动画，避免 transform 与 FLIP 抢同一属性 */
 .portal.is-intro .pt-title,
 .portal.is-intro .pt-actions .pt-btn { animation: none; }
-/* 探索态的浮现：模块/底栏/装饰/全息图淡入上浮 */
+/* 探索态的浮现：模块/底栏/装饰/全息图淡入上浮。
+   ★ 底部 console 在首屏已显示（用户要求首屏也能切主题/语言），不再做整块 foot 的入场；
+     只让版权行在探索后浮现。 */
 .portal.is-explored .pt-desc { animation: pt-home-reveal .6s .1s both; }
 .portal.is-explored .pt-visual-col { animation: pt-home-reveal .8s .05s both; }
 .portal.is-explored .pt-modules { animation: pt-home-reveal .8s .16s both; }
-.portal.is-explored .pt-foot { animation: pt-home-reveal .7s .26s both; }
+.portal.is-explored .pt-foot-bottom { animation: pt-home-reveal .7s .26s both; }
 .portal.is-explored .pt-deco { animation: pt-home-reveal .9s .1s both; }
 .pt-kicker {
   display: flex;
@@ -2410,12 +2421,11 @@ const STYLE = `
   border-top: 1px solid var(--pt-line);
 }
 .pt-console-title {
-  font-family: var(--pt-mono);
-  font-size: 18px;
-  letter-spacing: .24em;
+  /* 用户 2026-10-21：「界面设定」改为「界面风格」，字体与「界面语言」保持一致 */
+  font-family: inherit;
+  font-size: 22px;
+  letter-spacing: .08em;
   color: var(--pt-dim);
-  opacity: .7;
-  text-transform: uppercase;
 }
 .pt-set { display: inline-flex; align-items: center; gap: 12px; }
 .pt-set-label { font-size: 22px; letter-spacing: .08em; color: var(--pt-dim); }
