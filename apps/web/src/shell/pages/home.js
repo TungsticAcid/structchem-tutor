@@ -2156,9 +2156,9 @@ const STYLE = `
 .pt-card:nth-child(1) { animation-delay: .42s; }
 .pt-card:nth-child(2) { animation-delay: .5s; }
 .pt-card:nth-child(3) { animation-delay: .58s; }
-.pt-card[data-module="orbit"] { --pt-card-accent: var(--pt-cyan); --pt-card-line: rgba(90, 216, 255, .5); }
-.pt-card[data-module="symmetry"] { --pt-card-accent: var(--pt-violet); --pt-card-line: rgba(167, 139, 250, .5); }
-.pt-card[data-module="crystal"] { --pt-card-accent: var(--pt-emerald); --pt-card-line: rgba(63, 224, 164, .48); }
+.pt-card[data-module="orbit"] { --pt-card-accent: var(--pt-cyan); --pt-card-line: rgba(90, 216, 255, .5); --pt-title-2: var(--pt-violet); }
+.pt-card[data-module="symmetry"] { --pt-card-accent: var(--pt-violet); --pt-card-line: rgba(167, 139, 250, .5); --pt-title-2: var(--pt-cyan); }
+.pt-card[data-module="crystal"] { --pt-card-accent: var(--pt-emerald); --pt-card-line: rgba(63, 224, 164, .48); --pt-title-2: var(--pt-cyan); }
 .pt-card::before {
   content: '';
   position: absolute;
@@ -2286,10 +2286,12 @@ const STYLE = `
 }
 .pt-card-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 /**
- * 卡片标题特效（用户 2026-10-21：「不杂乱、有学术感」）：
- *  · 一条**极慢的斜向扫光**沿标题文字流过（模块本色与墨色混合，低对比，只在字形内部）；
- *  · 标题下一条 1px 的**学术式细线**，静止时只露 30%，hover 时从左展开到全宽。
- * 不用粒子、不用多色渐变，保持「仪器读数 + 论文标题」的克制感。
+ * 卡片标题特效（用户 2026-10-21：「特效不够突出，要有特色、非常好看」）：
+ *  · 三色**流动渐变**沿字形内部走：模块本色 × 第二主色（orbit cyan→violet /
+ *    symmetry violet→cyan / crystal emerald→cyan）× 高光色，260% 宽、7.2s 周期；
+ *  · 字面外加一层很淡的模块色 glow（drop-shadow），让标题从卡片底色上"浮"起来；
+ *  · 标题下一条 **2px 发光细线**，同样有一条高光在 4.6s 内流过；hover 时更亮。
+ * 仍然不用粒子、不用多色噪声；颜色只有模块两色 + 一个高光。
  */
 .pt-card-name {
   position: relative;
@@ -2299,35 +2301,56 @@ const STYLE = `
   font-weight: 700;
   letter-spacing: .08em;
   line-height: 1.2;
-  --pt-title-accent: color-mix(in srgb, var(--pt-card-accent) 72%, var(--pt-ink));
-  background-image: linear-gradient(100deg,
-    var(--pt-ink) 0%, var(--pt-ink) 32%,
-    var(--pt-title-accent) 50%,
-    var(--pt-ink) 68%, var(--pt-ink) 100%);
-  background-size: 200% 100%;
-  background-position: 35% 50%;
+  --pt-title-base: color-mix(in srgb, var(--pt-card-accent) 78%, var(--pt-ink));
+  --pt-title-deep: color-mix(in srgb, var(--pt-card-accent) 42%, var(--pt-ink));
+  --pt-title-hi: color-mix(in srgb, var(--pt-card-accent) 28%, white);
+  background-image: linear-gradient(105deg,
+    var(--pt-title-deep) 0%,
+    var(--pt-card-accent) 16%,
+    var(--pt-title-2) 28%,
+    var(--pt-title-hi) 38%,
+    var(--pt-title-2) 50%,
+    var(--pt-card-accent) 64%,
+    var(--pt-title-base) 78%,
+    var(--pt-title-deep) 100%);
+  background-size: 260% 100%;
+  background-position: 0% 50%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: pt-title-sheen 9s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 9px color-mix(in srgb, var(--pt-card-accent) 26%, transparent));
+  animation: pt-title-flow 7.2s linear infinite;
+}
+[data-theme="light"] .pt-card-name {
+  --pt-title-base: color-mix(in srgb, var(--pt-card-accent) 55%, var(--pt-ink));
+  --pt-title-deep: color-mix(in srgb, var(--pt-card-accent) 24%, var(--pt-ink));
+  --pt-title-hi: color-mix(in srgb, var(--pt-card-accent) 45%, white);
+  filter: none;
 }
 .pt-card-name::after {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -5px;
-  height: 1px;
-  background: linear-gradient(90deg, var(--pt-card-accent), transparent 82%);
-  transform: scaleX(.34);
-  transform-origin: left center;
-  opacity: .4;
-  transition: transform .55s cubic-bezier(.2, .7, .2, 1), opacity .3s ease;
+  bottom: -6px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--pt-card-accent) 18%,
+    var(--pt-title-hi) 50%,
+    var(--pt-card-accent) 82%,
+    transparent 100%);
+  background-size: 220% 100%;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--pt-card-accent) 40%, transparent);
+  opacity: .72;
+  animation: pt-title-underline 4.6s linear infinite;
+  transition: opacity .3s ease, box-shadow .3s ease;
 }
 .pt-card:hover .pt-card-name::after,
 .pt-card:focus-visible .pt-card-name::after {
-  transform: scaleX(1);
-  opacity: .9;
+  opacity: 1;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--pt-card-accent) 65%, transparent);
 }
 /* 高对比/强制颜色模式下放弃渐变字形，避免标题变透明 */
 @media (forced-colors: active) {
@@ -2335,8 +2358,10 @@ const STYLE = `
     color: CanvasText;
     -webkit-text-fill-color: CanvasText;
     background: none;
+    filter: none;
     animation: none;
   }
+  .pt-card-name::after { animation: none; }
 }
 .pt-card-sub { font-size: 12.5px; letter-spacing: .03em; color: var(--pt-card-accent); }
 .pt-card-desc {
@@ -2451,9 +2476,13 @@ const STYLE = `
   to { opacity: 1; transform: none; }
 }
 /* 卡片标题的极慢扫光：只让一段低对比的模块色从字形上流过，不改变阅读色 */
-@keyframes pt-title-sheen {
-  from { background-position: 35% 50%; }
-  to { background-position: -20% 50%; }
+@keyframes pt-title-flow {
+  from { background-position: 0% 50%; }
+  to { background-position: 200% 50%; }
+}
+@keyframes pt-title-underline {
+  from { background-position: 0% 50%; }
+  to { background-position: 200% 50%; }
 }
 @keyframes pt-fade {
   from { opacity: 0; }

@@ -532,6 +532,20 @@ i18n 中英文新名；`test-shell` **183 项**全过；`check-i18n` 全绿；bu
   x 范围 179–1235，无溢出；与中文首幕同一量级。窄屏由 clamp 下限 30px 兜住。
 - 守卫 +1（首幕英文标题 font-size 判据），`test-shell` **185 项**全过；check-i18n / build-web 通过。
 
+**第三十一次复查（2026-10-21）**：用户「三个模块标题的特效不够突出，要有特色、非常好看」（附三张卡标题截图）。
+
+把原来的「单色极慢扫光 + 静止 34% 细线」升级为**流动三色 + 字形辉光 + 发光底光**：
+
+| 层 | 做法 |
+|---|---|
+| 三色流动渐变 | 每张卡新增第二主色 `--pt-title-2`：orbit `cyan→violet`、symmetry `violet→cyan`、crystal `emerald→cyan`；渐变按 deep→accent→第二主色→高光→第二主色→accent→deep 排布，`background-size:260%`，`7.2s linear infinite` 连续流动 |
+| 字形辉光 | 暗色主题 `filter: drop-shadow(0 0 9px color-mix(accent 26%, transparent))`；浅色主题换成更深的三色（无白高光、无 glow），保证在浅底上仍可读 |
+| 发光细线 | 1px→**2px** 圆角线，横向 220% 渐变（两端透明、中央高光），`4.6s` 有一条亮带流过；hover 时 opacity/辉光再加强 |
+| 克制 | 每张卡仍只用**模块两色 + 一个高光**，无粒子、无噪声；`prefers-reduced-motion` 沿用全局停动画，`forced-colors` 下退回 `CanvasText` 并停动画 |
+
+守卫更新：新增第二主色三条（三卡各不相同）、`pt-title-flow` / `pt-title-underline` keyframes、
+2px 细线与 hover 增强；`test-shell` **186 项**全过；check-i18n / build-web 通过。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。

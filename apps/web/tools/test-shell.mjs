@@ -944,13 +944,19 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /\.pt-set-label \{[^}]*font-size: 22px/.test(flat)
     && /\.pt-seg-btn \{[^}]*font-size: 23px/.test(flat),
     '★ 卡片页脚 / 底部控制条字体已放大；「界面风格」与「界面语言」同为 22px 同字体')
-  // ★ 2026-10-21：三张卡片标题要有「不杂乱、有学术感」的特效。
+  // ★ 2026-10-21：三张卡片标题要有「有特色、非常好看」的流动特效（但仍有学术感）。
   ok(/\.pt-card-name \{[^}]*background-clip: text/.test(flat)
-    && /\.pt-card-name \{[^}]*animation: pt-title-sheen/.test(flat)
-    && /@keyframes pt-title-sheen/.test(home)
-    && /\.pt-card-name::after \{[^}]*scaleX\(\.34\)/.test(flat)
+    && /\.pt-card-name \{[^}]*animation: pt-title-flow 7\.2s linear infinite/.test(flat)
+    && /@keyframes pt-title-flow/.test(home)
+    && /@keyframes pt-title-underline/.test(home)
+    && /\.pt-card-name::after \{[^}]*height: 2px/.test(flat)
+    && /\.pt-card-name::after \{[^}]*animation: pt-title-underline 4\.6s linear infinite/.test(flat)
     && /\.pt-card:hover \.pt-card-name::after/.test(flat),
-    '卡片标题：极慢模块色扫光 + 学术细线（hover 展开），无粒子/多色渐变')
+    '卡片标题：三色流动渐变 + 字形辉光 + 2px 发光细线（hover 增强）')
+  ok(/\.pt-card\[data-module="orbit"\] \{[^}]*--pt-title-2: var\(--pt-violet\)/.test(flat)
+    && /\.pt-card\[data-module="symmetry"\] \{[^}]*--pt-title-2: var\(--pt-cyan\)/.test(flat)
+    && /\.pt-card\[data-module="crystal"\] \{[^}]*--pt-title-2: var\(--pt-cyan\)/.test(flat),
+    '三张卡的标题各有第二主色（orbit cyan→violet / symmetry violet→cyan / crystal emerald→cyan）')
   ok(/\.pt-card-formula \{[^}]*font-family: var\(--font-symbol, "Times New Roman"/.test(flat)
     && /\.pt-deco-tag--dim \{[^}]*font-family: var\(--font-symbol, "Times New Roman"/.test(flat)
     && !/\.pt-card-formula \{[^}]*var\(--pt-mono\)/.test(flat),
