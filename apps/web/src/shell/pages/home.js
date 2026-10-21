@@ -1098,7 +1098,9 @@ export class HomePage {
       const p = cloud.points[i]
       const q = rotateXYZ([p.x, p.y, p.z], axO, ayO)
       const depth = (q[2] + 1) / 2
-      const col = p.phase > 0 ? pal.orbRed : pal.cyan
+      // ★ 用户 2026-10-21：电子云改成**纯红**（不再按 ±ψ 相位分色）。
+      //   纯色更接近"概率云"的直觉；代价是不再显示相位（详见 CLAUDE.md 的说明）。
+      const col = pal.orbRed
       drawDot(ctx, cx + q[0] * sc, cy - q[1] * sc, (0.9 + 1.5 * depth) * (m / (dark ? 130 : 105)),
         rgba(col, 1), (dark ? 0.26 : 0.4) + depth * (dark ? 0.6 : 0.5))
     }

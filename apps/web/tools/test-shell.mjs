@@ -891,6 +891,13 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '★ 轨道卡标签：p 正体、z 作下标且用 Times 斜体（用户要求）')
   ok(/const cloud = this\._scenes\.orbitCloud/.test(home),
     '★ 轨道卡：回到 2p_z 电子云点集（用户 2026-10-20 要求回退）')
+  // ★ 用户 2026-10-21：电子云改**纯红**（不再按 ±ψ 相位分色）。
+  {
+    const orbitDraw = (home.match(/_drawOrbit\(ctx, e, t, pal\) \{[\s\S]*?\n  \}/) || [''])[0]
+    ok(!!orbitDraw && /const col = pal\.orbRed/.test(orbitDraw)
+      && !/p\.phase > 0/.test(orbitDraw),
+      '★ 轨道卡电子云改为纯红（不再按相位分色）')
+  }
   // ★ 2026-10-20 用户复查（图 1）：TEACHING AI AGENT 与口号删除。
   ok(!/<span class="pt-title-en"/.test(home) && !/<p class="pt-slogan"/.test(home),
     'TEACHING AI AGENT / 揭秘书…口号已按截图删除')
