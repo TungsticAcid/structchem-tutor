@@ -477,6 +477,8 @@ export function createPalette(getVar, opts = {}) {
     violet: v('--pt-violet', '#a78bfa'),
     emerald: v('--pt-emerald', '#3fe0a4'),
     amber: v('--pt-amber', '#ffc46b'),
+    // 轨道视界的经典正相位红（+ψ）；负相位继续用 cyan
+    orbRed: v('--pt-orb-red', '#ff5f5f'),
     node: v('--pt-node', '#a8d8ff'),
     grid: v('--pt-grid', '#2a4a7a'),
     ink: v('--pt-ink', '#eaf2ff'),

@@ -1099,13 +1099,13 @@ export class HomePage {
       const p = cloud.points[i]
       const q = rotateXYZ([p.x, p.y, p.z], axO, ayO)
       const depth = (q[2] + 1) / 2
-      const col = p.phase > 0 ? pal.cyan : pal.violet
+      const col = p.phase > 0 ? pal.orbRed : pal.cyan
       drawDot(ctx, cx + q[0] * sc, cy - q[1] * sc, (0.9 + 1.5 * depth) * (m / (dark ? 130 : 105)),
         rgba(col, 1), (dark ? 0.26 : 0.4) + depth * (dark ? 0.6 : 0.5))
     }
 
-    // 中心核
-    drawGlow(ctx, cx, cy, m * 0.1, pal.cyan, dark ? 0.42 : 0.5)
+    // 中心核：与正相位同色，卡片整体保持"红/青"两色
+    drawGlow(ctx, cx, cy, m * 0.1, pal.orbRed, dark ? 0.42 : 0.5)
     drawDot(ctx, cx, cy, m * 0.009, dark ? '#ffffff' : pal.ink, 0.92)
     ctx.restore()
   }
@@ -2170,7 +2170,7 @@ const STYLE = `
 .pt-card:nth-child(1) { animation-delay: .42s; }
 .pt-card:nth-child(2) { animation-delay: .5s; }
 .pt-card:nth-child(3) { animation-delay: .58s; }
-.pt-card[data-module="orbit"] { --pt-card-accent: var(--pt-cyan); --pt-card-line: rgba(90, 216, 255, .5); --pt-title-2: var(--pt-orb-red); }
+.pt-card[data-module="orbit"] { --pt-card-accent: var(--pt-orb-red); --pt-card-line: rgba(255, 95, 95, .5); --pt-title-2: var(--pt-cyan); }
 .pt-card[data-module="symmetry"] { --pt-card-accent: var(--pt-violet); --pt-card-line: rgba(167, 139, 250, .5); --pt-title-2: var(--pt-cyan); }
 .pt-card[data-module="crystal"] { --pt-card-accent: var(--pt-emerald); --pt-card-line: rgba(63, 224, 164, .48); --pt-title-2: var(--pt-cyan); }
 .pt-card::before {
@@ -2326,9 +2326,10 @@ const STYLE = `
     var(--pt-title-2) 62%,
     var(--pt-card-accent) 86%,
     var(--pt-title-deep) 100%);
-  /* ★ 150% 而不是 260%：一个标题（四个字）在任意相位都同时看得到"主色 + 第二主色"，
-     否则 260% 时整段标题可能只落在主色那一段（轨道视界的红会看不见）。 */
-  background-size: 150% 100%;
+  /* ★ background-size 必须和 keyframes 的位移对齐，循环才无缝：
+     200% 宽时，background-position 从 0%→200% 正好平移**一整张渐变图**，
+     终点与起点图案完全重合（实测 150% 时终点差 2/3 张图，每 7.2s 会跳一下）。 */
+  background-size: 200% 100%;
   background-position: 0% 50%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -2356,7 +2357,7 @@ const STYLE = `
     var(--pt-title-hi) 50%,
     var(--pt-card-accent) 82%,
     transparent 100%);
-  background-size: 220% 100%;
+  background-size: 200% 100%;
   box-shadow: 0 0 8px color-mix(in srgb, var(--pt-card-accent) 40%, transparent);
   opacity: .72;
   animation: pt-title-underline 4.6s linear infinite;

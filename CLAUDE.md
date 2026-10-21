@@ -578,6 +578,23 @@ i18n 中英文新名；`test-shell` **183 项**全过；`check-i18n` 全绿；bu
 - 守卫更新：原"内存变量"判据改为 `readHomeExplored()` + sessionStorage 读写 + `rememberHomeExplored()`；
   `test-shell` **188 项**全过；check-i18n / build-web 通过。
 
+**第三十四次复查（2026-10-21）**：用户「标题特效动画不连续，每次播放之后都会突变；轨道视界
+卡片整个风格改为红蓝配色」。
+
+- **动画每轮跳一下的真因**：渐变 `background-size: 150%`，但 keyframes 从 `background-position: 0%`
+  走到 `200%`。百分比位置的位移是 `(容器宽 - 图宽) × p`：200% 时图案实际平移了
+  **2/3 张图**，并不等于一整张图 ⇒ 循环点首尾图案不重合，7.2s 一到就跳。
+  改：`background-size: 200%`（图宽 = 2×容器），0%→200% 正好平移**一整张图**，首尾完全重合；
+  标题与 2px 底线都统一成 200%。同时 200% 宽时四字标题在任意相位仍同时包含主色与第二主色。
+- **轨道卡整体红蓝**：
+  - `--pt-card-accent` 从 cyan 改为 `--pt-orb-red`（badge 描边、卡顶光、hover 边框/辉光、标题主色都变红）；
+  - `--pt-card-line` 改红色，`--pt-title-2` 改为 `--pt-cyan`（标题红 → 青）；
+  - 电子云相位数色从 `pal.cyan / pal.violet` 改为 **`pal.orbRed`（+ψ）/ `pal.cyan`（−ψ）**，中心核也改红；
+  - 新增 `palette.orbRed = var(--pt-orb-red)`，深色 `#ff5f5f` / 浅色 `#c0392b`。
+  整张轨道卡（编号、标题、底线、电子云、hover）现在都是红/青，点群仍是紫、晶典仍是绿。
+- 守卫更新：新增"200% 图宽 + 0→200% 位移"无缝判据、orbit accent/line/title-2 红蓝判据；
+  `test-shell` **189 项**、`test-home-visuals` **91 项**全过；check-i18n / build-web 通过。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。
