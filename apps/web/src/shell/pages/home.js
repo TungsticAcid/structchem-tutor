@@ -2139,11 +2139,58 @@ const STYLE = `
   .pt-card-formula { display: none; }
 }
 .pt-card-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+/**
+ * 卡片标题特效（用户 2026-10-21：「不杂乱、有学术感」）：
+ *  · 一条**极慢的斜向扫光**沿标题文字流过（模块本色与墨色混合，低对比，只在字形内部）；
+ *  · 标题下一条 1px 的**学术式细线**，静止时只露 30%，hover 时从左展开到全宽。
+ * 不用粒子、不用多色渐变，保持「仪器读数 + 论文标题」的克制感。
+ */
 .pt-card-name {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
   font-size: 26px;
   font-weight: 700;
   letter-spacing: .08em;
   line-height: 1.2;
+  --pt-title-accent: color-mix(in srgb, var(--pt-card-accent) 72%, var(--pt-ink));
+  background-image: linear-gradient(100deg,
+    var(--pt-ink) 0%, var(--pt-ink) 32%,
+    var(--pt-title-accent) 50%,
+    var(--pt-ink) 68%, var(--pt-ink) 100%);
+  background-size: 200% 100%;
+  background-position: 35% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: pt-title-sheen 9s ease-in-out infinite alternate;
+}
+.pt-card-name::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -5px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--pt-card-accent), transparent 82%);
+  transform: scaleX(.34);
+  transform-origin: left center;
+  opacity: .4;
+  transition: transform .55s cubic-bezier(.2, .7, .2, 1), opacity .3s ease;
+}
+.pt-card:hover .pt-card-name::after,
+.pt-card:focus-visible .pt-card-name::after {
+  transform: scaleX(1);
+  opacity: .9;
+}
+/* 高对比/强制颜色模式下放弃渐变字形，避免标题变透明 */
+@media (forced-colors: active) {
+  .pt-card-name {
+    color: CanvasText;
+    -webkit-text-fill-color: CanvasText;
+    background: none;
+    animation: none;
+  }
 }
 .pt-card-sub { font-size: 12.5px; letter-spacing: .03em; color: var(--pt-card-accent); }
 .pt-card-desc {
@@ -2269,6 +2316,11 @@ const STYLE = `
 @keyframes pt-rise {
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: translateY(0); }
+}
+/* 卡片标题的极慢扫光：只让一段低对比的模块色从字形上流过，不改变阅读色 */
+@keyframes pt-title-sheen {
+  from { background-position: 35% 50%; }
+  to { background-position: -20% 50%; }
 }
 @keyframes pt-fade {
   from { opacity: 0; }

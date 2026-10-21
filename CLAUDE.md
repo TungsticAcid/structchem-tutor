@@ -418,6 +418,18 @@ build-web 通过。
 - 守卫 +1（两处 font-family 均为 Times 且不再含 `--pt-mono`），`test-shell` **170 项**全过；
   build-web 通过。
 
+**第二十三次复查（2026-10-21）**：用户「为这三个标题加上不杂乱的、有学术感和良好视觉效果的特效」。
+
+三张模块卡的标题（轨道视界 / 点群观鉴 / 晶典在线）加两层**克制的**效果：
+
+| 效果 | 做法 |
+|---|---|
+| 极慢扫光 | `.pt-card-name` 用 `background-clip:text` + 模块本色的低对比渐变（`color-mix(模块色 72%, 墨色)`），`background-size:200%`，9s `ease-in-out infinite alternate` 缓慢左右流动；变量/正文色不变 |
+| 学术细线 | `.pt-card-name::after` 一条 1px 模块色细线，静止时 `scaleX(.34)`、opacity .4；卡片 hover / focus-visible 时展开到全宽、opacity .9 |
+| 分寸 | 不引入粒子、多色渐变、发光描边；只让**一段**模块色从字形内部流过。`prefers-reduced-motion` 沿用全局停动画；`forced-colors` 下放弃渐变字形、改回 `CanvasText`，避免标题透明 |
+
+守卫 +1（扫光/细线/hover 展开/keyframes 都在），`test-shell` **171 项**全过；build-web 通过。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。

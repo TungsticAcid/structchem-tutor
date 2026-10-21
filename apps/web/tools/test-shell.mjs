@@ -877,7 +877,13 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /\.pt-seg-btn \{[^}]*font-size: 23px/.test(flat)
     && /\.pt-card-enter \{[^}]*font-size: 23px/.test(flat),
     '★ 卡片页脚 / 底部控制条字体已放大一倍（11/11.5/9/11.5 → 22/23/18/22/23px）')
-  // ★ 2026-10-20：用户要求「公式中所有英文字符都要用新罗马」。
+  // ★ 2026-10-21：三张卡片标题要有「不杂乱、有学术感」的特效。
+  ok(/\.pt-card-name \{[^}]*background-clip: text/.test(flat)
+    && /\.pt-card-name \{[^}]*animation: pt-title-sheen/.test(flat)
+    && /@keyframes pt-title-sheen/.test(home)
+    && /\.pt-card-name::after \{[^}]*scaleX\(\.34\)/.test(flat)
+    && /\.pt-card:hover \.pt-card-name::after/.test(flat),
+    '卡片标题：极慢模块色扫光 + 学术细线（hover 展开），无粒子/多色渐变')
   ok(/\.pt-card-formula \{[^}]*font-family: var\(--font-symbol, "Times New Roman"/.test(flat)
     && /\.pt-deco-tag--dim \{[^}]*font-family: var\(--font-symbol, "Times New Roman"/.test(flat)
     && !/\.pt-card-formula \{[^}]*var\(--pt-mono\)/.test(flat),
