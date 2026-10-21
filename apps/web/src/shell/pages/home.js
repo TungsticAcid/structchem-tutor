@@ -1318,6 +1318,8 @@ const STYLE = `
   --pt-violet: #a78bfa;
   --pt-emerald: #3fe0a4;
   --pt-amber: #ffc46b;
+  /* 轨道视界的经典相位色（+ψ 红 / −ψ 青）；标题第二主色取这里的红，和点群卡的紫区分开 */
+  --pt-orb-red: #ff5f5f;
   --pt-node: #d6e9ff;
   --pt-grid: #2c5488;
   --pt-ink: #eaf2ff;
@@ -1362,6 +1364,8 @@ const STYLE = `
   --pt-violet: #6b4fd8;
   --pt-emerald: #0e9d6b;
   --pt-amber: #b26a00;
+  /* 浅色下把相位红压深（亮红/亮青在纸面上对比不够，深红仍保留"正相位"的语义） */
+  --pt-orb-red: #c0392b;
   --pt-node: #1d4f91;
   --pt-grid: #7d9cc4;
   --pt-ink: #0f1c33;
@@ -2156,7 +2160,7 @@ const STYLE = `
 .pt-card:nth-child(1) { animation-delay: .42s; }
 .pt-card:nth-child(2) { animation-delay: .5s; }
 .pt-card:nth-child(3) { animation-delay: .58s; }
-.pt-card[data-module="orbit"] { --pt-card-accent: var(--pt-cyan); --pt-card-line: rgba(90, 216, 255, .5); --pt-title-2: var(--pt-violet); }
+.pt-card[data-module="orbit"] { --pt-card-accent: var(--pt-cyan); --pt-card-line: rgba(90, 216, 255, .5); --pt-title-2: var(--pt-orb-red); }
 .pt-card[data-module="symmetry"] { --pt-card-accent: var(--pt-violet); --pt-card-line: rgba(167, 139, 250, .5); --pt-title-2: var(--pt-cyan); }
 .pt-card[data-module="crystal"] { --pt-card-accent: var(--pt-emerald); --pt-card-line: rgba(63, 224, 164, .48); --pt-title-2: var(--pt-cyan); }
 .pt-card::before {
@@ -2306,14 +2310,15 @@ const STYLE = `
   --pt-title-hi: color-mix(in srgb, var(--pt-card-accent) 28%, white);
   background-image: linear-gradient(105deg,
     var(--pt-title-deep) 0%,
-    var(--pt-card-accent) 16%,
-    var(--pt-title-2) 28%,
-    var(--pt-title-hi) 38%,
-    var(--pt-title-2) 50%,
-    var(--pt-card-accent) 64%,
-    var(--pt-title-base) 78%,
+    var(--pt-card-accent) 18%,
+    var(--pt-title-2) 42%,
+    var(--pt-title-hi) 52%,
+    var(--pt-title-2) 62%,
+    var(--pt-card-accent) 86%,
     var(--pt-title-deep) 100%);
-  background-size: 260% 100%;
+  /* ★ 150% 而不是 260%：一个标题（四个字）在任意相位都同时看得到"主色 + 第二主色"，
+     否则 260% 时整段标题可能只落在主色那一段（轨道视界的红会看不见）。 */
+  background-size: 150% 100%;
   background-position: 0% 50%;
   -webkit-background-clip: text;
   background-clip: text;

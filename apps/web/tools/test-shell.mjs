@@ -953,10 +953,13 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /\.pt-card-name::after \{[^}]*animation: pt-title-underline 4\.6s linear infinite/.test(flat)
     && /\.pt-card:hover \.pt-card-name::after/.test(flat),
     '卡片标题：三色流动渐变 + 字形辉光 + 2px 发光细线（hover 增强）')
-  ok(/\.pt-card\[data-module="orbit"\] \{[^}]*--pt-title-2: var\(--pt-violet\)/.test(flat)
+  ok(/\.pt-card\[data-module="orbit"\] \{[^}]*--pt-title-2: var\(--pt-orb-red\)/.test(flat)
     && /\.pt-card\[data-module="symmetry"\] \{[^}]*--pt-title-2: var\(--pt-cyan\)/.test(flat)
     && /\.pt-card\[data-module="crystal"\] \{[^}]*--pt-title-2: var\(--pt-cyan\)/.test(flat),
-    '三张卡的标题各有第二主色（orbit cyan→violet / symmetry violet→cyan / crystal emerald→cyan）')
+    '三张卡的标题各有第二主色（orbit 经典红 / symmetry 紫 / crystal 青）')
+  // ★ 用户要求：轨道视界用模块内的经典相位色（+ψ 红 / −ψ 青）——标题第二主色取相位红。
+  ok(/--pt-orb-red: #ff5f5f/.test(flat) && /--pt-orb-red: #c0392b/.test(flat),
+    '轨道卡标题第二主色使用轨道视界的经典相位红（深色亮红 / 浅色深红）')
   ok(/\.pt-card-formula \{[^}]*font-family: var\(--font-symbol, "Times New Roman"/.test(flat)
     && /\.pt-deco-tag--dim \{[^}]*font-family: var\(--font-symbol, "Times New Roman"/.test(flat)
     && !/\.pt-card-formula \{[^}]*var\(--pt-mono\)/.test(flat),
