@@ -762,6 +762,10 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/\.portal\.is-intro \.pt-title \{[^}]*font-size: clamp\(64px, 9\.4vw, 148px\)/.test(flat)
     && /\.portal\.is-intro \.pt-btn \{[^}]*font-size: clamp\(22px, 2\.1vw, 32px\)/.test(flat),
     '★ 首屏标题与两个按钮放大，占据页面')
+  // ★ 用户 2026-10-21：英文首幕标题此前继承终版的 32–50px，显得很小；
+  //   首幕单独按视口给一档（最长行 20 字符，8.4vw≈120px 仍放得下）。
+  ok(/\.portal\.is-intro\.lang-en \.pt-title \{[^}]*font-size: clamp\(30px, 8\.4vw, 120px\)/.test(flat),
+    '★ 英文首幕标题与中文同量级（不再继承终版小字号）')
   // ★ 用户截图：标题因居中/左对齐差异而在转场时位置突变。改为**按行 FLIP**：
   //   每行是 fit-content 盒子（文字不会在盒内跳位），首屏 margin auto 居中、终版靠左。
   ok(/\.pt-title-line \{[^}]*width: fit-content/.test(flat)

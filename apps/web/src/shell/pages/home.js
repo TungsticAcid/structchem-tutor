@@ -2535,6 +2535,14 @@ body.home-intro .agent-fab {
 .portal.lang-en .pt-mod-lead { margin-left: 0; display: block; margin-top: 6px; }
 .portal.lang-en .pt-mod-order { max-width: none; font-size: 11px; }
 .portal.lang-en .pt-card-name { font-size: 24px; letter-spacing: .02em; }
+/* ★ 用户 2026-10-21：英文首幕标题太小（此前直接继承终版的 32–50px）。
+   首幕按视口重新给一档：最长的一行 "Structural Chemistry" 在 1440 宽约 20 字符，
+   8.4vw ≈ 120px 时约 1060px，仍在版心内；窄屏被 clamp 下限 30px 兜住。 */
+.portal.is-intro.lang-en .pt-title {
+  font-size: clamp(30px, 8.4vw, 120px);
+  line-height: 1.06;
+  letter-spacing: -.015em;
+}
 /* 矮屏（笔记本常见 768–820 高）：压缩纵向留白，让模块卡与底部控制条都进一屏 */
 @media (max-height: 820px) and (min-width: 1081px) {
   .pt-hero { padding: 4px 0 2px; }
