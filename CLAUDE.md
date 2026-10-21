@@ -467,6 +467,21 @@ build-web 通过。
 守卫更新/新增：console 字体 22px 一致、首屏 foot 绝对定位保留 console、copyright 隐藏、
 i18n 中英文新名；`test-shell` **183 项**全过；`check-i18n` 全绿；build-web 通过。
 
+**第二十六次复查（2026-10-21）**：用户「两幕 footer 位置不同」「第一幕没有居中」。
+
+- 真因：首屏 footer 用 `position:absolute; left:0; right:0; max-width:1280px` 时，绝对定位的
+  自动外边距不会居中（实测 foot `x=0`，第二幕是 `x=67`）；且版权行 `display:none` 后
+  首屏 footer 高度少 18px，console 比第二幕低 18px。
+- 改：
+  1. 首屏 `.pt-foot` 改 `left:50%; transform:translateX(-50%); width:100%; max-width:1280px`，
+     并禁用 footer 的 `pt-rise`（动画的 transform 会覆盖 translateX）；
+  2. 版权行改为 `visibility:hidden` **保留占位**（仍不显示），使 footer 高度与第二幕一致；
+  3. 删掉 `.pt-foot` 基础规则上的 `pt-rise`（首屏已常驻，探索后不应再弹一次）。
+- 实测（禁用动画后读取 rect）：两幕完全一致 —— foot `x=67, y=711, w=1280, h=78, bottom=789`，
+  console `x=67, y=715, w=1280, h=56`；首屏 footer 不再左偏，也不再比第二幕低。
+- `test-shell` 守卫更新为该精确判据（left 50% + translateX(-50%) + bottom 18 + 版权行 visibility），
+  **183 项**全过；build-web 通过。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。
