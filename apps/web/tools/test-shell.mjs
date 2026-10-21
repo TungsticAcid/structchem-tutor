@@ -748,6 +748,12 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /el\.style\.transform = 'translate\(/.test(home)
     && /transition = 'transform \.95s/.test(home),
     '★ 首屏 → 探索态用 FLIP：标题/按钮从放大居中的 rect 过渡到最终 rect')
+  // ★ 用户 2026-10-21：点开始探索后「教学智能体」的渐变色动画被重置。
+  //   真因是 FLIP 对所有 mover 都写了 inline animation:none，而第二行标题的渐变动画
+  //   正是 background-position animation；只能对按钮（pt-rise 用 transform）禁用。
+  ok(/if \(el\.classList\.contains\('pt-btn'\)\) el\.style\.animation = 'none'/.test(home)
+    && !/^\s*el\.style\.animation = 'none'$/m.test(home),
+    '★ FLIP 只禁用按钮入场动画，不重置标题行的渐变动画')
   ok(/\.portal\.is-intro \.pt-deco, \.portal\.is-intro \.pt-modules \{ position: absolute/.test(flat)
     && /\.portal\.is-intro \.pt-desc, \.portal\.is-intro \.pt-visual-col \{ display: none; \}/.test(flat)
     && /\.portal\.is-intro \.pt-foot-bottom \{ visibility: hidden/.test(flat),

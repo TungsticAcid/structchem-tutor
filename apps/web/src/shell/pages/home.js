@@ -594,8 +594,10 @@ export class HomePage {
       const a = first[i]
       const b = last[i]
       if (!(b.width > 0) || !(b.height > 0)) return
-      // 先禁用入场动画，否则 CSS animation 的 transform 会盖掉 FLIP 的 inline transform
-      el.style.animation = 'none'
+      // 只对按钮禁用入场动画（它的 pt-rise 用 transform，会盖掉 FLIP 的 inline transform）。
+      // ★ 标题行不能动 animation：第二行的渐变色是 background-position 动画，禁用/重设会让
+      //   渐变从 0 重新开始（用户看到"颜色渐变动画被重置"）。
+      if (el.classList.contains('pt-btn')) el.style.animation = 'none'
       el.style.transition = 'none'
       el.style.transformOrigin = 'top left'
       // ★ 用 X/Y 两个比例，而不是统一按宽度缩放：首屏按钮是 90px 高、最终 46px，

@@ -495,6 +495,23 @@ i18n 中英文新名；`test-shell` **183 项**全过；`check-i18n` 全绿；bu
   `ctx.arc(cx, cy, m*0.52)`」断言，删除旧的"有扫描光带"断言，`test-shell` **183 项**全过；
   build-web 通过。
 
+**第二十八次复查（2026-10-21）**：用户「点开始探索后，『教学智能体』上的颜色渐变动画不连续，
+似乎会被重置」。
+
+- 真因：`_playExploreTransition` 为让 FLIP 的 inline `transform` 不被 CSS animation 覆盖，
+  对**所有** mover 写了 `el.style.animation = 'none'`。但第二行标题
+  `.pt-title-line--accent` 的渐变动画正是 `pt-sheen`（animate `background-position`）——
+  禁用 animation 会把渐变相位清掉，转场结束再清空 inline 时动画从 0 重播 ⇒ 看起来"闪一下/重置"。
+- 改：只有按钮需要禁用入场动画（`.pt-btn` 的 `pt-rise` 用 `transform`，会盖掉 FLIP）；
+  标题行（含 accent 渐变行）**完全不碰 animation**：
+  `if (el.classList.contains('pt-btn')) el.style.animation = 'none'`。
+- 实测（真实 CDP）：把 `pt-sheen` 的 `currentTime` 预置到 **3000ms**，点「开始探索」，
+  转场中/结束（1.2s 后）仍是**同一个** `pt-sheen` 动画对象、`currentTime` 保持 3000ms，
+  未被删除或重置为 0；同时转场里仍能看到标题行的 FLIP transition（`getAnimations()` 同时含
+  transition 与 `pt-sheen`）。
+- 守卫 +1（只对 `.pt-btn` 写 `animation='none'`，且不存在无条件赋值），`test-shell` **184 项**全过；
+  check-i18n / build-web 通过。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。
