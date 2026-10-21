@@ -1244,9 +1244,9 @@ export class HomePage {
       return g
     }
 
-    // 柔光脉动：卡片里没有独立光源，用一层很淡的呼吸光把晶格"托"起来（与另外两张卡的辉光同语言）
-    const pulse = 0.5 + 0.5 * Math.sin(t * 0.7 + 0.4)
-    drawGlow(ctx, cx, cy, m * 0.46, pal.accent, dark ? 0.06 + pulse * 0.06 : 0.04 + pulse * 0.035)
+    // ★ 用户 2026-10-21：「晶典在线卡片一直有个光圈，看起来很丑」——
+    //   删掉原来托住晶格的呼吸光晕（drawGlow + pulse），让晶胞直接落在卡片底色上。
+    //   （其它两张卡的辉光不受影响。）
 
     // 画家算法：键与球放进同一张表，按 z 从远到近画（+z = 远离观察者，朝右上）
     const items = []
@@ -1288,24 +1288,9 @@ export class HomePage {
         r * 0.2, 'rgba(255,255,255,0.85)', 0.78 + 0.18 * Math.sin(glint * 1.7))
     }
 
-    // 扫描光带：每 ~6 s 从左上到右下掠过一次，只扫晶格所在的圆形区域（卡片的"高级感"细节）
-    const sweepT = (t * 0.16) % 1
-    if (sweepT > 0.02 && sweepT < 0.98) {
-      const sweepX = cx + (sweepT * 2 - 1) * m * 0.72
-      const sw = m * 0.22
-      const sg = ctx.createLinearGradient(sweepX - sw, cy - m * 0.6, sweepX + sw, cy + m * 0.6)
-      sg.addColorStop(0, 'rgba(255,255,255,0)')
-      sg.addColorStop(0.5, dark ? 'rgba(150,220,255,0.16)' : 'rgba(37,99,214,0.075)')
-      sg.addColorStop(1, 'rgba(255,255,255,0)')
-      ctx.save()
-      ctx.beginPath()
-      ctx.arc(cx, cy, m * 0.52, 0, TAU)
-      ctx.clip()
-      ctx.globalCompositeOperation = dark ? 'lighter' : 'source-over'
-      ctx.fillStyle = sg
-      ctx.fillRect(cx - m * 0.6, cy - m * 0.6, m * 1.2, m * 1.2)
-      ctx.restore()
-    }
+    // ★ 用户 2026-10-21：「晶典在线卡片一直有个光圈，看起来很丑」——
+    //   原来的"扫描光带"被 clip 在一个圆形区域里（ctx.arc(cx, cy, m*0.52)），
+    //   看起来就是晶格背后一块圆形光斑；连同呼吸柔光一起删掉，保持卡片干净。
 
     // ---- 图例已按用户要求删除（2026-10-20）----
 

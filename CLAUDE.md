@@ -482,6 +482,19 @@ i18n 中英文新名；`test-shell` **183 项**全过；`check-i18n` 全绿；bu
 - `test-shell` 守卫更新为该精确判据（left 50% + translateX(-50%) + bottom 18 + 版权行 visibility），
   **183 项**全过；build-web 通过。
 
+**第二十七次复查（2026-10-21）**：用户「晶典在线卡片一直有个光圈，看起来很丑」（附截图）。
+
+- 真因：晶典卡 canvas 里有**两层圆形光效**：
+  1. `drawGlow(ctx, cx, cy, m*0.46, pal.accent, …)` 的呼吸柔光；
+  2. 「扫描光带」被 `ctx.arc(cx, cy, m*0.52)` **裁剪成圆形**——扫到中间时就是晶格背后一块
+     圆形亮斑，周期出现，看起来像一直有个光圈。
+- 改：`_drawCrystal` 里删掉呼吸光与扫描光带（含 `sweepT`、圆形 clip、
+  `globalCompositeOperation='lighter'` 那层）；球面高光、键、晶格摆动/点头等动效全部保留，
+  晶格直接落在卡片底色上。
+- 守卫更新：新增「`_drawCrystal` 不再含 `drawGlow(...m*0.46)` / `sweepT` /
+  `ctx.arc(cx, cy, m*0.52)`」断言，删除旧的"有扫描光带"断言，`test-shell` **183 项**全过；
+  build-web 通过。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。

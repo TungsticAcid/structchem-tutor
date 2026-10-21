@@ -828,6 +828,12 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/items\.sort\(/.test(crystalDraw), '★ 晶典卡：键与球按深度排序（画家算法，Canvas 没有 z-buffer）')
   ok(/Cl⁻/.test(crystalDraw) === false && /Na⁺/.test(crystalDraw) === false,
     '★ 晶典卡：离子图例（Cl⁻ / Na⁺）已按用户要求删除')
+  // ★ 2026-10-21 用户：「晶典在线卡片一直有个光圈，看起来很丑」。
+  //   真因是"呼吸柔光 + 被圆形 clip 的扫描光带"——两者都删掉，晶格直接落在卡片底色上。
+  ok(!/drawGlow\(ctx, cx, cy, m \* 0\.46/.test(crystalDraw)
+    && !/sweepT/.test(crystalDraw)
+    && !/ctx\.arc\(cx, cy, m \* 0\.52/.test(crystalDraw),
+    '★ 晶典卡：已删除晶格背后的圆形光斑（呼吸光 + 圆形扫描带）')
 
   // ★★ 2026-10-17 第三次复查：「颜色和风格按照晶典在线程序中的，只是视角按照我发的图」
   //   —— 判据不只是"看起来像"，而是**真的消费模块真源**（否则以后模块改了配色又会漂）。
@@ -853,9 +859,6 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /const spin = \(p\)/.test(crystalDraw)
     && /const rot = lat\.nodes\.map\(\(n\) => spin/.test(crystalDraw),
     '★ 晶典卡有动效：绕竖直轴 ±18° 缓慢摆动 + 轻微点头（旋转后仍走 projectOblique ⇒ 平行线保持平行）')
-  ok(/const sweepT = \(t \* 0\.16\) % 1/.test(crystalDraw)
-    && /globalCompositeOperation/.test(crystalDraw),
-    '★ 晶典卡有扫描光带（每 ~6s 掠过晶格所在的圆形区域）')
 
   ok(/overflow: hidden;\s*overflow: clip;/.test(flat),
     '★ .portal 用 overflow: clip（hidden 会变成滚动容器 ⇒ "开始探索"后页面滚不回来）')
