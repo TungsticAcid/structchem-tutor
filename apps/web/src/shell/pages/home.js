@@ -62,6 +62,14 @@ const MODULE_COPY = {
   crystal: { sub: 'shell.home.crystal.sub', desc: 'shell.home.crystal.desc', tag: 'shell.home.crystal.tag' },
 }
 
+/**
+ * 首页是否已经"探索"过（模块内存状态，不写 localStorage）。
+ * · 首次进入：只显示大标题 + 两个按钮，其余内容隐藏；
+ * · 点「开始探索」：标题/按钮 FLIP 收拢到当前排版位置，模块与底栏浮现；
+ * · 只存在页面内存里 ⇒ 换语言/主题重挂载时不会重播入场；刷新页面则重新入场。
+ */
+let homeExplored = false
+
 /** 卡片画布上角的"正在演示什么"（化学标识；见文件头排版约定。
  *  ★ 2026-10-17 用户第五次复查：`p`、`d` 这类**轨道字母不斜体** ——
  *    它们是轨道标签（s/p/d/f），不是物理量；斜体的只能是变量（ψ、θ、Y、n、l、m、x/y/z 轴）。 */
@@ -214,6 +222,11 @@ export class HomePage {
      *   悬浮球是壳的元素（在 document.body 下），不在 .portal 里，选择器够不着它。
      */
     try { document.body.classList.add('home-active') } catch (e) { /* 非浏览器环境 */ }
+    // 首屏入场时连右下角的智能体悬浮球也收起来（用户要求首屏只留标题 + 两个按钮）
+    try {
+      if (homeExplored) document.body.classList.remove('home-intro')
+      else document.body.classList.add('home-intro')
+    } catch (e) { /* 非浏览器环境 */ }
 
     this._bindEvents()
     this._startVisuals()
@@ -225,6 +238,7 @@ export class HomePage {
     this._container = null
     this._portal = null
     try { document.body.classList.remove('home-active') } catch (e) { /* 非浏览器环境 */ }
+    try { document.body.classList.remove('home-intro') } catch (e) { /* 非浏览器环境 */ }
   }
 
   /**
@@ -349,7 +363,7 @@ export class HomePage {
     const lang = (this._ui.getLang && this._ui.getLang()) || 'zh'
     const cards = this._modules.map((m, i) => this._renderCard(m, i)).join('')
     const markup = `
-      <div class="portal lang-${lang}" data-home-page>
+      <div class="portal lang-${lang}${homeExplored ? ' is-explored' : ' is-intro'}" data-home-page>
         <canvas class="pt-canvas pt-canvas--bg" data-canvas="bg" aria-hidden="true"></canvas>
         <div class="pt-aurora pt-aurora--a" aria-hidden="true"></div>
         <div class="pt-aurora pt-aurora--b" aria-hidden="true"></div>
@@ -479,21 +493,24 @@ export class HomePage {
       this._cleanup.push(() => el.removeEventListener('click', onClick))
     })
 
-    // 2) 「开始探索」：滚到模块区；若模块区已经在视口里，就闪一下三张卡给反馈
+    // 2) 「开始探索」：从首屏大标题/按钮丝滑收拢到当前排版，并让模块浮现。
+    //    ★ 旧实现是 scrollIntoView + 三张卡闪两下（pt-flash 2 次）—— 用户实测会"闪两次再消失"，
+    //    本轮改成布局本身的入场转场，不再有闪卡。
     const explore = root.querySelector('[data-act="explore"]')
     if (explore) {
       const onClick = () => {
-        const mods = root.querySelector('#pt-modules')
-        if (!mods) return
-        try { mods.scrollIntoView({ behavior: this._reduced ? 'auto' : 'smooth', block: 'start' }) } catch (e) { mods.scrollIntoView() }
-        // "开始探索"必须有可见反馈：页面本来就一屏放得下时，滚动是个空操作。
-        // 这里给三张卡各闪一下（尊重 reduced-motion：那种情况下直接跳过）。
-        if (this._reduced) return
-        const cards = root.querySelectorAll('.pt-card')
-        cards.forEach((card) => card.classList.remove('is-flash'))
-        void mods.offsetWidth
-        cards.forEach((card) => card.classList.add('is-flash'))
-        setTimeout(() => cards.forEach((card) => card.classList.remove('is-flash')), 2600)
+        const portal = root.querySelector('.portal')
+        // 转场进行中重复点击不处理（否则会触发"已探索"分支的滚动，打断 FLIP）
+        if (portal && portal.classList.contains('is-morphing')) return
+        if (homeExplored) {
+          const mods = root.querySelector('#pt-modules')
+          if (mods) {
+            try { mods.scrollIntoView({ behavior: this._reduced ? 'auto' : 'smooth', block: 'start' }) } catch (e) { /* 忽略 */ }
+          }
+          return
+        }
+        homeExplored = true
+        this._playExploreTransition(root)
       }
       explore.addEventListener('click', onClick)
       this._cleanup.push(() => explore.removeEventListener('click', onClick))
@@ -547,6 +564,75 @@ export class HomePage {
         hero.removeEventListener('pointerleave', onLeave)
       })
     }
+  }
+
+  /**
+   * 首屏（大标题 + 两个按钮）→ 探索态（当前首页）的 FLIP 转场。
+   *
+   * 用户 2026-10-21 提出：点击「开始探索」后三张模块卡会闪两次再消失（旧实现是
+   * scrollIntoView + pt-flash 闪卡），且点击本身没有真正的页面变化。
+   * 新做法：
+   *  1. 首屏只显示放大的标题与两个按钮，模块/底栏/装饰全部让位并隐藏；
+   *  2. 点击后先量一次标题/两个按钮的 intro rect，切到最终排版，再量 final rect；
+   *  3. 对三个部分做 FLIP（反向 transform → 过渡到 identity），形成"丝滑平移收拢"；
+   *  4. 模块/底栏/视觉区用 `pt-home-reveal` 淡入上浮，不再有闪卡。
+   * reduced-motion 时直接切到终态，不做 transform。
+   */
+  _playExploreTransition(root) {
+    const portal = root.querySelector('.portal')
+    if (!portal || !portal.classList.contains('is-intro')) return
+    const parts = Array.from(portal.querySelectorAll('.pt-title-line, .pt-actions .pt-btn'))
+    const first = parts.map((el) => el.getBoundingClientRect())
+    portal.classList.remove('is-intro')
+    portal.classList.add('is-explored')
+    try { document.body.classList.remove('home-intro') } catch (e) { /* 非浏览器环境 */ }
+    if (this._reduced) return
+    portal.classList.add('is-morphing')
+    const last = parts.map((el) => el.getBoundingClientRect())
+    const movers = []
+    parts.forEach((el, i) => {
+      const a = first[i]
+      const b = last[i]
+      if (!(b.width > 0) || !(b.height > 0)) return
+      // 先禁用入场动画，否则 CSS animation 的 transform 会盖掉 FLIP 的 inline transform
+      el.style.animation = 'none'
+      el.style.transition = 'none'
+      el.style.transformOrigin = 'top left'
+      // ★ 用 X/Y 两个比例，而不是统一按宽度缩放：首屏按钮是 90px 高、最终 46px，
+      //   只按宽度缩放会让它的视觉高度先变成 ~92px 再缩回去（用户截图看到的"按钮突变"）。
+      el.style.transform = 'translate('
+        + (a.left - b.left).toFixed(2) + 'px,'
+        + (a.top - b.top).toFixed(2) + 'px) scale('
+        + (a.width / b.width).toFixed(4) + ','
+        + (a.height / b.height).toFixed(4) + ')'
+      movers.push(el)
+    })
+    if (!movers.length) {
+      portal.classList.remove('is-morphing')
+      return
+    }
+    void portal.offsetWidth
+    // ★ 用 setTimeout 而不是 rAF：rAF 可能在第一帧里同时应用"transition + identity"，
+    //   浏览器会把两处样式变化合并、直接跳到终点（实测截图里转场消失）。30ms 保证反向
+    //   transform 至少被绘制过一帧，再开始过渡。
+    const starter = setTimeout(() => {
+      movers.forEach((el) => {
+        el.style.transition = 'transform .95s cubic-bezier(.2, .7, .2, 1)'
+        el.style.transform = 'translate(0, 0) scale(1, 1)'
+      })
+    }, 30)
+    const timer = setTimeout(() => {
+      movers.forEach((el) => {
+        el.style.transition = 'none'
+        el.style.transform = ''
+        el.style.transformOrigin = ''
+      })
+      portal.classList.remove('is-morphing')
+    }, 1100)
+    this._cleanup.push(() => {
+      clearTimeout(starter)
+      clearTimeout(timer)
+    })
   }
 
   // -------------------------------------------------------------------------
@@ -1614,6 +1700,76 @@ const STYLE = `
   padding: clamp(6px, 1vh, 16px) 0 clamp(2px, .6vh, 8px);
 }
 .pt-hero-copy { min-width: 0; }
+
+/* ---------- 首屏入场态（用户 2026-10-21 的设计） ----------
+ * 刚进入首页：只有放大的「结构化学教学智能体」+「开始探索 / 问智能体」两个按钮；
+ * 模块、底栏、装饰、全息图全部让位并隐藏。点击开始探索后再以 FLIP 收拢到当前排版。
+ */
+.portal.is-intro .pt-deco,
+.portal.is-intro .pt-modules,
+.portal.is-intro .pt-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.portal.is-intro .pt-deco { inset: 0; }
+.portal.is-intro .pt-modules { top: 100%; }
+.portal.is-intro .pt-foot { bottom: 0; }
+.portal.is-intro .pt-hero {
+  grid-template-columns: minmax(0, 1fr);
+  place-content: center;
+  align-items: center;
+  padding: 0;
+}
+.portal.is-intro .pt-hero-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+}
+.portal.is-intro .pt-desc,
+.portal.is-intro .pt-visual-col { display: none; }
+.portal.is-intro .pt-title {
+  margin: 0 0 clamp(28px, 5.4vh, 66px);
+  font-size: clamp(64px, 9.4vw, 148px);
+  line-height: 1.03;
+  letter-spacing: .04em;
+}
+/* ★ 标题按"行"做 FLIP：两行各自是 fit-content 的盒子（文字不会因 text-align 变化而
+   在盒内跳位），首屏用 margin auto 居中，最终版靠左；对齐方式本身保持不变。 */
+.portal.is-intro .pt-title-line {
+  margin-left: auto;
+  margin-right: auto;
+}
+/* 标题块不做 pt-rise 入场（否则 is-intro 移除时它会重新播放入场动画） */
+.portal.is-explored .pt-title { animation: none; }
+.portal.is-intro .pt-actions {
+  justify-content: center;
+  gap: clamp(16px, 2vw, 32px);
+  margin-top: 0;
+}
+.portal.is-intro .pt-btn {
+  /* ★ 用户 2026-10-21：首屏按钮一开始就要"高一点"，避免 FLIP 到最终 46px 时突然变小。
+     用 auto 高度 + 大 padding，让它的宽高比与最终按钮接近（FLIP 用非等比反变换精确对齐）。 */
+  height: auto;
+  padding: 26px clamp(30px, 3.4vw, 56px);
+  font-size: clamp(22px, 2.1vw, 32px);
+  border-radius: 15px;
+}
+.portal.is-intro .pt-btn-arrow { font-size: 1.05em; }
+/* 去掉首屏里标题/按钮的入场动画，避免 transform 与 FLIP 抢同一属性 */
+.portal.is-intro .pt-title,
+.portal.is-intro .pt-actions .pt-btn { animation: none; }
+/* 探索态的浮现：模块/底栏/装饰/全息图淡入上浮 */
+.portal.is-explored .pt-desc { animation: pt-home-reveal .6s .1s both; }
+.portal.is-explored .pt-visual-col { animation: pt-home-reveal .8s .05s both; }
+.portal.is-explored .pt-modules { animation: pt-home-reveal .8s .16s both; }
+.portal.is-explored .pt-foot { animation: pt-home-reveal .7s .26s both; }
+.portal.is-explored .pt-deco { animation: pt-home-reveal .9s .1s both; }
 .pt-kicker {
   display: flex;
   align-items: center;
@@ -1640,7 +1796,7 @@ const STYLE = `
   letter-spacing: .05em;
   animation: pt-rise .75s .12s cubic-bezier(.2, .7, .2, 1) both;
 }
-.pt-title-line { display: block; }
+.pt-title-line { display: block; width: fit-content; max-width: 100%; }
 .pt-title-line--accent {
   background: linear-gradient(100deg, var(--pt-title-a) 0%, var(--pt-title-b) 46%, var(--pt-title-c) 100%);
   background-size: 220% 100%;
@@ -2034,16 +2190,6 @@ const STYLE = `
 .pt-card.is-locked:hover { transform: none; border-color: var(--pt-line); box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
 .pt-card.is-locked:hover::after { opacity: 0; }
 .pt-card.is-nudged { animation: pt-nudge .45s ease; }
-/* 「开始探索」的可见反馈：三张卡各闪两次（不是 hover，不需要鼠标） */
-.pt-card.is-flash { animation: pt-flash 1.1s ease 2; }
-@keyframes pt-flash {
-  0%, 100% { border-color: var(--pt-line); box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
-  35% {
-    border-color: var(--pt-card-accent);
-    box-shadow: 0 0 0 1px var(--pt-card-accent), 0 18px 42px rgba(0, 0, 0, .28),
-      0 0 34px -12px var(--pt-card-accent);
-  }
-}
 @keyframes pt-nudge {
   0%, 100% { transform: translateX(0); }
   30% { transform: translateX(-5px); }
@@ -2317,6 +2463,11 @@ const STYLE = `
   from { opacity: 0; transform: translateY(14px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* 首屏 → 探索态的浮现（模块 / 底栏 / 视觉区 / 装饰） */
+@keyframes pt-home-reveal {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
 /* 卡片标题的极慢扫光：只让一段低对比的模块色从字形上流过，不改变阅读色 */
 @keyframes pt-title-sheen {
   from { background-position: 35% 50%; }
@@ -2333,6 +2484,13 @@ body.home-active .agent-fab {
   right: 22px; bottom: 22px;
   filter: drop-shadow(0 8px 22px rgba(26, 54, 93, .38));
   animation: pt-fab-breathe 2.6s ease-in-out infinite;
+}
+/* 首屏入场态：连悬浮球也收起，保证"只有标题 + 两个按钮" */
+body.home-intro .agent-fab {
+  opacity: 0;
+  pointer-events: none;
+  animation: none;
+  transition: opacity .4s ease;
 }
 @keyframes pt-fab-breathe {
   0%, 100% { transform: scale(1); }

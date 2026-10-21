@@ -730,6 +730,51 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
 }
 
 // ---------------------------------------------------------------------------
+// ★★ 2026-10-21 首屏入场（用户两条）：
+//   ① 旧「开始探索」用 pt-flash 闪两次卡片 —— 用户实测"闪两次再消失"，必须删掉；
+//   ② 新设计：首屏只留大标题 + 两个按钮，点击后 FLIP 收拢、模块浮现；
+//      「问智能体」直接开侧栏，不经过探索转场。
+// ---------------------------------------------------------------------------
+{
+  const home = readFileSync(resolve(REPO, 'apps/web/src/shell/pages/home.js'), 'utf8')
+  const flat = home.replace(/\s+/g, ' ')
+  ok(/let homeExplored = false/.test(home)
+    && /\$\{homeExplored \? ' is-explored' : ' is-intro'\}/.test(home),
+    '首屏/探索态由页面内存状态 homeExplored 控制（换语言重挂不重播）')
+  ok(!/\.pt-card\.is-flash/.test(home) && !/@keyframes pt-flash/.test(home),
+    '★ 删除旧「开始探索」的闪卡反馈（用户报的"闪两次再消失"bug）')
+  ok(/_playExploreTransition\(root\)/.test(home)
+    && /const first = parts\.map\(\(el\) => el\.getBoundingClientRect\(\)\)/.test(home)
+    && /el\.style\.transform = 'translate\(/.test(home)
+    && /transition = 'transform \.95s/.test(home),
+    '★ 首屏 → 探索态用 FLIP：标题/按钮从放大居中的 rect 过渡到最终 rect')
+  ok(/\.portal\.is-intro \.pt-deco, \.portal\.is-intro \.pt-modules, \.portal\.is-intro \.pt-foot \{ position: absolute/.test(flat)
+    && /\.portal\.is-intro \.pt-desc, \.portal\.is-intro \.pt-visual-col \{ display: none; \}/.test(flat),
+    '★ 首屏隐藏模块/底栏/装饰/全息图/描述，只留标题 + 两个按钮')
+  ok(/\.portal\.is-intro \.pt-title \{[^}]*font-size: clamp\(64px, 9\.4vw, 148px\)/.test(flat)
+    && /\.portal\.is-intro \.pt-btn \{[^}]*font-size: clamp\(22px, 2\.1vw, 32px\)/.test(flat),
+    '★ 首屏标题与两个按钮放大，占据页面')
+  // ★ 用户截图：标题因居中/左对齐差异而在转场时位置突变。改为**按行 FLIP**：
+  //   每行是 fit-content 盒子（文字不会在盒内跳位），首屏 margin auto 居中、终版靠左。
+  ok(/\.pt-title-line \{[^}]*width: fit-content/.test(flat)
+    && /\.portal\.is-intro \.pt-title-line \{[^}]*margin-left: auto/.test(flat)
+    && /\.pt-title-line, \.pt-actions \.pt-btn/.test(home),
+    '★ 标题按行 FLIP（fit-content 行盒 + 首屏 margin auto），不明改首尾对齐方式')
+  // ★ 用户截图：首屏按钮太矮，FLIP 开始时被纵向放大再缩回 → 一开始就加高，且用 X/Y 非等比反变换。
+  ok(/\.portal\.is-intro \.pt-btn \{[^}]*height: auto/.test(flat)
+    && /\.portal\.is-intro \.pt-btn \{[^}]*padding: 26px clamp/.test(flat)
+    && /a\.height \/ b\.height/.test(home),
+    '★ 首屏按钮一开始就加高；FLIP 用宽高两个比例精确对齐，避免按钮高度突变')
+  ok(/body\.home-intro \.agent-fab/.test(flat),
+    '首屏连右下角智能体悬浮球也收起（"只有标题+两个按钮"）')
+  ok(/@keyframes pt-home-reveal/.test(home)
+    && /\.portal\.is-explored \.pt-modules \{ animation: pt-home-reveal/.test(flat),
+    '探索态：模块/底栏/视觉区淡入上浮，不再闪卡')
+  ok(/is-morphing/.test(home) && /classList\.remove\('is-morphing'\)/.test(home),
+    '转场期间用 is-morphing 防重复点击（避免二次点击打断 FLIP）')
+}
+
+// ---------------------------------------------------------------------------
 // ★★ 2026-10-17：首页动画/画布的**生命周期守卫**（源码棘轮）
 //
 //   "新场景 + 旧记账"在本仓已经栽过（orbit 跨挂载的 auxGroup 缓存）；首页每次
