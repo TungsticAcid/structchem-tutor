@@ -2,7 +2,7 @@
 
 结构化学教学智能体 —— **一个中枢 + N 个可插拔教学工具**。
 
-> 本仓库由 `crystal`、`orbit`、`symmetry` 三个独立项目于 2026-09-24 合并而来。
+> 本仓库由 `crystal`、`orbit`、`symmetry` 三个独立项目合并而来。
 > 当前三个模块都已接入统一前端。
 
 仓库：<https://github.com/TungsticAcid/structchem-tutor>
@@ -156,7 +156,7 @@ symmetry:P2-3    对称模块
 shared:S1-2      总知识库
 ```
 
-> `orbit` 用 `K1`–`K10` 表示原子轨道知识点；晶体模块此前也用 `K`，已于 2026-09-24 改为
+> `orbit` 用 `K1`–`K10` 表示原子轨道知识点；晶体模块此前也用 `K`，后来改为
 > `C1`–`C8`，避免两套 K 撞名。
 
 通用教学技能不带命名空间，放在 `packages/skills/common/`，供各模块共用。
