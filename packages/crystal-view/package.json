@@ -1,0 +1,7 @@
+{
+  "name": "@chem-agent/crystal-view",
+  "version": "0.1.0",
+  "description": "晶体模块复用的视图与数据（由原 projects/crystal 迁入）",
+  "private": true,
+  "type": "module"
+}

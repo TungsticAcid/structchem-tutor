@@ -18,7 +18,7 @@
 | 4 | **晶体模块继续打磨** | 取景已修（`VIEW_FIT_MARGIN`，实测模型高占画布 **0.408 → 0.529**，顺带修了竖屏会被左右切掉的隐患）。仍有：径向/角度/截面三张图表未接入（原"首页卡片缩略图未验证"一项已随 2026-10-17 首页重构改为**实时演算画布**，不再有缩略图） | `modules/crystal/`、`apps/web/` |
 | 5 | ~~知识库注册~~ | ✅ 已完成（2026-10-01）：三模块 **126 条**全部注册 | `apps/web/src/main.js` |
 | 6 | ~~智能体兼容收尾~~ | ✅ 已完成（2026-10-01）：`assertHostProvides` 落地 · 存储命名空间必须注入 · 转发层退役 · descriptor 与实现双向对账 | 重构计划 F |
-| 7 | **退役 `projects/orbit/`** | ⏳ **代码侧已完全解耦**（`test-core.mjs`、`check-shared-data.mjs` 都已改指活上游，全仓**再无任何代码**读它）。**但仍不能 `rm -rf`**：`projects/orbit/activity/` 是 **git 忽略目录**，里面有**未入库**的方案/清单/题解 .doc 与 **`apikey/`** —— 未入库 = 不在 git 历史里，删了就永久没了。要删先搬走 `activity/`，或只删 `projects/orbit/H5/` | 重构计划 P0 |
+| 7 | ~~退役 `projects/`~~ | ✅ **已完成（2026-10-23）**：运行时依赖已迁到 `packages/crystal-view/`，symmetry 对拍数据已迁到 `packages/knowledge/tools/fixtures/symmetry/`；整个 `projects/` 已从版本库移除并加入 `.gitignore`，本地文件保留。`projects/orbit/activity/` 仍未入库，**不要误删本地**。 | — |
 | 8 | **symmetry 没有错因库** | 40 条的 `misconceptions` 只能写成**纯讲解式**（无 `[E-xx]` 前缀）。要出题、要错因诊断，就得先建 symmetry 的 `error-causes` 库 | `modules/symmetry/` |
 | 9 | **已知视觉不一致（低优先）** | `.layer-control` 已从**私有字面量**改为 `--chrome-*`（实测令牌生效：`--chrome-card` #151c33 → 计算值 rgb(21,28,51)，且容器显式声明了 `color`），两处重复也收敛成一份常量。上游 `pages/*.js` 里仍有约 60 处硬编码颜色 | theme-bridge.css 注释 |
 | 10 | **共享核与活上游的 15 处已知分叉** | 把对拍从**死副本**改指活上游后暴露的（此前一直绿，因为比的是陈旧小副本）。已用**双向棘轮**钉在 `KNOWN_UPSTREAM_DIVERGENCES`。三类：① 我们的快照**刻意拍平**（`diffStates` 只比顶层）；② 活上游自己演进（去 `mode.color`、加 `mode.target`/`charts.term`、`realOrbitalName`→`realOrbitalLabel`）；③ **我们的分镜引擎不校验词汇表**——动作不在词汇表里时活上游入队即弃、我们仍接受，**这条是我们该改的** | `packages/agent-core/tools/test-core.mjs` |

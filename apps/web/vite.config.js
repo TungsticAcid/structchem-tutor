@@ -5,7 +5,7 @@
  *
  *   1. `server.fs.allow` 指到仓库根。Vite 默认只允许访问 workspace root 下的文件，
  *      而我们要 import ../../packages（共享核）、../../modules（模块实现）、
- *      ../../projects/crystal/H5/src（crystal 的视图与数据）。不放开会在 dev server
+ *      ../../packages/crystal-view（crystal 的视图与数据）。不放开会在 dev server
  *      报 403（构建时不受此限）。
  *
  *   2. 别名把三个来源区分清楚。不做别名也能跑（相对路径很长），但别名让
@@ -45,7 +45,7 @@ export default defineConfig({
       // 模块实现
       '@modules': fileURLToPath(new URL('../../modules', import.meta.url)),
       // 过渡期：被复用的原项目代码（B4/B6 后逐步收进 modules/）
-      '@crystal': fileURLToPath(new URL('../../projects/crystal/H5/src', import.meta.url)),
+      '@crystal': fileURLToPath(new URL('../../packages/crystal-view', import.meta.url)),
     },
   },
   build: {

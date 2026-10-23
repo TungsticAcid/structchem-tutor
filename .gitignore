@@ -64,3 +64,9 @@ docs/运维管理制度.md
 # ★ 历史提交里的 docs/ 不会因忽略而消失；如曾包含敏感信息，需另行清理历史。
 docs/
 
+# projects/ 整体不推送（2026-10-23 用户要求）：原三个独立项目代码只作本地参考，
+# 不再进入版本库。晶体模块需要的视图与数据已迁到 packages/crystal-view/，
+# symmetry 对拍数据已迁到 packages/knowledge/tools/fixtures/symmetry/。
+# ★ 只从版本库移除（git rm --cached），磁盘文件不删。
+projects/
+

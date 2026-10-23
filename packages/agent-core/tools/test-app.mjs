@@ -37,7 +37,7 @@ function section(t) { console.log(`\n【${t}】`) }
 // ---- 晶体数据（真实数据，不是造的）----
 const DATA = {}
 for (const id of ['fcc', 'naCl', 'diamond', 'csCl']) {
-  const m = await import(`../../../projects/crystal/H5/src/data/crystals/${id}.js`)
+  const m = await import(`../../../packages/crystal-view/data/crystals/${id}.js`)
   DATA[id] = m.default
 }
 const CATALOG = Object.values(DATA).map((d) => ({

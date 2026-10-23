@@ -26,8 +26,8 @@ import { i18n } from '../../packages/i18n/index.js'
 import {
   getVisualColor, setVisualColor, resetVisualColors,
   getElementColor, setElementColor, resetElementColors, getElementColorOverrides,
-} from '../../projects/crystal/H5/src/data/settings.js'
-import elementsData from '../../projects/crystal/H5/src/data/elements.js'
+} from '../../packages/crystal-view/data/settings.js'
+import elementsData from '../../packages/crystal-view/data/elements.js'
 import { PERIODIC_POS, PERIODIC_COLS, PERIODIC_ROWS, PERIODIC_GAP_ROW, PERIODIC_ROW_LABELS } from './periodic-layout.js'
 
 /**

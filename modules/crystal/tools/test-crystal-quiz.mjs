@@ -17,7 +17,7 @@
 import { createQuizEngine } from '../quiz/index.js'
 import { createTeachTools } from '../teach-tools.js'
 import { CATALOG } from '../catalog.js'
-import { getCrystalData } from '../../../projects/crystal/H5/src/lib/crystal-loader.js'
+import { getCrystalData } from '../../../packages/crystal-view/lib/crystal-loader.js'
 import { parseFormula } from '../../../packages/knowledge/shared/formula.js'
 import * as crystalTools from '../tools.js'
 

@@ -86,8 +86,8 @@ function compareElements(copy, label) {
 }
 
 const COPIES = [
-  { label: 'crystal', path: 'projects/crystal/H5/src/data/elements.js', pick: (m) => m.default || m.elementsData },
-  { label: 'symmetry', path: 'projects/symmetry/H5/src/data/elements.js', pick: (m) => m.ELEMENTS },
+  { label: 'crystal', path: 'packages/crystal-view/data/elements.js', pick: (m) => m.default || m.elementsData },
+  { label: 'symmetry', path: 'packages/knowledge/tools/fixtures/symmetry/elements.js', pick: (m) => m.ELEMENTS },
 ]
 
 for (const c of COPIES) {
@@ -110,7 +110,7 @@ for (const c of COPIES) {
 
 // 辅助函数与 symmetry 原实现行为一致（真源沿用了它们的实现）
 {
-  const sym = await importAbs(repo('projects/symmetry/H5/src/data/elements.js'))
+  const sym = await importAbs(repo('packages/knowledge/tools/fixtures/symmetry/elements.js'))
   const syms = Object.keys(SOURCE)
   let mismatch = 0
   for (const s of syms) {
@@ -131,7 +131,7 @@ for (const c of COPIES) {
 // ============================================================================
 console.log('\n【晶体数据】')
 {
-  const dir = repo('projects/crystal/H5/src/data/crystals')
+  const dir = repo('packages/crystal-view/data/crystals')
   const files = readdirSync(dir).filter((f) => f.endsWith('.js'))
   ok(files.length === 23, `唯一 JS 源含 ${files.length} 个晶体（应为 23）`)
 
@@ -291,13 +291,13 @@ console.log('\n【symmetry 知识资产】')
   ok(S.listGroups().length === 44 && S.listGroups()[0] <= S.listGroups()[43], 'listGroups 有序返回全部群号')
 
   // 与 symmetry/H5 的副本逐群逐表示比对（数据必须一致；头部注释差异不算）
-  const copy = await importAbs(repo('projects/symmetry/H5/src/symmetry/characterTables.js'))
+  const copy = await importAbs(repo('packages/knowledge/tools/fixtures/symmetry/characterTables.js'))
   const a = JSON.stringify(S.CHARACTER_TABLES)
   const b = JSON.stringify(copy.CHARACTER_TABLES)
   ok(a === b, '特征标表与 symmetry/H5 副本逐群逐表示一致',
     a === b ? '' : `真源 ${Object.keys(S.CHARACTER_TABLES).length} 群 / 副本 ${Object.keys(copy.CHARACTER_TABLES).length} 群`)
 
-  const copyG = await importAbs(repo('projects/symmetry/H5/src/symmetry/groupTable.js'))
+  const copyG = await importAbs(repo('packages/knowledge/tools/fixtures/symmetry/groupTable.js'))
   ok(JSON.stringify(S.POINT_GROUP_NAMES) === JSON.stringify(copyG.POINT_GROUP_NAMES),
     '点群名称表与副本一致')
   ok(JSON.stringify(S.POINT_GROUP_SYSTEM) === JSON.stringify(copyG.POINT_GROUP_SYSTEM),

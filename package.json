@@ -10,7 +10,7 @@
     "test:core": "node packages/agent-core/tools/selftest.mjs && node packages/agent-core/tools/test-core.mjs && node packages/agent-core/tools/test-context-budget.mjs && node packages/agent-core/tools/test-demo-favorites.mjs && node packages/agent-core/tools/test-app.mjs",
     "test:ui": "node packages/ui-kit/tools/test-ui-kit.mjs",
     "test:viewer": "node packages/viewer/tools/test-viewer.mjs",
-    "test:data": "node projects/crystal/tools/check-crystal-data.mjs",
+    "test:data": "node packages/crystal-view/tools/check-crystal-data.mjs",
     "test:shared": "node packages/knowledge/tools/check-shared-data.mjs && node packages/knowledge/tools/check-i18n-orphans.mjs && node packages/knowledge/tools/test-knowledge.mjs",
     "test:modules": "node modules/crystal/tools/test-crystal-module.mjs && node modules/crystal/tools/test-crystal-tools.mjs && node modules/crystal/tools/test-crystal-quiz.mjs",
     "test:symmetry": "node modules/symmetry/tools/test-symmetry-engine.mjs && node modules/symmetry/tools/test-symmetry-module.mjs && node modules/symmetry/tools/test-symmetry-quiz.mjs",

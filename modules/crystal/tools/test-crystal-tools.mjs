@@ -22,7 +22,7 @@ function section(t) { console.log(`\n【${t}】`) }
 // ---- 真实晶体数据（23 个中的 4 个，覆盖 1/2/3 元素与两种点阵）----
 const DATA = {}
 for (const id of ['fcc', 'naCl', 'diamond', 'csCl', 'perovskite', 'ice']) {
-  const m = await import(`../../../projects/crystal/H5/src/data/crystals/${id}.js`)
+  const m = await import(`../../../packages/crystal-view/data/crystals/${id}.js`)
   DATA[id] = m.default
 }
 const CATALOG = Object.values(DATA).map((d) => ({

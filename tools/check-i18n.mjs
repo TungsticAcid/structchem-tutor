@@ -256,7 +256,7 @@ const AREAS = [
   //   共用一本字典会让两边必须轮流写同一个文件（并行时就是冲突）。
   //   分开之后写范围不相交，谁也挡不住谁。
   { id: 'crystal-h5', label: '晶体上游复用代码', dict: 'modules/crystal/i18n-h5.js',
-    roots: ['projects/crystal/H5/src'], skip: [] },
+    roots: ['packages/crystal-view'], skip: [/\/tools\//] },
   { id: 'symmetry', label: '对称模块', dict: 'modules/symmetry/i18n/index.js',
     roots: ['modules/symmetry'], skip: [/\/i18n\//, /\/tools\//] },
   { id: 'pages', label: '模块页面（宿主侧）', dict: 'apps/web/src/i18n/pages.js',

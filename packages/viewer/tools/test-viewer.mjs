@@ -36,10 +36,10 @@ function section(t) { console.log(`\n【${t}】`) }
 section('geometry：与 crystal 原实现等价 + 一处不可达分支已修')
 // ============================================================================
 {
-  const crystalGeo = await import(pathToFileURL(repo('projects/crystal/H5/src/lib/geometry-utils.js')).href)
+  const crystalGeo = await import(pathToFileURL(repo('packages/crystal-view/lib/geometry-utils.js')).href)
 
   // 用 23 个真实晶体的晶胞参数逐一代入比对
-  const dir = repo('projects/crystal/H5/src/data/crystals')
+  const dir = repo('packages/crystal-view/data/crystals')
   const files = (await import('fs')).readdirSync(dir).filter((f) => f.endsWith('.js'))
   let lattices = 0
   let maxDiff = 0

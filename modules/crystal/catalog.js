@@ -11,7 +11,7 @@
  *   这些字段存在（`category` 用于分类筛选、`systemName` 用于界面文案），
  *   缺字段会让筛选项静默消失，所以在这里一次性补齐。
  */
-import crystalIndex from '../../projects/crystal/H5/src/data/crystalIndex.js'
+import crystalIndex from '../../packages/crystal-view/data/crystalIndex.js'
 
 /**
  * 把晶体索引映射成模块需要的目录形状。

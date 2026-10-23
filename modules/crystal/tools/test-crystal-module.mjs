@@ -21,7 +21,7 @@ import { assertModuleContract } from '../../../packages/module-contract/index.js
 //   真正的判据是**门户上只有一个名字** —— 也就是 descriptor 与实现一致。
 import crystalDescriptor from '../../../packages/agent-core/registry/descriptors/crystal.js'
 // ★ 逐元素配色的周期表布局：位置表与元素表是两份数据，必须在本测试里对账
-import elementsData from '../../../projects/crystal/H5/src/data/elements.js'
+import elementsData from '../../../packages/crystal-view/data/elements.js'
 import { PERIODIC_POS, PERIODIC_COLS, PERIODIC_ROWS, PERIODIC_GAP_ROW } from '../periodic-layout.js'
 import { elementColorItems } from '../settings-visual.js'
 
@@ -345,7 +345,7 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
 //   ★ 每个图层自己的语义色（--toggle-color）**不在**此列：那是数据语义，不该随主题漂。
 // ============================================================================
 {
-  const lcSrc = readFileSync(new URL('../../../projects/crystal/H5/src/components/layer-control.js', import.meta.url), 'utf8')
+  const lcSrc = readFileSync(new URL('../../../packages/crystal-view/components/layer-control.js', import.meta.url), 'utf8')
   const bare = []
   for (const line of lcSrc.split('\n')) {
     const t = line.trim()
@@ -366,7 +366,7 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
   //   打开深度测试后还必须把标签从**原子中心**朝相机挪出自己那颗球，
   //   否则一开深度测试标签会被自己吃掉 ✗（两件事必须同时成立）。
   // ─────────────────────────────────────────────────────────────────────────
-  const sbSrc = readFileSync(new URL('../../../projects/crystal/H5/src/lib/scene-builder.js', import.meta.url), 'utf8')
+  const sbSrc = readFileSync(new URL('../../../packages/crystal-view/lib/scene-builder.js', import.meta.url), 'utf8')
   // ★ 剥注释再判：我在注释里引用了**旧写法** `depthTest: false` 做说明，
   //   不剥的话棘轮会扫到注释里的它并报红（本仓库第三次踩这个坑，前两次是
   //   tokens.css 的 prefers-color-scheme 与 viewer-canvas 的旧复位写法）。
@@ -414,7 +414,7 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
 //   （少了后半句，对比页的联动同步就断了；少了前半句，双击就没作用）。
 // ============================================================================
 {
-  const vcSrc = readFileSync(new URL('../../../projects/crystal/H5/src/components/viewer-canvas.js', import.meta.url), 'utf8')
+  const vcSrc = readFileSync(new URL('../../../packages/crystal-view/components/viewer-canvas.js', import.meta.url), 'utf8')
   check('画布绑定了 dblclick', /addEventListener\('dblclick'/.test(vcSrc))
   const dbl = (vcSrc.match(/this\._onDblClick = \(e\) => \{[\s\S]{0,400}?\n    \}/) || [''])[0]
   check('双击里既复位又派发 resetview（宿主靠它做联动同步）',
@@ -431,7 +431,7 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
 //   ★ 判据：要"避开某块 UI"就让**画布**避开它；不要在相机上加与 UI 尺寸无关的魔数。
 // ============================================================================
 {
-  const vcSrc = readFileSync(new URL('../../../projects/crystal/H5/src/components/viewer-canvas.js', import.meta.url), 'utf8')
+  const vcSrc = readFileSync(new URL('../../../packages/crystal-view/components/viewer-canvas.js', import.meta.url), 'utf8')
   check('默认垂直偏移因子为 0（结构居中于剩余可见区）', /const DEFAULT_PAN_Y_FACTOR = 0\b/.test(vcSrc))
   check('默认平移偏移确实按该因子算（改因子也生效）', /_getDefaultPanOffset\(radius\)[\s\S]{0,120}?DEFAULT_PAN_Y_FACTOR/.test(vcSrc))
 }
@@ -448,7 +448,7 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
 //   ③ frustum 走共用式子 _applyFrustumFor（旧的两处 `× 1.2` 一个字面量都不许留）。
 // ============================================================================
 {
-  const vcSrc = readFileSync(new URL('../../../projects/crystal/H5/src/components/viewer-canvas.js', import.meta.url), 'utf8')
+  const vcSrc = readFileSync(new URL('../../../packages/crystal-view/components/viewer-canvas.js', import.meta.url), 'utf8')
   // ★ 剥注释再判：第一版没剥，而我在注释里引用了那段**旧写法**做说明，
   //   棘轮当场扫到注释里的它并报红（与 tokens.css 的 prefers-color-scheme 那次同一个坑）。
   const vcCode = vcSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/^\s*\*.*$/gm, '')
@@ -470,7 +470,7 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
 //   守卫钉两条：① 复位在检测**之前**；② 检测包在 try/catch 里（坏回调不许卡死交互）。
 // ============================================================================
 {
-  const vcSrc2 = readFileSync(new URL('../../../projects/crystal/H5/src/components/viewer-canvas.js', import.meta.url), 'utf8')
+  const vcSrc2 = readFileSync(new URL('../../../packages/crystal-view/components/viewer-canvas.js', import.meta.url), 'utf8')
   const up = (vcSrc2.match(/_onMouseUp\(e\) \{[\s\S]*?\n  \}/) || [''])[0]
   const iReset = up.indexOf('ms.isDown = false')
   const iHit = up.indexOf('_hitTest(')
