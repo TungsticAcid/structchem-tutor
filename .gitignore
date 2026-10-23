@@ -70,3 +70,7 @@ docs/
 # ★ 只从版本库移除（git rm --cached），磁盘文件不删。
 projects/
 
+# _unused/ 是整合后的本地杂物区：原 projects / docs / activity / 临时缓存等
+# 全部集中在这里，不进入版本库（2026-10-23 用户要求）。
+_unused/
+

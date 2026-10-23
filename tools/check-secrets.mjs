@@ -107,7 +107,8 @@ function walk(dir, out, depth = 0) {
   let names = []
   try { names = readdirSync(dir) } catch { return out }
   for (const n of names) {
-    if (n === 'node_modules' || n === '.git' || n === 'dist' || n === '.venv') continue
+    if (n === 'node_modules' || n === '.git' || n === 'dist' || n === '.venv'
+      || n === '_unused' || n === 'tmp') continue
     const p = resolve(dir, n)
     let st = null
     try { st = statSync(p) } catch { continue }
