@@ -3,8 +3,7 @@
 结构化学教学智能体 —— **一个中枢 + N 个可插拔教学工具**。
 
 > 本仓库由 `crystal`、`orbit`、`symmetry` 三个独立项目于 2026-09-24 合并而来。
-> 当前三个模块都已接入统一前端；路线图见 [docs/重构计划.md](docs/重构计划.md)，
-> 给 Agent 的仓库约定与当前待办见 [CLAUDE.md](CLAUDE.md)。
+> 当前三个模块都已接入统一前端。
 
 仓库：<https://github.com/TungsticAcid/structchem-tutor>
 
@@ -50,12 +49,13 @@ chem-agent/
 │   └── symmetry/               core · data · engine · render · store · tools · ui · i18n
 ├── projects/                   三个原项目代码（过渡期；crystal 的部分视图仍被 apps/web 复用）
 ├── tools/                      仓库级脚本：构建 · 截图 · i18n · 验收
-├── docs/                       重构计划、部署与运维文档
-└── CLAUDE.md                   Agent 协作约定：当前待办、判据、历次复查记录
+└── LICENSE
 ```
 
 > `projects/` 是合并初期的原样代码，不是新增功能的入口；活的模块实现、门面与工具都在
-> `modules/`。两处关系的收尾计划见 [docs/重构计划.md](docs/重构计划.md)。
+> `modules/`。
+>
+> 仓库只发布程序与用户可见内容；设计、备案与运维资料只保留在维护者本地，不随仓库发布。
 
 ---
 
@@ -70,8 +70,7 @@ chem-agent/
 必须提供 `getSnapshot`、`applyActions` 等门面能力；能力缺失时**如实降级**，而不是假装可用。
 模块只声明"我能做什么"，**不决定"谁有权限调用我"**。
 
-新增模块的落点与接入清单见 `packages/module-contract/index.js` 与
-[docs/重构计划.md](docs/重构计划.md)，不要在 README 里另抄一份。
+新增模块的落点与接入清单见 `packages/module-contract/index.js`，不要在 README 里另抄一份。
 
 ### 2. 决策节点（Decision Node）
 
@@ -164,24 +163,15 @@ shared:S1-2      总知识库
 
 ---
 
-## 文档地图
+## 内容与契约
 
-| 文档 | 内容 |
+| 位置 | 内容 |
 |---|---|
-| [docs/重构计划.md](docs/重构计划.md) | 阶段、目标结构、验收标准与当前进度 |
-| [CLAUDE.md](CLAUDE.md) | 给 Agent 的协作约定：当前待办、硬护栏、判据与历次复查 |
-| [packages/knowledge/\<module\>/README.md](packages/knowledge) | 各知识库的骨架、素材来源与写作要求 |
+| `packages/knowledge/<module>/README.md` | 各知识库的骨架、素材来源与写作要求 |
 | `packages/module-contract/index.js` | 模块必须提供的能力契约（可执行，不只是文档） |
-| [docs/部署-龙蜥.md](docs/部署-龙蜥.md) | 静态站点部署说明 |
+| `packages/skills/` | 通用教学技能与各模块专属技能 |
 
-以下四份**在仓库之外**（`D:\xjl\program\crystal\activity\`），属于参赛/设计材料，不进版本控制：
-
-| 文档 | 内容 |
-|---|---|
-| 智能体知识资产设计 | 三层知识资产架构、节点约束设计、知识库蒸馏流程 |
-| AI 智能体建设方案 | 晶体模块的完整建设方案 |
-| 出题引擎技术设计 | 题型模板、干扰项生成、错因体系 |
-| 数据核查报告 | 23 种晶体数据的审计与格式化记录 |
+> 设计、备案与运维资料在维护者本地保存，不随仓库发布，因此 README 不引用它们。
 
 ---
 
@@ -207,9 +197,6 @@ shared:S1-2      总知识库
 | 内容资产 | ✅ 三模块知识条目与技能已入库 |
 | 测试 | ✅ `npm test` 全绿（单项与断言数以命令输出为准） |
 | 构建/部署 | ✅ `node tools/build-web.mjs` 产出静态 `apps/web/dist` |
-
-> **未完成事项与已知缺口不在 README 维护**：以 [CLAUDE.md](CLAUDE.md) 的「当前待办」和
-> [docs/重构计划.md](docs/重构计划.md) 为准，避免同一条事实在两处各写一遍。
 
 ---
 
