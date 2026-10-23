@@ -962,6 +962,16 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /\.pt-set-label \{[^}]*font-size: 22px/.test(flat)
     && /\.pt-seg-btn \{[^}]*font-size: 23px/.test(flat),
     '★ 卡片页脚 / 底部控制条字体已放大；「界面风格」与「界面语言」同为 22px 同字体')
+  ok(/\.pt-desc \{[^}]*display: none/.test(flat)
+    && /\.pt-mod-kicker \{[^}]*display: none/.test(flat),
+    '★ 描述段与 MODULES 标记全局隐藏（消除短屏/长屏设备差异）')
+  // ★ 用户 2026-10-23：标题在部分设备不可见 —— 不能无条件 color:transparent。
+  //   默认给实心模块色；只有同时支持 text clip 与 color-mix 才启用渐变（@supports 门控）。
+  ok(home.includes('@supports (((-webkit-background-clip: text) or (background-clip: text)) and (color: color-mix(in srgb, red, blue)))')
+    && /\.pt-card-name \{[^}]*color: var\(--pt-card-accent\)/.test(flat)
+    && /\.pt-card-name \{[^}]*background-image: none/.test(flat)
+    && /@supports[\s\S]{0,1600}?color: transparent/.test(home),
+    '★ 卡片标题有实心色 fallback，渐变仅在支持 background-clip:text + color-mix 时启用')
   // ★ 2026-10-21：三张卡片标题要有「有特色、非常好看」的流动特效（但仍有学术感）。
   ok(/\.pt-card-name \{[^}]*background-clip: text/.test(flat)
     && /\.pt-card-name \{[^}]*animation: pt-title-flow 7\.2s linear infinite/.test(flat)

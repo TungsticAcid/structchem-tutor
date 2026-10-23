@@ -614,6 +614,21 @@ i18n 中英文新名；`test-shell` **183 项**全过；`check-i18n` 全绿；bu
 - 守卫 +1（`_drawOrbit` 用 `pal.orbRed` 且不再出现 `p.phase > 0`）；`test-shell` **191 项**全过；
   check-i18n / build-web 通过。
 
+**第三十七次复查（2026-10-23）**：用户「图 1 两处有的设备看得到、有的看不到，统一为看不到；
+图 2 三个卡片标题有的设备看得到、有的看不到，统一为看得到」。
+
+- **图 1 的描述段 / `[ MODULES 01 — 03 · TEACHING ORDER ]`**：
+  差异来自媒体查询 —— 短屏（`max-height:820`）把 `.pt-desc`、`.pt-mod-kicker` 设成
+  `display:none`，长屏则显示。改成**基础规则直接 `display:none`**，不再依赖视口高度/语言，
+  所有设备都看不到；「教学模块」标题本身保留。
+- **图 2 的卡片标题**：真因是标题默认 `color:transparent` + `background-clip:text` +
+  `color-mix()`。老内核缺任一能力时渐变不成立、字就透明；新内核正常，所以设备间不一致。
+  改：`.pt-card-name` 默认先给**实心模块色**（`color:var(--pt-card-accent)`、`background:none`）；
+  只有 `@supports` 同时满足 **text clip** 和 **color-mix** 时才启用渐变、透明字、glow 与动画。
+  这样任何设备至少能看到标题，现代设备仍保留流动渐变。
+- 守卫 +2：全局隐藏两处文字；标题 fallback + `@supports` 门控；
+  `test-shell` **193 项**、`test-home-visuals` **91 项**全过；check-i18n / build-web 通过。
+
 ### 已完成（2026-10-12 第二十轮：主动提示要看**能力**，不能只看"停留久" + 同一条不重复）
 
 用户报："CaF₂ 没空隙图层，不用在看 CaF₂ 时提醒"（截图里那条提示还出现了**两遍** ✗）。

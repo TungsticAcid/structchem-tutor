@@ -1847,6 +1847,9 @@ const STYLE = `
   animation: pt-rise .7s .2s cubic-bezier(.2, .7, .2, 1) both;
 }
 .pt-desc {
+  /* ★ 2026-10-23 用户：描述段有的设备能看到、有的看不到（短屏媒体查询里被 display:none）。
+     统一为看不到 —— 全局隐藏，不再依赖视口高度/语言。 */
+  display: none;
   margin: 10px 0 0;
   max-width: 42em;
   font-size: 13px;
@@ -2110,6 +2113,9 @@ const STYLE = `
   animation: pt-rise .7s .3s cubic-bezier(.2, .7, .2, 1) both;
 }
 .pt-mod-kicker {
+  /* ★ 2026-10-23 用户：「MODULES …」这行在短屏设备被媒体查询隐藏，长屏却显示。
+     统一为看不到；「教学模块」标题本身保留。 */
+  display: none;
   font-family: var(--pt-mono);
   font-size: 9.5px;
   letter-spacing: .28em;
@@ -2302,11 +2308,15 @@ const STYLE = `
 .pt-card-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 /**
  * 卡片标题特效（用户 2026-10-21：「特效不够突出，要有特色、非常好看」）：
- *  · 三色**流动渐变**沿字形内部走：模块本色 × 第二主色（orbit cyan→violet /
- *    symmetry violet→cyan / crystal emerald→cyan）× 高光色，260% 宽、7.2s 周期；
+ *  · 三色**流动渐变**沿字形内部走：模块本色 × 第二主色（orbit 红→青 /
+ *    symmetry 紫→青 / crystal 翠绿→青）× 高光色，200% 宽、7.2s 周期；
  *  · 字面外加一层很淡的模块色 glow（drop-shadow），让标题从卡片底色上"浮"起来；
  *  · 标题下一条 **2px 发光细线**，同样有一条高光在 4.6s 内流过；hover 时更亮。
- * 仍然不用粒子、不用多色噪声；颜色只有模块两色 + 一个高光。
+ *
+ * ★ 2026-10-23 用户：有的设备看得到标题、有的看不到。真因是 color:transparent
+ *   依赖 background-clip:text + color-mix()；老内核缺任一能力时，渐变不成立、
+ *   字就透明了。现在**默认先给纯色**，只有同时支持 text clip 与 color-mix 才启用
+ *   渐变/透明字（@supports 门控），任何设备都至少能看到标题。
  */
 .pt-card-name {
   position: relative;
@@ -2316,33 +2326,43 @@ const STYLE = `
   font-weight: 700;
   letter-spacing: .08em;
   line-height: 1.2;
-  --pt-title-base: color-mix(in srgb, var(--pt-card-accent) 78%, var(--pt-ink));
-  --pt-title-deep: color-mix(in srgb, var(--pt-card-accent) 42%, var(--pt-ink));
-  --pt-title-hi: color-mix(in srgb, var(--pt-card-accent) 28%, white);
-  background-image: linear-gradient(105deg,
-    var(--pt-title-deep) 0%,
-    var(--pt-card-accent) 18%,
-    var(--pt-title-2) 42%,
-    var(--pt-title-hi) 52%,
-    var(--pt-title-2) 62%,
-    var(--pt-card-accent) 86%,
-    var(--pt-title-deep) 100%);
-  /* ★ background-size 必须和 keyframes 的位移对齐，循环才无缝：
-     200% 宽时，background-position 从 0%→200% 正好平移**一整张渐变图**，
-     终点与起点图案完全重合（实测 150% 时终点差 2/3 张图，每 7.2s 会跳一下）。 */
-  background-size: 200% 100%;
-  background-position: 0% 50%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 0 9px color-mix(in srgb, var(--pt-card-accent) 26%, transparent));
-  animation: pt-title-flow 7.2s linear infinite;
+  /* fallback：不支持渐变裁剪时用模块主色实心显示 */
+  --pt-title-base: var(--pt-card-accent);
+  --pt-title-deep: var(--pt-card-accent);
+  --pt-title-hi: var(--pt-card-accent);
+  color: var(--pt-card-accent);
+  background-image: none;
 }
-[data-theme="light"] .pt-card-name {
-  --pt-title-base: color-mix(in srgb, var(--pt-card-accent) 55%, var(--pt-ink));
-  --pt-title-deep: color-mix(in srgb, var(--pt-card-accent) 24%, var(--pt-ink));
-  --pt-title-hi: color-mix(in srgb, var(--pt-card-accent) 45%, white);
-  filter: none;
+@supports (((-webkit-background-clip: text) or (background-clip: text)) and (color: color-mix(in srgb, red, blue))) {
+  .pt-card-name {
+    --pt-title-base: color-mix(in srgb, var(--pt-card-accent) 78%, var(--pt-ink));
+    --pt-title-deep: color-mix(in srgb, var(--pt-card-accent) 42%, var(--pt-ink));
+    --pt-title-hi: color-mix(in srgb, var(--pt-card-accent) 28%, white);
+    background-image: linear-gradient(105deg,
+      var(--pt-title-deep) 0%,
+      var(--pt-card-accent) 18%,
+      var(--pt-title-2) 42%,
+      var(--pt-title-hi) 52%,
+      var(--pt-title-2) 62%,
+      var(--pt-card-accent) 86%,
+      var(--pt-title-deep) 100%);
+    /* ★ background-size 必须和 keyframes 的位移对齐，循环才无缝：
+       200% 宽时，background-position 从 0%→200% 正好平移**一整张渐变图**，
+       终点与起点图案完全重合（实测 150% 时终点差 2/3 张图，每 7.2s 会跳一下）。 */
+    background-size: 200% 100%;
+    background-position: 0% 50%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 0 9px color-mix(in srgb, var(--pt-card-accent) 26%, transparent));
+    animation: pt-title-flow 7.2s linear infinite;
+  }
+  [data-theme="light"] .pt-card-name {
+    --pt-title-base: color-mix(in srgb, var(--pt-card-accent) 55%, var(--pt-ink));
+    --pt-title-deep: color-mix(in srgb, var(--pt-card-accent) 24%, var(--pt-ink));
+    --pt-title-hi: color-mix(in srgb, var(--pt-card-accent) 45%, white);
+    filter: none;
+  }
 }
 .pt-card-name::after {
   content: '';
