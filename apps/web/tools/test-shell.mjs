@@ -957,11 +957,11 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     '窄屏隐藏点缀层（页边距不足时会压正文）')
   // ★ 2026-10-19 用户复查：底部控制条与卡片页脚的字号按截图要求"大一倍"（原值 ×2）。
   ok(/\.pt-card-tag \{[^}]*font-size: 22px/.test(flat)
-    && /\.pt-console-title \{[^}]*font-size: 22px/.test(flat)
+    && /\.pt-console-title \{[^}]*font-size: 20px/.test(flat)
     && /\.pt-console-title \{[^}]*font-family: inherit/.test(flat)
-    && /\.pt-set-label \{[^}]*font-size: 22px/.test(flat)
-    && /\.pt-seg-btn \{[^}]*font-size: 23px/.test(flat),
-    '★ 卡片页脚 / 底部控制条字体已放大；「界面风格」与「界面语言」同为 22px 同字体')
+    && /\.pt-set-label \{[^}]*font-size: 20px/.test(flat)
+    && /\.pt-seg-btn \{[^}]*font-size: 21px/.test(flat),
+    '控制条字体比卡片描述（22px）小一号（标题/标签 20px、按钮 21px）')
   ok(/\.pt-desc \{[^}]*display: none/.test(flat)
     && /\.pt-mod-kicker \{[^}]*display: none/.test(flat),
     '★ 描述段与 MODULES 标记全局隐藏（消除短屏/长屏设备差异）')

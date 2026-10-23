@@ -2455,14 +2455,15 @@ const STYLE = `
   border-top: 1px solid var(--pt-line);
 }
 .pt-console-title {
-  /* 用户 2026-10-21：「界面设定」改为「界面风格」，字体与「界面语言」保持一致 */
+  /* 用户 2026-10-21：「界面设定」改为「界面风格」，字体与「界面语言」保持一致；
+     2026-10-23：用户要求控制条字体比卡片描述（22px）小一号，改为 20px。 */
   font-family: inherit;
-  font-size: 22px;
+  font-size: 20px;
   letter-spacing: .08em;
   color: var(--pt-dim);
 }
 .pt-set { display: inline-flex; align-items: center; gap: 12px; }
-.pt-set-label { font-size: 22px; letter-spacing: .08em; color: var(--pt-dim); }
+.pt-set-label { font-size: 20px; letter-spacing: .08em; color: var(--pt-dim); }
 .pt-seg {
   display: inline-flex;
   border: 1px solid var(--pt-line);
@@ -2477,7 +2478,7 @@ const STYLE = `
   background: transparent;
   padding: 9px 18px;
   font-family: inherit;
-  font-size: 23px;
+  font-size: 21px;
   letter-spacing: .05em;
   color: var(--pt-dim);
   cursor: pointer;
