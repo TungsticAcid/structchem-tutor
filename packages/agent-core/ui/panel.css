@@ -915,7 +915,10 @@ body.agent-resizing .compare-page {
      顶部拖拽条可调整高度；晶体视图在上方剩余空间（见 body.agent-open .viewer-page） */
   .agent-drawer {
     width: 100vw;
+    /* 刘海屏/手势条：高度加上安全区，并给内容留出底部内边距，避免输入框被挡 */
     height: var(--agent-h, 55vh);
+    height: calc(var(--agent-h, 55vh) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
     top: auto; bottom: 0;
     left: 0; right: auto;
     border-left: none;
@@ -930,7 +933,11 @@ body.agent-resizing .compare-page {
     width: auto; height: 10px;
     cursor: ns-resize;
   }
-  .agent-fab { width: 46px; height: 46px; right: 12px; bottom: 12px; }
+  .agent-fab {
+    width: 46px; height: 46px;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
   .agent-fab-icon { font-size: 21px; }
 }
 

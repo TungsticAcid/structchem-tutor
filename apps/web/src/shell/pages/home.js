@@ -593,7 +593,18 @@ export class HomePage {
     portal.classList.remove('is-intro')
     portal.classList.add('is-explored')
     try { document.body.classList.remove('home-intro') } catch (e) { /* 非浏览器环境 */ }
-    if (this._reduced) return
+    if (this._reduced) {
+      // ★ 首幕里视觉区是 display:none（画布尺寸为 0），reduced-motion 下没有 rAF 循环，
+      //   切到第二幕时不会自动重画 → 主视觉只剩外圈。这里补一次尺寸同步 + 静态帧。
+      setTimeout(() => {
+        // 首幕 display:none 时 IntersectionObserver 会把画布标成不可见；这里强制画一帧，
+        // 否则 reduced-motion 下主视觉只剩外圈（没有 rAF 循环来等 observer 回调）。
+        this._canvas.forEach((e) => { e.visible = true })
+        this._resizeAll()
+        this._drawAll(0.8)
+      }, 30)
+      return
+    }
     portal.classList.add('is-morphing')
     const last = parts.map((el) => el.getBoundingClientRect())
     const movers = []
@@ -1353,10 +1364,18 @@ const STYLE = `
   position: relative;
   isolation: isolate;
   min-height: 100vh;
+  min-height: 100svh;                 /* 移动浏览器地址栏收起/展开时不跳（旧浏览器退回 100vh） */
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   padding: 20px clamp(20px, 3.6vw, 56px) 18px;
+  /* 刘海屏 / 底部手势条：viewport-fit=cover 后必须自己避开安全区 */
+  padding-top: max(20px, env(safe-area-inset-top));
+  padding-right: max(clamp(20px, 3.6vw, 56px), env(safe-area-inset-right));
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
+  padding-left: max(clamp(20px, 3.6vw, 56px), env(safe-area-inset-left));
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   /* ★ 只裁装饰层的溢出，**不能**让 .portal 成为滚动容器：
      overflow: hidden 的元素算"可滚动容器"，scrollIntoView 会把滚动落在它身上而不是文档上
      —— 表现就是"点开始探索会滚，但滚不回来、也没有页面滚动条"（用户报的第 3 条）。
@@ -1723,6 +1742,7 @@ const STYLE = `
   left: 50%;
   right: auto;
   bottom: 18px;
+  bottom: max(18px, env(safe-area-inset-bottom));
   width: 100%;
   max-width: 1280px;
   transform: translateX(-50%);
@@ -2481,6 +2501,7 @@ const STYLE = `
   font-size: 21px;
   letter-spacing: .05em;
   color: var(--pt-dim);
+  white-space: nowrap;
   cursor: pointer;
   transition: background .15s ease, color .15s ease;
 }
@@ -2530,7 +2551,8 @@ const STYLE = `
 /* ---------- 首页悬浮球（作用域在 body.home-active 上） ---------- */
 body.home-active .agent-fab {
   width: 64px; height: 64px;
-  right: 22px; bottom: 22px;
+  right: max(22px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
   filter: drop-shadow(0 8px 22px rgba(26, 54, 93, .38));
   animation: pt-fab-breathe 2.6s ease-in-out infinite;
 }
@@ -2586,8 +2608,19 @@ body.home-intro .agent-fab {
   .pt-foot-bottom { justify-content: center; text-align: center; padding-right: 0; }
   .pt-console { gap: 8px 16px; }
   .pt-console-title { width: 100%; text-align: center; }
-  body.home-active .agent-fab { width: 56px; height: 56px; right: 14px; bottom: 14px; }
-  .portal { padding-bottom: 92px; }
+  body.home-active .agent-fab {
+    width: 56px; height: 56px;
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(14px, env(safe-area-inset-bottom));
+  }
+  .portal {
+    padding: 16px 18px 20px;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-right: max(18px, env(safe-area-inset-right));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    padding-left: max(18px, env(safe-area-inset-left));
+    padding-bottom: max(92px, calc(20px + env(safe-area-inset-bottom)));
+  }
 }
 /* 英文排版：英文标题更长，字距收紧、字号降一档，避免在栏内折成三行；
    同时压一压纵向留白 —— 英文的同一段话说出来总要长一截，否则一屏放不下四张卡 */
@@ -2621,6 +2654,99 @@ body.home-intro .agent-fab {
   .pt-hero-visual { max-width: min(37vh, 400px); }
   .pt-card { grid-template-rows: auto 104px auto auto; }
   .pt-mod-kicker { display: none; }
+}
+
+/* ★ 2026-10-25 移动端适配（实测 390×844 / 360×740）：
+   1) 首幕标题在 360px 宽时会被拆成三行 → 按宽度收一档；
+   2) 两个首幕按钮原本合计 388px，360/390 会折成两行 → 等宽并排、字号收一档。 */
+@media (max-width: 600px) {
+  .portal.is-intro .pt-title {
+    font-size: clamp(48px, 16.2vw, 64px);
+    line-height: 1.03;
+  }
+  .portal.is-intro .pt-actions {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+  .portal.is-intro .pt-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    padding: 18px 10px;
+    font-size: clamp(17px, 4.6vw, 24px);
+    white-space: nowrap;
+  }
+  .portal.is-intro.lang-en .pt-btn { font-size: clamp(13px, 3.5vw, 20px); }
+}
+
+/* ★ 2026-10-25 短屏（手机横屏 / 小屏手机）：
+   首幕 footer 是绝对定位贴底，若标题+按钮仍按大屏尺寸，会压在控件上（实测 844×390 重叠 37px）。
+   这里按可用高度收一档，让 hero 与 footer 之间留出空隙。 */
+@media (max-height: 700px) and (max-width: 900px) {
+  .portal.is-intro .pt-title {
+    font-size: clamp(40px, 10.8vh, 52px);
+    line-height: 1.02;
+    margin-bottom: 14px;
+  }
+  .portal.is-intro.lang-en .pt-title {
+    font-size: clamp(28px, 7.2vw, 48px);
+    line-height: 1.04;
+    margin-bottom: 14px;
+  }
+  .portal.is-intro .pt-actions { gap: 10px; }
+  .portal.is-intro .pt-btn {
+    padding: 14px 10px;
+    font-size: clamp(15px, 2.2vh, 18px);
+    border-radius: 12px;
+  }
+  .portal.is-intro.lang-en .pt-btn { font-size: clamp(13px, 2vh, 16px); }
+}
+/* 极短的小屏手机（如 320×568）：把 footer 的标题行收起，避免三行控件撑满底部 */
+@media (max-height: 620px) and (max-width: 600px) {
+  .portal.is-intro .pt-console-title { display: none; }
+  .pt-console { gap: 6px 12px; }
+}
+/* 320px 级窄屏：控制条再收一档，并禁止中文按钮在按钮内部折行 */
+@media (max-width: 380px) {
+  .pt-console-title, .pt-set-label { font-size: 18px; white-space: nowrap; }
+  .pt-seg-btn { font-size: 18px; padding: 8px 10px; }
+  .pt-console { gap: 6px 10px; }
+}
+
+/* ★ 2026-10-25 手机横屏 / 极矮屏：footer 改为文档流（不再 absolute 贴底）。
+   实测 568×320 时 footer 会与首幕按钮重叠；改成静态后 hero 与 footer 各占各的高度，
+   即使内容超出一屏也只会出现纵向滚动，不会互相盖住。 */
+@media (max-height: 620px) and (max-width: 900px) {
+  .portal.is-intro .pt-hero {
+    /* 内容比可用高度高时不要被压扁：让 hero 至少装得下标题+按钮，页面纵向滚动 */
+    min-height: max-content;
+  }
+  .portal.is-intro .pt-foot {
+    position: static;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    transform: none;
+    width: 100%;
+    max-width: 1280px;
+    margin: auto auto 0;
+    padding-top: 6px;
+  }
+}
+@media (max-height: 560px) and (max-width: 900px) {
+  .portal.is-intro .pt-hero {
+    /* 极矮横屏：显式给标题+按钮留出高度；宁可页面纵向滚，也不让按钮压到 footer */
+    min-height: 168px;
+  }
+  .portal.is-intro .pt-title {
+    font-size: clamp(32px, 9vh, 40px);
+    margin-bottom: 10px;
+  }
+  .portal.is-intro .pt-btn {
+    padding: 12px 8px;
+    font-size: 14px;
+  }
 }
 /* 降低动效：全部停掉，只保留静态画面（canvas 也会被 JS 冻在一帧） */
 @media (prefers-reduced-motion: reduce) {

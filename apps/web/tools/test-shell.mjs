@@ -972,6 +972,20 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
     && /\.pt-card-name \{[^}]*background-image: none/.test(flat)
     && /@supports[\s\S]{0,1600}?color: transparent/.test(home),
     '★ 卡片标题有实心色 fallback，渐变仅在支持 background-clip:text + color-mix 时启用')
+  // ★ 2026-10-25 手机/平板/横屏适配（实测 390/360/320/844×390）
+  ok(/@media \(max-width: 600px\)[\s\S]{0,1200}?\.portal\.is-intro \.pt-actions \{[\s\S]{0,200}?flex-wrap: nowrap/.test(home)
+    && /@media \(max-height: 700px\) and \(max-width: 900px\)/.test(home)
+    && /@media \(max-height: 620px\) and \(max-width: 900px\)[\s\S]{0,900}?\.portal\.is-intro \.pt-foot \{[\s\S]{0,300}?position: static/.test(home)
+    && /@media \(max-height: 560px\)/.test(home),
+    '★ 手机竖屏/横屏：首幕标题不折三行、两个按钮并排；短屏 footer 不再压按钮')
+  ok(/min-height: 100svh/.test(home) && /env\(safe-area-inset-bottom\)/.test(home)
+    && /text-size-adjust: 100%/.test(home),
+    '★ 刘海屏/手势条安全区、svh 视口、移动文字缩放适配')
+  ok(/\.pt-seg-btn \{[\s\S]{0,500}?white-space: nowrap/.test(flat)
+    && /@media \(max-width: 380px\)[\s\S]{0,500}?\.pt-seg-btn \{ font-size: 18px/.test(home),
+    '★ 320px 级窄屏：控制条字号再收一档、按钮文字不竖排折行')
+  ok(/if \(this\._reduced\) \{[\s\S]{0,700}?this\._canvas\.forEach\(\(e\) => \{ e\.visible = true \}\)[\s\S]{0,200}?this\._drawAll\(0\.8\)/.test(home),
+    '★ reduced-motion 首屏转第二幕：补一次画布可见性 + 静态帧（不再只剩外圈）')
   // ★ 2026-10-21：三张卡片标题要有「有特色、非常好看」的流动特效（但仍有学术感）。
   ok(/\.pt-card-name \{[^}]*background-clip: text/.test(flat)
     && /\.pt-card-name \{[^}]*animation: pt-title-flow 7\.2s linear infinite/.test(flat)
