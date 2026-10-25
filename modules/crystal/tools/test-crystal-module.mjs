@@ -502,6 +502,12 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
   check('晶面控件文案已登记 i18n text 表',
     /'显示晶面':/.test(i18nSrc) && /'米勒指数 \(hkl\)':/.test(i18nSrc)
     && /'该晶面无法与晶胞相交':/.test(i18nSrc))
+  const clipSlot = lcSrc2.indexOf('<div class="control-section">${clipHtml}</div>')
+  const planeSlot = lcSrc2.indexOf('${planeHtml}')
+  const appearanceSlot = lcSrc2.indexOf('${appearanceHtml}')
+  check('晶面区位于「晶胞裁剪」与「外观」之间',
+    clipSlot >= 0 && planeSlot > clipSlot && appearanceSlot > planeSlot,
+    `clip@${clipSlot} plane@${planeSlot} appearance@${appearanceSlot}`)
 }
 
 // ============================================================================

@@ -433,8 +433,6 @@ ${LAYER_CONTROL_BASE_CSS}
 
         ${modelHtml}
 
-        ${planeHtml}
-
         <div class="control-section">
           <span class="section-title">图层显示</span>
           ${this._toggleRow(LAYER_LABELS.atoms, 'atoms', p.showAtoms)}
@@ -453,6 +451,8 @@ ${LAYER_CONTROL_BASE_CSS}
         ${equivalentHtml}
 
         <div class="control-section">${clipHtml}</div>
+
+        ${planeHtml}
 
         ${appearanceHtml}
       </div>
