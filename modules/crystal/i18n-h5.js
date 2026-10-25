@@ -520,10 +520,10 @@ export const text = {
   '应用': 'Apply',
   '如 (1 1 1) / 1 1 0': 'e.g. (1 1 1) / 1 1 0',
   '晶面指数': 'Plane indices',
-  '输入 h k l 或 u v w（空格/逗号分隔；向量可只填 u v）':
-    'Enter h k l or u v w (space/comma separated; a vector may use u v only)',
-  '请输入 3 个米勒指数或 2–3 个向量分量':
-    'Enter 3 Miller indices or 2–3 vector components',
+  '输入 h k l 或 u v w（空格/逗号分隔）':
+    'Enter h k l or u v w (space/comma separated)',
+  '请输入 3 个米勒指数或 3 个向量分量':
+    'Enter 3 Miller indices or 3 vector components',
   '米勒指数必须是整数': 'Miller indices must be integers',
   '晶面指标不能全为 0': 'Plane indices cannot all be zero',
   '该晶面无法与晶胞相交': 'This plane does not intersect the unit cell',

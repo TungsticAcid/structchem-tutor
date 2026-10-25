@@ -4,7 +4,8 @@
  * 用户 2026-10-25：在晶典在线中「显示晶面，可以输入米勒指数或向量 UV」。
  *
  * 两个约定（也写在控制面板提示里）：
- *   1. 向量模式按**晶面法向量**解释；允许只填 u、v 两个数，w 默认 0。
+ *   1. 向量模式按**晶面法向量**解释，必须填 u、v、w 三个分量（用户 2026-10-25：
+ *      「法向量也要填三个值」，不再允许只填 UV、w 默认 0）。
  *   2. 平面统一过晶胞中心 —— 显示的是该晶面族的取向与面间距，不是外部晶体表面。
  *
  * 米勒指数 (h k l) 的法向不是直接坐标：对任意晶系都要先转成倒易矢量
@@ -87,9 +88,10 @@ export function parsePlaneInput(text, mode) {
     if (nums.length !== 3) return { ok: false, error: 'format' }
     if (!nums.every((n) => Number.isInteger(n))) return { ok: false, error: 'nonInteger' }
   } else {
-    if (nums.length !== 2 && nums.length !== 3) return { ok: false, error: 'format' }
+    // 法向量同样必须三分量；UV 两分量无法唯一确定三维晶面
+    if (nums.length !== 3) return { ok: false, error: 'format' }
   }
-  const values = nums.length === 3 ? nums.slice() : [nums[0], nums[1], 0]
+  const values = nums.slice()
   if (values.every((n) => Math.abs(n) < 1e-12)) return { ok: false, error: 'zero' }
   return { ok: true, values }
 }

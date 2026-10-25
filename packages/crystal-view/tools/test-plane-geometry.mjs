@@ -32,9 +32,11 @@ console.log('\n【解析输入】')
   check('紧凑米勒写法 100 → 1,0,0', parsePlaneInput('100', PLANE_MODE_MILLER).values.join(',') === '1,0,0')
   check('逗号写法', parsePlaneInput('1, -1, 0', PLANE_MODE_MILLER).values.join(',') === '1,-1,0')
   check('Unicode 负号归一', parsePlaneInput('−1 1 0', PLANE_MODE_MILLER).values[0] === -1)
-  check('向量允许两个分量（w 默认 0）',
-    parsePlaneInput('1 2', PLANE_MODE_VECTOR).ok === true
-    && parsePlaneInput('1 2', PLANE_MODE_VECTOR).values.join(',') === '1,2,0')
+  check('向量必须三个分量（三分量可用）',
+    parsePlaneInput('1 2 3', PLANE_MODE_VECTOR).ok === true
+    && parsePlaneInput('1 2 3', PLANE_MODE_VECTOR).values.join(',') === '1,2,3')
+  check('向量拒绝两个分量（UV 不足以确定三维晶面）',
+    parsePlaneInput('1 2', PLANE_MODE_VECTOR).error === 'format')
   check('米勒拒绝两个分量', parsePlaneInput('1 1', PLANE_MODE_MILLER).error === 'format')
   check('米勒拒绝小数', parsePlaneInput('1.5 1 1', PLANE_MODE_MILLER).error === 'nonInteger')
   check('拒绝非数字', parsePlaneInput('h k l', PLANE_MODE_MILLER).error === 'format')

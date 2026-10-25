@@ -32,7 +32,7 @@ const LAYER_LABELS = {
 
 /** 晶面错误码 → 中文原文（由 text 表负责英文替换） */
 const PLANE_ERRORS = {
-  format: '请输入 3 个米勒指数或 2–3 个向量分量',
+  format: '请输入 3 个米勒指数或 3 个向量分量',
   nonInteger: '米勒指数必须是整数',
   zero: '晶面指标不能全为 0',
   noIntersect: '该晶面无法与晶胞相交'
@@ -345,7 +345,7 @@ ${LAYER_CONTROL_BASE_CSS}
                autocomplete="off" spellcheck="false" data-change="onPlaneCommit" />
         <button class="plane-apply" type="button" data-action="onPlaneApply">应用</button>
       </div>
-      <div class="plane-hint">输入 h k l 或 u v w（空格/逗号分隔；向量可只填 u v）</div>
+      <div class="plane-hint">输入 h k l 或 u v w（空格/逗号分隔）</div>
       ${planeError}
       ${planeInfo}
     </div>`
