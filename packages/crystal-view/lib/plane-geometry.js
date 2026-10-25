@@ -65,7 +65,7 @@ export function parsePlaneInput(text, mode) {
     .replace(/,/g, ' ')
   const tokens = normalised.trim().split(/\s+/).filter(Boolean)
   if (tokens.length === 0) return { ok: false, error: 'format' }
-  const nums = []
+  let nums = []
   for (const token of tokens) {
     if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(token)) return { ok: false, error: 'format' }
     const n = Number(token)
@@ -73,6 +73,16 @@ export function parsePlaneInput(text, mode) {
     nums.push(n)
   }
   const isMiller = mode !== PLANE_MODE_VECTOR
+  // 常见写法 (111)/(100) 去掉括号后是一个数字：米勒模式按 3 位拆成 h/k/l。
+  // 只在"一个 3 位数"时拆，避免把普通多分量输入误拆。
+  if (isMiller && nums.length === 1) {
+    const token = tokens[0]
+    if (/^[+-]?\d{3}$/.test(token)) {
+      const sign = token[0] === '-' ? -1 : 1
+      const digits = token.replace(/^[+-]/, '')
+      nums = digits.split('').map((d, i) => (i === 0 ? sign * Number(d) : Number(d)))
+    }
+  }
   if (isMiller) {
     if (nums.length !== 3) return { ok: false, error: 'format' }
     if (!nums.every((n) => Number.isInteger(n))) return { ok: false, error: 'nonInteger' }

@@ -28,6 +28,8 @@ const hex = { a: 2.46, b: 2.46, c: 6.70, alpha: 90, beta: 90, gamma: 120 }
 console.log('\n【解析输入】')
 {
   check('括号 + 空格写法', parsePlaneInput('(1 1 1)', PLANE_MODE_MILLER).values.join(',') === '1,1,1')
+  check('紧凑米勒写法 (111) → 1,1,1', parsePlaneInput('(111)', PLANE_MODE_MILLER).values.join(',') === '1,1,1')
+  check('紧凑米勒写法 100 → 1,0,0', parsePlaneInput('100', PLANE_MODE_MILLER).values.join(',') === '1,0,0')
   check('逗号写法', parsePlaneInput('1, -1, 0', PLANE_MODE_MILLER).values.join(',') === '1,-1,0')
   check('Unicode 负号归一', parsePlaneInput('−1 1 0', PLANE_MODE_MILLER).values[0] === -1)
   check('向量允许两个分量（w 默认 0）',
