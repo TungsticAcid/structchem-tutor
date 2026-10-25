@@ -481,6 +481,30 @@ section('逐元素配色的周期表布局（位置表与元素表必须逐符�
 }
 
 // ============================================================================
+// 晶面显示（用户 2026-10-25）：控件、两个查看页、画布、i18n 必须是一条完整链路
+//   ——不能只加画布或只加控件；任一端缺失，按钮看起来能点但画面不变。
+// ============================================================================
+{
+  const lcSrc2 = readFileSync(new URL('../../../packages/crystal-view/components/layer-control.js', import.meta.url), 'utf8')
+  const vcSrc3 = readFileSync(new URL('../../../packages/crystal-view/components/viewer-canvas.js', import.meta.url), 'utf8')
+  const pageSrc = readFileSync(new URL('../../../apps/web/src/pages/viewer.js', import.meta.url), 'utf8')
+  const standaloneSrc = readFileSync(new URL('../../../packages/crystal-view/pages/viewer.js', import.meta.url), 'utf8')
+  const i18nSrc = readFileSync(new URL('../i18n-h5.js', import.meta.url), 'utf8')
+  check('晶面控件有输入、应用、模式事件',
+    /showPlane:/.test(lcSrc2) && /onPlaneApply\(\)/.test(lcSrc2)
+    && /onPlaneCommit\(e\)/.test(lcSrc2) && /'planemodechange'/.test(lcSrc2))
+  check('两个查看页都把晶面状态接到控件/画布',
+    /resolvePlane/.test(pageSrc) && /planeNormal/.test(pageSrc) && /showPlane/.test(pageSrc)
+    && /resolvePlane/.test(standaloneSrc) && /planeNormal/.test(standaloneSrc) && /showPlane/.test(standaloneSrc))
+  check('画布按 planeNormal 重建、按 showPlane 显隐',
+    /buildLatticePlaneGroup/.test(vcSrc3) && /_rebuildPlane\(\)/.test(vcSrc3)
+    && /s\.groups\.plane/.test(vcSrc3) && /this\._showPlane/.test(vcSrc3))
+  check('晶面控件文案已登记 i18n text 表',
+    /'显示晶面':/.test(i18nSrc) && /'米勒指数 \(hkl\)':/.test(i18nSrc)
+    && /'该晶面无法与晶胞相交':/.test(i18nSrc))
+}
+
+// ============================================================================
 console.log(`\n${'═'.repeat(60)}`)
 console.log(`test-crystal-module 结果：通过 ${pass} 项，失败 ${fail} 项`)
 console.log('═'.repeat(60))

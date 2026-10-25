@@ -30,6 +30,24 @@ const LAYER_LABELS = {
   auxiliaryFace: '面对角线'
 }
 
+/** 晶面错误码 → 中文原文（由 text 表负责英文替换） */
+const PLANE_ERRORS = {
+  format: '请输入 3 个米勒指数或 2–3 个向量分量',
+  nonInteger: '米勒指数必须是整数',
+  zero: '晶面指标不能全为 0',
+  noIntersect: '该晶面无法与晶胞相交'
+}
+
+/** 用户输入会进 value 属性：必须转义，不能直接拼 HTML */
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 /**
  * 控制面板外壳（`.layer-control`）的样式。
  *
@@ -90,6 +108,12 @@ export class LayerControl extends BaseComponent {
     isOrthogonalCell: { type: Boolean, value: true },
     equivalentSettings: { type: Array, value: [] },
     equivalentIndex: { type: Number, value: 0 },
+    showPlane: { type: Boolean, value: false },
+    planeMode: { type: String, value: 'miller' },
+    planeInput: { type: String, value: '1 1 1' },
+    planeLabel: { type: String, value: '' },
+    planeSpacing: { type: Number, value: 0 },
+    planeError: { type: String, value: '' },
     // ★ 「外观」两个滑块读的就是这两个值，**必须在这里声明**。
     //   基类构造函数只拷贝**已声明**的键（见 adapters/component.js），而 setProps()
     //   却照单全收 —— 漏声明就会被静默丢掉：首渲染 `_props.atomScale` 是 undefined，
@@ -169,6 +193,26 @@ export class LayerControl extends BaseComponent {
       if (idx !== this._props.equivalentIndex) {
         this.triggerEvent('equivalentsettingchange', { index: idx })
       }
+    },
+
+    /** 晶面模式切换（米勒 / 法向量） */
+    onPlaneModeTap(e) {
+      const mode = e.currentTarget.dataset.mode
+      if (mode && mode !== this._props.planeMode) {
+        this.triggerEvent('planemodechange', { mode })
+      }
+    },
+
+    /** 输入框失焦 / 回车：提交一次 */
+    onPlaneCommit(e) {
+      const value = e && e.target ? e.target.value : ''
+      this.triggerEvent('planechange', { value })
+    },
+
+    /** 「应用」按钮：以输入框当前值为准（点击时 change 可能还没触发） */
+    onPlaneApply() {
+      const input = this.querySelector('.plane-input')
+      this.triggerEvent('planechange', { value: input ? input.value : '' })
     },
 
     /**
@@ -279,6 +323,33 @@ ${LAYER_CONTROL_BASE_CSS}
       </div>
     </div>`
 
+    // 晶面：开关 + 米勒/法向量模式 + 输入
+    const spacing = Number(p.planeSpacing) > 0 ? Number(p.planeSpacing).toFixed(3) : ''
+    const planeInfo = p.planeLabel
+      ? `<div class="plane-info">${escapeHtml(p.planeLabel)}${spacing ? ' · d = ' + spacing + ' Å' : ''}</div>`
+      : ''
+    const planeError = p.planeError
+      ? `<div class="plane-error" role="alert">${escapeHtml(t(PLANE_ERRORS[p.planeError] || PLANE_ERRORS.format))}</div>`
+      : ''
+    const planeHtml = `
+    <div class="control-section plane-section">
+      <span class="section-title">晶面</span>
+      ${this._toggleRow('显示晶面', 'plane', p.showPlane, '#00BCD4')}
+      <div class="model-selector plane-modes">
+        <div class="model-option ${p.planeMode === 'miller' ? 'active' : ''}" data-mode="miller" data-action="onPlaneModeTap">米勒指数 (hkl)</div>
+        <div class="model-option ${p.planeMode === 'vector' ? 'active' : ''}" data-mode="vector" data-action="onPlaneModeTap">法向量 [uvw]</div>
+      </div>
+      <div class="plane-input-row">
+        <input class="plane-input" type="text" value="${escapeHtml(p.planeInput)}"
+               placeholder="如 (1 1 1) / 1 1 0" aria-label="晶面指数"
+               autocomplete="off" spellcheck="false" data-change="onPlaneCommit" />
+        <button class="plane-apply" type="button" data-action="onPlaneApply">应用</button>
+      </div>
+      <div class="plane-hint">输入 h k l 或 u v w（空格/逗号分隔；向量可只填 u v）</div>
+      ${planeError}
+      ${planeInfo}
+    </div>`
+
     // 外观（原子缩放 / 原子透明度）
     //   ★ 透明度是"看清辅助几何"的主要手段：对称元素、空隙、点阵点都在原子球
     //     的内部/背后，原子不透明时它们基本看不见（实测反馈）。
@@ -362,6 +433,8 @@ ${LAYER_CONTROL_BASE_CSS}
 
         ${modelHtml}
 
+        ${planeHtml}
+
         <div class="control-section">
           <span class="section-title">图层显示</span>
           ${this._toggleRow(LAYER_LABELS.atoms, 'atoms', p.showAtoms)}
@@ -429,6 +502,33 @@ ${LAYER_CONTROL_BASE_CSS}
         transition: all 0.2s; cursor: pointer;
       }
       .model-option.active { background: rgba(66,133,244,0.18); color: var(--accent, #4285F4); font-weight: 500; }
+
+      /* 晶面输入区（米勒指数 / 法向量） */
+      .plane-modes { margin: 2px 0 6px; }
+      .plane-modes .model-option { padding: 6px 2px; font-size: 0.982rem; }
+      .plane-input-row { display: flex; gap: 6px; margin-top: 4px; }
+      .plane-input {
+        flex: 1; min-width: 0; padding: 7px 8px;
+        border: 1px solid var(--line, rgba(255,255,255,0.22));
+        border-radius: 6px;
+        background: var(--card-2, rgba(255,255,255,0.06));
+        color: var(--text, #ffffff);
+        font-size: 1.071rem;
+        outline: none;
+      }
+      .plane-input:focus { border-color: var(--accent, #4285F4); }
+      .plane-apply {
+        flex: 0 0 auto; padding: 0 14px;
+        border: 0; border-radius: 6px;
+        background: var(--accent, #4285F4);
+        color: #fff;
+        font-size: 1.071rem;
+        cursor: pointer;
+      }
+      .plane-apply:active { filter: brightness(.92); }
+      .plane-hint { color: var(--text-dim, rgba(255,255,255,0.38)); font-size: 0.938rem; line-height: 1.5; margin-top: 5px; }
+      .plane-error { color: #E53935; font-size: 0.982rem; line-height: 1.5; margin-top: 4px; }
+      .plane-info { color: var(--accent, #4285F4); font-size: 1.071rem; line-height: 1.5; margin-top: 4px; font-variant-numeric: tabular-nums; }
       /* Toggle Switch */
       .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
       .toggle-switch input { opacity: 0; width: 0; height: 0; }

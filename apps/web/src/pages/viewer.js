@@ -6,6 +6,7 @@ import { ViewerCanvas } from '@crystal/components/viewer-canvas.js'
 import { LayerControl } from '@crystal/components/layer-control.js'
 import { AtomInfoPopup } from '@crystal/components/atom-info-popup.js'
 import { getCrystalData } from '@crystal/lib/crystal-loader.js'
+import { resolvePlane } from '@crystal/lib/plane-geometry.js'
 import elementsData from '@crystal/data/elements.js'
 import { router } from '../shell/router.js'
 import { globalData } from '../shell/app-state.js'
@@ -128,6 +129,9 @@ export class ViewerPage {
       showHydrogenBonds: true, showLatticePoints: false,
       crystalMeta: null, popupVisible: false, popupData: null,
       isOrthogonalCell: true, equivalentSettings: [], equivalentIndex: 0,
+      /** 晶面：showPlane 只控制显隐；planeNormal 为过晶胞中心的法向 */
+      showPlane: false, planeMode: 'miller', planeInput: '1 1 1',
+      planeLabel: '', planeNormal: null, planeSpacing: 0, planeError: '',
       /** 需要高亮的元素（null = 无）。由智能体的 highlightAtoms 动作设置，见 applyIntent */
       highlightElements: null
     }
@@ -304,6 +308,38 @@ export class ViewerPage {
         latticeConstText: lattice ? formatLatticeConstText(data.crystalSystem, lattice) : ''
       }
     })
+
+    // 换晶体 / 首次进入：保留当前模式与输入，按新晶格重算晶面法向与 d
+    this._commitPlane(s.planeInput, { enable: s.showPlane, clearOnError: true })
+  }
+
+  /**
+   * 提交一次晶面输入。
+   * ★ 失败时只记录错误，**不覆盖上一次有效晶面**——用户改错一个字符时画面不应突然消失。
+   * ★ 但换晶体时旧法向属于旧晶格，必须清掉（clearOnError），不能拿旧平面的法向去切新晶胞。
+   */
+  _commitPlane(input, { enable = false, clearOnError = false } = {}) {
+    const s = this._state
+    s.planeInput = String(input == null ? '' : input)
+    const res = resolvePlane(s.planeInput, s.planeMode, s.crystalData && s.crystalData.lattice)
+    if (res.ok) {
+      s.planeNormal = res.normal
+      s.planeLabel = res.label
+      s.planeSpacing = res.spacing || 0
+      s.planeError = ''
+      if (enable) s.showPlane = true
+    } else {
+      s.planeError = res.error || 'format'
+      if (clearOnError) {
+        s.planeNormal = null
+        s.planeLabel = ''
+        s.planeSpacing = 0
+        s.showPlane = false
+      }
+    }
+    this._updateCanvasProps()
+    this._updateLayerControl()
+    return res.ok
   }
 
   _getCanvasProps() {
@@ -323,6 +359,7 @@ export class ViewerPage {
       lightConfig: s.lightConfig, atomVisibility: s.atomVisibility,
       showAtomLabels: s.showAtomLabels, showHydrogenBonds: s.showHydrogenBonds,
       showLatticePoints: s.showLatticePoints,
+      showPlane: s.showPlane, planeNormal: s.planeNormal,
       highlightElements: s.highlightElements
     }
   }
@@ -538,7 +575,9 @@ export class ViewerPage {
         partialatomschange: (e) => this._onPartialAtomsChange(e.detail),
         equivalentsettingchange: (e) => this._onEquivalentChange(e.detail),
         celldisplaymodechange: (e) => this._onCellDisplayModeChange(e.detail),
-        appearancechange: (e) => this._onAppearanceChange(e.detail)
+        appearancechange: (e) => this._onAppearanceChange(e.detail),
+        planemodechange: (e) => this._onPlaneModeChange(e.detail),
+        planechange: (e) => this._onPlaneChange(e.detail)
       }
     })
     this._layerControl.mount(panel)
@@ -563,7 +602,10 @@ export class ViewerPage {
       equivalentSettings: s.equivalentSettings, equivalentIndex: s.equivalentIndex,
       // 外观滑块（控制面板的"外观"区）。★ 必须传——不传则 setProps 会把滑块拉回 undefined，
       //   表现为"拖完一动就弹回原位"。
-      atomScale: s.atomScale, opacity: s.opacity
+      atomScale: s.atomScale, opacity: s.opacity,
+      // 晶面控件
+      showPlane: s.showPlane, planeMode: s.planeMode, planeInput: s.planeInput,
+      planeLabel: s.planeLabel, planeSpacing: s.planeSpacing, planeError: s.planeError
     }
   }
 
@@ -582,7 +624,7 @@ export class ViewerPage {
       octahedral: 'showOctahedral', tetrahedral: 'showTetrahedral', symmetry: 'showSymmetry',
       bonds: 'showBonds', hydrogenBonds: 'showHydrogenBonds', axes: 'showAxes',
       auxiliaryBody: 'showAuxiliaryBody', auxiliaryFace: 'showAuxiliaryFace',
-      latticePoints: 'showLatticePoints'
+      latticePoints: 'showLatticePoints', plane: 'showPlane'
     }
     const key = map[layer]
     if (!key) return
@@ -687,6 +729,19 @@ export class ViewerPage {
     this._updateCanvasProps()
     // ★ 同一类：不回写控件的话，重画一次「裁剪」按钮的高亮就回到旧值（与原子标签那条同源）
     this._updateLayerControl()
+  }
+
+  _onPlaneModeChange({ mode }) {
+    const s = this._state
+    s.planeMode = mode === 'vector' ? 'vector' : 'miller'
+    // 切模式时给一个该模式下的合法默认值；保留当前显示开关
+    s.planeInput = s.planeMode === 'vector' ? '1 1 0' : '1 1 1'
+    this._commitPlane(s.planeInput, { enable: s.showPlane })
+  }
+
+  _onPlaneChange({ value }) {
+    // 用户明确应用一次 → 成功后自动打开晶面
+    this._commitPlane(value, { enable: true })
   }
 
   _updateCanvasProps() {

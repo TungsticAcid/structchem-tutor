@@ -512,6 +512,21 @@ export const text = {
   '面对角线': 'Face diagonal',
   '八面体空隙': 'Octahedral void',
   '四面体空隙': 'Tetrahedral void',
+  // 晶面控件（components/layer-control.js，2026-10-25）
+  '晶面': 'Crystal plane',
+  '显示晶面': 'Show crystal plane',
+  '米勒指数 (hkl)': 'Miller indices (hkl)',
+  '法向量 [uvw]': 'Normal vector [uvw]',
+  '应用': 'Apply',
+  '如 (1 1 1) / 1 1 0': 'e.g. (1 1 1) / 1 1 0',
+  '晶面指数': 'Plane indices',
+  '输入 h k l 或 u v w（空格/逗号分隔；向量可只填 u v）':
+    'Enter h k l or u v w (space/comma separated; a vector may use u v only)',
+  '请输入 3 个米勒指数或 2–3 个向量分量':
+    'Enter 3 Miller indices or 2–3 vector components',
+  '米勒指数必须是整数': 'Miller indices must be integers',
+  '晶面指标不能全为 0': 'Plane indices cannot all be zero',
+  '该晶面无法与晶胞相交': 'This plane does not intersect the unit cell',
   // ★ 信息面板的标签：源码里把值单独包了一层 span（见 layer-control.js 里 render()
   //   的说明），标签与值因此各是一个文本节点、可以分别替换。
   '化学式：': 'Formula: ',

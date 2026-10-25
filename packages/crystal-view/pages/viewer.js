@@ -6,6 +6,7 @@ import { ViewerCanvas } from '../components/viewer-canvas.js'
 import { LayerControl } from '../components/layer-control.js'
 import { AtomInfoPopup } from '../components/atom-info-popup.js'
 import { getCrystalData } from '../lib/crystal-loader.js'
+import { resolvePlane } from '../lib/plane-geometry.js'
 import elementsData from '../data/elements.js'
 import { router } from '../adapters/router.js'
 import { globalData } from '../main.js'
@@ -116,7 +117,9 @@ export class ViewerPage {
       isMolecularCrystal: false, hasHydrogenBonds: false,
       showHydrogenBonds: true, showLatticePoints: false,
       crystalMeta: null, popupVisible: false, popupData: null,
-      isOrthogonalCell: true, equivalentSettings: [], equivalentIndex: 0
+      isOrthogonalCell: true, equivalentSettings: [], equivalentIndex: 0,
+      showPlane: false, planeMode: 'miller', planeInput: '1 1 1',
+      planeLabel: '', planeNormal: null, planeSpacing: 0, planeError: ''
     }
   }
 
@@ -215,6 +218,32 @@ export class ViewerPage {
         latticeConstText: lattice ? formatLatticeConstText(data.crystalSystem, lattice) : ''
       }
     })
+
+    this._commitPlane(s.planeInput, { enable: s.showPlane, clearOnError: true })
+  }
+
+  _commitPlane(input, { enable = false, clearOnError = false } = {}) {
+    const s = this._state
+    s.planeInput = String(input == null ? '' : input)
+    const res = resolvePlane(s.planeInput, s.planeMode, s.crystalData && s.crystalData.lattice)
+    if (res.ok) {
+      s.planeNormal = res.normal
+      s.planeLabel = res.label
+      s.planeSpacing = res.spacing || 0
+      s.planeError = ''
+      if (enable) s.showPlane = true
+    } else {
+      s.planeError = res.error || 'format'
+      if (clearOnError) {
+        s.planeNormal = null
+        s.planeLabel = ''
+        s.planeSpacing = 0
+        s.showPlane = false
+      }
+    }
+    this._updateCanvasProps()
+    this._updateLayerControl()
+    return res.ok
   }
 
   _getCanvasProps() {
@@ -233,7 +262,8 @@ export class ViewerPage {
       fractionalShift: s.fractionalShift, partialAtoms: s.partialAtoms,
       lightConfig: s.lightConfig, atomVisibility: s.atomVisibility,
       showAtomLabels: s.showAtomLabels, showHydrogenBonds: s.showHydrogenBonds,
-      showLatticePoints: s.showLatticePoints
+      showLatticePoints: s.showLatticePoints,
+      showPlane: s.showPlane, planeNormal: s.planeNormal
     }
   }
 
@@ -334,7 +364,9 @@ export class ViewerPage {
         auxiliaryabovetoggle: (e) => this._onAuxAboveToggle(e.detail),
         partialatomschange: (e) => this._onPartialAtomsChange(e.detail),
         equivalentsettingchange: (e) => this._onEquivalentChange(e.detail),
-        celldisplaymodechange: (e) => this._onCellDisplayModeChange(e.detail)
+        celldisplaymodechange: (e) => this._onCellDisplayModeChange(e.detail),
+        planemodechange: (e) => this._onPlaneModeChange(e.detail),
+        planechange: (e) => this._onPlaneChange(e.detail)
       }
     })
     this._layerControl.mount(panel)
@@ -356,7 +388,9 @@ export class ViewerPage {
       showAtomLabels: s.showAtomLabels, isMolecularCrystal: s.isMolecularCrystal,
       showHydrogenBonds: s.showHydrogenBonds, hasHydrogenBonds: s.hasHydrogenBonds,
       showLatticePoints: s.showLatticePoints, isOrthogonalCell: s.isOrthogonalCell,
-      equivalentSettings: s.equivalentSettings, equivalentIndex: s.equivalentIndex
+      equivalentSettings: s.equivalentSettings, equivalentIndex: s.equivalentIndex,
+      showPlane: s.showPlane, planeMode: s.planeMode, planeInput: s.planeInput,
+      planeLabel: s.planeLabel, planeSpacing: s.planeSpacing, planeError: s.planeError
     }
   }
 
@@ -375,7 +409,7 @@ export class ViewerPage {
       octahedral: 'showOctahedral', tetrahedral: 'showTetrahedral', symmetry: 'showSymmetry',
       bonds: 'showBonds', hydrogenBonds: 'showHydrogenBonds', axes: 'showAxes',
       auxiliaryBody: 'showAuxiliaryBody', auxiliaryFace: 'showAuxiliaryFace',
-      latticePoints: 'showLatticePoints'
+      latticePoints: 'showLatticePoints', plane: 'showPlane'
     }
     const key = map[layer]
     if (!key) return
@@ -432,6 +466,17 @@ export class ViewerPage {
   _onCellDisplayModeChange({ value }) {
     this._state.cellDisplayMode = value
     this._updateCanvasProps()
+  }
+
+  _onPlaneModeChange({ mode }) {
+    const s = this._state
+    s.planeMode = mode === 'vector' ? 'vector' : 'miller'
+    s.planeInput = s.planeMode === 'vector' ? '1 1 0' : '1 1 1'
+    this._commitPlane(s.planeInput, { enable: s.showPlane })
+  }
+
+  _onPlaneChange({ value }) {
+    this._commitPlane(value, { enable: true })
   }
 
   _updateCanvasProps() {

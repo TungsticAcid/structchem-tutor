@@ -8,6 +8,7 @@ import * as THREE from 'three'
 //   无需外部 HDR 图片、不增网络请求、无授权问题。
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { buildCrystalScene, clearScene, updateWorldClipPlanes } from '../lib/scene-builder.js'
+import { buildLatticePlaneGroup } from '../lib/plane-builder.js'
 import { TouchHandler } from '../lib/touch-handler.js'
 import { getCrystalData } from '../lib/crystal-loader.js'
 import { getVisualColor } from '../data/settings.js'
@@ -56,7 +57,7 @@ const VIEW_FIT_MARGIN = 0.45
 /** 需要重建场景的属性（几何/模型变化） */
 const REBUILD_PROPS = ['modelType', 'atomScale', 'stickRadius', 'cellDisplayMode', 'opacity', 'fractionalShift', 'partialAtoms', 'auxiliaryLineAboveAtoms']
 /** 仅需更新可见性的属性（无需重建场景） */
-const VISIBILITY_PROPS = ['showAtoms', 'showWireframe', 'showInterstices', 'showOctahedral', 'showTetrahedral', 'showSymmetry', 'showBonds', 'showAxes', 'showAuxiliaryBody', 'showAuxiliaryFace', 'atomVisibility', 'showAtomLabels', 'showHydrogenBonds', 'showLatticePoints']
+const VISIBILITY_PROPS = ['showAtoms', 'showWireframe', 'showInterstices', 'showOctahedral', 'showTetrahedral', 'showSymmetry', 'showBonds', 'showAxes', 'showAuxiliaryBody', 'showAuxiliaryFace', 'atomVisibility', 'showAtomLabels', 'showHydrogenBonds', 'showLatticePoints', 'showPlane']
 
 /**
  * 仅需改材质的高亮属性（**不重建场景**）。
@@ -103,6 +104,9 @@ export class ViewerCanvas {
     this._showAtomLabels = props.showAtomLabels || false
     this._showHydrogenBonds = props.showHydrogenBonds !== undefined ? props.showHydrogenBonds : true
     this._showLatticePoints = props.showLatticePoints || false
+    /** 晶面：开关只切可见性，法向变化才重建晶面组（不重建原子） */
+    this._showPlane = props.showPlane || false
+    this._planeNormal = props.planeNormal || null
 
     // 内部状态
     this._state = {
@@ -143,6 +147,7 @@ export class ViewerCanvas {
     let needsVisibility = false
     let needsLight = false
     let needsHighlight = false
+    let needsPlane = false
 
     for (const [k, v] of Object.entries(updates)) {
       const key = '_' + k
@@ -153,6 +158,7 @@ export class ViewerCanvas {
       if (k === 'crystalId') needsRebuild = true
       else if (REBUILD_PROPS.includes(k)) needsRebuild = true
       else if (k === 'lightConfig') needsLight = true
+      else if (k === 'planeNormal') needsPlane = true
       else if (VISIBILITY_PROPS.includes(k)) needsVisibility = true
       else if (HIGHLIGHT_PROPS.includes(k)) needsHighlight = true
     }
@@ -162,11 +168,11 @@ export class ViewerCanvas {
     if (needsLight) this._applyLightConfig(this._lightConfig)
     if (needsRebuild) {
       this._loadCrystal(this._crystalId)
-    } else if (needsVisibility) {
-      this._updateVisibility()
-    } else if (needsHighlight) {
-      this._applyHighlight(this._highlightElements)
+      return
     }
+    if (needsPlane) this._rebuildPlane()
+    if (needsVisibility) this._updateVisibility()
+    if (needsHighlight) this._applyHighlight(this._highlightElements)
   }
 
   /** 挂载 */
@@ -574,6 +580,9 @@ export class ViewerCanvas {
 
       s.scene.add(crystalRoot)
 
+      // 晶面组必须等 crystalRoot 挂进场景后再建，且随 root 一起旋转
+      this._rebuildPlane()
+
       s.renderer.clippingPlanes = []
       s.renderer.localClippingEnabled = !!useLocalClipping
 
@@ -632,6 +641,34 @@ export class ViewerCanvas {
     s.groups = null
   }
 
+  /**
+   * 重建晶面组（只动晶面，不重建原子）。
+   *
+   * ★ 为什么单列一个方法：改 hkl / 法向时重建整个晶体太贵，而且输入一次就会闪一下；
+   *   晶面是独立 Group，挂到 crystalRoot 后与晶胞一起旋转即可。
+   */
+  _rebuildPlane() {
+    const s = this._state
+    if (!s || !s.crystalRoot || !s.groups) return
+    if (s.groups.plane) {
+      clearScene(s.groups.plane, THREE)
+      s.crystalRoot.remove(s.groups.plane)
+      s.groups.plane = null
+    }
+    if (!s.currentCrystalData || !this._planeNormal) {
+      this.invalidate()
+      return
+    }
+    const group = buildLatticePlaneGroup(s.currentCrystalData, this._planeNormal, THREE)
+    if (group) {
+      // 新组默认 visible=true；若用户关着开关，必须立刻跟上，否则改输入会"自己冒出来"
+      group.visible = !!this._showPlane
+      s.groups.plane = group
+      s.crystalRoot.add(group)
+    }
+    this.invalidate()
+  }
+
   // ==================== 图层可见性 ====================
 
   _updateVisibility() {
@@ -682,6 +719,7 @@ export class ViewerCanvas {
     if (s.groups.hydrogenBonds) {
       s.groups.hydrogenBonds.visible = showLP ? false : this._showHydrogenBonds
     }
+    if (s.groups.plane) s.groups.plane.visible = !!this._showPlane
     this.invalidate()
   }
 

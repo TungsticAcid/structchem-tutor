@@ -82,6 +82,15 @@ export const DEFAULT_VIEW_PROPS = {
   showHydrogenBonds: true,       // 有氢键的晶体默认显示（冰、尿素）
   showLatticePoints: false,
   atomVisibility: {},
+
+  // ---- 晶面（过晶胞中心；米勒指数或法向量） ----
+  showPlane: false,
+  planeMode: 'miller',
+  planeInput: '1 1 1',
+  planeNormal: null,
+  planeLabel: '',
+  planeSpacing: 0,
+  planeError: '',
 }
 
 export default { DEFAULT_VIEW_PROPS, DEFAULT_VISUAL_COLORS, DEFAULT_LIGHT_CONFIG }
