@@ -16,11 +16,11 @@
  * 另外提供 `throttleRaf()`：截图前把 rAF **节流**（不是冻死）。
  * 换成空函数会让"按需渲染"的应用画面全空 —— 渲染本身就发生在 rAF 回调里。
  */
-import { spawn } from 'child_process'
-import { existsSync, rmSync } from 'fs'
+import { spawn, spawnSync } from 'child_process'
+import { existsSync, readdirSync, rmSync, statSync } from 'fs'
 import { createServer } from 'net'
 import { tmpdir } from 'os'
-import { join } from 'path'
+import { join, resolve } from 'path'
 
 const EDGE_CANDIDATES = [
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
@@ -103,9 +103,73 @@ export function connect(url) {
  * ★ **每个进程一个**（带上 pid）——固定路径会让**两个会话同时跑浏览器工具时互相挤**：
  *   实测过两次 `CDP 超时：… 上的浏览器没起来`，退出码 1、看着像代码坏了，
  *   而真实原因是另一路并发验证正占着同一个 profile 目录。
- *   profile 本来就在 `finally` 与硬超时里各删一次，带 pid 不会留下垃圾。
+ *
+ * ★★ 2026-10-31：旧注释里“finally 与硬超时里各删一次所以不会留垃圾”**不成立**：
+ *   `proc.kill()` 只杀主进程，Edge 的 renderer/gpu/crashpad 子进程还持有 profile 文件，
+ *   紧接着 rmSync 必然 EBUSY/EPERM，而旧代码把异常吞掉了 ⇒ 每跑一次留一个目录。
+ *   现在：关整个进程树 → 等主进程退出 → 5×200ms 退避删除；失败必须打日志。
  */
-const PROFILE = join(tmpdir(), `chem-agent-edge-profile-${process.pid}`)
+const PROFILE_PREFIX = 'chem-agent-edge-profile-'
+const PROFILE = join(tmpdir(), `${PROFILE_PREFIX}${process.pid}`)
+const STALE_PROFILE_MS = 24 * 60 * 60 * 1000
+
+/**
+ * 删除 profile 目录（退避重试）。
+ * Windows 上 Edge 子进程释放文件有延迟，单次 rmSync 常 EBUSY/EPERM，不能静默吞。
+ *
+ * @returns {Promise<boolean>} 最终是否删掉
+ */
+async function removeProfileDir(dir, label) {
+  let lastErr = null
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 0 })
+      return true
+    } catch (e) {
+      lastErr = e
+      if (attempt < 5) await sleep(200)
+    }
+  }
+  console.error(
+    `[browser] 清理 profile 失败（${label}，已重试 5 次）：${dir}\n`
+    + `          ${lastErr && (lastErr.code || '')} ${lastErr && lastErr.message ? lastErr.message : lastErr}`
+  )
+  return false
+}
+
+/**
+ * 启动清扫：删掉 %TEMP% 下超过 24h 的 chem-agent-edge-profile-*。
+ * 只清本工具自己的前缀，且只清“老目录”，避免误删并发运行中的 profile。
+ */
+async function cleanupStaleProfiles() {
+  const root = tmpdir()
+  let entries
+  try {
+    entries = readdirSync(root, { withFileTypes: true })
+  } catch (e) {
+    console.error(`[browser] 扫描 profile 目录失败：${root} — ${e.message}`)
+    return
+  }
+  const cutoff = Date.now() - STALE_PROFILE_MS
+  let removed = 0
+  let failed = 0
+  for (const ent of entries) {
+    if (!ent.isDirectory() || !ent.name.startsWith(PROFILE_PREFIX)) continue
+    const dir = join(root, ent.name)
+    let mtimeMs
+    try {
+      mtimeMs = statSync(dir).mtimeMs
+    } catch (e) {
+      continue
+    }
+    if (mtimeMs >= cutoff) continue
+    if (await removeProfileDir(dir, 'stale')) removed++
+    else failed++
+  }
+  if (removed > 0 || failed > 0) {
+    console.error(`[browser] 启动清扫旧 profile：删除 ${removed} 个${failed ? `，失败 ${failed} 个` : ''}`)
+  }
+}
 
 /** 页面在本次会话里产生的 error / 异常（去重后的字符串数组） */
 export function pageErrors(cdp) {
@@ -133,6 +197,52 @@ export async function throttleRaf(cdp) {
   }).catch(() => {})
 }
 
+/** 结束浏览器整个进程树（Windows 用 taskkill /T /F；其它平台退回 kill） */
+function killBrowserTree(proc) {
+  if (!proc || !proc.pid) return
+  if (process.platform === 'win32') {
+    const exe = join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'taskkill.exe')
+    try {
+      const r = spawnSync(existsSync(exe) ? exe : 'taskkill', ['/PID', String(proc.pid), '/T', '/F'], {
+        windowsHide: true,
+        stdio: 'ignore',
+      })
+      if (r.error) {
+        console.error(`[browser] taskkill 启动失败：${r.error.message}`)
+      } else if (r.status !== 0 && proc.exitCode === null) {
+        console.error(`[browser] taskkill /PID ${proc.pid} /T /F 返回 ${r.status}`)
+      }
+    } catch (e) {
+      console.error(`[browser] taskkill 异常：${e.message}`)
+    }
+    // taskkill 失败时至少再杀主进程一次（不覆盖上面的日志）
+    if (proc.exitCode === null) {
+      try { proc.kill('SIGKILL') } catch (e) { /* 已退出 */ }
+    }
+  } else {
+    try { proc.kill('SIGKILL') } catch (e) { /* 已退出 */ }
+  }
+}
+
+/** 等子进程真正退出（有界）；返回是否在时限内退出 */
+function waitForExit(proc, timeoutMs) {
+  if (!proc || proc.exitCode !== null || proc.signalCode !== null) return Promise.resolve(true)
+  return new Promise((resolve) => {
+    let settled = false
+    const done = (v) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(v)
+    }
+    const timer = setTimeout(() => done(false), timeoutMs)
+    proc.once('exit', () => done(true))
+    proc.once('error', () => done(false))
+    // 检查与挂监听之间进程恰好退出时，exit 事件可能已经错过
+    if (proc.exitCode !== null || proc.signalCode !== null) done(true)
+  })
+}
+
 /**
  * 起浏览器 → 导航并校验落地 → 把上下文交给 `fn` → **无论如何**收尾。
  *
@@ -141,6 +251,7 @@ export async function throttleRaf(cdp) {
  *
  * ★ 硬超时到点会 **process.exit(3)** —— 这是刻意的：它是"不依赖调用方自觉"的那道保险，
  *   做成可捕获的异常就等于把责任推回给调用方，而那正是它要防的事。
+ *   ★ 2026-10-31：退出前先 await 关进程树 + 删 profile；否则硬超时又会留下目录。
  *
  * @param {Object} o
  * @param {string} o.url          要打开的地址（导航后会校验落地地址与它一致）
@@ -162,7 +273,7 @@ export async function withBrowser(o, fn) {
      */
     profileDir = null,
   } = o
-  const PROFILE_ACTIVE = profileDir || PROFILE
+  const PROFILE_ACTIVE = profileDir ? resolve(profileDir) : PROFILE
   const KEEP_PROFILE = !!profileDir
   const browser = findBrowser()
   if (!browser) {
@@ -170,8 +281,11 @@ export async function withBrowser(o, fn) {
     e.code = 'NO_BROWSER'
     throw e
   }
+  // ★ 2026-10-31：先清扫历史残留（>24h 的旧 profile），再清本进程的残留。
+  //   旧代码只删当前 pid 的目录，历史目录永远不会被回收（实测 TEMP 里积压 418 个）。
+  await cleanupStaleProfiles()
   // 一次性 profile 才需要先清掉残留；保留型（profileDir）绝不清 —— 它就是被测状态本身
-  if (!KEEP_PROFILE) { try { rmSync(PROFILE_ACTIVE, { recursive: true, force: true }) } catch (e) { /* 残留无妨 */ } }
+  if (!KEEP_PROFILE) await removeProfileDir(PROFILE_ACTIVE, 'pre-run')
 
   // ★ 端口不能写死：9222 可能被**更早的实例**占着，连接会打到它身上，
   //   于是"打开我的应用"实际打开的是另一个页面，而且全程不报错。
@@ -186,21 +300,31 @@ export async function withBrowser(o, fn) {
     url,
   ], { stdio: 'ignore', detached: false })
 
-  let closed = false
+  let cdp = null
+  let shutdownPromise = null
+  /**
+   * 关整个进程树 → 等主进程退出 → 带重试删除 profile。
+   * 返回同一个 Promise，保证 finally 与硬超时并发调用时只执行一次。
+   */
   const shutdown = () => {
-    if (closed) return
-    closed = true
-    try { proc.kill() } catch (e) { /* 忽略 */ }
-    // ★ 保留型 profile（profileDir）不删：它就是被测状态（收藏、会话、学情都在里面）
-    if (!KEEP_PROFILE) { try { rmSync(PROFILE_ACTIVE, { recursive: true, force: true }) } catch (e) { /* 忽略 */ } }
+    if (shutdownPromise) return shutdownPromise
+    shutdownPromise = (async () => {
+      try { if (cdp) cdp.close() } catch (e) { /* 忽略 */ }
+      cdp = null
+      killBrowserTree(proc)
+      const exited = await waitForExit(proc, 5000)
+      if (!exited) console.error(`[browser] 进程 ${proc.pid} 在 5s 内未退出，仍尝试清理 profile`)
+      // ★ 保留型 profile（profileDir）不删：它就是被测状态（收藏、会话、学情都在里面）
+      if (!KEEP_PROFILE) await removeProfileDir(PROFILE_ACTIVE, 'post-run')
+    })()
+    return shutdownPromise
   }
   const killer = setTimeout(() => {
     console.error(`硬超时 ${timeoutMs}ms：无条件关闭浏览器`)
-    shutdown()
-    process.exit(3)
+    shutdown().catch((e) => console.error(`[browser] 硬超时收尾失败：${e.message}`))
+      .finally(() => process.exit(3))
   }, timeoutMs)
 
-  let cdp = null
   try {
     const page = await waitForCDP(dbg)
     cdp = connect(page.webSocketDebuggerUrl)
@@ -248,8 +372,11 @@ export async function withBrowser(o, fn) {
     return await fn({ cdp, sleep, waitUntil, evaluate, port: dbg })
   } finally {
     clearTimeout(killer)
-    try { cdp && cdp.close() } catch (e) { /* 忽略 */ }
-    shutdown()
-    await sleep(300)
+    // ★ 必须 await：关进程树/等退出/删 profile 都是异步收尾；不 await 就又会留下目录
+    try {
+      await shutdown()
+    } catch (e) {
+      console.error(`[browser] 收尾失败：${e.message}`)
+    }
   }
 }
