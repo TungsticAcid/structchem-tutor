@@ -417,6 +417,86 @@ export class ComparePage {
       .atom-popup-container { position:absolute; inset:0; pointer-events:none; z-index:1000; }
       /* 页内轻提示（视角/样式对齐的反馈；替代宿主里并不存在的 window.wx.showToast） */
       .cp-toast { position:absolute; left:50%; bottom:64px; transform:translateX(-50%); background:var(--card, rgba(20,20,40,0.94)); color:var(--text, #fff); border:1px solid var(--line, rgba(255,255,255,0.12)); padding:6px 14px; border-radius:14px; font-size:12px; z-index:40; pointer-events:none; }
+
+      /* ================= 视觉精修：标本对照台的玻璃层 =================
+         不改布局与交互；只把顶栏、标签、控制条从"压在白底上的黑玻璃"
+         改成随主题的毛玻璃。浅色主题下标题终于不再是白字白底。 */
+      .compare-page {
+        --shell-ui-bg: var(--bg-2, #f5f5f5);
+        --shell-ui-bg-hover: var(--card-2, #fafafa);
+        --shell-ui-fg: var(--text, #333);
+        --shell-ui-line: var(--line, #ddd);
+        --shell-ui-menu-bg: var(--card, #fff);
+        --shell-ui-menu-fg: var(--text, #333);
+        --shell-ui-menu-dim: var(--text-dim, #666);
+        --shell-ui-menu-line: var(--line, #ddd);
+        --shell-ui-item-bg: var(--bg-2, #f5f5f5);
+        --shell-ui-accent: var(--accent, #2563d6);
+        background: var(--bg, #f5f5f5);
+      }
+      .cp-top-bar {
+        background: var(--card, #ffffff);
+        border-bottom: 1px solid var(--line-soft, rgba(0,0,0,.06));
+        padding-top: calc(10px + env(safe-area-inset-top));
+        padding-bottom: 10px;
+      }
+      .cp-back {
+        min-width: 30px; height: 30px; padding: 0 11px;
+        background: var(--card-2, #fafafa);
+        color: var(--text, #333);
+        border: 1px solid var(--line, rgba(0,0,0,.1));
+        box-shadow: 0 8px 22px -18px rgba(8,20,35,.5);
+      }
+      .cp-title { color: var(--text, #333); font-size: 14px; font-weight: 600; letter-spacing: .01em; }
+      .cp-label {
+        top: 12px; padding: 4px 10px; border-radius: 999px;
+        color: var(--text-dim, #666);
+        background: var(--card, #ffffff);
+        border: 1px solid var(--line-soft, #eee);
+        box-shadow: 0 8px 22px -20px rgba(8,20,35,.45);
+        font-size: 10.5px;
+      }
+      .cp-label:hover { color: var(--accent, #2563d6); border-color: var(--accent, #2563d6); }
+      .cp-divider { background: linear-gradient(to bottom, transparent, var(--line, #ddd) 18%, var(--line, #ddd) 82%, transparent); }
+      .divider-vertical { background: linear-gradient(to right, transparent, var(--line, #ddd) 18%, var(--line, #ddd) 82%, transparent); }
+      .cp-controls {
+        padding: 5px; border-radius: 999px;
+        background: var(--card, #ffffff);
+        border: 1px solid var(--line, #ddd);
+        box-shadow: 0 18px 42px -28px rgba(8,20,35,.55);
+      }
+      .cp-btn { padding: 6px 10px; font-size: 10.5px; border-radius: 999px; letter-spacing: .02em; }
+      .cp-btn:hover { color: var(--text, #333); background: var(--bg-2, #f5f5f5); }
+      .cp-btn.active {
+        color: var(--on-accent, #fff);
+        background: linear-gradient(135deg, var(--accent, #2563d6), var(--accent-2, #5b8def));
+        box-shadow: 0 8px 18px -12px rgba(37, 99, 214, .65);
+      }
+      .cs-panel {
+        background: var(--card, #ffffff);
+        border-right: 1px solid var(--line-soft, #eee);
+        box-shadow: 16px 0 42px -38px rgba(8,20,35,.45);
+      }
+      .cs-col-header { border-bottom-color: var(--line-soft, #eee); }
+      .cs-opt, .cs-tog { border-radius: 7px; }
+      .cs-opt:hover, .cs-tog:hover { border-color: var(--accent, #2563d6); }
+      .cs-opt.active, .cs-tog.on {
+        color: var(--on-accent, #fff);
+        background: linear-gradient(135deg, var(--accent, #2563d6), var(--accent-2, #5b8def));
+        border-color: transparent;
+      }
+      .cs-crystal select {
+        padding: 6px 8px; border-radius: 8px;
+        background: var(--card-2, #fafafa);
+        border-color: var(--line, #ddd);
+      }
+      .cs-crystal select:focus { border-color: var(--accent, #2563d6); }
+      .cp-toast {
+        background: var(--card, #ffffff);
+        color: var(--text, #333);
+        border-color: var(--line, #ddd);
+        box-shadow: 0 14px 34px -24px rgba(8,20,35,.5);
+      }
     </style>`
 
     c.querySelector('#cpBack')?.addEventListener('click', () => router.back())

@@ -79,6 +79,10 @@ export const zh = {
   'pages.orbit.err.threw': '动作执行异常：{message}',
   'pages.orbit.err.invalidParams': '动作参数无效或目标不存在',
 
+  // ---- crystal 库页 ----
+  'pages.crystal.all': '全部结构',
+  'pages.crystal.count': '{n} 种',
+
   // ---- compare 页：带变量（两侧晶体名 / 模型名 / 布局方向） ----
   'pages.compare.titleOne': '{name} - 结构对比',
   'pages.compare.cpkShort': 'CPK',
@@ -146,6 +150,9 @@ export const en = {
   'pages.orbit.err.unknownAction': 'Unknown action: {action}',
   'pages.orbit.err.threw': 'Action threw: {message}',
   'pages.orbit.err.invalidParams': 'Invalid action parameters, or the target does not exist',
+
+  'pages.crystal.all': 'All structures',
+  'pages.crystal.count': '{n} structures',
 
   'pages.compare.titleOne': '{name} — structure comparison',
   'pages.compare.cpkShort': 'CPK',

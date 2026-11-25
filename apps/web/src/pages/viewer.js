@@ -425,6 +425,91 @@ export class ViewerPage {
         /* ★ 顶栏**不再**左移：它横跨整宽，返回键就留在左上角（见上面 bottom-panel 的说明） */
       }
       .atom-popup-container { position:absolute; top:0; left:0; right:0; bottom:0; pointer-events:none; z-index:1000; }
+
+      /* ================= 视觉精修：玻璃顶栏 / 标本台 / 左侧图层面板 =================
+         不改变任何布局尺寸与交互，只统一表面、描边与层次。
+         颜色全部走主题令牌，浅色主题不再出现"白底白字"的顶栏。 */
+      .viewer-page {
+        --shell-ui-bg: var(--bg-2, #f5f5f5);
+        --shell-ui-bg-hover: var(--card-2, #fafafa);
+        --shell-ui-fg: var(--text, #333);
+        --shell-ui-line: var(--line, #ddd);
+        --shell-ui-menu-bg: var(--card, #fff);
+        --shell-ui-menu-fg: var(--text, #333);
+        --shell-ui-menu-dim: var(--text-dim, #666);
+        --shell-ui-menu-line: var(--line, #ddd);
+        --shell-ui-item-bg: var(--bg-2, #f5f5f5);
+        --shell-ui-accent: var(--accent, #2563d6);
+        background: var(--bg, #f5f5f5);
+      }
+      .top-bar {
+        background: var(--card, #ffffff);
+        border-bottom: 1px solid var(--line-soft, rgba(0,0,0,.06));
+      }
+      .back-btn {
+        background: var(--card-2, #fafafa);
+        border: 1px solid var(--line, rgba(0,0,0,.1));
+        box-shadow: 0 8px 22px -18px rgba(8,20,35,.5);
+      }
+      .back-icon { color: var(--text, #333); }
+      .crystal-title {
+        color: var(--text, #333); font-size: 14.5px; font-weight: 600;
+        letter-spacing: .015em;
+      }
+      .compare-fab {
+        background: var(--card, #ffffff);
+        border: 1px solid var(--accent, #2563d6);
+        box-shadow: 0 10px 26px -20px rgba(8,20,35,.5);
+      }
+      .compare-fab:active { background: var(--bg-2, #f5f5f5); }
+      .compare-text { color: var(--accent, #2563d6); font-size: 12px; font-weight: 600; letter-spacing: .08em; }
+      .loading-mask { background: var(--bg, #f5f5f5); }
+      .loading-spinner { border-color: var(--line, rgba(0,0,0,.12)); border-top-color: var(--accent, #2563d6); }
+      .loading-text { color: var(--text-dim, #666); }
+      @media (min-width: 900px) {
+        .viewer-page.panel-left .layer-control {
+          background: var(--card, #ffffff);
+          border-right: 1px solid var(--line-soft, #eee);
+          box-shadow: 18px 0 46px -42px rgba(8, 20, 35, .45);
+        }
+        .viewer-page.panel-left .panel-toggle {
+          justify-content: flex-start; padding: 15px 16px;
+          border-bottom: 1px solid var(--line-soft, #eee);
+        }
+        .viewer-page.panel-left .panel-toggle .toggle-label-text {
+          font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
+        }
+        .viewer-page.panel-left .panel-body { padding: 2px 16px 24px; }
+        .viewer-page.panel-left .control-section { margin-bottom: 4px; }
+        .viewer-page.panel-left .section-title {
+          margin: 15px 0 7px; font-size: 9.5px; letter-spacing: .15em;
+          text-transform: uppercase; color: var(--text-dim, #888);
+        }
+        .viewer-page.panel-left .crystal-info {
+          padding: 10px 12px; border-radius: 10px;
+          background: var(--bg-2, #f7f7f7);
+          border: 1px solid var(--line-soft, #eee);
+        }
+        .viewer-page.panel-left .info-line { font-size: 12px; line-height: 1.75; }
+        .viewer-page.panel-left .toggle-row { padding: 7px 0; }
+        .viewer-page.panel-left .model-selector {
+          padding: 3px; border-radius: 10px;
+          background: var(--bg-2, #f5f5f5); border: 1px solid var(--line-soft, #eee);
+        }
+        .viewer-page.panel-left .model-option { border-radius: 7px; }
+        .viewer-page.panel-left .model-option.active {
+          color: var(--on-accent, #fff);
+          background: linear-gradient(135deg, var(--accent, #2563d6), var(--accent-2, #5b8def));
+          box-shadow: 0 6px 16px -10px rgba(37, 99, 214, .65);
+        }
+      }
+      @media (max-width: 899px) {
+        .viewer-page .bottom-panel .layer-control {
+          border-radius: 16px 16px 0 0;
+          border-top: 1px solid var(--line-soft, #eee);
+          box-shadow: 0 -18px 46px -34px rgba(8,20,35,.5);
+        }
+      }
     </style>`
   }
 

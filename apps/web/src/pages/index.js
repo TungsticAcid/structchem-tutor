@@ -4,6 +4,7 @@
  */
 import { router } from '../shell/router.js'
 import { globalData } from '../shell/app-state.js'
+import { t } from '@i18n/index.js'
 
 let CrystalCardClass = null
 
@@ -63,9 +64,14 @@ export class IndexPage {
   _render() {
     const cats = this._categories
     const filtered = this._filteredCrystals
+    const activeCat = this._categories.find((c) => c.key === this._activeCategory)
+    const sectionTitle = this._activeCategory === 'all'
+      ? t('pages.crystal.all') : (activeCat ? activeCat.name : t('pages.crystal.all'))
 
     return `
     <div class="index-page">
+      <div class="atlas-ambient" aria-hidden="true"></div>
+
       <nav data-page-topbar class="page-nav">
         <!--
           ★★ 2026-10-12（用户问：名字不是叫「轨道视界」吗）：**顶栏要写板块名**。
@@ -73,13 +79,26 @@ export class IndexPage {
             而这里原先写的是「晶体结构库」——同一个东西两个名字（点群页早就写的是板块名）。
             改：标题=板块名，说明=门户卡片上那句副标题（与 home.js 的 MODULE_BLURB 同口径）。
         -->
-        <span class="page-nav__title">晶典在线</span>
-        <span class="page-nav__subtitle">晶体结构与点阵型式</span>
+        <span class="nav-brand">
+          <span class="nav-mark" aria-hidden="true">
+            <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linejoin="round">
+              <path d="M20 4.5 34.5 12.6v14.8L20 35.5 5.5 27.4V12.6L20 4.5Z" stroke-width="1.15"/>
+              <path d="M20 4.5v15.5m0 0 14.5 7.4M20 20 5.5 27.4" stroke-width=".85" opacity=".62"/>
+              <circle cx="20" cy="20" r="3.1" fill="currentColor" stroke="none" opacity=".9"/>
+              <circle cx="20" cy="4.5" r="1.5" fill="currentColor" stroke="none" opacity=".7"/>
+              <circle cx="34.5" cy="27.4" r="1.5" fill="currentColor" stroke="none" opacity=".7"/>
+              <circle cx="5.5" cy="27.4" r="1.5" fill="currentColor" stroke="none" opacity=".7"/>
+            </svg>
+          </span>
+          <span class="nav-copy">
+            <span class="page-nav__title">晶典在线</span>
+          </span>
+        </span>
       </nav>
 
-      <div class="settings-entry" id="settingsBtn">
+      <button class="settings-entry" id="settingsBtn" type="button" aria-label="设置" title="设置">
         <span class="settings-icon">⚙</span>
-      </div>
+      </button>
 
       <div class="category-bar">
         ${cats.map(c => `
@@ -88,6 +107,11 @@ export class IndexPage {
       </div>
 
       <div class="crystal-list">
+        <div class="atlas-section-head">
+          <span class="atlas-section-title" id="atlasSectionTitle">${sectionTitle}</span>
+          <span class="atlas-section-line" aria-hidden="true"></span>
+          <span class="atlas-result" id="atlasResultCount">${t('pages.crystal.count', { n: filtered.length })}</span>
+        </div>
         <div class="card-grid" id="cardGrid">
           ${filtered.length === 0
             ? `<div class="list-empty">暂无该分类的晶体数据</div>`
@@ -102,61 +126,135 @@ export class IndexPage {
     </div>
     <style>
       .index-page {
+        --atlas-max: 1240px;
+        --atlas-line: var(--line, #dddddd);
+        --atlas-soft: var(--line-soft, #eeeeee);
+        --atlas-muted: var(--text-dim, #6b7280);
+        /* 壳里两个浮动控件（回门户 / 保存图片）自带的令牌，按本页主题重新绑一次。
+           否则主题切换后它们可能停在加载时的浅色值，出现"深底上白胶囊白字"。 */
+        --shell-home-bg: var(--bg-2, #f5f5f5);
+        --shell-home-bg-hover: var(--card-2, #fafafa);
+        --shell-home-fg: var(--text, #333);
+        --shell-home-line: var(--line, #ddd);
+        --shell-ui-bg: var(--bg-2, #f5f5f5);
+        --shell-ui-bg-hover: var(--card-2, #fafafa);
+        --shell-ui-fg: var(--text, #333);
+        --shell-ui-line: var(--line, #ddd);
+        --shell-ui-menu-bg: var(--card, #fff);
+        --shell-ui-menu-fg: var(--text, #333);
+        --shell-ui-menu-dim: var(--text-dim, #666);
+        --shell-ui-menu-line: var(--line, #ddd);
+        --shell-ui-item-bg: var(--bg-2, #f5f5f5);
+        --shell-ui-accent: var(--accent, #2563d6);
+        position: relative;
         width: 100%; height: 100vh; display: flex; flex-direction: column;
-        background: #f5f5f5; overflow: hidden;
+        background: var(--bg, #f5f5f5); color: var(--text, #202938);
+        overflow: hidden; isolation: isolate;
+      }
+      .index-page::before {
+        content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+        background-image:
+          linear-gradient(var(--atlas-line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--atlas-line) 1px, transparent 1px);
+        background-size: 64px 64px;
+        mask-image: linear-gradient(to bottom, rgba(0,0,0,.55), transparent 30%);
+        opacity: .18;
+      }
+      .atlas-ambient {
+        position: absolute; inset: -18% -8% auto; height: 64%; z-index: -1; pointer-events: none;
+        background:
+          radial-gradient(42% 58% at 16% 18%, var(--accent, #2563d6), transparent 70%),
+          radial-gradient(34% 48% at 86% 0%, var(--accent-2, #5b8def), transparent 72%);
+        filter: blur(28px); opacity: .10;
       }
       .page-nav {
-        padding: calc(12px + env(safe-area-inset-top)) 16px 10px; background: var(--card, #fff);
-        display: flex; align-items: center; border-bottom: 1px solid var(--line, #eee); flex-shrink: 0;
+        min-height: 62px; flex-shrink: 0; z-index: 2;
+        padding: calc(10px + env(safe-area-inset-top)) clamp(18px, 4vw, 44px) 10px;
+        display: flex; align-items: center;
+        background: var(--card, #ffffff);
+        border-bottom: 1px solid var(--atlas-soft);
       }
-      .page-nav__title { font-size: 18px; font-weight: 600; color: var(--text, #333); }
-      /* 说明文字：与板块名同一行、弱一档（与门户卡片的"板块名 + 副标题"口径一致）
-         ★ 右侧留 12px：壳会把「保存图片」按钮插进同一个顶栏，不留间距两者会贴在一起 */
-      .page-nav__subtitle {
-        font-size: 12px; font-weight: 400; color: var(--text-dim, #8a93a8);
-        margin-left: 8px; margin-right: 12px; transform: translateY(1px);
+      .nav-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+      .nav-mark {
+        width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center;
+        color: var(--accent, #2563d6); border-radius: 10px;
+        background: var(--bg-2, #f5f5f5);
+        border: 1px solid var(--atlas-line);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
       }
+      .nav-mark svg { width: 27px; height: 27px; display: block; }
+      .nav-copy { display: flex; align-items: baseline; min-width: 0; }
+      .page-nav__title { font-size: 17px; font-weight: 650; letter-spacing: .01em; color: var(--text, #333); white-space: nowrap; }
       .settings-entry {
-        position: fixed; top: 12px; right: 16px; z-index: 200;
-        /* ★★ 2026-10-06：深色下"浮动 UI 不清晰"（用户报）。
-           实测不是对比度问题，而是**按钮与页面底分不开**：深色主题里 --card 与 --bg
-           明度接近，而原来那条 0.12 的黑投影落在近黑底上等于没有。
-           改用 --elevation-1（深色侧 = 重外投影 + 内侧一条极淡亮线）并补一条描边。 */
-        width: 36px; height: 36px; border-radius: 50%;
-        background: var(--card-2, rgba(255,255,255,0.95));
-        border: 1px solid var(--line, rgba(0,0,0,0.06));
+        position: fixed; top: calc(14px + env(safe-area-inset-top)); right: clamp(12px, 2vw, 24px); z-index: 200;
+        width: 34px; height: 34px; padding: 0; border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
-        box-shadow: var(--elevation-1, 0 2px 8px rgba(0,0,0,0.12)); cursor: pointer;
-        margin-top: env(safe-area-inset-top);
+        color: var(--atlas-muted); cursor: pointer;
+        background: var(--card, #fff);
+        border: 1px solid var(--atlas-line);
+        box-shadow: 0 8px 22px -14px rgba(8, 20, 35, .45);
+        transition: color .2s, border-color .2s, transform .2s;
       }
-      .settings-icon { font-size: 20px; }
+      .settings-entry:hover { color: var(--accent); border-color: var(--accent); transform: rotate(12deg); }
+      .settings-icon { font-size: 17px; line-height: 1; }
       .category-bar {
-        flex-shrink: 0; padding: 8px 12px; background: var(--card, #fff); border-bottom: 1px solid var(--line, #eee);
-        /* ★ flex-wrap 与 overflow-x 并存：中文六个分类名在手机上正好一行，
-         *   英文（All / Metallic crystals / Ionic crystals / Covalent crystals /
-         *   Molecular crystals / Mixed bonding）会往右溢出 —— 只靠横向滚动的话，
-         *   最后一个分类默认停在屏幕外，用户根本不知道还有它。
-         *   换行之后全部可见；overflow-x: auto 保留，作为极窄屏的最后兜底。
-         *   ⚠ 本文件整份是一个**模板字符串**：注释里写反引号会把模板截断成语法错误
-         *   （本轮就这么白屏过一次，浏览器控制台报 SyntaxError: Unexpected identifier）。 */
-        display: flex; gap: 8px; flex-wrap: wrap; overflow-x: auto;
+        width: 100%; max-width: var(--atlas-max); margin: 0 auto; flex-shrink: 0; z-index: 1;
+        padding: 14px clamp(18px, 4vw, 44px) 10px;
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap; overflow-x: auto;
+        scrollbar-width: none;
       }
       .category-item {
-        display: inline-block; padding: 6px 14px; border-radius: 16px;
-        font-size: 13px; color: var(--text-dim, #666); background: var(--bg-2, #f0f0f0); white-space: nowrap;
-        cursor: pointer; transition: all 0.2s; flex-shrink: 0;
+        display: inline-block; padding: 6px 13px; border-radius: 999px;
+        font-size: 12px; color: var(--atlas-muted); white-space: nowrap; flex-shrink: 0;
+        border: 1px solid var(--atlas-line); background: var(--bg-2, #f5f5f5);
+        cursor: pointer; transition: color .2s, border-color .2s, background .2s, box-shadow .2s;
       }
-      .category-item.active { color: var(--on-accent, #fff); background: var(--accent, #4285F4); }
+      .category-item:hover { color: var(--text); border-color: var(--accent); }
+      .category-item.active {
+        color: var(--on-accent, #fff);
+        border-color: transparent;
+        background: linear-gradient(135deg, var(--accent, #2563d6), var(--accent-2, #5b8def));
+        box-shadow: 0 8px 20px -10px rgba(37, 99, 214, .55);
+      }
       .crystal-list {
-        flex: 1; overflow-y: auto; padding: 12px;
+        flex: 1; width: 100%; max-width: var(--atlas-max); margin: 0 auto; z-index: 1;
+        overflow-y: auto; padding: 2px clamp(18px, 4vw, 44px) 42px;
+        scrollbar-width: thin; scrollbar-color: var(--atlas-line) transparent;
       }
-      /**
-       * 打开智能体时让出右侧一条（与轨道/点群保持一致）。
-       * ★ 这一页是 flex 纵列 + 内部滚动（.crystal-list），所以给**导航条与滚动区**
-       *   加 padding-right，而不是给整页设 width —— 后者会把固定顶栏的底色也切掉。
-       * ★ 窄屏（≤900px）抽屉从底部弹出，不左右压缩。
-       */
-      .page-nav, .category-bar, .crystal-list { transition: padding-right .24s cubic-bezier(.4, 0, .2, 1); }
+      .atlas-section-head {
+        display: flex; align-items: center; gap: 13px; margin: 4px 0 14px;
+      }
+      .atlas-section-title {
+        color: var(--text); font-size: 12px; font-weight: 600; letter-spacing: .08em; white-space: nowrap;
+      }
+      .atlas-section-line {
+        flex: 1; height: 1px;
+        background: linear-gradient(90deg, var(--atlas-line), transparent);
+      }
+      .atlas-result { color: var(--atlas-muted); font-size: 10px; letter-spacing: .12em; white-space: nowrap; }
+      .card-grid {
+        display: grid; counter-reset: crystal;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 18px 16px;
+      }
+      .card-grid > .card-cell {
+        counter-increment: crystal;
+        cursor: pointer; min-width: 0;
+        animation: atlasCardIn .5s cubic-bezier(.2, .75, .25, 1) both;
+        animation-delay: calc(var(--i, 0) * 26ms);
+      }
+      @keyframes atlasCardIn {
+        from { opacity: 0; transform: translateY(12px) scale(.985); }
+        to { opacity: 1; transform: none; }
+      }
+      .list-empty {
+        text-align: center; color: var(--atlas-muted); font-size: 13px;
+        padding: 86px 0; grid-column: 1 / -1;
+      }
+      /* 打开智能体时让出右侧一条（与轨道/点群保持一致）；窄屏抽屉从底部弹出，不压缩。 */
+      .page-nav, .category-bar, .crystal-list {
+        transition: padding-right .24s cubic-bezier(.4, 0, .2, 1);
+      }
       body.agent-open .page-nav,
       body.agent-open .category-bar,
       body.agent-open .crystal-list {
@@ -167,27 +265,22 @@ export class IndexPage {
         body.agent-open .category-bar,
         body.agent-open .crystal-list { padding-right: 16px; }
       }
-      .card-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-        gap: 12px;
-        max-width: 800px;
-        margin: 0 auto;
+      @media (max-width: 720px) {
+        .page-nav { min-height: 58px; padding-left: 16px; padding-right: 16px; }
+        .nav-mark { width: 30px; height: 30px; border-radius: 9px; }
+        .nav-mark svg { width: 24px; height: 24px; }
+        .settings-entry { top: calc(12px + env(safe-area-inset-top)); right: 12px; width: 32px; height: 32px; }
+        .category-bar { padding: 10px 16px 9px; gap: 7px; flex-wrap: nowrap; overflow-x: auto; }
+        .category-item { padding: 6px 11px; font-size: 11.5px; }
+        .crystal-list { padding: 0 16px 30px; }
+        .atlas-section-head { margin-bottom: 11px; }
+        .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
       }
-      @media (min-width: 600px) {
-        .card-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+      @media (max-width: 380px) {
+        .card-grid { gap: 10px; }
       }
-      @media (min-width: 900px) {
-        .card-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
-      }
-      .card-grid > .card-cell {
-        cursor: pointer;
-        transition: transform 0.15s;
-      }
-      .card-grid > .card-cell:active { transform: scale(0.97); }
-      .list-empty {
-        text-align: center; color: var(--text-dim, #999); font-size: 14px;
-        padding-top: 100px; grid-column: 1 / -1;
+      @media (prefers-reduced-motion: reduce) {
+        .card-grid > .card-cell { animation: none; }
       }
     </style>`
   }
@@ -225,6 +318,14 @@ export class IndexPage {
     this._container.querySelectorAll('.category-item').forEach(el => {
       el.classList.toggle('active', el.dataset.category === category)
     })
+    const active = this._categories.find((c) => c.key === category)
+    const title = this._container.querySelector('#atlasSectionTitle')
+    if (title) {
+      title.textContent = category === 'all'
+        ? t('pages.crystal.all') : ((active && active.name) || t('pages.crystal.all'))
+    }
+    const count = this._container.querySelector('#atlasResultCount')
+    if (count) count.textContent = t('pages.crystal.count', { n: this._filteredCrystals.length })
     this._renderCards()
   }
 
@@ -241,10 +342,11 @@ export class IndexPage {
     }
 
     // 为每个晶体创建卡片
-    for (const crystal of this._filteredCrystals) {
+    this._filteredCrystals.forEach((crystal, index) => {
       // 每个卡片用一个独立容器
       const cell = document.createElement('div')
       cell.className = 'card-cell'
+      cell.style.setProperty('--i', String(Math.min(index, 18)))
       grid.appendChild(cell)
 
       // 创建 CrystalCard 组件（组件内部 select 事件负责跳转，无需容器级 click）
@@ -261,18 +363,19 @@ export class IndexPage {
         card.mount(cell)
       } catch (err) {
         console.error('[index] 创建卡片失败:', crystal.id, err)
-        // 回退：显示简单文本卡片
+        // 回退：保留同一套卡片骨架，样式仍由卡片组件/CSS 接管
         cell.innerHTML = `
-        <div class="crystal-card" style="background:var(--card,#fff);border-radius:8px;padding:12px;">
-          <div class="card-thumb" style="height:80px;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;border-radius:4px;">
-            <span style="font-size:24px;color:rgba(255,255,255,0.6);">◆</span>
+        <div class="crystal-card">
+          <div class="card-thumb">
+            <span class="thumb-placeholder"><span class="thumb-icon">◆</span></span>
           </div>
-          <div style="padding:8px 4px 4px;">
-            <span style="font-size:13px;font-weight:600;color:var(--text,#333);">${crystal.name}</span>
+          <div class="card-body">
+            <span class="card-name">${crystal.name}</span>
+            <span class="card-formula">${crystal.subtitle || crystal.formula || ''}</span>
           </div>
-          <span style="display:inline-block;margin:0 4px 6px;padding:2px 6px;font-size:10px;color:var(--accent,#4285F4);background:rgba(66,133,244,0.14);border-radius:4px;">${crystal.systemName || crystal.crystalSystem}</span>
+          <span class="card-tag">${crystal.systemName || crystal.crystalSystem || ''}</span>
         </div>`
       }
-    }
+    })
   }
 }

@@ -7,6 +7,26 @@ import { getCrystalData } from '../lib/crystal-loader.js'
 import { fractionalToCartesian } from '../lib/geometry-utils.js'
 import elementsData from '../data/elements.js'
 
+/**
+ * 缩略图底色按**晶系**分色，而不是所有卡片共用一块紫渐变。
+ * 色相只做低饱和的矿物色，原子球仍是元素本色——这样图鉴有层次，
+ * 又不会变成一张花花绿绿的色卡。
+ */
+const THUMB_THEMES = {
+  cubic:        { from: '#17324f', to: '#070f1a', glow: 'rgba(104, 180, 255, .34)' },
+  hexagonal:    { from: '#0f393a', to: '#05161b', glow: 'rgba(102, 224, 198, .30)' },
+  tetragonal:   { from: '#32234e', to: '#0b0918', glow: 'rgba(190, 152, 255, .30)' },
+  orthorhombic: { from: '#3b2c1b', to: '#120d08', glow: 'rgba(255, 196, 107, .26)' },
+  trigonal:     { from: '#3a2235', to: '#150b13', glow: 'rgba(255, 150, 198, .26)' },
+  monoclinic:   { from: '#263241', to: '#0a1119', glow: 'rgba(150, 190, 220, .24)' },
+  triclinic:    { from: '#2e3028', to: '#10120c', glow: 'rgba(210, 220, 160, .24)' },
+}
+const DEFAULT_THUMB_THEME = THUMB_THEMES.cubic
+
+function thumbTheme(crystal) {
+  return THUMB_THEMES[crystal && crystal.crystalSystem] || DEFAULT_THUMB_THEME
+}
+
 export class CrystalCard extends BaseComponent {
   static properties = {
     crystal: { type: Object, value: {}, observer: 'onCrystalChanged' }
@@ -72,11 +92,19 @@ export class CrystalCard extends BaseComponent {
           const w = canvas.width || 300
           const h = canvas.height || 200
 
-          // 背景渐变
-          const bgGrad = ctx.createLinearGradient(0, 0, w, h)
-          bgGrad.addColorStop(0, '#667eea')
-          bgGrad.addColorStop(1, '#764ba2')
+          // 背景：按晶系分色的深矿物底 + 左上角斜向微光 + 边缘暗角。
+          const theme = thumbTheme(crystalMeta)
+          const bgGrad = ctx.createLinearGradient(0, 0, w * .85, h)
+          bgGrad.addColorStop(0, theme.from)
+          bgGrad.addColorStop(1, theme.to)
           ctx.fillStyle = bgGrad
+          ctx.fillRect(0, 0, w, h)
+
+          const glow = ctx.createRadialGradient(w * .78, h * .12, 0, w * .78, h * .12, w * .86)
+          glow.addColorStop(0, theme.glow)
+          glow.addColorStop(.55, 'rgba(255,255,255,0.03)')
+          glow.addColorStop(1, 'rgba(0,0,0,0)')
+          ctx.fillStyle = glow
           ctx.fillRect(0, 0, w, h)
 
           // 投影变换（等距视图）
@@ -151,8 +179,8 @@ export class CrystalCard extends BaseComponent {
           const offsetY = (h - rangeY * scale) / 2 - minY * scale
 
           // 绘制晶胞线框
-          ctx.strokeStyle = 'rgba(255,255,255,0.35)'
-          ctx.lineWidth = 1.2
+          ctx.strokeStyle = 'rgba(255,255,255,0.28)'
+          ctx.lineWidth = 1
           for (const [i, j] of edges) {
             const a = cellVerts[i], b = cellVerts[j]
             ctx.beginPath()
@@ -170,6 +198,10 @@ export class CrystalCard extends BaseComponent {
           const sorted = positions.map((p, i) => ({ ...p, i }))
           sorted.sort((a, b) => (elemMaxR[b.element] || 0) - (elemMaxR[a.element] || 0))
 
+          ctx.save()
+          ctx.shadowColor = 'rgba(0,0,0,0.36)'
+          ctx.shadowBlur = 5
+          ctx.shadowOffsetY = 1.5
           for (const p of sorted) {
             const elemInfo = elementsData[p.element]
             const color = elemInfo?.color || '#fff'
@@ -188,6 +220,7 @@ export class CrystalCard extends BaseComponent {
             ctx.lineWidth = 0.5
             ctx.stroke()
           }
+          ctx.restore()
           // 注意：绘制成功后不要调用 setData，避免触发不必要的 DOM 重渲染
           // canvas 已经包含绘制内容，无需替换
         } catch (err) {
@@ -223,28 +256,83 @@ export class CrystalCard extends BaseComponent {
     </div>
     <style>
       .crystal-card {
-        background: var(--card, #fff); border-radius: 8px; overflow: hidden;
-        /* ★ 2026-10-06：卡片也要"浮起"——深色主题下纯黑小投影落在近黑底上等于没有，
-           卡片与页面底糊成一片（用户报「深色下浮动 UI 不清晰」）。统一用 elevation 令牌。 */
-        box-shadow: var(--elevation-1, 0 1px 6px rgba(0,0,0,0.08)); transition: transform 0.15s; cursor: pointer;
+        position: relative; overflow: hidden; cursor: pointer;
+        border: 1px solid var(--line-soft, #ececec); border-radius: 16px;
+        background: var(--card, #ffffff);
+        box-shadow:
+          0 16px 34px -26px rgba(8, 20, 35, .48),
+          inset 0 1px 0 rgba(255, 255, 255, .2);
+        transition: transform .3s cubic-bezier(.2, .75, .25, 1), box-shadow .3s, border-color .3s;
       }
-      .crystal-card:active { transform: scale(0.97); }
+      .crystal-card::after {
+        content: counter(crystal, decimal-leading-zero);
+        position: absolute; top: 11px; left: 13px; z-index: 2;
+        color: rgba(255,255,255,.56); font: 9px/1 var(--font-ui, Georgia, serif);
+        letter-spacing: .18em; text-shadow: 0 1px 5px rgba(0,0,0,.35);
+      }
+      .crystal-card:hover {
+        transform: translateY(-4px);
+        border-color: var(--accent, #2563d6);
+        box-shadow: 0 24px 44px -28px rgba(8, 20, 35, .55);
+      }
+      .crystal-card:active { transform: translateY(-1px) scale(.992); }
       .card-thumb {
-        width: 100%; height: 100px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        display: flex; align-items: center; justify-content: center; position: relative;
+        position: relative; width: 100%; aspect-ratio: 3 / 2; overflow: hidden;
+        display: flex; align-items: center; justify-content: center;
+        background: linear-gradient(150deg, #17324f, #070f1a);
       }
-      .thumb-canvas { width: 100%; height: 100%; }
-      .thumb-placeholder { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
-      .thumb-icon { font-size: 32px; color: rgba(255,255,255,0.6); }
-      .card-body { padding: 10px 12px 4px; }
+      .card-thumb::after {
+        content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+        background:
+          linear-gradient(to top, rgba(3, 9, 16, .42), transparent 42%),
+          linear-gradient(118deg, rgba(255,255,255,.10), transparent 34%);
+      }
+      .thumb-canvas {
+        width: 100%; height: 100%; display: block;
+        transform: scale(1.015); transition: transform .55s cubic-bezier(.2, .75, .25, 1);
+      }
+      .crystal-card:hover .thumb-canvas { transform: scale(1.055); }
+      .thumb-placeholder {
+        display: flex; align-items: center; justify-content: center;
+        width: 100%; height: 100%; position: relative;
+      }
+      .thumb-icon { font-size: 30px; color: rgba(255,255,255,.55); }
+      .card-body {
+        display: grid; gap: 3px; padding: 12px 15px 5px;
+        border-top: 1px solid var(--line-soft, #eee);
+      }
       .card-name {
-        display: block; font-size: 14px; font-weight: 600; color: var(--text, #333);
+        display: block; font-size: 15px; font-weight: 600; line-height: 1.4;
+        color: var(--text, #333); letter-spacing: .01em;
         overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
-      .card-formula { display: block; font-size: 12px; color: var(--text-dim, #888); margin-top: 2px; }
+      .card-formula {
+        display: block; font-size: 10.5px; color: var(--text-dim, #888);
+        letter-spacing: .08em; line-height: 1.45;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
       .card-tag {
-        margin: 0 12px 8px; display: inline-block; padding: 2px 8px;
-        font-size: 10px; color: var(--accent, #4285F4); background: rgba(66,133,244,0.14); border-radius: 4px;
+        margin: 0 15px 13px; display: inline-flex; align-items: center; gap: 5px;
+        padding: 3px 8px; border-radius: 999px;
+        border: 1px solid var(--line, #ddd);
+        color: var(--text-dim, #7a8494); background: transparent;
+        font-size: 9.5px; letter-spacing: .06em;
+      }
+      .card-tag::before {
+        content: ""; width: 4px; height: 4px; border-radius: 50%;
+        background: var(--accent, #2563d6); opacity: .72;
+      }
+      @media (max-width: 720px) {
+        .crystal-card { border-radius: 13px; }
+        .card-body { padding: 9px 11px 4px; }
+        .card-name { font-size: 13.5px; }
+        .card-formula { font-size: 10px; }
+        .card-tag { margin: 0 11px 10px; padding: 2px 7px; font-size: 9px; }
+        .crystal-card::after { top: 8px; left: 10px; font-size: 8px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .crystal-card, .thumb-canvas { transition: none; }
+        .crystal-card:hover { transform: none; }
       }
     </style>`
   }
