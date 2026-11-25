@@ -40,6 +40,7 @@ function loadConfig(env = process.env) {
     sessionSecret: env.ANALYTICS_SESSION_SECRET || '',
     sessionTtlMs: positiveInt(env.ANALYTICS_SESSION_HOURS, 12, 1, 24 * 30) * 60 * 60 * 1000,
     tzOffsetMinutes: Number(env.ANALYTICS_TZ_OFFSET_MINUTES || 480),
+    allowedOrigins: String(env.ANALYTICS_ALLOWED_ORIGINS || '').split(/[,\s]+/).filter(Boolean),
   }
 }
 
@@ -64,6 +65,7 @@ async function main() {
     sessionSecret: cfg.sessionSecret,
     sessionTtlMs: cfg.sessionTtlMs,
     staticDir: cfg.staticDir,
+    allowedOrigins: cfg.allowedOrigins,
   })
 
   app.server.listen(cfg.port, cfg.host, () => {

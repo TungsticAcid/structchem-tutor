@@ -103,6 +103,14 @@ export function createAnalytics(cfg = {}) {
   const endpoint = cfg.endpoint || env.VITE_ANALYTICS_ENDPOINT || '/api/analytics/collect'
   const health = cfg.health || env.VITE_ANALYTICS_HEALTH
     || endpoint.replace(/\/collect\/?$/, '/health')
+  /**
+   * 同一个前端可能部署在两个源（学校 Nginx / Vercel）而共用统计服务。
+   * 跨源时改用 `text/plain`：这是 CORS 的「简单请求」，不会触发预检；
+   * 服务端仍按 JSON 解析，并用 allowlist 校验 Origin。
+   */
+  const crossOrigin = (() => {
+    try { return new URL(endpoint, win.location.href).origin !== win.location.origin } catch (e) { return false }
+  })()
 
   const api = {
     enabled: false,
@@ -208,7 +216,9 @@ export function createAnalytics(cfg = {}) {
     try {
       if (!win || !win.navigator || typeof win.navigator.sendBeacon !== 'function') return false
       const body = JSON.stringify({ events: batch })
-      const blob = new Blob([body], { type: 'application/json' })
+      const blob = new Blob([body], {
+        type: crossOrigin ? 'text/plain;charset=UTF-8' : 'application/json',
+      })
       return win.navigator.sendBeacon(endpoint, blob) === true
     } catch (e) { return false }
   }
@@ -229,7 +239,9 @@ export function createAnalytics(cfg = {}) {
     api._flushing = true
     return fetchFn(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': crossOrigin ? 'text/plain;charset=UTF-8' : 'application/json',
+      },
       body: JSON.stringify({ events: batch }),
       keepalive: true,
       credentials: 'same-origin',

@@ -140,6 +140,34 @@ function sameOrigin(req) {
   }
 }
 
+/**
+ * 埋点接口允许的跨源来源。
+ *
+ * 典型部署：学校 Nginx 与 Vercel 各跑一份相同前端，但共用学校服务器上的
+ * 一个统计库。学校站点同源直连；Vercel 站点用
+ * `VITE_ANALYTICS_ENDPOINT=https://统计域名/api/analytics/collect` 跨源上报。
+ * 只对**埋点/健康检查**开放，后台 API 仍然只允许同源（管理员只在一个后台登录）。
+ */
+function normalizeOrigins(value) {
+  const list = Array.isArray(value) ? value : String(value || '').split(/[,\s]+/)
+  return list.map((s) => String(s).trim()).filter(Boolean).map((s) => {
+    try { return new URL(s).origin } catch (e) { return '' }
+  }).filter(Boolean)
+}
+
+function corsHeaders(req, allowedOrigins) {
+  const origin = req.headers.origin
+  if (!origin) return {}
+  if (sameOrigin(req)) return {}
+  let parsed
+  try { parsed = new URL(origin).origin } catch (e) { return {} }
+  if (!allowedOrigins.includes(parsed)) return {}
+  return {
+    'Access-Control-Allow-Origin': parsed,
+    'Vary': 'Origin',
+  }
+}
+
 function isSecure(req) {
   return !!(req.socket && req.socket.encrypted)
     || String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https'
@@ -232,6 +260,7 @@ export function createAnalyticsApp(cfg = {}) {
   })
   const limiter = createRateLimiter()
   const staticDir = cfg.staticDir ? resolve(cfg.staticDir) : ''
+  const allowedOrigins = normalizeOrigins(cfg.allowedOrigins)
 
   async function handler(req, res) {
     const url = new URL(req.url || '/', 'http://localhost')
@@ -240,30 +269,47 @@ export function createAnalyticsApp(cfg = {}) {
     if (req.method === 'GET' && pathname === '/api/analytics/health') {
       return json(res, 200, {
         ok: true, service: 'chem-agent-analytics', version: 1, now: Date.now(),
-      })
+      }, corsHeaders(req, allowedOrigins))
     }
 
     if (pathname === '/api/analytics/collect') {
-      if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method_not_allowed' })
-      if (!sameOrigin(req)) return json(res, 403, { ok: false, error: 'bad_origin' })
+      const cors = corsHeaders(req, allowedOrigins)
+      if (req.method === 'OPTIONS') {
+        if (!sameOrigin(req) && !cors['Access-Control-Allow-Origin']) {
+          return json(res, 403, { ok: false, error: 'bad_origin' })
+        }
+        res.writeHead(204, Object.assign({
+          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Max-Age': '600',
+          'Cache-Control': 'no-store',
+        }, cors))
+        return res.end()
+      }
+      if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'method_not_allowed' }, cors)
+      if (!sameOrigin(req) && !cors['Access-Control-Allow-Origin']) {
+        return json(res, 403, { ok: false, error: 'bad_origin' })
+      }
       const rl = limiter.hit('collect:' + clientKey(req), 240, 60 * 1000)
-      if (!rl.ok) return json(res, 429, { ok: false, error: 'rate_limited' }, { 'Retry-After': '60' })
-      if (!/^application\/json\b/i.test(String(req.headers['content-type'] || ''))) {
-        return json(res, 415, { ok: false, error: 'json_required' })
+      if (!rl.ok) return json(res, 429, { ok: false, error: 'rate_limited' }, Object.assign({ 'Retry-After': '60' }, cors))
+      const ctype = String(req.headers['content-type'] || '')
+      // 跨源 Vercel 站点用 text/plain 发送可避免 CORS 预检；同源站点仍用 application/json。
+      if (!/^(application\/json|text\/plain)\b/i.test(ctype)) {
+        return json(res, 415, { ok: false, error: 'json_required' }, cors)
       }
       let body
       try { body = await readJson(req) } catch (e) {
-        return json(res, e.status || 400, { ok: false, error: e.message })
+        return json(res, e.status || 400, { ok: false, error: e.message }, cors)
       }
       if (!body || !Array.isArray(body.events) || body.events.length === 0 || body.events.length > MAX_EVENTS) {
-        return json(res, 400, { ok: false, error: 'bad_events' })
+        return json(res, 400, { ok: false, error: 'bad_events' }, cors)
       }
       try {
         const r = store.ingestBatch(body.events, Date.now())
-        return json(res, 202, { ok: true, accepted: r.accepted, rejected: r.rejected })
+        return json(res, 202, { ok: true, accepted: r.accepted, rejected: r.rejected }, cors)
       } catch (e) {
         console.error('[analytics] ingest failed:', e)
-        return json(res, 500, { ok: false, error: 'ingest_failed' })
+        return json(res, 500, { ok: false, error: 'ingest_failed' }, cors)
       }
     }
 

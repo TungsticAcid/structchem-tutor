@@ -32,10 +32,12 @@ function memoryStorage() {
   }
 }
 
-function fakeWin({ width = 1280, touch = 0, dnt = false } = {}) {
+function fakeWin({ width = 1280, touch = 0, dnt = false, href = 'https://school.example/' } = {}) {
   const listeners = {}
+  const url = new URL(href)
   return {
     innerWidth: width,
+    location: { href: url.href, origin: url.origin },
     doNotTrack: dnt ? '1' : null,
     navigator: {
       maxTouchPoints: touch,
@@ -173,6 +175,23 @@ async function testFlow() {
   a.setEnabled(false)
 }
 
+async function testCrossOrigin() {
+  const win = fakeWin({ href: 'https://project.vercel.app/' })
+  const fetchFn = fakeFetch()
+  const a = createAnalytics({
+    win, doc: fakeDoc(), localStorage: memoryStorage(), sessionStorage: memoryStorage(), fetch: fetchFn,
+    endpoint: 'https://stats.school.example/api/analytics/collect',
+  })
+  eq(await a.init(), true, '跨源统计地址也能启用')
+  a.pageView('/orbit')
+  await a.flush()
+  const post = fetchFn.calls.find((c) => c.opts && c.opts.method === 'POST')
+  eq(post.opts.headers['Content-Type'], 'text/plain;charset=UTF-8',
+    '跨源上报使用 text/plain 简单请求（避免预检）')
+  ok(post.url.startsWith('https://stats.school.example/api/analytics/'), '跨源上报发到配置的统计地址')
+  a.setEnabled(false)
+}
+
 async function testSettingOff() {
   let enabled = true
   const fetchFn = fakeFetch()
@@ -191,6 +210,7 @@ console.log('【前端埋点 · 无服务 / DNT / 隐私开关】')
 await testDisabledWithoutServer()
 await testDnt()
 await testSettingOff()
+await testCrossOrigin()
 console.log('【前端埋点 · 事件形状与去重】')
 await testFlow()
 

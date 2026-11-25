@@ -156,6 +156,7 @@ async function testHttp() {
   const app = createAnalyticsApp({
     store, adminUser: 'admin', adminPassword: 'test-password-123',
     sessionSecret: 'test-secret', staticDir,
+    allowedOrigins: ['https://vercel.example'],
   })
   await new Promise((resolve) => app.server.listen(0, '127.0.0.1', resolve))
   const port = app.server.address().port
@@ -177,9 +178,9 @@ async function testHttp() {
     // 正常收集
     const now = Date.now()
     res = await fetch(base + '/api/analytics/collect', {
-      method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: '{}',
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: '{}',
     })
-    eq(res.status, 415, '非 JSON 收集请求 415')
+    eq(res.status, 415, '不支持的 Content-Type 415')
 
     res = await fetch(base + '/api/analytics/collect', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{',
@@ -252,6 +253,39 @@ async function testHttp() {
       lastStatus = res.status
     }
     eq(lastStatus, 429, '连续失败触发登录限速 429')
+
+    // 两个源共用统计服务：Vercel 站点跨源上报（text/plain 简单请求 + CORS）。
+    res = await fetch(base + '/api/analytics/health', {
+      headers: { Origin: 'https://vercel.example' },
+    })
+    eq(res.status, 200, '允许来源的健康检查 200')
+    eq(res.headers.get('access-control-allow-origin'), 'https://vercel.example', '健康检查返回 CORS 头')
+
+    res = await fetch(base + '/api/analytics/collect', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://vercel.example',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'content-type',
+      },
+    })
+    eq(res.status, 204, '允许来源的预检 204')
+    eq(res.headers.get('access-control-allow-origin'), 'https://vercel.example', '预检返回允许来源')
+
+    res = await fetch(base + '/api/analytics/collect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8', Origin: 'https://vercel.example' },
+      body: JSON.stringify({
+        events: [
+          ev('session_start', { path: '/orbit', lang: 'zh', device: 'desktop' },
+            { visitorId: 'visitor-vercel01', sessionId: 'session-vercel01' }),
+          ev('page_view', { path: '/orbit', module: 'orbit' },
+            { visitorId: 'visitor-vercel01', sessionId: 'session-vercel01' }),
+        ],
+      }),
+    })
+    eq(res.status, 202, '允许来源的 text/plain 收集 202')
+    eq(res.headers.get('access-control-allow-origin'), 'https://vercel.example', '收集响应返回 CORS 头')
 
     res = await fetch(base + '/admin')
     eq(res.status, 200, '后台页面 200')
