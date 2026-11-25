@@ -33,6 +33,21 @@ function esc(s) {
 }
 
 /**
+ * 练习判定结果的**匿名计数**。
+ * ★ 模块不认识统计服务：只派发一个 DOM 事件，由宿主（apps/web）决定是否上报。
+ *   这样模块仍能独立运行（Node 单测里没有 window，直接跳过）。
+ * ★ detail 里刻意没有题干、选项、答案文本，只有模块、题型与对错。
+ */
+function emitQuizSubmit(detail) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'
+      && typeof CustomEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('chem-agent:quiz-submit', { detail }))
+    }
+  } catch (e) { /* 统计失败不影响答题 */ }
+}
+
+/**
  * @param {Object} deps
  * @param {Object} deps.panel   面板（需有 addCard / renderRich / addChip）
  * @param {Object} deps.app     智能体（取 storyboard、setNode）
@@ -355,6 +370,7 @@ export function createQuizUI(deps = {}) {
         if (!ta.value.trim()) { panel.addChip('先写点什么再提交吧', 'warn'); return }
         ta.disabled = true
         card.querySelector('.agent-short-submit').disabled = true
+        emitQuizSubmit({ module: 'crystal', kind: 'short', graded: false, correct: null })
         revealAnswer(card, q, ta.value.trim())
       })
     }
@@ -407,6 +423,7 @@ export function createQuizUI(deps = {}) {
       else if (i === chosenIndex) btn.classList.add('wrong')
     })
     if (session) { if (r.correct) session.correct++ }
+    emitQuizSubmit({ module: 'crystal', kind: 'choice', graded: true, correct: !!r.correct })
     const head = r.correct
       ? '✓ 答对了'
       : `✗ 答错了　正确答案是 <b>${esc(r.answerText)}</b>`
@@ -427,6 +444,7 @@ export function createQuizUI(deps = {}) {
       else if (b === chosen) btn.classList.add('wrong')
     })
     if (session) { if (correct) session.correct++ }
+    emitQuizSubmit({ module: 'crystal', kind: 'judge', graded: true, correct })
     const head = correct ? '✓ 答对了' : `✗ 答错了　正确答案是 <b>${q.answer ? t('crystal.quiz.judgeTrue') : t('crystal.quiz.judgeFalse')}</b>`
     const exp = q.exp
       ? `<div class="agent-fb-exp">${panel.renderRich ? panel.renderRich(q.exp) : esc(q.exp)}</div>` : ''

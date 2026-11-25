@@ -472,6 +472,15 @@ export const text = {
   '晶体模块参数': 'Crystal module parameters',
   '三维配色': '3D colors',
   '逐元素配色': 'Per-element colors',
+  '匿名使用统计': 'Anonymous usage analytics',
+  '只上报页面与功能使用次数；不上传对话内容、API Key 或个人身份信息。关闭后立即停止。':
+    'Counts page and feature usage only; never uploads conversation content, API keys or personal identity. Turning it off stops collection immediately.',
+  '· 学情、对话与设置只存本机浏览器，不上传。':
+    '· Learning progress, conversations and settings stay in this browser and are never uploaded.',
+  '· 匿名使用统计只上报页面与功能次数（可在下方关闭），不上传对话内容、API Key 或身份信息。':
+    '· Anonymous usage analytics reports page and feature counts only (can be turned off below); it never uploads conversation content, API keys or identity.',
+  '· API Key 只发往你填写的接入点，不经过任何第三方中转。':
+    '· Your API key is sent only to the endpoint you configure; no third-party relay is involved.',
 
   // ---- 设置弹层的「关于」 ----
   '结构化学教学智能体': 'Structural Chemistry Teaching Agent',

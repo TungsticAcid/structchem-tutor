@@ -5,7 +5,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run test:secrets && npm run test:i18n && npm run test:core && npm run test:ui && npm run test:viewer && npm run test:shared && npm run test:modules && npm run test:symmetry && npm run test:data && npm run test:orbit && npm run test:shell",
+    "test": "npm run test:secrets && npm run test:i18n && npm run test:core && npm run test:ui && npm run test:viewer && npm run test:shared && npm run test:modules && npm run test:symmetry && npm run test:data && npm run test:orbit && npm run test:shell && npm run test:analytics",
+    "test:analytics": "node server/tools/test-analytics.mjs && node apps/web/tools/test-analytics-client.mjs",
+    "analytics": "node --env-file-if-exists=.env server/index.mjs",
     "test:i18n": "node tools/check-i18n.mjs",
     "test:core": "node packages/agent-core/tools/selftest.mjs && node packages/agent-core/tools/test-core.mjs && node packages/agent-core/tools/test-context-budget.mjs && node packages/agent-core/tools/test-demo-favorites.mjs && node packages/agent-core/tools/test-app.mjs",
     "test:ui": "node packages/ui-kit/tools/test-ui-kit.mjs",

@@ -471,6 +471,16 @@ const QuestionEngine = (function () {
     return { error: t('symmetry.qe.err.generateFailed', { kp: kp }) };
   }
 
+  /** 只派发匿名计数；模块不依赖统计服务，宿主决定是否上报。 */
+  function emitQuizSubmit(detail) {
+    try {
+      if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'
+        && typeof CustomEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('chem-agent:quiz-submit', { detail }))
+      }
+    } catch (e) { /* 统计失败不影响答题 */ }
+  }
+
   function get(id) { return bank[id] || null; }
 
   // ---------------------------------------------------------------------------
@@ -567,6 +577,7 @@ const QuestionEngine = (function () {
     const q = bank[questionId];
     if (!q) return { error: t('symmetry.qe.err.noQuestion') };
     const correct = (chosenIndex === q.answerIndex);
+    emitQuizSubmit({ module: 'symmetry', kind: 'choice', graded: true, correct });
     if (cardEl) {
       cardEl.querySelectorAll('.agent-opt').forEach((b) => {
         const i = +b.getAttribute('data-i');

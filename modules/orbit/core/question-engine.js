@@ -30,6 +30,16 @@ import { Formula } from './formula.js'
 import { Observables } from './observables.js'
 import { MasteryModel } from '../store/mastery.js'
 
+/** 只派发匿名计数；模块不依赖统计服务，宿主决定是否上报。 */
+function emitQuizSubmit(detail) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function'
+      && typeof CustomEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('chem-agent:quiz-submit', { detail }))
+    }
+  } catch (e) { /* 统计失败不影响答题 */ }
+}
+
 /**
  * question-engine.js — 双通道出题引擎 + 练习闭环
  *
@@ -718,6 +728,7 @@ const QuestionEngine = (function () {
     const q = bank[questionId];
     if (!q) return { error: t('题目不存在') };
     const correct = (chosenIndex === q.answerIndex);
+    emitQuizSubmit({ module: 'orbit', kind: 'choice', graded: true, correct });
     // 标记选项
     if (cardEl) {
       cardEl.querySelectorAll('.agent-opt').forEach((b) => {

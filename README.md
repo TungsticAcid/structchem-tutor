@@ -26,6 +26,13 @@
 首页门户、模块页、对比页与晶体库页共用一个入口；支持深色/浅色主题、
 中文/English 切换，以及桌面与移动端布局。
 
+### 后台用户数据统计（可选）
+
+给课程维护者看的匿名使用看板：用户与活跃、页面/模块使用、智能体轮次与工具调用、
+练习提交与正确率、留存和趋势。统计服务是仓库内自带的 Node + SQLite 组件，
+不启动时前端保持纯静态、埋点自动关闭。采集范围与部署方式见
+[`server/README.md`](server/README.md)。
+
 ---
 
 ## 快速开始
@@ -70,6 +77,16 @@ npm run verify:live -- --key-file "<仓库外的密钥文件>"          # 真跑
 
 > 密钥只从仓库外的文件读取，不写入仓库、不打印到输出。
 
+启动后台统计（可选，需要 Node.js >= 22.13）：
+
+```bash
+cp .env.example .env       # 至少填写 ANALYTICS_ADMIN_PASSWORD
+npm run analytics          # 后台 → http://127.0.0.1:8787/admin
+```
+
+只采集匿名计数，不采集对话正文、API Key 或身份信息；部署与隐私说明见
+[`server/README.md`](server/README.md)。
+
 ---
 
 ## 目录结构
@@ -91,6 +108,7 @@ chem-agent/
 │   ├── crystal/                晶体结构模块
 │   ├── orbit/                  原子轨道模块
 │   └── symmetry/               分子对称性模块
+├── server/                     可选：匿名统计 + 后台看板（Node + SQLite）
 ├── tools/                      构建、截图、i18n、验收脚本
 └── LICENSE
 ```
@@ -144,6 +162,7 @@ shared:S1-2      共享知识库
 | 三个教学模块 | ✅ 全部接入统一入口 |
 | 智能体 | ✅ 讲解、出题、判卷、演示编排、主动建议 |
 | 知识库与技能 | ✅ 三模块内容已入库 |
+| 后台统计 | ✅ 匿名埋点 + Node/SQLite 看板（可选启动） |
 | 测试 | ✅ `npm test` 全部通过 |
 | 构建 | ✅ `node tools/build-web.mjs` 产出静态站点 |
 

@@ -31,6 +31,14 @@ export default defineConfig({
      *   整个进程退出**。表现是"改一下文件，热更新没了、页面 500"，而代码本身没问题。
      */
     watch: { ignored: ['**/.*.tmpdir/**', '**/*.tmp'] },
+    /**
+     * 本地同时跑 `npm run analytics` 时，把埋点/后台 API 转发到统计服务。
+     * 没启动统计服务时，前端健康检查失败后会静默关闭埋点（不影响任何页面）。
+     */
+    proxy: {
+      '/api': 'http://127.0.0.1:8787',
+      '/admin': 'http://127.0.0.1:8787',
+    },
   },
   resolve: {
     alias: {

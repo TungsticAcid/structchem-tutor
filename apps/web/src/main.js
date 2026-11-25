@@ -69,6 +69,7 @@ import { getCrystalData } from '@crystal/lib/crystal-loader.js'
 import { registerAll, listModules as listDeclaredModules, collectProactiveRules, routeByText } from '@core/registry/index.js'
 
 import { router } from './shell/router.js'
+import { createAnalytics } from './shell/analytics.js'
 import { installHomeButton } from './shell/home-affordance.js'
 import './shell/home-affordance.css'
 // ★ 「保存图片」：同一个理由装在壳里（对每条带画布的路由都给一个出口）
@@ -548,7 +549,11 @@ const settings = createSettingsStore({
    *   取值与视图默认值同源：`modules/crystal/view-props.js` 的 DEFAULTS
    *   与下面 EMPTY_PROPS 一致（改一处要一起改）。
    */
-  defaults: { atomScale: 1, stickRadius: 0.08, opacity: 0, cellDisplayMode: 'conventional' },
+  defaults: {
+    atomScale: 1, stickRadius: 0.08, opacity: 0, cellDisplayMode: 'conventional',
+    // 匿名使用统计：默认开启；设置里可关，DNT/GPC 也会强制关闭（见 shell/analytics.js）。
+    analytics: true,
+  },
   // ★ 「清除本机数据」必须真的清干净。学情、悬浮球位置、演示收藏是**静态键**，
   //   列出来即可；对话是**动态键**（索引 + 每个会话一个），静态列表表达不了，
   //   交给 onClearAll —— convStore 在上面已经建好，所以这里可以闭包直接用。
@@ -566,6 +571,7 @@ const settings = createSettingsStore({
     'orbit.statePresets',            // 轨道：用户命名的量子态预设
     'symmetry_viewer_settings',      // 点群：外观与配色
     'crystal_settings',              // 晶体：视觉颜色（含 103 项逐元素配色）
+    'chem-agent.analytics.id',       // 匿名访客 ID（统计用；清掉即断开与历史记录的关联）
   ],
   /**
    * ★★ 2026-10-14（用户："之前数据清理了，为什么也显示已掌握"）：
@@ -580,6 +586,7 @@ const settings = createSettingsStore({
    */
   onClearAll: () => {
     try { convStore.clearAll() } catch (e) { /* 忽略 */ }
+    try { analytics.resetIdentity() } catch (e) { /* 统计未初始化时忽略 */ }
     for (const m of [mastery, orbitMastery, symMastery]) {
       try { if (m && typeof m.reset === 'function') m.reset() } catch (e) { /* 忽略 */ }
     }
@@ -594,6 +601,20 @@ const settings = createSettingsStore({
       }
     } catch (e) { /* 忽略 */ }
   },
+})
+
+/**
+ * 匿名使用统计。
+ * ★ init 是异步健康检查：纯静态部署（没有统计服务）时它会**静默保持关闭**，
+ *   不产生每页 404，也不影响任何主功能。
+ */
+const analytics = createAnalytics({
+  isEnabled: () => settings.get().analytics !== false,
+})
+analytics.init()
+// 三个练习引擎的本地判定不经过模型；它们派发 DOM 事件，由壳统一上报。
+window.addEventListener('chem-agent:quiz-submit', (e) => {
+  try { analytics.quizSubmit(e.detail || {}) } catch (err) { /* 统计失败不影响答题 */ }
 })
 
 const settingsPopup = createSettingsPopup({
@@ -629,6 +650,12 @@ const settingsPopup = createSettingsPopup({
       options: [['system', '跟随系统'], ['dark', '深色'], ['light', '浅色']],
       hint: '晶体三维视图的背景会一并切换（白底更接近教材插图与课堂投屏）',
     },
+    {
+      key: 'analytics',
+      label: '匿名使用统计',
+      type: 'checkbox',
+      hint: '只上报页面与功能使用次数；不上传对话内容、API Key 或个人身份信息。关闭后立即停止。',
+    },
   ], crystal.settings),
   groups: [
     /**
@@ -657,6 +684,11 @@ const settingsPopup = createSettingsPopup({
       keys: ['elementColors'],
     },
   ]),
+  // 「匿名使用统计」并入原有的「数据与隐私」分区（见 settings-popup 的 privacyKeys）。
+  privacyKeys: ['analytics'],
+  privacyNote: '· 学情、对话与设置只存本机浏览器，不上传。\n'
+    + '· 匿名使用统计只上报页面与功能次数（可在下方关闭），不上传对话内容、API Key 或身份信息。\n'
+    + '· API Key 只发往你填写的接入点，不经过任何第三方中转。',
   testConnection: LLMClient.testConnection,
   about: '<b>结构化学教学智能体</b><br>纯前端 · 计算层确定性求值（防幻觉）<br>'
     + '模型由使用者自备（BYOK），本工具不提供额度',
@@ -665,6 +697,8 @@ const settingsPopup = createSettingsPopup({
     // ★ 两条路径共用同一个真源：theme.js 的 localStorage 键是 'chem-agent.theme'，
     //   设置面板只是它的一个入口，不另存一份（否则"改了一处、另一处没变"）。
     if (s.theme) setTheme(s.theme)
+    // 隐私开关：关掉立即清空待发队列并停止健康检查/定时上报；重新打开则重新探测服务。
+    try { analytics.setEnabled(s.analytics !== false) } catch (e) { /* 统计失败不影响保存 */ }
     // 模块参数要落回视图，且走动作通路（这样感知层能记进痕迹）
     try {
       crystal.facade.applyActions([
@@ -892,18 +926,42 @@ let quizUI = null
  * 学科相关的呈现（题目卡）留在 quiz/ui.js 里。
  */
 function wrapHandlers(handlers) {
-  if (!quizUI) return handlers
   const h = Object.assign({}, handlers || {})
-  const orig = handlers && handlers.onToolResult
+  const origTool = handlers && handlers.onToolResult
   const origDone = handlers && handlers.onDone
+  const origError = handlers && handlers.onError
+
+  // ★ 统计上下文：一轮对话的耗时、工具调用次数在这里累计。
+  //   不记录提问/回答正文——agent_turn 只带计数与工具名。
+  const turn = { startedAt: Date.now(), toolCalls: 0, tools: new Set() }
+  const moduleOfTurn = () => currentBoardId() || (app && app.activeModule) || null
+
   h.onToolResult = (info) => {
-    if (typeof orig === 'function') {
-      try { orig(info) } catch (e) { /* 面板自身处理失败不应连累卡片渲染 */ }
+    if (typeof origTool === 'function') {
+      try { origTool(info) } catch (e) { /* 面板自身处理失败不应连累卡片渲染 */ }
     }
-    try { quizUI.handleToolResult(info) } catch (e) {
-      console.error('[agent] 题目卡渲染失败：', e)
+    if (quizUI) {
+      try { quizUI.handleToolResult(info) } catch (e) {
+        console.error('[agent] 题目卡渲染失败：', e)
+      }
     }
+    try {
+      if (!info || !info.name) return
+      turn.toolCalls += 1
+      if (turn.tools.size < 12) turn.tools.add(info.name)
+      const result = info.result || {}
+      // 模型出的题（真实题目卡出现）与模型判的作答，也计入练习指标。
+      if (info.name === 'generateQuiz' && !result.error) {
+        analytics.quizStart(moduleOfTurn(), 'agent')
+      }
+      if (info.name === 'checkAnswer' && !result.error && result.correct !== undefined) {
+        analytics.quizSubmit({
+          module: moduleOfTurn(), kind: 'unknown', graded: true, correct: !!result.correct,
+        })
+      }
+    } catch (e) { /* 统计失败不影响对话 */ }
   }
+
   // ★ 每轮对话**结束后**把完整历史整体落盘，而不是逐条 append。
   //   理由：conversation 的历史里 tool_calls 与 tool 消息**必须成对**，
   //   逐条落盘时若用户在中途刷新，会留下悬空的 tool_calls——下次请求
@@ -912,6 +970,18 @@ function wrapHandlers(handlers) {
     if (typeof origDone === 'function') {
       try { origDone(summary) } catch (e) { /* 面板的处理失败不应影响持久化 */ }
     }
+    try {
+      analytics.agentTurn({
+        module: moduleOfTurn(),
+        ok: !(summary && summary.aborted),
+        aborted: !!(summary && summary.aborted),
+        errorKind: summary && summary.aborted ? 'aborted' : '',
+        durationMs: Date.now() - turn.startedAt,
+        toolCalls: turn.toolCalls,
+        tools: Array.from(turn.tools),
+        finishReason: summary && summary.finishReason,
+      })
+    } catch (e) { /* 统计失败不影响对话 */ }
     try {
       // ★ 顺序**不能反**：先落树、再按当前分支重渲染。
       //   重渲染是从树里读的（`renderPath → store.path()`）——先渲染就会渲染出
@@ -923,6 +993,22 @@ function wrapHandlers(handlers) {
       if (panel) panel.renderPath()
     } catch (e) {
       console.warn('[agent] 对话落盘/重渲染失败（不影响当前会话）：', e)
+    }
+  }
+
+  h.onError = (err) => {
+    try {
+      analytics.agentTurn({
+        module: moduleOfTurn(),
+        ok: false,
+        errorKind: (err && err.kind) || 'error',
+        durationMs: Date.now() - turn.startedAt,
+        toolCalls: turn.toolCalls,
+        tools: Array.from(turn.tools),
+      })
+    } catch (e) { /* 统计失败不影响错误处理 */ }
+    if (typeof origError === 'function') {
+      try { origError(err) } catch (e) { /* 面板的处理失败不应影响其它订阅者 */ }
     }
   }
   return h
@@ -1176,6 +1262,7 @@ function startPractice() {
     return
   }
   const board = currentBoardId()
+  if (board) analytics.quizStart(board, 'practice')
   if (board === 'orbit') return startOrbitPractice()
   if (board === 'symmetry') return startSymmetryPractice()
   if (!board) return startPracticeBoardChooser()
@@ -1485,6 +1572,8 @@ router.setContainer($('#app')).setFallback('/')
  *   （实现见 shell/home-affordance.js：优先塞进页面自己的顶栏，没有顶栏才悬浮。）
  */
 router.onAfterMount(() => {
+  // 路由是页面的唯一真源：每次挂载都按当前 hash 记一次页面浏览（查询串不会上报）。
+  try { analytics.pageView(router.currentPath) } catch (e) { /* 统计失败不影响页面 */ }
   // 首页自己不需要出口
   if (router.currentPath !== '/') installHomeButton($('#app'))
   /**

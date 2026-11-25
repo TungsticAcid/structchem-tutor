@@ -56,6 +56,13 @@ const PATTERNS = [
 
 const KEYISH_NAME = /(^|\/)(\.env(\..+)?|apikey|api[-_]?key|secrets?|credentials?|\.npmrc|\.git-credentials)$/i
 
+/**
+ * `.env.example` / `.env.sample` 是**模板**，本来就要进版本库（里面只有占位值）。
+ * 没有这条例外，守卫会把模板当成泄露的密钥文件，逼着大家把模板改名为
+ * `env.example` 或干脆不提供模板——后者更容易导致真实部署时凭感觉拼环境变量。
+ */
+const ENV_TEMPLATE = /(^|\/)\.env\.(example|sample|template)$/i
+
 /** 只给前 4 位 + 长度 —— 够认人，不够用 */
 function mask(s) {
   const v = String(s)
@@ -142,6 +149,7 @@ console.log('【① 文件名像密钥文件的】')
   let n = 0
   for (const p of files) {
     const r = rel(p)
+    if (ENV_TEMPLATE.test('/' + r)) continue
     if (!KEYISH_NAME.test('/' + r)) continue
     n++
     if (tracked.has(r)) fail(`**已被 git 跟踪**：${r}`)
@@ -157,6 +165,7 @@ console.log('【② 文件内容里命中密钥形态的】')
   let n = 0
   for (const p of files) {
     const r = rel(p)
+    if (ENV_TEMPLATE.test('/' + r)) continue
     if (!TEXT.test(r) && !/\.env/i.test(r)) continue
     // ★ 跳过自己：本文件顶部就写着那几条**正则字面量**（`/sk-[A-Za-z0-9_-]{16,}/`），
     //   而 `sk-[A-Za-z0-9_-]{16,}` 本身恰好符合它自己的规则 —— 第一次跑就命中了自己。

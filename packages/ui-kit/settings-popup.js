@@ -104,6 +104,7 @@ export const DEFAULT_GROUPS = [
  * @param {Array}    [cfg.groups]        分组（默认 DEFAULT_GROUPS）；`test:true` 的分组会加「测试连接」
  * @param {Function} [cfg.testConnection] async (settings) => { model }，用于「测试连接」
  * @param {string}   [cfg.privacyNote]
+ * @param {string[]} [cfg.privacyKeys]   额外放进「数据与隐私」分区的字段 key
  * @param {string}   [cfg.about]         关于信息（HTML）
  * @param {Object}   [cfg.doc]
  * @param {Object}   [cfg.win]
@@ -531,6 +532,19 @@ export function createSettingsPopup(cfg = {}) {
       '· 对话内容同样只存在本机浏览器，随时可用下方的「清除本机全部数据」删除。\n' +
       '· API Key 只发往你填写的接入点，不经过任何第三方中转。'
     ) }, undefined, doc))
+    /**
+     * 隐私相关字段（如「匿名使用统计」）直接住在这个分区里，而不是再开一个
+     * 名字几乎相同的「隐私」分区——两个隐私分区会让人以为其中一个漏了什么。
+     * 字段仍按 schema/collect 的常规通道读写。
+     */
+    for (const key of (Array.isArray(cfg.privacyKeys) ? cfg.privacyKeys : [])) {
+      const def = byKey[key]
+      if (!def) continue
+      const built = buildInput(def, s)
+      inputs[key] = built
+      if (built.bare) g3.appendChild(built.node)
+      else g3.appendChild(field(def.label, built.node, resolveHint(def)))
+    }
     const clearBtn = el('button', { class: 'agent-btn danger', text: '清除本机全部数据' }, undefined, doc)
     clearBtn.onclick = () => {
       // ★ 原生对话框（confirm/alert）**不是 DOM 节点** —— 扫描替换碰不到它们。
