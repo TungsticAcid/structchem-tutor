@@ -1592,6 +1592,13 @@ router.onAfterMount(() => {
   //   （原子轨道页的三张图表卡、三维卡片），同步量一次会量到半成品。
   docScroll.sync()
   docScroll.schedule()
+  /**
+   * 再补两次延迟测量：微信/QQ 的内置浏览器对"首屏渲染后再长高"的布局
+   * 上报比 Chromium 慢，rAF 那一帧可能仍量到首屏高度。首页探索态、
+   * 模块卡片字体加载后都会让内容变高，这里以很小的成本兜住。
+   */
+  setTimeout(() => { try { docScroll.sync() } catch (e) { /* 忽略 */ } }, 450)
+  setTimeout(() => { try { docScroll.sync() } catch (e) { /* 忽略 */ } }, 1400)
   // ★ 开场白跟着**当前模块**走：换页后（路由会把 activeModule 切到该页的模块）
   //   若会话还是空的，重渲一次空态。缺了这一步，开场白就停在首屏那个模块上
   //   —— 用户看到的正是"在原子轨道页上被建议去问 NaCl 密度"。

@@ -56,12 +56,34 @@ export function createDocScroll(win, doc, opts = {}) {
    *   （这与 viewport.js 里那条"刻意不观察 body"是同一个坑）。
    */
   let ro = null
-  if (typeof win.ResizeObserver === 'function') {
-    const host = doc.querySelector('#app') || body
-    if (host) {
-      ro = new win.ResizeObserver(schedule)
-      ro.observe(host)
-    }
+  const host = doc.querySelector('#app') || body
+  if (typeof win.ResizeObserver === 'function' && host) {
+    ro = new win.ResizeObserver(schedule)
+    ro.observe(host)
+  }
+
+  /**
+   * ★★ 2026-11-26（用户：微信 / QQ 浏览器打开首页后无法下滑，只能看到首屏）：
+   *
+   *   `#app` 的 border-box 高度恒为 100%（继承全屏布局），内容变高时**只是
+   *   scrollHeight 变大，盒子本身不变** —— ResizeObserver 观察 border-box，
+   *   因此首页从「首幕」切到「探索态」、模块卡长出来后**不会触发**上面的 RO。
+   *   表现就是：body.scrollHeight 已是 1528，html 却始终没有 `.doc-scroll`，
+   *   页面被锁在首屏。
+   *
+   *   用 MutationObserver 盯住内容树的**类名变化**（is-intro → is-explored、
+   *   路由换页）来补一次测量。仍然只观察 `#app` 子树、不观察 body，避免
+   *   "同步类名 → 改 body 高度 → 再触发观察"的自激循环。
+   */
+  let mo = null
+  if (typeof win.MutationObserver === 'function' && host) {
+    mo = new win.MutationObserver(schedule)
+    mo.observe(host, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class'],
+    })
   }
 
   win.addEventListener('resize', schedule)
@@ -74,6 +96,7 @@ export function createDocScroll(win, doc, opts = {}) {
     dispose() {
       win.removeEventListener('resize', schedule)
       if (ro) ro.disconnect()
+      if (mo) mo.disconnect()
     },
   }
 }
