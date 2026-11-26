@@ -5,6 +5,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "npm --prefix apps/web run dev",
+    "build": "node tools/build-web.mjs",
+    "serve": "npm run build && npm --prefix apps/web run preview",
     "test": "npm run test:secrets && npm run test:i18n && npm run test:core && npm run test:ui && npm run test:viewer && npm run test:shared && npm run test:modules && npm run test:symmetry && npm run test:data && npm run test:orbit && npm run test:shell && npm run test:analytics",
     "test:analytics": "node server/tools/test-analytics.mjs && node apps/web/tools/test-analytics-client.mjs",
     "analytics": "node --env-file-if-exists=.env server/index.mjs",
