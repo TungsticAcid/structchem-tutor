@@ -18,7 +18,6 @@ import { t } from '../../../packages/i18n/index.js'
 const LAYER_LABELS = {
   atomScale: '原子缩放',
   opacity: '原子透明度',
-  opacityHint: '调高可看清被原子挡住的对称元素、空隙',
   octahedral: '八面体空隙',
   tetrahedral: '四面体空隙',
   atoms: '原子',
@@ -286,7 +285,7 @@ ${LAYER_CONTROL_BASE_CSS}
     <div class="control-section">
       <span class="section-title">外观</span>
       ${this._sliderRow(LAYER_LABELS.atomScale, 'atomScale', p.atomScale, 0.3, 2.0, 0.05)}
-      ${this._sliderRow(LAYER_LABELS.opacity, 'opacity', p.opacity, 0, 0.9, 0.05, LAYER_LABELS.opacityHint)}
+      ${this._sliderRow(LAYER_LABELS.opacity, 'opacity', p.opacity, 0, 0.9, 0.05)}
     </div>`
 
     // 空隙控制

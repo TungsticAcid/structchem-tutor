@@ -495,8 +495,6 @@ export const text = {
   '外观': 'Appearance',
   '原子缩放': 'Atom scale',
   '原子透明度': 'Atom opacity',
-  '调高可看清被原子挡住的对称元素、空隙':
-    'Raise it to see the symmetry elements and voids hidden behind the atoms',
   '氢键': 'Hydrogen bonds',
   '显示在原子上方': 'Draw above the atoms',
   '变换晶胞原点': 'Change cell origin',

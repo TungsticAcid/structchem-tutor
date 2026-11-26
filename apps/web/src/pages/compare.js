@@ -497,6 +497,35 @@ export class ComparePage {
         border-color: var(--line, #ddd);
         box-shadow: 0 14px 34px -24px rgba(8,20,35,.5);
       }
+
+      /* ================= 对比设置面板：字号与查看页控制面板对齐 =================
+         查看页的字段标签是 16.25px、模型选项 15px；对比页原先只有 9–11px。
+         这里统一放大到同一视觉档位，并给标签留出可点击的 padding。
+         面板同时从 320px 放宽到 360px（查看页控制面板同宽），避免放大后挤成一团。 */
+      .compare-page .cs-panel { padding-bottom: 14px; }
+      .compare-page .cs-col { padding: 10px 12px; }
+      .compare-page .cs-col-header { padding: 6px 0 8px; margin-bottom: 8px; gap: 8px; }
+      .compare-page .cs-col-title { font-size: 16px; font-weight: 600; letter-spacing: .01em; }
+      .compare-page .cs-section { margin-bottom: 10px; }
+      .compare-page .cs-st {
+        font-size: 12px; line-height: 1.4; margin-bottom: 6px; letter-spacing: .01em;
+      }
+      .compare-page .cs-sel { gap: 5px; }
+      .compare-page .cs-opt {
+        padding: 7px 0; font-size: 15px; line-height: 1.35; border-radius: 8px;
+      }
+      .compare-page .cs-toggles { gap: 5px; }
+      .compare-page .cs-tog {
+        padding: 5px 8px; font-size: 15px; line-height: 1.35; border-radius: 7px;
+      }
+      .compare-page .cs-shared-row { padding: 10px 12px; gap: 10px; }
+      .compare-page .cs-shared-label { font-size: 13px; }
+      .compare-page .cs-crystal { padding: 8px 12px 4px; }
+      .compare-page .cs-crystal select { font-size: 14px; padding: 8px 10px; }
+      .compare-page .cp-btn { font-size: 11.5px; }
+      @media (min-width: 900px) {
+        .compare-page .cs-panel { flex: 0 0 360px; width: 360px; }
+      }
     </style>`
 
     c.querySelector('#cpBack')?.addEventListener('click', () => router.back())

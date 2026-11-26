@@ -482,8 +482,8 @@ export class ViewerPage {
         .viewer-page.panel-left .panel-body { padding: 2px 16px 24px; }
         .viewer-page.panel-left .control-section { margin-bottom: 4px; }
         .viewer-page.panel-left .section-title {
-          margin: 15px 0 7px; font-size: 9.5px; letter-spacing: .15em;
-          text-transform: uppercase; color: var(--text-dim, #888);
+          margin: 15px 0 7px; font-size: 12px; letter-spacing: .08em;
+          color: var(--text-dim, #888);
         }
         .viewer-page.panel-left .crystal-info {
           padding: 10px 12px; border-radius: 10px;
