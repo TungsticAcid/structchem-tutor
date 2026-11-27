@@ -211,6 +211,33 @@ console.log('【④ 纯邻近值题型的干扰项】—— 不允许存在固�
 }
 
 // ---------------------------------------------------------------------------
+// ★★ 2026-11-27（实测：问「出一道空间利用率题」→ 出题引擎自校验失败，
+//   报「选项数量应为 4 个，实际只给出 3 个」）：
+//   真因是干扰项取自 SPACE_UTILIZATION_PCT 的其余条目，而 **A1 与 A3 都是 74.05%**
+//   —— 撞上正确答案后被去重，只剩 3 个选项；A2 的干扰项里也有两个 74.05，同样只剩 3 个。
+//   这条守卫按"每一种堆积方式"逐个出题：必须 4 个互不相同的选项、答案下标指向正确那个。
+{
+  const THEORY = { A1: 74.05, A2: 68.02, A3: 74.05, A4: 34.01 }
+  const CASES = [['fcc', 'A1'], ['bcc', 'A2'], ['hcp', 'A3'], ['diamond', 'A4']]
+  for (const [crystalId, stacking] of CASES) {
+    const quiz = freshEngine()
+    const q = quiz.generate({ kp: 'crystal:C3', topic: 'spaceUtilization', crystalId })
+    ok(!!q && !q.error, `空间利用率题能出出来（${crystalId}/${stacking}）：${(q && q.error) || ''}`)
+    if (q && !q.error) {
+      // ★ `generate()` 返回的是**给模型看的**视图（不含答案，这是刻意的）：
+      //   要看答案必须用 peek —— 它是纯读取，不伪造作答。
+      const full = quiz.peek(q.id)
+      const opts = full.options || []
+      ok(opts.length === 4, `${crystalId}: 选项必须是 4 个（实际 ${opts.length}）`)
+      ok(new Set(opts).size === opts.length, `${crystalId}: 选项不能有重复值（${opts.join(' / ')}）`)
+      const ans = String(opts[full.answerIndex] || '')
+      ok(ans.indexOf(String(THEORY[stacking])) === 0,
+        `${crystalId}: 正确答案应是 ${THEORY[stacking]}%（实际 ${ans}）`)
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 console.log(`\n通过 ${pass}；失败 ${fail}`)
 if (bad.length) {
   console.log('失败项：')

@@ -72,6 +72,44 @@ export const DEMO_SCRIPTS = [
 
   // --------------------------------------------------------------------------
   {
+    id: 'nacl-cu-voids',
+    title: '借 Cu 型看 NaCl 的八面体空隙',
+    kp: 'crystal:C5',
+    crystalId: 'naCl',
+    desc: 'NaCl 本身没有空隙图层：用 Cu（fcc）的八面体空隙位置对应 Na⁺，是讲岩盐型结构的标准做法',
+    steps: [
+      {
+        speech: 'NaCl 不是最密堆积，本身没有空隙图层。要讲 Cl⁻ 围成的八面体空隙，用并排对比：左边 NaCl，右边 Cu 型。',
+        actions: [{ action: 'openCompareView', params: { a: 'naCl', b: 'fcc' } }],
+      },
+      {
+        speech: '两侧都关掉化学键——接下来要看的不是成键，而是"球与球之间有没有位置"。',
+        actions: [{ action: 'setLayers', params: { layers: { atoms: true, bonds: false, wireframe: true } } }],
+      },
+      {
+        speech: '打开空隙图层与八面体空隙。注意左侧 NaCl 不会出现任何空隙标记——它没有这类数据；右侧 Cu 出现了。',
+        actions: [{ action: 'setLayers', params: { layers: { interstices: true, octahedral: true } } }],
+      },
+      {
+        speech: '把 Cu 的原子缩小一点，空隙位置更清楚；这些八面体空隙在晶胞里正好是 4 个。',
+        actions: [{ action: 'setAppearance', params: { atomScale: 0.55 } }],
+      },
+      {
+        speech: '★ 关键对应：Cu 的八面体空隙位置，正好是 NaCl 中 Na⁺ 所在的位置。把 Na 高亮，与右侧的空隙标记对照着看。',
+        actions: [{ action: 'highlightAtoms', params: { elements: ['Na'] } }],
+      },
+      {
+        speech: '所以 NaCl 的 6 配位可以这样理解：Cl⁻ 按立方最密堆积排列，Na⁺ 填满其中全部八面体空隙——空隙全填，就是岩盐型。',
+        actions: [
+          { action: 'setAppearance', params: { atomScale: 1.0 } },
+          { action: 'highlightAtoms', params: { elements: [] } },
+        ],
+      },
+    ],
+  },
+
+  // --------------------------------------------------------------------------
+  {
     id: 'cscl-lattice',
     title: 'CsCl 为什么是简单立方而不是体心立方',
     kp: 'crystal:C1',

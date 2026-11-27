@@ -195,6 +195,38 @@ section('applyActions：校验在前、落到视图在后')
       again.ok === true && opened === 0, `ok=${again.ok} opened=${opened}`)
   }
 
+  /**
+   * ★★ 2026-11-27（用户："对比模式下点「回到演示前」提示恢复未生效"）：
+   *   对比页是两块晶体，图层逐侧独立 —— 快照必须逐侧记录、还原也必须逐侧回设；
+   *   通用动作串只会把两侧都按左侧重置，而对比页只接受部分属性 ⇒ 整批失败。
+   *   另外：**从库页开始的演示**（快照里没有晶体）没有视图可还原，应如实返回 ok。
+   */
+  {
+    const applied = []
+    const viewE = mkView()
+    viewE.props.crystalId = 'naCl'
+    viewE.props.crystalIdB = 'fcc'
+    viewE.props.sides = {
+      left: { crystalId: 'naCl', showBonds: true, showOctahedral: false },
+      right: { crystalId: 'fcc', showBonds: false, showOctahedral: true, showInterstices: true },
+    }
+    viewE.applySideProps = (side, patch) => { applied.push({ side, patch }); return true }
+    const FE = createCrystalFacade({ view: viewE, catalog: CATALOG, loadData: () => ({}) })
+    const snapE = FE.getSnapshot()
+    check('对比页快照带逐侧状态（否则左右两块晶体无法完整还原）',
+      !!snapE.compareSides && !!snapE.compareSides.left && !!snapE.compareSides.right)
+
+    const rE = FE.restoreState(snapE)
+    check('对比页的「回到演示前」逐侧回设两侧（不是都按左侧来）',
+      rE.ok === true && applied.filter((a) => a.side === 'right').length === 1
+        && applied.filter((a) => a.side === 'left').length === 1,
+      JSON.stringify({ ok: rE.ok, sides: applied.map((a) => a.side) }))
+
+    const rBlank = FE.restoreState({ module: 'crystal', crystal: null, layersOn: [] })
+    check('从库页开始的演示：还原返回成功（那一页没有视图状态可还原）',
+      rBlank.ok === true, JSON.stringify(rBlank))
+  }
+
   // ★ 切晶体是换一张干净底图：不继承点阵点/特殊图层/90% 透明度
   view.userChanges({ showLatticePoints: true, opacity: 0.9, showOctahedral: true })
   F.applyActions([{ action: 'loadCrystal', params: { crystalId: 'fcc' } }])

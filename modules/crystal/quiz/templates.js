@@ -294,18 +294,45 @@ export const TEMPLATES = [
     build({ data, seed }) {
       const st = STACKING_BY_CRYSTAL[data.id]
       const pct = SPACE_UTILIZATION_PCT[st]
+      /**
+       * ★★ 2026-11-27（实测：问「出一道空间利用率题」→ 出题失败，自校验报
+       *   「选项数量应为 4 个，实际只给出 3 个」）：
+       *   真因是干扰项取自 SPACE_UTILIZATION_PCT 的**其余条目**，而 **A1 与 A3 的
+       *   空间利用率理论值都是 74.05%**（两种最密堆积本来就相同）。于是：
+       *     · 正确答案 A1 → 干扰项里混进 A3 的 74.05，去重后只剩 3 个选项；
+       *     · 正确答案 A2 → 两个 74.05 也去重成一个，同样只有 3 个。
+       *   ⇒ 干扰项改成**互不相同、且不会与正确答案撞值**的一组"常见算错结果"。
+       *   每个干扰项都带 errorCause，答错时才能给出对应的错因诊断。
+       */
+      const WRONG_PCTS = [
+        { v: 74.05, cause: '把最密堆积的 74.05% 当成了本题的答案（A1 与 A3 相同）' },
+        { v: 68.02, cause: '按体心立方（4r = a√3）算的' },
+        { v: 52.36, cause: '按简单立方（π/6，球沿棱相切）算的' },
+        { v: 34.01, cause: '按金刚石型（4r = a√3/4）算的' },
+        { v: 26.18, cause: '把球半径当成 a/4 算的（面心立方的关系记反了）' },
+      ]
+      const chosen = []
+      for (const w of WRONG_PCTS) {
+        if (chosen.length >= 3) break
+        if (Math.abs(w.v - pct) < 0.005) continue     // 与正确答案撞值：不能当干扰项
+        if (chosen.some((c) => Math.abs(c.v - w.v) < 0.005)) continue
+        chosen.push(w)
+      }
       const q = assemble({
         correctText: `${num(pct, 2)}%`,
-        distractors: Object.entries(SPACE_UTILIZATION_PCT)
-          .filter(([k]) => k !== st)
-          .map(([k, v]) => ({ text: `${num(v, 2)}%`, errorCause: null })),
+        distractors: chosen.map((w) => ({ text: `${num(w.v, 2)}%`, errorCause: w.cause })),
         seed,
         kp: 'crystal:C3', topic: 'spaceUtilization', difficulty: 'L2',
         crystalId: data.id,
         stem: t('crystal.t.quiz-templates.8', { p1: (tr(data.name)), p2: (st) }),
         answerValue: pct, answerKind: 'percentage', stacking: st, source: 'data',
       })
-      q.explanationParts = { answer: `${num(pct, 2)}%`, stacking: st, formula: '对于 A1：4r = a√2 ⇒ η = π/(3√2)' }
+      q.explanationParts = {
+        answer: `${num(pct, 2)}%`,
+        stacking: st,
+        // ★ 公式随堆积方式取（写死 A1 会让 bcc 的解析自相矛盾）
+        formula: STACKING[st] ? STACKING[st].packingDirection : '',
+      }
       q.presetView = buildPresetView('crystal:C3', { crystalId: data.id })
       return { question: q }
     },

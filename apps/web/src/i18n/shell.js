@@ -104,13 +104,20 @@ export const zh = {
   'shell.prompt.roleCrystal': '涉及配位数、空隙数、晶胞参数、密度等一切数值，必须用 queryCrystal 取得，不要口算。'
     + '★ NaCl 等非最密堆积没有空隙图层，**不要**在它上面打开八面体/四面体空隙；'
     + '要讲 Cl⁻ 的八面体空隙，改用并排对比：一侧 NaCl、一侧 Cu（fcc），两侧关化学键，在 Cu 一侧打开八面体空隙——'
-    + 'Cu 的空隙位置正好对应 NaCl 中的 Na⁺。演示中一步可以包含多个动作（见 applySceneActions 的 actions 分组）。'
+    + 'Cu 的空隙位置正好对应 NaCl 中的 Na⁺。这件事**已经编成预置演示**：优先用 playDemo({id:"nacl-cu-voids"})。'
+    + '演示中一步可以包含多个动作（见 applySceneActions 的 actions 分组）。'
     + '★ 演示前先看快照里的 layersOn：点阵点/对称元素/空隙/标签若与本次无关，第一步用 resetLayers 建干净基线，'
     + '不要假设当前画面是干净的。★ 原子透明度只在需要看内部时用 30%~50%，并在结束前恢复 0；不要留下 >60% 的透明度。'
     + '★ **在库页或门户上**做对比时，两块晶体都还没有"当前晶体"：用 navigateTo({target:"compare", crystalId, otherCrystalId})，'
     + '或 openCompareView({a, b}) 把两个 id 都给全；只给 b 会让左边那一侧无从确定。'
     + '★ 任何落在三维视图上的动作（切图层、切视角、对比…）若当前不在查看页，宿主会先打开相应页面；'
-    + '若它打不开（例如不知道要看哪个晶体），那一步会**如实失败**并在演示条标红——此时请改用 navigateTo 或先 loadCrystal。',
+    + '若它打不开（例如不知道要看哪个晶体），那一步会**如实失败**并在演示条标红——此时请改用 navigateTo 或先 loadCrystal。'
+    + '★ `octahedral` / `tetrahedral` 是**空隙位置标记**，不是「配位多面体」：讲配位环境用 highlightAtoms（高亮中心离子与近邻）'
+    + '或 setAtomVisibility（隐去同号离子），不要拿空隙图层当配位多面体，NaCl 这类没有空隙数据的结构上它会被拒。'
+    + '★ 学生要**出题 / 练习**时：先调 declareIntent({intent:"quiz"})，然后在**同一个用户回合的紧接着的下一回合**调用 generateQuiz。'
+    + '节点切换只对下一回合生效，所以**不要**在 declareIntent 之后就结束回答、更不要让学生再说一遍「出题」——'
+    + '直接继续调用 generateQuiz 即可（这一回合你会拿到它）。也**不要**在正文里自己编题：'
+    + '题干与选项必须来自 generateQuiz，答案由程序冻结，否则学生没有题目卡、也无法判分。',
   'shell.prompt.roleOrbit': '节面数、径向峰位、能级、简并度等一切数值必须用 queryOrbital 取得，不要凭记忆或口算。',
   /**
    * ★★ 2026-10-14（用户两条）：① "甲烷对称元素全部显示出来有点乱，智能体应避免把对称元素
@@ -346,6 +353,7 @@ export const en = {
     + '★ NaCl and other non-closest-packed structures have no void layers: do **not** open octahedral/tetrahedral voids on them. '
     + 'To teach the Cl⁻ octahedral voids, use side-by-side comparison: NaCl on one side, Cu (fcc) on the other, bonds off on both, '
     + 'and open octahedral voids on the Cu side — the void positions match the Na⁺ positions in NaCl. '
+    + 'This is already scripted: prefer playDemo({id:"nacl-cu-voids"}). '
     + 'One demonstration step may contain several actions (see the grouped `actions` form of applySceneActions). '
     + '★ Before demonstrating, read layersOn in the snapshot: if lattice points / symmetry elements / voids / labels are '
     + 'unrelated to this explanation, call resetLayers as the first step to establish a clean baseline; never assume the '
@@ -356,7 +364,15 @@ export const en = {
     + 'Passing only b leaves the left-hand side undefined. '
     + '★ Any action that lives on the 3D view (layers, view direction, comparison…) makes the host open the right page '
     + 'first; if it cannot (for example the crystal is unknown), that step fails honestly and the demo bar turns red — '
-    + 'then switch to navigateTo or loadCrystal first.',
+    + 'then switch to navigateTo or loadCrystal first. '
+    + '★ `octahedral` / `tetrahedral` mark **void positions**, not a coordination polyhedron: to show a coordination '
+    + 'environment use highlightAtoms (central ion + neighbours) or setAtomVisibility (hide same-charge ions). Do not use '
+    + 'void layers as a coordination polyhedron; on structures without void data such as NaCl the action is refused. '
+    + '★ When the student asks for a **question or practice**: call declareIntent({intent:"quiz"}), then call generateQuiz '
+    + 'in the **immediately following round of the same user turn**. The node switch only takes effect next round, so do '
+    + 'not stop after declareIntent and do not ask the student to repeat the request — just continue and call generateQuiz '
+    + '(it is available in that next round). Never write a question yourself: the stem and options must come from '
+    + 'generateQuiz so the answer is frozen by code — otherwise the student gets no question card and no marking.',
   'shell.prompt.roleOrbit': 'For any number — node count, radial peak positions, energy levels, degeneracy — '
     + 'obtain it with queryOrbital. Never rely on memory or mental arithmetic.',
   'shell.prompt.roleSymmetry': 'Always obtain point-group symbols and symmetry-element lists with queryPointGroup; '

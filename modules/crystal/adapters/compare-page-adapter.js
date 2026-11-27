@@ -34,20 +34,40 @@ export function createComparePageAdapter(page) {
   const canvasOf = () => page._leftCanvas || null
 
   /**
-   * 把一批属性变更落到页面上。当前只支持高亮——这是智能体在对比页的核心诊断手段。
-   * 其余字段（图层 / 显隐 / 外观）ComparePage 尚未接入，遇到时抛错。
+   * 对比页能接的 viewer 风格属性。★ 默认**两侧同改**：
+   *   "两侧都不显示化学键，再在 Cu 一侧打开八面体空隙"是最常见的对照教学，
+   *   而 NaCl 侧没有空隙数据，打开也什么都不画 —— 于是同改不会造成误导。
+   *   需要逐侧差异时，学生自己在控制面板上单独调。
    */
+  const SIDE_PROPS = new Set([
+    'showAtoms', 'showWireframe', 'showInterstices', 'showOctahedral', 'showTetrahedral',
+    'showBonds', 'showAxes', 'showLatticePoints', 'showAtomLabels', 'showHydrogenBonds',
+    'showAuxiliaryBody', 'showAuxiliaryFace',
+    'atomScale', 'stickRadius', 'opacity', 'cellDisplayMode', 'atomVisibility',
+  ])
+
   function setProps(patch) {
     if (!patch || typeof patch !== 'object') return
     if (patch.highlightElements !== undefined) {
       page.applyIntent({ kind: 'highlight', elements: patch.highlightElements })
     }
-    // ★ 其余字段暂不支持时**明确抛错**：facade.applyActions 会捕获成 failed，
-    //   模型能看见并据此回应，而不是"我以为图层开了、其实什么都没发生"。
-    for (const k of Object.keys(patch)) {
-      if (k !== 'highlightElements') {
-        throw new Error(`对比页暂不支持动作参数 ${k}（当前只支持高亮元素）`)
+    const rest = {}
+    for (const [k, v] of Object.entries(patch)) {
+      if (k === 'highlightElements') continue
+      // 只切左侧晶体：右侧那块不动，会造成"左右不是同一组对比"的错觉
+      if (k === 'crystalId') {
+        const cur = page.getViewProps().crystalId
+        if (v === cur) continue
+        throw new Error('对比页不能单独换左侧晶体；请用 openCompareView({ a, b }) 指定这一组')
       }
+      if (!SIDE_PROPS.has(k)) {
+        throw new Error(`对比页暂不支持动作参数 ${k}（可用：图层 / 外观 / 元素高度）`)
+      }
+      rest[k] = v
+    }
+    if (Object.keys(rest).length) {
+      page.applySideProps('left', rest)
+      page.applySideProps('right', rest)
     }
   }
 
@@ -98,10 +118,16 @@ export function createComparePageAdapter(page) {
     },
 
     /**
-     * 对比页本身已经是对比视图，不再"打开"对比——明确告知。
+     * 在对比页内换第二块晶体（右耳侧）。
+     * ★ 页面自己会走路由重建：右侧画布、设置面板、标签、能力判据都要按新晶体重建。
      */
     openCompareWith(b) {
-      throw new Error('已在对比视图（当前页面本身就是并排对比）')
+      page.openCompareWith(b)
+    },
+
+    /** 逐侧还原（「回到演示前」用）：对比页两侧状态本就不同，只能一侧一侧地回设 */
+    applySideProps(side, patch) {
+      return page.applySideProps(side, patch)
     },
 
     // ---- 诊断用 ----

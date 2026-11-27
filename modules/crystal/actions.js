@@ -59,8 +59,10 @@ export const LAYER_NOTES = {
   bonds: '化学键（分子晶体的共价键）',
   wireframe: '晶胞线框',
   interstices: '空隙总开关（关掉则下面两类都不可见）',
-  octahedral: '正八面体空隙',
-  tetrahedral: '正四面体空隙',
+  // ★ 这两个是**空隙位置标记**，不是"配位多面体"。实测模型会把 octahedral 当成
+  //   "把配位八面体画出来"用在 NaCl 上——那既没有数据、也不是它的语义。
+  octahedral: '正八面体空隙（空隙位置标记，不是配位多面体）',
+  tetrahedral: '正四面体空隙（空隙位置标记，不是配位多面体）',
   symmetry: '对称元素（旋转轴、镜面、反演中心）',
   axes: '晶轴（a/b/c 方向）',
   auxiliaryBody: '辅助几何-体（如甲烷的立方体参照）',

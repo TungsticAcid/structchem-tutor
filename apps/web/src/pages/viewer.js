@@ -914,6 +914,19 @@ export class ViewerPage {
     this._updateLayerControl()
     const titleEl = this._container?.querySelector('#crystalTitle')
     if (titleEl) titleEl.textContent = data.name || id
+    /**
+     * ★★ 2026-11-27（实测：智能体在查看页里换晶体后，地址栏还停在上一个晶体）：
+     *   `loadCrystal` 走的是"就地换晶体"（保住当前视角，演示队列不中断），但它**不更新路由** ——
+     *   于是地址栏写着 fcc、画面已经是 NaCl，刷新一下就回到 fcc，学生以为演示"没生效"。
+     *   ⇒ 用 `replaceState` 只改地址、**不触发路由**（触发就会卸载页面、把正在播的演示清掉）。
+     *   ★ 只改 hash 里本页那一段：查询串（对比页的 ?b=）与其它路径原样保留。
+     */
+    try {
+      if (typeof window !== 'undefined' && window.location && window.history && window.history.replaceState) {
+        const want = '#/viewer/' + encodeURIComponent(id)
+        if (window.location.hash !== want) window.history.replaceState(null, '', want)
+      }
+    } catch (e) { /* 地址同步失败不该影响换晶体本身 */ }
     return true
   }
 

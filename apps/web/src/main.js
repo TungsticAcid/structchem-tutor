@@ -171,6 +171,16 @@ function createLazyView() {
      */
     openCompareWith(b) { return requireAdapter().openCompareWith(b) },
     /**
+     * ★ 对比页的**逐侧回设**（「回到演示前」在对比页上用它）。
+     *   与上面同一条纪律：代理的接口面必须跟上适配器 —— 漏一个方法不会报错，
+     *   只会让对比页的"回到演示前"永远走不通（正是本轮用户报的那条）。
+     *   取不到适配器时返回 false（不抛错）：调用方据此判断"没有可回设的那一侧"。
+     */
+    applySideProps(side, patch) {
+      const a = getCrystalAdapter()
+      return !!(a && typeof a.applySideProps === 'function' && a.applySideProps(side, patch))
+    },
+    /**
      * 强制重建三维场景（改了视觉颜色之后要调它）。
      * ★ 同样遵循"代理的接口面必须跟上适配器"：漏一个方法不会报错，
      *   只会让对应能力永远"不被支持"。取不到适配器时返回 false，不抛错——

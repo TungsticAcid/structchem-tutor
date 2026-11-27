@@ -135,6 +135,14 @@ export function createCrystalFacade(opts = {}) {
       //   给人看/给模型读的**简化版**（只要角度与距离）；而"回到演示前"要**精确回设**，
       //   少一项都会留下"半新半旧"的相机状态。两者并存：简化版供感知，完整版供还原。
       viewState: viewState || null,
+      /**
+       * ★★ 2026-11-27（用户："对比模式下点「回到演示前」提示恢复未生效"）：
+       *   对比页是**两块晶体**：右侧是谁、右侧开着哪些图层，原先完全不在快照里 ——
+       *   于是还原时既不知道该还原到哪一对，也只能把两侧都按左侧回设（对照关系丢了）。
+       *   有 `props.sides` 时原样带出（页面自己算好的逐侧状态），由 restoreState 逐侧回设。
+       */
+      compareSides: props.sides || null,
+      crystalB: props.crystalIdB || null,
     }
     if (loadData && id) {
       try {
@@ -206,10 +214,19 @@ export function createCrystalFacade(opts = {}) {
       const voidLayer = requestedVoidLayer(name, v.params)
       if (voidLayer) {
         const meta = byId.get(currentId)
-        const data = loadData && currentId ? loadData(currentId) : null
         const props = (view.getProps && view.getProps()) || {}
-        const supported = data
-          ? crystalCaps(currentId, data).interstices
+        /**
+         * ★★ 2026-11-27（用户："对比 NaCl 与 Cu 讲空隙，结果 Cu 的八面体空隙没显示"）：
+         *   空隙能力必须按**画面上的每一块晶体**判，而不是只看左侧：
+         *   对比页左侧是 NaCl（没有空隙数据）、右侧是 Cu（有）——只看左边就会把
+         *   "打开八面体空隙"整条拒掉，于是 Cu 侧永远看不到空隙。
+         */
+        const ids = [currentId, props.crystalIdB].filter(Boolean)
+        const supported = loadData
+          ? ids.some((cid) => {
+            const d = loadData(cid)
+            return !!(d && crystalCaps(cid, d).interstices)
+          })
           : (typeof props.showIntersticeControl === 'boolean' ? props.showIntersticeControl : true)
         if (!supported) {
           failed.push({
@@ -217,7 +234,7 @@ export function createCrystalFacade(opts = {}) {
             error: t('crystal.t.facade.4', {
               p1: tr((meta && meta.name) || currentId || '当前晶体'),
               p2: tr(LAYER_LABELS[voidLayer] || voidLayer),
-            }),
+            }) + t('crystal.t.facade.7'),
           })
           continue
         }
@@ -407,6 +424,52 @@ export function createCrystalFacade(opts = {}) {
      */
     restoreState(state) {
       if (!state || typeof state !== 'object') return { ok: false, error: '没有可还原的状态' }
+
+      /**
+       * ★★ 2026-11-27（用户："对比模式下点「回到演示前」提示恢复未生效"）：
+       *   对比页是**两块晶体**，图层/外观/显隐逐侧独立。用通用动作串还原只会把两侧
+       *   都按左侧回设（对照关系没了），而且对比页只接受部分属性 ⇒ 整批失败、回退作废。
+       *   ⇒ 页面提供逐侧状态（`compareSides`）时，走**逐侧回设**这条路。
+       */
+      const sides = state.compareSides
+      if (sides && typeof view.applySideProps === 'function') {
+        const props = (view.getProps && view.getProps()) || {}
+        const curLeft = props.crystalId || ''
+        const curRight = props.crystalIdB || ''
+        const wantLeft = (sides.left && sides.left.crystalId) || ''
+        const wantRight = (sides.right && sides.right.crystalId) || ''
+        const samePair = (!wantLeft || wantLeft === curLeft) && (!wantRight || wantRight === curRight)
+        if (samePair) {
+          let failed = 0
+          for (const s of ['left', 'right']) {
+            const snapSide = sides[s]
+            if (!snapSide) continue
+            const patch = Object.assign({}, snapSide)
+            delete patch.crystalId
+            try { view.applySideProps(s, patch) } catch (e) { failed++ }
+          }
+          if (state.viewState && typeof view.setViewState === 'function') {
+            try { view.setViewState(state.viewState) } catch (e) { /* 视角回不去不该让整次回退失败 */ }
+          }
+          return failed === 2 ? { ok: false, error: tr('还原失败') } : { ok: true }
+        }
+        // 连"哪一对晶体"都变了：先把这一对换回来（页面按路由重建，图层回默认）
+        if (wantRight && wantRight !== curRight) {
+          try { view.openCompareWith(wantRight); return { ok: true } } catch (e) {
+            return { ok: false, error: (e && e.message) || tr('还原失败') }
+          }
+        }
+        return { ok: false, error: tr('对比页暂不支持只换左侧晶体——请重新打开这一组对比') }
+      }
+
+      /**
+       * ★★ 2026-11-27（用户："从晶体库开始演示，结束后点「回到演示前」提示恢复未生效"）：
+       *   快照里**没有晶体** ⇒ 这一轮演示是从库页/门户开始的，那里根本没有三维视图。
+       *   "回到演示前" 此时只意味着**回到那一页**（路由由面板按 snap.route 完成），
+       *   没有视图状态可还原。若继续下发 13 个 setLayer，必然因"没有可驱动的视图"整批失败。
+       */
+      if (!state.crystal || !state.crystal.id) return { ok: true }
+
       const actions = []
       // ① 晶体本身
       if (state.crystal && state.crystal.id && crystalIds.has(state.crystal.id)) {

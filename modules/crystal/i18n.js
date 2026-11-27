@@ -69,6 +69,9 @@ export const zh = Object.assign({
   'crystal.t.facade.4': '当前是 {p1}：它不是最密堆积，没有 {p2} 的可显示数据，打开也不会有内容。'
     + '想看 Cl⁻ 的八面体空隙，请用「并排对比」：一侧放 NaCl、另一侧放 Cu（fcc），两侧都关掉化学键，'
     + '在 Cu 一侧打开八面体空隙——这些空隙的位置正好对应 NaCl 中的 Na⁺。',
+  'crystal.t.facade.7': '★ 另外注意：octahedral / tetrahedral 是「空隙位置」标记，不是「配位多面体」。'
+    + '要讲某个离子的配位环境，请用 highlightAtoms 高亮中心离子与其近邻，或用 setAtomVisibility 隐去同号离子；'
+    + '不要把空隙图层当作配位多面体。',
   'crystal.t.facade.6': '当前视图不支持并排对比（需先打开一个晶体，或带上第一个晶体的 id：openCompareView({a, b})）。',
   'crystal.t.facade.5': '透明度 {p1}% 会让原子几乎不可见，后面讲什么都看不清。'
     + '演示中请用 30%~50% 的透明度，并在讲解结束时恢复为 0；更透的效果请让学生自己在控制面板调。',
@@ -109,6 +112,9 @@ export const en = Object.assign({
     + 'opening that layer would show nothing. To show the Cl⁻ octahedral voids, use "Compare side by side": '
     + 'NaCl on one side, Cu (fcc) on the other, turn bonds off on both sides, and open octahedral voids on the Cu side — '
     + 'those void positions correspond exactly to the Na⁺ positions in NaCl.',
+  'crystal.t.facade.7': '★ Also note: octahedral / tetrahedral mark **void positions**, not a coordination polyhedron. '
+    + 'To show an ion\u2019s coordination environment, highlight the central ion and its neighbours with highlightAtoms, '
+    + 'or hide the same-charge ions with setAtomVisibility — do not use the void layers as a coordination polyhedron.',
   'crystal.t.facade.6': 'The current view cannot open a side-by-side comparison. Open a crystal first, '
     + 'or pass the first crystal id: openCompareView({a, b}).',
   'crystal.t.facade.5': 'Opacity {p1}% would make the atoms almost invisible, so nothing after it can be seen. '
@@ -161,6 +167,28 @@ export const text = Object.assign({
   '调整原子缩放 / 键粗细 / 透明度。透明度 0~0.5（0.9 几乎看不见），演示结束请恢复 0；越界值会被夹到允许区间':
     'Adjust atom scale, bond radius and opacity. Opacity is 0–0.5 (0.9 is almost invisible); restore it to 0 at the end of a demo. Out-of-range values are clamped.',
   '调整透明度': 'Adjust opacity',
+  '对比页暂不支持只换左侧晶体——请重新打开这一组对比':
+    'The compare page cannot swap only the left crystal — please reopen this comparison.',
+  '正八面体空隙（空隙位置标记，不是配位多面体）':
+    'Octahedral void (a void-position marker, not a coordination polyhedron)',
+  '正四面体空隙（空隙位置标记，不是配位多面体）':
+    'Tetrahedral void (a void-position marker, not a coordination polyhedron)',
+  // ---- 预置演示「借 Cu 型看 NaCl 的八面体空隙」 ----
+  '借 Cu 型看 NaCl 的八面体空隙': 'Reading NaCl\u2019s octahedral voids through Cu (fcc)',
+  'NaCl 本身没有空隙图层：用 Cu（fcc）的八面体空隙位置对应 Na⁺，是讲岩盐型结构的标准做法':
+    'NaCl itself has no void layer; using the octahedral-void positions of Cu (fcc) to mark the Na⁺ sites is the standard way to teach the rock-salt structure.',
+  'NaCl 不是最密堆积，本身没有空隙图层。要讲 Cl⁻ 围成的八面体空隙，用并排对比：左边 NaCl，右边 Cu 型。':
+    'NaCl is not a closest-packed structure and has no void layer of its own. To show the octahedral voids formed by Cl⁻, compare side by side: NaCl on the left, Cu on the right.',
+  '两侧都关掉化学键——接下来要看的不是成键，而是"球与球之间有没有位置"。':
+    'Turn bonds off on both sides — what we need to see next is not bonding but whether there is a site between the spheres.',
+  '打开空隙图层与八面体空隙。注意左侧 NaCl 不会出现任何空隙标记——它没有这类数据；右侧 Cu 出现了。':
+    'Turn on the void layer and octahedral voids. Note that the left (NaCl) shows no void marks at all — it has no such data; the right (Cu) does.',
+  '把 Cu 的原子缩小一点，空隙位置更清楚；这些八面体空隙在晶胞里正好是 4 个。':
+    'Shrink the Cu atoms a little so the void positions are clearer; there are exactly four octahedral voids in the cell.',
+  '★ 关键对应：Cu 的八面体空隙位置，正好是 NaCl 中 Na⁺ 所在的位置。把 Na 高亮，与右侧的空隙标记对照着看。':
+    '★ The key correspondence: the octahedral-void positions in Cu are exactly where the Na⁺ ions sit in NaCl. Highlight Na and read it against the void marks on the right.',
+  '所以 NaCl 的 6 配位可以这样理解：Cl⁻ 按立方最密堆积排列，Na⁺ 填满其中全部八面体空隙——空隙全填，就是岩盐型。':
+    'So NaCl\u2019s six-fold coordination reads like this: Cl⁻ forms a cubic closest packing and Na⁺ fills all of its octahedral voids — all voids filled is the rock-salt type.',
   '把两块晶体并排显示（跳转到对比视图）。a 可选（不给用当前晶体）；在库页/首页没有当前晶体时必须给 a。两个 id 都须真实存在且不相同':
     'Show two crystals side by side (jumps to the compare view). `a` is optional (defaults to the current crystal); '
     + 'on the library page or the portal, where there is no current crystal, you must pass `a`. Both ids must exist and differ.',

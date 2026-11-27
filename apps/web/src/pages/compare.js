@@ -224,6 +224,77 @@ export class ComparePage {
   }
 
   /**
+   * ★★ 2026-11-27（用户："对比模式下智能体说要打开 Cu 的八面体空隙，结果只显示了化学键"）：
+   *   对比页原先**只接受高亮**，其它动作一律抛错 —— 于是"两侧关掉化学键、在 Cu 一侧打开
+   *   八面体空隙"这种最典型的对照教学根本落不了地。
+   *   现在把 viewer 风格的属性落到**某一侧**；智能体下发的动作默认两侧同改
+   *   （"都不显示化学键"正是常见要求），需要差异时学生可在面板上单独调。
+   * @param {'left'|'right'} side
+   * @param {Object} patch  viewer 风格属性（showBonds / atomScale / atomVisibility …）
+   * @returns {boolean} 是否有字段真的改了
+   */
+  applySideProps(side, patch) {
+    if (!patch || typeof patch !== 'object') return false
+    const s = this._state
+    const pre = side === 'right' ? 'right' : 'left'
+    let changed = false
+    for (const [k, v] of Object.entries(patch)) {
+      if (k === 'atomVisibility' && v && typeof v === 'object') {
+        s[pre + 'AtomVisibility'] = Object.assign({}, s[pre + 'AtomVisibility'] || {}, v)
+        changed = true
+        continue
+      }
+      // showWireframe 等没有状态键的字段直接跳过（画布恒为 true，无需可调）
+      const key = pre + k.charAt(0).toUpperCase() + k.slice(1)
+      if (!Object.prototype.hasOwnProperty.call(s, key)) continue
+      s[key] = v
+      changed = true
+    }
+    if (changed) {
+      this._updateCanvases()
+      this._refreshLabels()
+    }
+    return changed
+  }
+
+  /** 某一侧的可感知状态（供快照与"回到演示前"逐侧还原） */
+  sideSnapshot(side) {
+    const s = this._state
+    const pre = side === 'right' ? 'right' : 'left'
+    return {
+      crystalId: (side === 'right' && this._crystalIdB) ? this._crystalIdB : this._crystalId,
+      showAtoms: s[pre + 'ShowAtoms'],
+      showBonds: s[pre + 'ShowBonds'],
+      showInterstices: s[pre + 'ShowInterstices'],
+      showOctahedral: s[pre + 'ShowOctahedral'],
+      showTetrahedral: s[pre + 'ShowTetrahedral'],
+      showAxes: s[pre + 'ShowAxes'],
+      showLatticePoints: s[pre + 'ShowLatticePoints'],
+      showAtomLabels: s[pre + 'ShowAtomLabels'],
+      showHydrogenBonds: s[pre + 'ShowHydrogenBonds'],
+      showAuxiliaryBody: s[pre + 'ShowAuxiliaryBody'],
+      showAuxiliaryFace: s[pre + 'ShowAuxiliaryFace'],
+      atomScale: s[pre + 'AtomScale'],
+      opacity: s[pre + 'Opacity'],
+      stickRadius: s[pre + 'StickRadius'],
+      cellDisplayMode: s[pre + 'CellDisplayMode'],
+      atomVisibility: Object.assign({}, s[pre + 'AtomVisibility'] || {}),
+    }
+  }
+
+  /**
+   * 在对比页内换第二块晶体（智能体的 openCompareView({b}) 落到这里）。
+   * ★ 用路由而不是就地改状态：右侧画布、设置面板、标签、能力判据全都要按新晶体重建，
+   *   就地改一半必然留下"右栏还写着上一块晶体"那类图文不对应。
+   */
+  openCompareWith(b) {
+    if (!b) throw new Error('需要第二个晶体的 id')
+    if (b === this._crystalId) throw new Error('第二个晶体与当前晶体相同，没有可对比的内容')
+    const left = this._crystalId
+    router.navigate(`/compare/${encodeURIComponent(left)}?b=${encodeURIComponent(b)}`)
+  }
+
+  /**
    * 当前视图状态（供感知层 getSnapshot 读）。以**左侧主晶体**为口径，
    * 附上对比页特有的双晶体信息与高亮。
    */
@@ -255,6 +326,12 @@ export class ComparePage {
       showAtomLabels: s.leftShowAtomLabels,
       showHydrogenBonds: s.leftShowHydrogenBonds,
       showLatticePoints: s.leftShowLatticePoints,
+      /**
+       * ★ 逐侧状态：对比页左右是**两块晶体**，图层与外观本就可能不同
+       *   （典型的"NaCl 侧不开空隙、Cu 侧开八面体空隙"）。快照必须逐侧记录，
+       *   否则「回到演示前」只能把两侧都还原成左侧，等于把对照关系弄丢了。
+       */
+      sides: { left: this.sideSnapshot('left'), right: this.sideSnapshot('right') },
     }
   }
 
