@@ -63,6 +63,11 @@ export const zh = Object.assign({
   'crystal.t.ui.8': '第 {p1} 题',
   'crystal.t.ui.9': '你的作答：{p1}',
   'crystal.t.ui.10': '要点：{p1}',
+
+  // ★ 用户报「NaCl 演示打开了八面体空隙」：拒绝时给出正确的替代演示。
+  'crystal.t.facade.4': '当前是 {p1}：它不是最密堆积，没有 {p2} 的可显示数据，打开也不会有内容。'
+    + '想看 Cl⁻ 的八面体空隙，请用「并排对比」：一侧放 NaCl、另一侧放 Cu（fcc），两侧都关掉化学键，'
+    + '在 Cu 一侧打开八面体空隙——这些空隙的位置正好对应 NaCl 中的 Na⁺。',
 }, zhGen)
 
 /** 键 → 英文 */
@@ -94,6 +99,11 @@ export const en = Object.assign({
   'crystal.t.ui.8': 'Question {p1}',
   'crystal.t.ui.9': 'Your answer: {p1}',
   'crystal.t.ui.10': 'Key points: {p1}',
+
+  'crystal.t.facade.4': 'Current crystal: {p1}. It is not a closest-packed structure and has no data for {p2}; '
+    + 'opening that layer would show nothing. To show the Cl⁻ octahedral voids, use "Compare side by side": '
+    + 'NaCl on one side, Cu (fcc) on the other, turn bonds off on both sides, and open octahedral voids on the Cu side — '
+    + 'those void positions correspond exactly to the Na⁺ positions in NaCl.',
 }, enGen)
 
 /**
@@ -123,6 +133,15 @@ export const text = Object.assign({
   '逐元素配色': 'Per-element colors',
   '按周期表点一个元素选中它，再取色即生效；可只恢复选中的那一个，也可清空全部自定义':
     'Click an element on the periodic table to select it, then pick a colour; you can reset just the selected element, or clear all customisations.',
+  '当前晶体': 'the current crystal',
+  '先调出 NaCl，并关掉与离子配位无关的图层，只留原子、化学键与晶胞框。':
+    'Bring up NaCl first, and turn off the layers unrelated to ionic coordination — keep only atoms, bonds, and the cell frame.',
+  'id 请原样使用，不要改写或推断。interstices=true 才有空隙图层；NaCl 等非最密堆积没有空隙数据，要讲 Cl⁻ 八面体空隙请用 Cu（fcc）做并排对比。':
+    'Use ids exactly as returned; do not rewrite or infer them. Only interstices=true crystals have void layers; '
+    + 'NaCl and other non-closest-packed structures have no void data — to teach the Cl⁻ octahedral voids, compare with Cu (fcc) side by side.',
+  '以上为数据字段原文，未做推导。interstices=false 表示没有空隙图层；NaCl 等非最密堆积要讲 Cl⁻ 八面体空隙，请用 Cu（fcc）并排对比。':
+    'The fields above are verbatim data, not derived. interstices=false means there is no void layer; '
+    + 'for the Cl⁻ octahedral voids in NaCl and other non-closest-packed structures, compare with Cu (fcc) side by side.',
 }, textGen)
 
 registerDict('crystal', { zh, en, text })

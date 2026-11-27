@@ -22,6 +22,7 @@
  */
 import { t, tr, trDeep } from './i18n-live.js'
 import { VOCAB, LAYER_PROPS, LAYER_LABELS, LAYER_NOTES, VIEW_DIRECTIONS, CELL_MODES, APPEARANCE_RANGES, validate as validateAction, listActions } from './actions.js'
+import { crystalCaps } from './capabilities.js'
 // 演示脚本是**模块自己的内容**（"NaCl 六步演示"、"以 Cu 型看空隙"…）。
 // 播放能力（分镜队列）在中枢，二者分得很干净——见契约的 demos 字段说明。
 import { DEMO_SCRIPTS, demoById, demoManifest } from './demo/scripts.js'
@@ -166,14 +167,44 @@ export function createCrystalFacade(opts = {}) {
         if (s && s.size) banned = s
       } catch (e) { banned = null }
     }
+    // 当前晶体（loadCrystal 会改变它）。空隙能力必须按**目标晶体**判断，
+    // 否则同一批「先 loadCrystal(fcc) 再 setLayers(octahedral)」会被误判成前一块。
+    let currentId = (view.getProps && view.getProps().crystalId) || ''
     for (const a of list) {
       const name = a && a.action
       // ★ 一并告知"当前是哪个晶体"：openCompareView 要据此拒绝"与自己对比"
       const v = validateAction(name, (a && a.params) || {}, {
         crystalIds,
-        currentCrystalId: (view.getProps && view.getProps().crystalId) || '',
+        currentCrystalId: currentId,
       })
       if (v.err) { failed.push({ action: name, error: v.err }); continue }
+
+      /**
+       * ★★ 2026-11-27（用户：NaCl 演示里打开了八面体空隙，但 NaCl 不支持）：
+       *   动作词汇表只知道"有 octahedral 这个图层"，不知道"当前晶体有没有这种数据"。
+       *   空隙只有最密堆积（fcc/hcp）的数据里才有；NaCl 上打开只会是一片空白，
+       *   学生还会误以为"NaCl 有八面体空隙"。这里按**当前/目标晶体的能力**拒绝，
+       *   并把正确的教学替代方案写进错误里（对比 Cu 的八面体空隙）。
+       */
+      const voidLayer = requestedVoidLayer(name, v.params)
+      if (voidLayer) {
+        const meta = byId.get(currentId)
+        const data = loadData && currentId ? loadData(currentId) : null
+        const props = (view.getProps && view.getProps()) || {}
+        const supported = data
+          ? crystalCaps(currentId, data).interstices
+          : (typeof props.showIntersticeControl === 'boolean' ? props.showIntersticeControl : true)
+        if (!supported) {
+          failed.push({
+            action: name,
+            error: t('crystal.t.facade.4', {
+              p1: tr((meta && meta.name) || currentId || '当前晶体'),
+              p2: tr(LAYER_LABELS[voidLayer] || voidLayer),
+            }),
+          })
+          continue
+        }
+      }
 
       // ★ 练习中拒绝泄题动作。理由写清楚，好让模型知道**为什么**被拒、以及正确做法。
       if (banned) {
@@ -190,12 +221,28 @@ export function createCrystalFacade(opts = {}) {
 
       try {
         applyOne(name, v.params)
+        if (name === 'loadCrystal') currentId = v.params.crystalId
         applied.push({ action: name, params: v.params })
       } catch (e) {
         failed.push({ action: name, error: (e && e.message) || String(e) })
       }
     }
     return { ok: failed.length === 0, applied, failed }
+  }
+
+  /**
+   * 这次动作是否在**打开**空隙图层；返回图层名，未请求则 null。
+   * 只拦"打开"：关闭一个本来就不存在的图层是无害的，不必报错。
+   */
+  function requestedVoidLayer(name, p) {
+    const voidLayers = ['interstices', 'octahedral', 'tetrahedral']
+    if (name === 'setLayer') {
+      return p.visible !== false && voidLayers.includes(p.layer) ? p.layer : null
+    }
+    if (name === 'setLayers') {
+      for (const k of voidLayers) if (p.layers && p.layers[k]) return k
+    }
+    return null
   }
 
   /** 单个已校验动作 → 视图调用 */

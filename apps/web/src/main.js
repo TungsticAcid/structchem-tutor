@@ -819,9 +819,13 @@ async function ensureModuleReady(id, hint) {
   if (!mod) return false
 
   // 分镜队列里的步骤字段叫 `name`，工具动作对象里叫 `action`；两者都认。
-  const actionName = hint && (hint.action || hint.name)
-  const crystalId = actionName === 'loadCrystal' && hint.params
-    ? hint.params.crystalId : ''
+  // 一步多动作时，真正需要判"打开哪个晶体"的是组里的 loadCrystal。
+  const grouped = hint && Array.isArray(hint.actions) ? hint.actions : null
+  const groupedLoad = grouped && grouped.find((a) => a && a.action === 'loadCrystal')
+  const actionName = groupedLoad ? 'loadCrystal' : (hint && (hint.action || hint.name))
+  const crystalId = actionName === 'loadCrystal'
+    ? ((hint && hint.params && hint.params.crystalId) || (groupedLoad && groupedLoad.params && groupedLoad.params.crystalId))
+    : ''
   let route = MODULE_HOME_ROUTE[id]
   if (id === 'crystal' && crystalId) {
     route = '#/viewer/' + encodeURIComponent(crystalId)

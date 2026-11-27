@@ -424,10 +424,12 @@ export function createStoryboard(opts = {}) {
        *   `id` 才是**稳定步号**（修订时用它指认，不随插删变化）。
        */
       steps: queue.map((s, i) => ({
-        i, id: s.id, action: s.name, params: s.params,
+        i, id: s.id, action: s.name, params: s.params, actions: s.actions,
         speech: s.speech || null, done: i < qIndex,
       })),
-      pending: queue.slice(qIndex).map((s) => ({ action: s.name, speech: s.speech || null })),
+      pending: queue.slice(qIndex).map((s) => ({
+        action: s.name, actions: s.actions, speech: s.speech || null,
+      })),
     }
   }
 
@@ -453,7 +455,7 @@ export function createStoryboard(opts = {}) {
   /** 队列清单（给面板与修订用）：含稳定步号与执行状态 */
   function queueInfo() {
     return queue.map((s, i) => ({
-      i, id: s.id, action: s.name, params: s.params,
+      i, id: s.id, action: s.name, params: s.params, actions: s.actions,
       speech: s.speech || null, holdMs: s.holdMs, done: i < qIndex,
     }))
   }
@@ -479,6 +481,55 @@ export function createStoryboard(opts = {}) {
    *   队列有空间"会被判成续写，于是上一条的「连续播放」被带进这条新演示（用户报的正是它）。
    *   智能体同一轮分批下发**不要传**（那确实是同一条演示的续写）。
    */
+  /**
+   * 把模型给的一项规范化为**一个演示步骤**。
+   *
+   * ★★ 2026-11-27（用户："现在的演示一步是一个动作吗？可以有时候一步是几个动作"）：
+   *   允许 `{ speech, actions: [{action, params}, …] }` 的形式——同一教学瞬间的
+   *   "切晶体 + 关图层 + 切视角"应当合成一步：学生点一次「下一步」看到一整幅画面，
+   *   而不是被迫连点三次。单动作 `{ action, params, speech }` 保持原样兼容。
+   */
+  function makeStep(a, module) {
+    const group = (a && Array.isArray(a.actions) && a.actions.length) ? a.actions : null
+    if (!group) {
+      const name = a && (a.action || a.name)
+      const v = validate(name, (a && a.params) || {}, module)
+      if (v.err) return { err: v.err }
+      return {
+        step: {
+          id: ++stepSeq,
+          name,
+          params: v.params,
+          actions: [{ action: name, params: v.params }],
+          speech: a && a.speech,
+          holdMs: (a && a.holdMs != null) ? clampNum(a.holdMs, cfg.minDwellMs, cfg.maxDwellMs) : null,
+          animated: !!(vocabulary[name] && vocabulary[name].animated),
+          module,
+        },
+      }
+    }
+    const acts = []
+    for (let j = 0; j < group.length; j++) {
+      const ga = group[j] || {}
+      const v = validate(ga.action, ga.params || {}, module)
+      if (v.err) return { err: t('agent.sb.groupInvalid', { n: j + 1, error: v.err }) }
+      acts.push({ action: ga.action, params: v.params })
+    }
+    const first = acts[0]
+    return {
+      step: {
+        id: ++stepSeq,
+        name: first.action,
+        params: first.params,
+        actions: acts,
+        speech: a.speech,
+        holdMs: (a && a.holdMs != null) ? clampNum(a.holdMs, cfg.minDwellMs, cfg.maxDwellMs) : null,
+        animated: acts.some((x) => !!(vocabulary[x.action] && vocabulary[x.action].animated)),
+        module,
+      },
+    }
+  }
+
   async function applySequence(actions, o) {
     o = o || {}
     trace({
@@ -511,24 +562,16 @@ export function createStoryboard(opts = {}) {
     const batchModule = o.module || null
     for (let i = 0; i < raw.length; i++) {
       const a = raw[i]
-      const name = a && a.action
+      const name = a && (a.action || (Array.isArray(a.actions) ? a.actions.map((x) => x && x.action).filter(Boolean).join('+') : ''))
       const stepModule = batchModule || (a && a.module) || null
-      const v = validate(name, (a && a.params) || {}, stepModule)
-      if (v.err) {
-        failed.push({ action: name, error: v.err, i })
-        perAction.push({ i, action: name, ok: false, error: v.err })
+      const built = makeStep(a || {}, stepModule)
+      if (built.err) {
+        failed.push({ action: name, error: built.err, i })
+        perAction.push({ i, action: name, ok: false, error: built.err })
         continue
       }
       perAction.push({ i, action: name, ok: true, okIndex: okSteps.length })
-      okSteps.push({
-        id: ++stepSeq,
-        name,
-        params: v.params,
-        speech: a && a.speech,
-        holdMs: clampNum(a && a.holdMs, cfg.minDwellMs, cfg.maxDwellMs),
-        animated: !!(vocabulary[name] && vocabulary[name].animated),
-        module: stepModule,
-      })
+      okSteps.push(built.step)
     }
     /**
      * 把 `okIndex`（在"通过校验的动作序列"里的下标）换算成 `stepIndex`
@@ -833,6 +876,7 @@ export function createStoryboard(opts = {}) {
       emitProgress({
         phase: 'step', index: qIndex + 1, total: queue.length, action: st.name,
         label: label(st.name, st.params), speech: st.speech,
+        actions: st.actions,
         concept: v.concept, ok: true, manual, fast: ff,
       })
 
@@ -901,27 +945,14 @@ export function createStoryboard(opts = {}) {
    * @returns {{err:string}|{id:number,name:string,params:Object,speech:string,holdMs:number|null,animated:boolean}}
    */
   function toStep(s) {
-    // ★ 同时认两种形状：外部/工具给的是 `action`，而**演示记录里存的是内部步骤**（`name`）。
-    //   回放与整改都是从记录取步骤，只认 `action` 会让它们全部校验失败——
-    //   表现为"点重播什么也没发生"，且不报错（这一条被 test-agent-core 的
-    //   "stop() 之后仍能回放"断言抓住过）。
-    const name = s && (s.action || s.name)
-    // ★ 模块归属跟着步骤走：收藏/历史回放时才把该模块的页面叫起来（以前只有 name/params，
-    //   切了板块再回放，动作就被拿去套**另一个模块**的词汇表 —— 报"不支持的动作"）。
+    // ★ makeStep 同时认三种形状：
+    //   · 外部/工具：`action` + `params`
+    //   · 演示记录：`name`（内部字段）
+    //   · 一步多动作：`actions: [{action, params}, …]`
+    //   回放与整改都从这里走；只认一种会让"重播少一半"且不报错。
     const mod = (s && s.module) || null
-    const v = validate(name, (s && s.params) || {}, mod)
-    if (v.err) return { err: v.err }
-    return {
-      id: ++stepSeq,
-      name,
-      params: v.params,
-      module: mod,
-      speech: s && s.speech,
-      // ★ `!= null` 不能省：`clampNum(null)` 会返回**下限**（Number(null)===0 是有限数），
-      //   于是"没指定停留时长"会被静默改成 350ms；只有 undefined 才走 null 分支。
-      holdMs: (s && s.holdMs != null) ? clampNum(s.holdMs, cfg.minDwellMs, cfg.maxDwellMs) : null,
-      animated: !!(vocabulary[name] && vocabulary[name].animated),
-    }
+    const r = makeStep(s || {}, mod)
+    return r.err ? { err: r.err } : r.step
   }
 
   /**

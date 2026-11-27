@@ -142,11 +142,24 @@ export function createShellTools(ctx) {
           items: {
             type: 'object',
             properties: {
-              action: { type: 'string' },
+              action: { type: 'string', description: t('agent.tool.applySceneActions.action') },
               params: { type: 'object' },
+              // ★ 一步多动作：同一教学瞬间的「切晶体 + 关图层 + 切视角」合成一次点击。
+              actions: {
+                type: 'array',
+                description: t('agent.tool.applySceneActions.group'),
+                items: {
+                  type: 'object',
+                  properties: {
+                    action: { type: 'string' },
+                    params: { type: 'object' },
+                  },
+                  required: ['action'],
+                },
+              },
               speech: { type: 'string', description: t('agent.tool.applySceneActions.speech') },
             },
-            required: ['action', 'speech'],
+            required: ['speech'],
           },
         },
       }, ['actions']),
@@ -373,7 +386,10 @@ export function createShellTools(ctx) {
          *     而且这份步骤是**当时真正播的那一份**，比拿脚本 id 回头查更可靠
          *     （脚本将来改了，历史记录仍然能原样重播）。
          */
-        actions: script.steps.map((s) => ({ action: s.action, params: s.params, speech: s.speech, module: s.module || null })),
+        actions: script.steps.map((s) => ({
+          action: s.action, params: s.params, actions: s.actions,
+          speech: s.speech, module: s.module || null,
+        })),
         note: t('agent.tool.playDemo.note', { title: script.title, total: r.total, demoId: r.demoId }),
       }
     },
@@ -392,7 +408,8 @@ export function createShellTools(ctx) {
         totalSteps: r.total,
         title: (rec && rec.label) || '',
         actions: ((rec && rec.steps) || []).map((s) => ({
-          action: s.name, params: s.params, speech: s.speech, module: s.module || null,
+          action: s.name, params: s.params, actions: s.actions,
+          speech: s.speech, module: s.module || null,
         })),
         note: t('agent.tool.replayDemo.note', { demoId: r.demoId, total: r.total }),
       }
@@ -624,16 +641,23 @@ export function createAgentApp(opts = {}) {
       if (!m) return { ok: false, error: t('agent.storyboard.noModule') }
       const notReady = () => !!(m.facade && typeof m.facade.canApplyActions === 'function' && !m.facade.canApplyActions())
       /**
+       * 一步可以带多个动作（storyboard 的 `actions` 分组）。把整组交给模块，
+       * 模块的 applyActions 会按顺序执行并保留"哪些成功/失败"的信息。
+       */
+      const acts = (step && Array.isArray(step.actions) && step.actions.length)
+        ? step.actions
+        : [{ action: name, params }]
+      /**
        * ★ 不只看 notReady：库页没有视图代理时 `canApplyActions()` 可能是真。
-       *   `loadCrystal` 是"先打开晶体"的动作，必须让宿主看到这一步并按晶体 id
+       *   组里有 `loadCrystal` 就表示"先打开晶体"，必须让宿主看到这一步并按晶体 id
        *   打开 `/viewer/<id>`；把 step 一并传下去，别只叫回模块首页。
        */
-      const needsView = name === 'loadCrystal'
+      const needsView = acts.some((a) => a && a.action === 'loadCrystal')
       if ((notReady() || needsView) && typeof opts.ensureModuleReady === 'function') {
         try { await opts.ensureModuleReady(targetId, step) } catch (e) { /* 宿主失败：按原样继续，下面会如实报错 */ }
         m = modules.get(targetId) || m
       }
-      const r = m.facade.applyActions([{ action: name, params }])
+      const r = m.facade.applyActions(acts)
       return r.ok ? { ok: true } : { ok: false, error: (r.failed[0] || {}).error || t('agent.sb.execFailed') }
     },
     capture: () => {

@@ -778,7 +778,11 @@ let lastDemoId = null
       : [{ action: name, params: argsOrActions }]
     d._acts = acts                        // 供 enrichActionBubble 逐行挂按钮
 
-    const lines = acts.map((a) => describeAction(a.action, a.params || a))
+    const lines = acts.map((a) => {
+      // 一步多动作：动作气泡仍只占一行，标签说明这一步合成了几个动作。
+      if (a && Array.isArray(a.actions)) return T('组合动作（{n} 个）', { n: a.actions.length })
+      return describeAction(a.action, a.params || a)
+    })
     d.appendChild(E('summary', {
       html: '<span class="agent-act-dot"></span>' + escapeHtml(lines[0]) +
         (lines.length > 1 ? '<span class="agent-act-more">' + escapeHtml(T('等 {n} 个动作', { n: lines.length })) + '</span>' : ''),

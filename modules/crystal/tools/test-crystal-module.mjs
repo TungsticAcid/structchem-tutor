@@ -144,6 +144,26 @@ section('applyActions：校验在前、落到视图在后')
   const bad2 = F.applyActions([{ action: 'loadCrystal', params: { crystalId: '编造的id' } }])
   check('编造的晶体 id 被拒（descriptor 明令禁止编造 id）',
     bad2.ok === false && /不可编造|未知晶体/.test(bad2.failed[0].error))
+
+  // ★ 空隙能力守卫：NaCl 没有 octahedral 数据，不能打开；同一批切到 fcc 后可以。
+  const viewN = mkView()
+  viewN.props.crystalId = 'naCl'
+  const FN = createCrystalFacade({
+    view: viewN,
+    catalog: CATALOG,
+    loadData: (id) => (id === 'fcc'
+      ? { interstices: { octahedral: { positions: [[0.5, 0.5, 0.5]] }, tetrahedral: { positions: [] } } }
+      : id === 'naCl' ? {} : null),
+  })
+  const voidBad = FN.applyActions([{ action: 'setLayer', params: { layer: 'octahedral', visible: true } }])
+  check('NaCl 上打开八面体空隙被拒（不是静默空白）',
+    voidBad.ok === false && /八面体|对比|Cu/.test(voidBad.failed[0].error), JSON.stringify(voidBad))
+  const voidOk = FN.applyActions([
+    { action: 'loadCrystal', params: { crystalId: 'fcc' } },
+    { action: 'setLayers', params: { layers: { interstices: true, octahedral: true } } },
+  ])
+  check('同一批先切到 fcc 再开八面体空隙则允许（按目标晶体判能力）',
+    voidOk.ok === true && viewN.props.showOctahedral === true, JSON.stringify(voidOk))
   const bad3 = F.applyActions([{ action: '根本不存在' }])
   check('未知动作被拒', bad3.ok === false && /未知动作/.test(bad3.failed[0].error))
 

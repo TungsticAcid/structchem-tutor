@@ -32,8 +32,15 @@ export const DEMO_SCRIPTS = [
     crystalId: 'naCl',
     desc: '从球棍到八面体配位的完整演示（对应演示脚本场景 A）',
     steps: [
-      { action: 'loadCrystal', params: { crystalId: 'naCl' }, speech: '我们来看 NaCl 型。先把它调出来。' },
-      { action: 'setLayers', params: { layers: { atoms: true, bonds: true, wireframe: true, hydrogenBonds: false, axes: true } }, speech: '关掉与离子配位无关的图层，只留原子、化学键与晶胞框。' },
+      // ★ 一步多动作：切到 NaCl 与"只留原子/键/晶胞框"是同一教学瞬间，学生点一次
+      //   「下一步」就该看到准备好的画面，不该被迫连点两次。
+      {
+        speech: '先调出 NaCl，并关掉与离子配位无关的图层，只留原子、化学键与晶胞框。',
+        actions: [
+          { action: 'loadCrystal', params: { crystalId: 'naCl' } },
+          { action: 'setLayers', params: { layers: { atoms: true, bonds: true, wireframe: true, hydrogenBonds: false, axes: true } } },
+        ],
+      },
       { action: 'setView', params: { direction: 'front' }, speech: '先沿一个晶轴方向正视：与中心离子共面的有 4 个异号离子，另外 2 个沿视线方向前后夹住它——这就是 4+2。' },
       { action: 'highlightAtoms', params: { elements: ['Na'] }, speech: '把 Na⁺ 高亮。注意它们自己构成一套面心立方排列。' },
       { action: 'setAtomVisibility', params: { element: 'Cl', visible: false }, speech: '暂时把 Cl⁻ 藏起来，只看 Na⁺ 这一套子晶格。' },

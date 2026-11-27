@@ -113,6 +113,7 @@ export const zh = {
     + '★ 不要用它开场，更不要用它占掉回答本身。）',
   'agent.sb.queuedAuto': '正在连续播放。',
   'agent.sb.execFailed': '执行失败',
+  'agent.sb.groupInvalid': '组合步骤里的第 {n} 个动作无效：{error}',
   'agent.sb.noSteps': '这段演示没有可执行的步骤',
   'agent.sb.noReplay': '没有可回放的演示（还没有放过任何演示）',
   'agent.sb.noJump': '当前没有可跳转的演示',
@@ -405,8 +406,12 @@ export const zh = {
   'agent.tool.applySceneActions.desc':
     '在当前视图上播放一组动作。动作会排成**分镜队列逐步播放**：'
     + '第一步立刻执行，之后停下等用户点「下一步」。因此本工具**立即返回受理回执、不等播完**，'
-    + '返回里没有 executed 是正常的。单次 4–8 个动作；**每步必须写 speech 旁白**。',
+    + '返回里没有 executed 是正常的。单次 4–8 个步骤；**每步必须写 speech 旁白**。'
+    + '★ **一步可以包含多个动作**：用 `{ speech, actions: [{action, params}, …] }` 把'
+    + '「切晶体 + 关图层 + 切视角」合成一次点击；同一教学瞬间的动作不要拆成好几步让学生连点。',
   'agent.tool.applySceneActions.speech': '这一步的旁白（必填）',
+  'agent.tool.applySceneActions.action': '单个动作（与 actions 二选一）',
+  'agent.tool.applySceneActions.group': '这一步要一起执行的多个动作（与 action 二选一）',
   'agent.tool.navigateTo.desc':
     '把学生带到指定的页面或晶体。当学生要看的对象不在当前页面时用它——'
     + '例如在首页问某个晶体、或需要跳到对比页。id 必须来自模块的 id 清单（工具会校验）。',
@@ -568,6 +573,7 @@ export const en = {
     + '★ never open with it, and never let it take the place of the answer itself.)',
   'agent.sb.queuedAuto': ' Continuous playback is running.',
   'agent.sb.execFailed': 'Execution failed',
+  'agent.sb.groupInvalid': 'Action {n} in the grouped step is invalid: {error}',
   'agent.sb.noSteps': 'This demonstration has no executable steps',
   'agent.sb.noReplay': 'There is no demonstration to replay (none has been played yet)',
   'agent.sb.noJump': 'There is no demonstration to jump within',
@@ -819,9 +825,13 @@ export const en = {
     + 'played step by step**: the first step runs immediately, then playback pauses until the '
     + 'user clicks "Next step". This tool therefore **returns an acknowledgement immediately '
     + 'and does not wait for playback to finish** — it is normal that the result has no '
-    + 'executed field. Send 4–8 actions at a time, and **every step must carry a speech '
-    + 'narration**.',
+    + 'executed field. Send 4–8 steps at a time, and **every step must carry a speech '
+    + 'narration**. ★ **One step may contain several actions**: use `{ speech, actions: '
+    + '[{action, params}, …] }` to merge "switch crystal + toggle layers + set view" into one '
+    + 'click; do not split one teaching moment into several clicks.',
   'agent.tool.applySceneActions.speech': 'narration for this step (required)',
+  'agent.tool.applySceneActions.action': 'one action (use either action or actions)',
+  'agent.tool.applySceneActions.group': 'several actions to run together as this one step (use either action or actions)',
   'agent.tool.navigateTo.desc':
     'Take the student to a given page or crystal. Use it when what the student wants to see is '
     + 'not on the current page — for example asking about a crystal on the home page, or '

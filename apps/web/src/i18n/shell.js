@@ -101,7 +101,10 @@ export const zh = {
     + '讲「操作数 ≠ 元素数」时别写成「把元素全部隐去…」（隐去对称元素就什么都不剩，句子自相矛盾）；'
     + '要说"画面上只画出 **1 个**对称元素（那根 C₂ 轴），而它的群阶是 **2** —— '
     + '因为 E 也是一个操作，而 E 不占任何对称元素"。',
-  'shell.prompt.roleCrystal': '涉及配位数、空隙数、晶胞参数、密度等一切数值，必须用 queryCrystal 取得，不要口算。',
+  'shell.prompt.roleCrystal': '涉及配位数、空隙数、晶胞参数、密度等一切数值，必须用 queryCrystal 取得，不要口算。'
+    + '★ NaCl 等非最密堆积没有空隙图层，**不要**在它上面打开八面体/四面体空隙；'
+    + '要讲 Cl⁻ 的八面体空隙，改用并排对比：一侧 NaCl、一侧 Cu（fcc），两侧关化学键，在 Cu 一侧打开八面体空隙——'
+    + 'Cu 的空隙位置正好对应 NaCl 中的 Na⁺。演示中一步可以包含多个动作（见 applySceneActions 的 actions 分组）。',
   'shell.prompt.roleOrbit': '节面数、径向峰位、能级、简并度等一切数值必须用 queryOrbital 取得，不要凭记忆或口算。',
   /**
    * ★★ 2026-10-14（用户两条）：① "甲烷对称元素全部显示出来有点乱，智能体应避免把对称元素
@@ -333,7 +336,11 @@ export const en = {
     + 'play a symmetry operation, it must be in this round\'s applySceneActions (split into two '
     + 'batches if whole-batch validation blocks it) — otherwise do not tell the student it is queued.',
   'shell.prompt.roleCrystal': 'For any number — coordination number, void count, cell parameters, density — '
-    + 'obtain it with queryCrystal. Never compute or recall it yourself.',
+    + 'obtain it with queryCrystal. Never compute or recall it yourself. '
+    + '★ NaCl and other non-closest-packed structures have no void layers: do **not** open octahedral/tetrahedral voids on them. '
+    + 'To teach the Cl⁻ octahedral voids, use side-by-side comparison: NaCl on one side, Cu (fcc) on the other, bonds off on both, '
+    + 'and open octahedral voids on the Cu side — the void positions match the Na⁺ positions in NaCl. '
+    + 'One demonstration step may contain several actions (see the grouped `actions` form of applySceneActions).',
   'shell.prompt.roleOrbit': 'For any number — node count, radial peak positions, energy levels, degeneracy — '
     + 'obtain it with queryOrbital. Never rely on memory or mental arithmetic.',
   'shell.prompt.roleSymmetry': 'Always obtain point-group symbols and symmetry-element lists with queryPointGroup; '

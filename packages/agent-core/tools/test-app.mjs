@@ -206,9 +206,12 @@ section('端到端：分镜队列（applySceneActions 立即返回受理回执�
   ]
   const { app, view, llm } = buildApp(script)
   app.setActiveModule('crystal')
+  // 空隙图层只有最密堆积才有；这个用例测的是分镜队列，故把当前晶体设为 fcc。
+  // （NaCl 上打开 octahedral 现在会被模块**正确拒绝**，见 test-crystal-module 的能力守卫。）
+  view.props.crystalId = 'fcc'
 
   let toolResult = null
-  await app.send('演示一下 NaCl 的八面体空隙', { onToolResult: (i) => { toolResult = i.result } })
+  await app.send('演示一下 Cu 的八面体空隙', { onToolResult: (i) => { toolResult = i.result } })
 
   check('工具返回受理回执（含 totalSteps）', toolResult && toolResult.totalSteps === 2, JSON.stringify(toolResult))
   check('回执里告诉模型「用户点下一步后才会有下一步动作」', /下一步/.test(toolResult.note || ''))
@@ -227,6 +230,39 @@ section('端到端：分镜队列（applySceneActions 立即返回受理回执�
   await new Promise((r) => setTimeout(r, 5))
   check('用户点下一步后第二步执行', view.props.showAtoms === false)
   check('播完后可回退与重播', app.storyboard.state().canReplay === true)
+}
+
+// ============================================================================
+section('一步多动作：同一教学瞬间合成一次点击')
+// ============================================================================
+{
+  const grouped = [
+    {
+      speech: '先切到只留原子与键的画面，再正视。',
+      actions: [
+        { action: 'setLayers', params: { layers: { atoms: false, bonds: true } } },
+        { action: 'setView', params: { direction: 'front' } },
+      ],
+    },
+    { action: 'resetView', speech: '再回到原视角。' },
+  ]
+  const script = [
+    { toolCalls: [tc('applySceneActions', { actions: grouped })], finishReason: 'tool_calls' },
+    { content: '已排好演示。', finishReason: 'stop' },
+  ]
+  const { app, view } = buildApp(script)
+  app.setActiveModule('crystal')
+  let toolResult = null
+  await app.send('把这两个动作合成一步', { onToolResult: (i) => { toolResult = i.result } })
+
+  check('3 个动作被合成 2 步（组合组只占 1 步）',
+    toolResult && toolResult.totalSteps === 2, JSON.stringify(toolResult))
+  check('组内两个动作都执行了（不是只执行第一个）',
+    view.props.showAtoms === false && view.props.showBonds === true,
+    JSON.stringify({ atoms: view.props.showAtoms, bonds: view.props.showBonds }))
+  const gs = app.storyboard.state()
+  check('组合步骤在队列里也是 1 步，并停在下一步的闸门上',
+    gs.total === 2 && gs.index === 1 && gs.waitingForUser === true, JSON.stringify(gs))
 }
 
 // ============================================================================

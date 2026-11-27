@@ -14,6 +14,7 @@
  *   那是纯数学）。
  */
 import { t } from './i18n-live.js'
+import { hasIntersticeData } from './capabilities.js'
 import { fractionalToCartesian } from '../../packages/viewer/geometry.js'
 import { parseFormula, molarMass, AVOGADRO } from '../../packages/knowledge/shared/formula.js'
 import { LAYER_PROPS, listActions } from './actions.js'
@@ -189,9 +190,13 @@ export function createCrystalTools(opts = {}) {
     listCrystals(p) {
       const list = catalog
         .filter((c) => !p || !p.category || c.category === p.category)
-        .map((c) => ({ id: c.id, name: c.name, formula: c.formula, crystalSystem: c.crystalSystem, category: c.category, subtitle: c.subtitle }))
+        .map((c) => ({
+          id: c.id, name: c.name, formula: c.formula, crystalSystem: c.crystalSystem, category: c.category, subtitle: c.subtitle,
+          // ★ 能力随清单给出：模型不必凭 id 猜「这块晶体有没有空隙」。
+          interstices: hasIntersticeData(c.id, loadData(c.id)),
+        }))
       return { count: list.length, crystals: list,
-        note: 'id 请原样使用，不要改写或推断' }
+        note: 'id 请原样使用，不要改写或推断。interstices=true 才有空隙图层；NaCl 等非最密堆积没有空隙数据，要讲 Cl⁻ 八面体空隙请用 Cu（fcc）做并排对比。' }
     },
 
     getCrystalDetail(p) {
@@ -203,7 +208,8 @@ export function createCrystalTools(opts = {}) {
         latticeType: d.latticeType, structuralUnit: d.structuralUnit,
         coordination: d.coordination, spaceUtilization: d.spaceUtilization,
         packingDescription: d.packingDescription, description: d.description,
-        note: '以上为数据字段原文，未做推导',
+        interstices: hasIntersticeData(d.id, d),
+        note: '以上为数据字段原文，未做推导。interstices=false 表示没有空隙图层；NaCl 等非最密堆积要讲 Cl⁻ 八面体空隙，请用 Cu（fcc）并排对比。',
       }
     },
 
