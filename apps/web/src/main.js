@@ -1464,6 +1464,20 @@ function startCrystalPractice() {
       if (settings.hasKey()) {
         panel.setInput(t('shell.practice.askLlm', { kp }))
         /**
+         * ★★ 2026-11-27（用户：点练习后模型说"没有挂 generateQuiz 这个工具"）：
+         *
+         *   `generateQuiz` 是 **quiz 节点专属**工具；而面板启动时节点是 explain。
+         *   练习入口只把请求塞进对话，**没有切节点** —— 模型拿到的白名单里根本没有
+         *   generateQuiz，于是只能回一句"没有这个工具"，随后才由下面的本地兜底出题。
+         *   切节点是**宿主发起练习**的职责，不该赌模型自己调用 declareIntent。
+         *   这里先切到 quiz，发完这一轮再恢复原节点（作答/判分是本地闭环，不需要模型）。
+         */
+        const prevNode = app.node
+        try { app.setNode('quiz') } catch (e) { /* 节点切换失败时仍按原流程走 */ }
+        const restoreNode = () => {
+          try { if (prevNode && prevNode !== app.node) app.setNode(prevNode) } catch (e) { /* 忽略 */ }
+        }
+        /**
          * ★★ 2026-10-08（用户报「练习时没有选项按钮，还直接暴露了答案；出练习应 Function Calling」）：
          *
          *   单靠提示词不够 —— 实测模型有时**不调 generateQuiz**，而是自己把题干与选项写成一段文字：
@@ -1481,7 +1495,7 @@ function startCrystalPractice() {
             quizUI.startPractice(kp)
             panel.addChip(t('shell.practice.toolFallback'), 'info')
           } catch (e) { /* 兜底失败不该影响这一轮对话 */ }
-        })
+        }).catch(() => { /* 发送失败由面板自己报错 */ }).finally(restoreNode)
       } else {
         quizUI.startPractice(kp)
       }

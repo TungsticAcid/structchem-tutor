@@ -452,6 +452,10 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/panel\.clearPracticeCards\(\)/.test(practiceStart), '练习入口先清掉上一轮的练习卡')
   ok(/typeof hasKey\b/.test(noComments) === false,
     '没有写成 typeof 裸名 hasKey（那样会静默为假，守卫等于没写）')
+  // ★★ 2026-11-27（用户：点练习后模型说"没有挂 generateQuiz 这个工具"）：
+  //   generateQuiz 是 quiz 节点专属工具；练习入口必须先切节点，不能赌模型自己 declareIntent。
+  ok(/function startCrystalPractice[\s\S]{0,5000}?app\.setNode\('quiz'\)/.test(noComments),
+    '晶典练习入口先切到 quiz 节点（否则模型拿到的是 explain 工具集）')
 
   // ★★ 2026-10-12（用户："为何控制面板还在下边而不是在左边"）：
   //   查看页的控制面板在**桌面**下必须是左列且让位（窄屏才退回底部抽屉）。
