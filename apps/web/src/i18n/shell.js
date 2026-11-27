@@ -112,11 +112,16 @@ export const zh = {
     + '或 openCompareView({a, b}) 把两个 id 都给全；只给 b 会让左边那一侧无从确定。'
     + '★ 任何落在三维视图上的动作（切图层、切视角、对比…）若当前不在查看页，宿主会先打开相应页面；'
     + '若它打不开（例如不知道要看哪个晶体），那一步会**如实失败**并在演示条标红——此时请改用 navigateTo 或先 loadCrystal。'
+    + '★ **不要只承诺、不动作**：正文里写了「下面演示 / 我用三维视图给你看」就**必须在本轮真的调用** '
+    + 'applySceneActions 或 playDemo；没有动作就不要承诺（真机回归里 20 个问题中有 6 个只承诺、没下发）。'
     + '★ `octahedral` / `tetrahedral` 是**空隙位置标记**，不是「配位多面体」：讲配位环境用 highlightAtoms（高亮中心离子与近邻）'
     + '或 setAtomVisibility（隐去同号离子），不要拿空隙图层当配位多面体，NaCl 这类没有空隙数据的结构上它会被拒。'
     + '★ 学生要**出题 / 练习**时：先调 declareIntent({intent:"quiz"})，然后在**同一个用户回合的紧接着的下一回合**调用 generateQuiz。'
     + '节点切换只对下一回合生效，所以**不要**在 declareIntent 之后就结束回答、更不要让学生再说一遍「出题」——'
-    + '直接继续调用 generateQuiz 即可（这一回合你会拿到它）。也**不要**在正文里自己编题：'
+    + '直接继续调用 generateQuiz 即可（这一回合你会拿到它）。'
+    + '★「再出一道 / 换一题 / 再来几道 / 考考我」**同样算要出题**：先 declareIntent(quiz) 再 generateQuiz，'
+    + '不要反问"你要做吗"、也不要只用文字描述一道题。'
+    + '也**不要**在正文里自己编题：'
     + '题干与选项必须来自 generateQuiz，答案由程序冻结，否则学生没有题目卡、也无法判分。',
   'shell.prompt.roleOrbit': '节面数、径向峰位、能级、简并度等一切数值必须用 queryOrbital 取得，不要凭记忆或口算。',
   /**
@@ -229,6 +234,15 @@ export const zh = {
     + '题目卡会自动出现，你只需用一句话说明这道题考什么。',
   /** ★ 2026-10-08：模型没走工具时，宿主直接函数调用出题引擎兜底，并如实告诉学生 */
   'shell.practice.toolFallback': '模型这一轮没有调用出题工具，已直接调用 generateQuiz 生成题目',
+  /**
+   * ★★ 2026-11-27：学生作答后，把**结果**作为内部上下文交给模型。
+   *   判分仍走本地（不经模型），这条只是让下一轮讲解接得上——否则模型只会反问
+   *   "你先说说你是怎么选的"（真机就是这么回的）。
+   */
+  'shell.practice.noteRight': '（学生刚在题目卡上作答：知识点 {kp}，选了「{chosen}」，**答对了**。'
+    + '接下来讲解请在此基础上继续，不要重复出同一道题。）',
+  'shell.practice.noteWrong': '（学生刚在题目卡上作答：知识点 {kp}，选了「{chosen}」，**答错了**，正确答案是「{answer}」。'
+    + '接下来的讲解请针对这个错误引导，**不要直接把答案再念一遍**，可以用高亮或对比帮他看出矛盾。）',
   /**
    * ★★ 2026-10-12：练习入口按板块分流（用户截图：在点群观鉴里点练习，列的是晶体知识点）。
    *   三个板块的练习能力本来不同 ⇒ 分开说，不假装每个板块都有题库。
@@ -362,6 +376,9 @@ export const en = {
     + '★ **On the library page or the portal** there is no "current crystal": when comparing, use '
     + 'navigateTo({target:"compare", crystalId, otherCrystalId}) or openCompareView({a, b}) with both ids. '
     + 'Passing only b leaves the left-hand side undefined. '
+    + '★ **Never promise without acting**: if your text says “here is a demo / let me show you in 3D”, you must actually '
+    + 'call applySceneActions or playDemo in the same turn; otherwise do not promise (in a real run 6 of 20 questions '
+    + 'promised a demo and queued none). '
     + '★ Any action that lives on the 3D view (layers, view direction, comparison…) makes the host open the right page '
     + 'first; if it cannot (for example the crystal is unknown), that step fails honestly and the demo bar turns red — '
     + 'then switch to navigateTo or loadCrystal first. '
@@ -371,7 +388,9 @@ export const en = {
     + '★ When the student asks for a **question or practice**: call declareIntent({intent:"quiz"}), then call generateQuiz '
     + 'in the **immediately following round of the same user turn**. The node switch only takes effect next round, so do '
     + 'not stop after declareIntent and do not ask the student to repeat the request — just continue and call generateQuiz '
-    + '(it is available in that next round). Never write a question yourself: the stem and options must come from '
+    + '(it is available in that next round). ★ “Another one / a different question / quiz me” also counts as a request for '
+    + 'a question: call declareIntent(quiz) then generateQuiz; do not ask “do you want one?” and do not merely describe a '
+    + 'question in prose. Never write a question yourself: the stem and options must come from '
     + 'generateQuiz so the answer is frozen by code — otherwise the student gets no question card and no marking.',
   'shell.prompt.roleOrbit': 'For any number — node count, radial peak positions, energy levels, degeneracy — '
     + 'obtain it with queryOrbital. Never rely on memory or mental arithmetic.',
@@ -452,6 +471,11 @@ export const en = {
     + 'and do not compute the answer) — the question card appears automatically; '
     + 'just say in one sentence what this question tests.',
   'shell.practice.toolFallback': 'The model did not call the quiz tool this turn, so generateQuiz was called directly',
+  'shell.practice.noteRight': '(The student just answered on the question card: knowledge point {kp}, chose “{chosen}” — '
+    + '**correct**. Build on this when explaining; do not re-issue the same question.)',
+  'shell.practice.noteWrong': '(The student just answered on the question card: knowledge point {kp}, chose “{chosen}” — '
+    + '**wrong**; the correct answer is “{answer}”. Address this misconception in your explanation; do not simply repeat '
+    + 'the answer — use highlighting or a comparison to help them see the contradiction.)',
   'shell.practice.chooseBoard': 'Choose a module to practise:',
   'shell.practice.board.crystal': 'Crystal Online · crystal structures',
   'shell.practice.board.orbit': 'Orbital Horizon · atomic orbitals',

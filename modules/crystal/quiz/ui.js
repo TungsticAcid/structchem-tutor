@@ -161,6 +161,24 @@ export function createQuizUI(deps = {}) {
     }
 
     renderFeedback(r)
+    /**
+     * ★★ 2026-11-27（真机：学生答完题再追问"解释一下"，模型却回"你先说说你是怎么选的"）：
+     *   作答是**纯本地**的（判分不经模型，这是对的），但结果也**没有告诉模型** ——
+     *   于是下一轮它完全不知道学生选了什么、对错如何，只能反问，教学就断了。
+     *   ⇒ 交一份简短的结果给宿主（`onAnswered`），由宿主以"内部消息"记进对话历史：
+     *     不额外调用模型、不占学生一次提问，但下一次对话时它就看得见。
+     */
+    if (typeof deps.onAnswered === 'function') {
+      try {
+        deps.onAnswered({
+          correct: !!r.correct,
+          chosenText: q && q.options ? q.options[chosenIndex] : '',
+          answerText: r.answerText || '',
+          kp: q && q.kp ? q.kp : '',
+          crystalId: q && q.crystalId ? q.crystalId : '',
+        })
+      } catch (e) { /* 上报失败不影响判分与反馈卡 */ }
+    }
   }
 
   /** 渲染反馈卡：正误 + 解析 +（答错时）诊断 + 「去看结构」 */

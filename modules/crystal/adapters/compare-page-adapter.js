@@ -60,8 +60,17 @@ export function createComparePageAdapter(page) {
         if (v === cur) continue
         throw new Error('对比页不能单独换左侧晶体；请用 openCompareView({ a, b }) 指定这一组')
       }
+      /**
+       * ★ 对称元素：对比页的两块画布**都是按 showSymmetry:false 建的**（见 _mkProps），
+       *   这里如实告知，而不是静默吞掉。真机回归里模型正是在对比页上开"对称元素"被拒，
+       *   得到的却是一句笼统的"暂不支持动作参数"，它只好反复重试。
+       */
+      if (k === 'showSymmetry') {
+        if (v === false) continue
+        throw new Error('对比页不显示对称元素（两块画布都没有该图层）；要看对称元素请回到查看页，或先 openCompareView 之外的视图再试')
+      }
       if (!SIDE_PROPS.has(k)) {
-        throw new Error(`对比页暂不支持动作参数 ${k}（可用：图层 / 外观 / 元素高度）`)
+        throw new Error(`对比页暂不支持动作参数 ${k}（可用：图层如 showBonds / showOctahedral，外观如 atomScale / opacity，以及 highlightElements）`)
       }
       rest[k] = v
     }

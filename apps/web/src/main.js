@@ -1333,7 +1333,32 @@ preloadKatexIdle()
 // 面板就绪后再建卡片层（它需要 panel 实例）
 // ★ 传 `quiz` 引擎：练习模式的「看答案」要用它的**只读** `peek`
 //   （不走 checkAnswer —— 那会伪造一条作答记录，见 quiz/index.js 的 peek 说明）
-quizUI = createQuizUI({ panel, app, module: crystal, quiz })
+quizUI = createQuizUI({
+  panel, app, module: crystal, quiz,
+  /**
+   * ★★ 2026-11-27（真机：答完题再追问，模型反问"你先说说你是怎么选的"）：
+   *   判分是本地做的（不经模型，这是刻意的），但**结果要进对话历史** ——
+   *   否则下一轮模型对学生刚做了什么一无所知，教学接不上。
+   *   ⇒ 这里把它记成一条 `origin:'internal'` 的**上下文消息**：
+   *     · 不调用模型（不花钱、不打断学生）
+   *     · 不进对话树（面板不渲染，学生看不到一行"系统：学生答错了"）
+   *     · 但下一次提问时它在历史里，模型据此接着讲
+   */
+  onAnswered(info) {
+    try {
+      const conv = app && app.conversation
+      if (!conv || typeof conv.getHistory !== 'function' || typeof conv.setHistory !== 'function') return
+      if (typeof conv.isRunning === 'function' && conv.isRunning()) return
+      const kp = String(info.kp || '').replace(/^crystal:/, '')
+      const note = info.correct
+        ? t('shell.practice.noteRight', { kp, chosen: info.chosenText || '' })
+        : t('shell.practice.noteWrong', { kp, chosen: info.chosenText || '', answer: info.answerText || '' })
+      const hist = conv.getHistory()
+      hist.push({ role: 'user', origin: 'internal', content: note })
+      conv.setHistory(hist)
+    } catch (e) { /* 记录失败不该影响判分 */ }
+  },
+})
 
 // ---------------------------------------------------------------------------
 // 11. 练习闭环入口

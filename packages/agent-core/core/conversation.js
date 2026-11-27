@@ -209,6 +209,15 @@ export function createConversation(opts = {}) {
      *   是完全正常的形态（见 panel.js 的 roundTextChars 同一条判据）。
      */
     let wroteText = false
+    /**
+     * ★ 本轮**累计**的正文（不只最后那一段）。用来判断"前面写的那些算不算回答"——
+     *   实测（20 个晶体问题的真机回归）：模型常常先写一句"现在开始讲解演示："再调工具，
+     *   轮数用到上限后整轮就停在这句"开场白"上，学生拿到的是一条没有内容的回答。
+     *   ⇒ 光看 `wroteText` 布尔值不够，还要看它**写了多少、是不是说完**。
+     */
+    let turnText = ''
+    /** 上一回合是否还在调工具（轮数用尽时的判据，见收尾那一轮） */
+    let lastRoundHadTools = false
     // 留证据：空正文到底是怎么来的，靠这两个字段才能说清，而不是猜
     let lastFinishReason = null
     let lastUsage = null
@@ -286,7 +295,11 @@ export function createConversation(opts = {}) {
         lastFinishReason = out.finishReason
         lastUsage = out.usage
         // ★ 只要**任何**一个回合写了非空白正文，整轮就算"回答过了"（尾部收尾判据用）
-        if (out.content && out.content.trim()) wroteText = true
+        if (out.content && out.content.trim()) {
+          wroteText = true
+          turnText += (turnText ? '\n' : '') + out.content
+        }
+        lastRoundHadTools = out.toolCalls.length > 0
 
         // 补发没流式吐出来的思考内容（只补差额，避免与已流出的部分重复）
         if (out.reasoning && out.reasoning.length > streamedReasoning.length) {
@@ -409,7 +422,21 @@ export function createConversation(opts = {}) {
        * ★ 补的这一轮**不写进 while 条件**，而是给历史追加一条明确的收尾指令后
        *   再判一次 —— 条件写在 while 里会让"每次都不写正文"的模型把轮数无限拖长。
        */
-      if (!aborted && !wroteText && executedTools.length) {
+      /**
+       * ★★ 2026-11-27（真机回归：20 个晶体问题里有 5 个的最终回答只有一句"开场白"）：
+       *   原判据是"**整轮一个字都没写**"才补收尾轮。而模型的常见形态是先写一句
+       *   「现在开始讲解演示：」**再**调工具——那句开场白让 `wroteText` 变成真，
+       *   轮数一到上限，整轮就停在这句话上，学生什么答案也没拿到。
+       *   ⇒ 轮数用尽时，若最后一回合**还在调工具**、且累计正文只是一句**没说完的开场白**
+       *     （很短，或以冒号/逗号收尾），同样补一轮收尾。
+       */
+      /**
+       * ★ 判据第二条：**轮数用尽时最后一回合仍在调工具** ⇒ 一定补。
+       *   不看"前面写了多少字"——真机里那句开场白有的只有 11 个字，有的写得挺长，
+       *   但都不是回答。多花一轮换一句真正的结论，比让学生盯着"现在开始演示。"划算。
+       */
+      const exhausted = rounds >= maxRounds && lastRoundHadTools
+      if (!aborted && executedTools.length && (!wroteText || exhausted)) {
         H.onNotice({ kind: 'no_text_final_round' })
         history.push({ role: 'user', origin: 'continuation', content: t('agent.continue.finalAnswer') })
         rounds++

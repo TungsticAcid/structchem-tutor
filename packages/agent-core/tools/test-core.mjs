@@ -1001,16 +1001,31 @@ section('conversation：循环机制 + 与 orbit 原循环的等价性')
   //      那个形态，补一轮只会白花钱。
   // ---------------------------------------------------------------------
   {
-    // ① 第 1 轮写正文 + 调工具，第 2 轮只调工具，第 3 轮无工具（脚本最后一条会被复用）
+    /**
+     * ★★ 2026-11-27（真机回归：20 个晶体问题里 5 个只回了"现在开始讲解演示。"）：
+     *   判据从"整轮一个字都没写"改成"**轮数用尽时最后一回合还在调工具**"。
+     *   模型常见形态是"写一句开场白 + 调工具"，轮数一到上限就停在那句开场白上；
+     *   旧判据把它当成"已经回答过"，于是学生拿不到任何结论。
+     */
     const script1 = [
       { content: '先给结论：这是 C₂。', toolCalls: [tc('t1', {})], finishReason: 'tool_calls' },
       { toolCalls: [tc('t2', {})], finishReason: 'tool_calls' },
       { toolCalls: [tc('t3', {})], finishReason: 'tool_calls' },
     ]
     const B1 = await runCase(() => setupMine(script1, async () => ({ ok: true })).deps, () => {}, script1)
-    check('中间回合写过正文 ⇒ 不补「只写正文」的收尾',
-      B1.events.notices.indexOf('no_text_final_round') < 0 && B1.events.done.rounds === 6,
+    check('轮数用尽且最后一回合还在调工具 ⇒ 补一轮收尾（哪怕前面写过开场白）',
+      B1.events.notices.indexOf('no_text_final_round') >= 0 && B1.events.done.rounds === 7,
       `notices=${JSON.stringify(B1.events.notices)} rounds=${B1.events.done.rounds}`)
+
+    // ③ 自然结束（最后一回合不再调工具）⇒ 不补：那已经是一次完整的回答
+    const script3 = [
+      { content: '', toolCalls: [tc('t1', {})], finishReason: 'tool_calls' },
+      { content: '结论：金刚石的基元是 C₂。', finishReason: 'stop' },
+    ]
+    const B3 = await runCase(() => setupMine(script3, async () => ({ ok: true })).deps, () => {}, script3)
+    check('自然结束（末回合无工具调用）⇒ 不补收尾',
+      B3.events.notices.indexOf('no_text_final_round') < 0,
+      `notices=${JSON.stringify(B3.events.notices)} rounds=${B3.events.done.rounds}`)
 
     // ② 一次工具都不动（脚本无 toolCalls）
     const script2 = [{ content: '', finishReason: 'stop' }]
