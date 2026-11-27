@@ -1448,8 +1448,13 @@ function startCrystalPractice() {
     btn.addEventListener('click', () => {
       const kp = btn.dataset.kp
       if (!KNOWLEDGE_POINTS[kp]) return
-      // 选完后禁用全部按钮，避免重复点击开出两套练习
-      el.querySelectorAll('.agent-pick-btn').forEach((b) => { b.disabled = true })
+      /**
+       * ★★ 2026-11-27（用户："未作答又点一次练习，题目卡位置仍不对"）：
+       *   知识点选择器是**一次性入口**，选中后继续留在消息流里只会变成一张
+       *   "上一轮的选择卡"，在下一轮重画时被锚点带回旧位置（出现在对话上方），
+       *   看起来就像题目卡跑位。选完立即撤掉，练习区只留本轮真正出的题。
+       */
+      try { el.remove() } catch (e) { /* 面板已卸载：忽略 */ }
       /**
        * ★★ 出题交给**模型**（用户报：「练习功能有问题，应由 LLM 出题」）。
        *
@@ -1497,8 +1502,10 @@ function startCrystalPractice() {
           try {
             const after = quizUI.renderedCards ? quizUI.renderedCards() : 0
             if (after > before) return
-            quizUI.startPractice(kp)
+            // ★ 提示条先加、题目卡后加：题目卡必须是消息区最后一项，
+            //   否则"兜底提示"会跑到卡下面，看起来又像卡没在最下方。
             panel.addChip(t('shell.practice.toolFallback'), 'info')
+            quizUI.startPractice(kp)
           } catch (e) { /* 兜底失败不该影响这一轮对话 */ }
         }).catch(() => { /* 发送失败由面板自己报错 */ }).finally(restoreNode)
       } else {
