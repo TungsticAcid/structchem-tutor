@@ -793,6 +793,22 @@ let lastDemoId = null
       body.appendChild(E('div', { class: 'agent-act-row', 'data-i': String(i) }, [
         E('span', { class: 'agent-act-txt', text: (i + 1) + '. ' + lines[i] }),
       ]))
+      /**
+       * ★★ 2026-11-27（用户："组合动作无法查看具体是什么动作"）：
+       *   组合步骤在摘要里只写「组合动作（N 个）」，学生没法知道里面到底切了
+       *   哪些图层/视角，也就没法指着某一条提整改意见。这里把组内动作逐条展开，
+       *   「引用」仍指向整个步骤，但气泡里能看见具体动作与参数。
+       */
+      if (a && Array.isArray(a.actions)) {
+        const sub = E('div', { class: 'agent-act-sub' })
+        a.actions.forEach((sa) => {
+          sub.appendChild(E('div', {
+            class: 'agent-act-sub-line',
+            text: '· ' + describeAction(sa.action, sa.params || sa),
+          }))
+        })
+        body.appendChild(sub)
+      }
     })
     if (result) {
       /**
@@ -820,6 +836,8 @@ let lastDemoId = null
     }
     d.appendChild(body)
     d._body = body
+    // 组合步骤默认展开：否则学生只看到「组合动作」，仍不知道具体做了什么。
+    if (acts.some((a) => a && Array.isArray(a.actions))) d.open = true
     msgBox.appendChild(d)
     scrollDown()
     return d
@@ -1013,7 +1031,9 @@ let lastDemoId = null
     const demoId = opts && opts.demoId
     const stepIndex = (opts && opts.stepIndex) || 0
     const total = (opts && opts.total) || '?'
-    const what = act ? describeAction(act.action, act.params || act) : ''
+    const what = act && Array.isArray(act.actions)
+      ? act.actions.map((sa) => describeAction(sa.action, sa.params || sa)).join('；')
+      : (act ? describeAction(act.action, act.params || act) : '')
     const n = String(demoId).replace(/^d/, '')
     // ★ 整句一次成型：拆成 `'已演示 #' + n + ' 的第 ' ...` 那种写法，译文语序没法处理
     inputEl.value = T('【整改演示】演示 #{id} 的第 {index} 步（共 {total} 步）{what}', {

@@ -408,6 +408,15 @@ body.agent-resizing .compare-page {
   padding: 1px 0;
 }
 .agent-act-txt { flex: 1 1 auto; }
+/* 组合步骤内的具体动作：缩进 + 左侧细线，让学生看得见"这一步到底做了什么" */
+.agent-act-sub {
+  margin: 2px 0 5px 14px;
+  padding-left: 8px;
+  border-left: 1px solid var(--line-soft, #202b48);
+  color: var(--text-dim, #9aa7c6);
+  line-height: 1.55;
+}
+.agent-act-sub-line { padding: 1px 0; word-break: break-all; }
 /* 校验未通过的那一步：划掉并标出原因，与"已执行"区分开 */
 .agent-act-row.skipped .agent-act-txt { opacity: .55; text-decoration: line-through; }
 .agent-act-skip { color: var(--warn, #ffb27a); flex: 0 0 auto; }

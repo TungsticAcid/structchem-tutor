@@ -111,6 +111,9 @@ export function createCrystalFacade(opts = {}) {
       layersOn: Object.keys(layers),
       // 空隙总开关关着时，上面两项即使为真也不可见——单列出来以免误读
       intersticesMasterOn: !!props.showInterstices,
+      // ★ 透明度必须在快照里：否则"回到演示前"/重播无法恢复它，模型也看不到
+      //   它被调到了 90%（用户报：演示后一直几乎看不见，重播也回不来）。
+      opacity: props.opacity,
       /**
        * ★★ 2026-10-12（用户："CaF2 没空隙图层，不用在看 CaF₂ 时提醒"）：
        *   这是"**这块晶体有没有空隙层**"——**能力**；上面那条是"总开关开没开"——**状态**。
@@ -180,6 +183,20 @@ export function createCrystalFacade(opts = {}) {
       if (v.err) { failed.push({ action: name, error: v.err }); continue }
 
       /**
+       * ★★ 2026-11-27（用户："某一步把原子透明度设成 90%，再也没改回去"）：
+       *   透明度是**破坏性**外观：0.9 时原子只剩 10% 可见，后面的讲解全废。
+       *   模型只能用到 0.5；要更透必须由学生自己在控制面板拖。还原路径
+       *   （bypassGuard）不受限制——它恢复的是学生自己的历史状态。
+       */
+      if (!o.bypassGuard && name === 'setAppearance' && typeof v.params.opacity === 'number' && v.params.opacity > 0.5) {
+        failed.push({
+          action: name,
+          error: t('crystal.t.facade.5', { p1: Math.round(v.params.opacity * 100) }),
+        })
+        continue
+      }
+
+      /**
        * ★★ 2026-11-27（用户：NaCl 演示里打开了八面体空隙，但 NaCl 不支持）：
        *   动作词汇表只知道"有 octahedral 这个图层"，不知道"当前晶体有没有这种数据"。
        *   空隙只有最密堆积（fcc/hcp）的数据里才有；NaCl 上打开只会是一片空白，
@@ -245,11 +262,36 @@ export function createCrystalFacade(opts = {}) {
     return null
   }
 
+  /** 干净教学基线：原子 + 晶胞线框 + 晶轴，其它辅助图层全关。 */
+  function baseLayerPatch() {
+    const patch = {}
+    for (const prop of Object.values(LAYER_PROPS)) patch[prop] = false
+    patch.showAtoms = true
+    patch.showWireframe = true
+    patch.showAxes = true
+    return patch
+  }
+
   /** 单个已校验动作 → 视图调用 */
   function applyOne(name, p) {
     switch (name) {
       case 'loadCrystal':
-        view.setProps({ crystalId: p.crystalId })
+        /**
+         * ★★ 2026-11-27（用户："当前是点阵型式图层，智能体演示一直保持这个状态"）：
+         *   切晶体是"换一张干净的教学底图"，不能继承上一块晶体的空隙/点阵点/对称元素。
+         *   同时把外观恢复默认（尤其 opacity=90% 会让后续讲解几乎看不见）。
+         *   需要保留某个图层时，后续 setLayer(s) 再明确打开。
+         */
+        view.setProps(Object.assign(baseLayerPatch(), {
+          crystalId: p.crystalId,
+          atomScale: 1.0,
+          stickRadius: 0.08,
+          opacity: 0,
+          cellDisplayMode: 'conventional',
+          atomVisibility: {},
+          highlightElements: null,
+          equivalentIndex: 0,
+        }))
         return
       case 'setLayer':
         view.setProps({ [LAYER_PROPS[p.layer]]: p.visible })
@@ -260,6 +302,9 @@ export function createCrystalFacade(opts = {}) {
         view.setProps(patch)
         return
       }
+      case 'resetLayers':
+        view.setProps(baseLayerPatch())
+        return
       case 'setView':
         view.setView(p.direction)
         return
@@ -417,11 +462,12 @@ export function createCrystalFacade(opts = {}) {
         hiddenElements: '按元素显隐',
         atomScale: '调整原子缩放',
         stickRadius: '调整键粗细',
+        opacity: '调整透明度',
       },
       // ★ 停留时长此前是**空数组**——机制在、恒为空，于是"在同一个晶体上反复切图层
       //   却始终没打开空隙"这类教学信号完全丢失。填上真正有教学意义的**少数几个**：
       //   不是全填，因为 dwellMs 会为每个变化字段保留最近 6 次的时长，全填等于白撑大快照。
-      dwellFields: ['crystal', 'layersOn', 'cellDisplayMode'],
+      dwellFields: ['crystal', 'layersOn', 'cellDisplayMode', 'opacity'],
       formatCompact: (snap) => {
         const s = (snap && snap.state) || {}
         const it = (snap && snap.interaction) || {}
@@ -437,6 +483,11 @@ export function createCrystalFacade(opts = {}) {
             idle: Math.round((it.idleMs || 0) / 1000),
             toggles: JSON.stringify(it.toggleCounts || {}),
             recent: ((it.recentActions || []).join('→') || t('crystal.common.none')),
+          }),
+          // ★ 外观也要让模型看见：透明度被调到 90% 时，下一步任何"讲解"都看不清。
+          t('crystal.perception.appearance', {
+            scale: (typeof s.atomScale === 'number' ? s.atomScale.toFixed(2) : '—'),
+            opacity: (typeof s.opacity === 'number' ? Math.round(s.opacity * 100) + '%' : '—'),
           }),
         ].join('\n')
       },

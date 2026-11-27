@@ -111,11 +111,13 @@ section('getSnapshot：必须现读视图，不能维护副本')
   check('惯用晶胞有说明', /惯用晶胞/.test(s1.cellDisplayModeNote))
 
   // ★ 关键：用户在页面上自己改了图层 → 门面必须立刻反映（而不是拿着旧副本）
-  view.userChanges({ showOctahedral: true, crystalId: 'naCl' })
+  view.userChanges({ showOctahedral: true, crystalId: 'naCl', opacity: 0.9 })
   const s2 = F.getSnapshot()
   check('用户在页面上改动后，快照立刻反映（无副本漂移）',
     s2.layersOn.includes('octahedral') && s2.crystal.id === 'naCl',
     JSON.stringify({ layers: s2.layersOn, id: s2.crystal.id }))
+  check('快照带上透明度（否则「回到演示前」/重播无法恢复 90%）',
+    s2.opacity === 0.9, String(s2.opacity))
   check('切到原胞时的说明会变', (() => {
     view.userChanges({ cellDisplayMode: 'primitive' })
     return /原胞/.test(F.getSnapshot().cellDisplayModeNote)
@@ -164,6 +166,15 @@ section('applyActions：校验在前、落到视图在后')
   ])
   check('同一批先切到 fcc 再开八面体空隙则允许（按目标晶体判能力）',
     voidOk.ok === true && viewN.props.showOctahedral === true, JSON.stringify(voidOk))
+
+  // ★ 切晶体是换一张干净底图：不继承点阵点/特殊图层/90% 透明度
+  view.userChanges({ showLatticePoints: true, opacity: 0.9, showOctahedral: true })
+  F.applyActions([{ action: 'loadCrystal', params: { crystalId: 'fcc' } }])
+  check('loadCrystal 清掉上一画面的特殊图层（点阵点/八面体）',
+    view.props.showLatticePoints === false && view.props.showOctahedral === false,
+    JSON.stringify({ lp: view.props.showLatticePoints, oct: view.props.showOctahedral }))
+  check('loadCrystal 把透明度恢复为 0（避免演示后一直几乎看不见）',
+    view.props.opacity === 0, String(view.props.opacity))
   const bad3 = F.applyActions([{ action: '根本不存在' }])
   check('未知动作被拒', bad3.ok === false && /未知动作/.test(bad3.failed[0].error))
 
@@ -190,6 +201,11 @@ section('applyActions：校验在前、落到视图在后')
   F.applyActions([{ action: 'setAppearance', params: { opacity: -5 } }])
   check('负值被夹到下限', view.props.opacity === 0)
   check('纯非数值被拒', F.applyActions([{ action: 'setAppearance', params: {} }]).ok === false)
+  const tooTransparent = F.applyActions([{ action: 'setAppearance', params: { opacity: 0.9 } }])
+  check('模型把透明度调到 90% 会被拒（否则后续画面几乎不可见）',
+    tooTransparent.ok === false && /透明度/.test(tooTransparent.failed[0].error), JSON.stringify(tooTransparent))
+  const safeTransparent = F.applyActions([{ action: 'setAppearance', params: { opacity: 0.5 } }])
+  check('演示可用 50% 透明度', safeTransparent.ok === true && view.props.opacity === 0.5)
 
   // 视角与复位
   F.applyActions([{ action: 'setView', params: { direction: 'iso' } }])

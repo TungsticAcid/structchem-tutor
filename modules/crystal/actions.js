@@ -126,8 +126,14 @@ export const VOCAB = {
   setLayers: {
     label: '批量切换图层',
     group: '图层',
-    desc: '一次开关多个图层（比连续调 setLayer 少占一步演示）',
+    desc: '一次开关多个图层（只改列出的键，未列出的保持原状；演示开始应先 resetLayers 建基线）',
     params: { layers: '{ [layer]: boolean }' },
+  },
+  resetLayers: {
+    label: '重置图层',
+    group: '图层',
+    desc: '恢复干净教学基线：关掉空隙/对称元素/点阵点/标签/辅助几何，只留原子、晶胞线框与晶轴；演示开始先调它，避免继承上一画面的特殊图层',
+    params: {},
   },
   setView: {
     label: '切换视角',
@@ -156,7 +162,7 @@ export const VOCAB = {
   setAppearance: {
     label: '调整外观',
     group: '外观',
-    desc: '调整原子缩放 / 键粗细 / 透明度。越界值会被夹到允许区间',
+    desc: '调整原子缩放 / 键粗细 / 透明度。透明度 0~0.5（0.9 几乎看不见），演示结束请恢复 0；越界值会被夹到允许区间',
     params: {
       atomScale: `number ${APPEARANCE_RANGES.atomScale.join('~')}`,
       stickRadius: `number ${APPEARANCE_RANGES.stickRadius.join('~')}`,
@@ -252,6 +258,8 @@ export function validate(name, p, ctx = {}) {
       if (!Object.keys(out).length) return { err: 'layers 不能为空对象' }
       return { params: { layers: out } }
     }
+    case 'resetLayers':
+      return { params: {} }
     case 'setView': {
       if (VIEW_DIRECTIONS.indexOf(p.direction) < 0) {
         return { err: t('crystal.t.actions.4', { p1: (VIEW_DIRECTIONS.join('/')) }) }

@@ -51,6 +51,7 @@ export const zh = Object.assign({
   // ---- 感知层给模型看的紧凑状态（facade.perception.formatCompact）----
   'crystal.perception.state': '【当前状态】模块 {module}{crystal}；图层 {layers}',
   'crystal.perception.interaction': '【交互】空闲 {idle}s；切换次数 {toggles}；最近动作 {recent}',
+  'crystal.perception.appearance': '【外观】原子缩放 {scale}；透明度 {opacity}',
 
   // ---- 练习界面的拼装句（quiz/ui.js）----
   'crystal.t.ui.1': '判分失败：{p1}',
@@ -68,6 +69,8 @@ export const zh = Object.assign({
   'crystal.t.facade.4': '当前是 {p1}：它不是最密堆积，没有 {p2} 的可显示数据，打开也不会有内容。'
     + '想看 Cl⁻ 的八面体空隙，请用「并排对比」：一侧放 NaCl、另一侧放 Cu（fcc），两侧都关掉化学键，'
     + '在 Cu 一侧打开八面体空隙——这些空隙的位置正好对应 NaCl 中的 Na⁺。',
+  'crystal.t.facade.5': '透明度 {p1}% 会让原子几乎不可见，后面讲什么都看不清。'
+    + '演示中请用 30%~50% 的透明度，并在讲解结束时恢复为 0；更透的效果请让学生自己在控制面板调。',
 }, zhGen)
 
 /** 键 → 英文 */
@@ -88,6 +91,7 @@ export const en = Object.assign({
 
   'crystal.perception.state': '[State] module {module}{crystal}; layers {layers}',
   'crystal.perception.interaction': '[Interaction] idle {idle}s; toggles {toggles}; recent actions {recent}',
+  'crystal.perception.appearance': '[Appearance] atom scale {scale}; opacity {opacity}',
 
   'crystal.t.ui.1': 'Marking failed: {p1}',
   'crystal.t.ui.2': 'Error cause: {p1}',
@@ -104,6 +108,9 @@ export const en = Object.assign({
     + 'opening that layer would show nothing. To show the Cl⁻ octahedral voids, use "Compare side by side": '
     + 'NaCl on one side, Cu (fcc) on the other, turn bonds off on both sides, and open octahedral voids on the Cu side — '
     + 'those void positions correspond exactly to the Na⁺ positions in NaCl.',
+  'crystal.t.facade.5': 'Opacity {p1}% would make the atoms almost invisible, so nothing after it can be seen. '
+    + 'Use 30%–50% during a demonstration and restore it to 0 at the end; for stronger transparency, let the student '
+    + 'adjust the control panel directly.',
 }, enGen)
 
 /**
@@ -142,6 +149,15 @@ export const text = Object.assign({
   '以上为数据字段原文，未做推导。interstices=false 表示没有空隙图层；NaCl 等非最密堆积要讲 Cl⁻ 八面体空隙，请用 Cu（fcc）并排对比。':
     'The fields above are verbatim data, not derived. interstices=false means there is no void layer; '
     + 'for the Cl⁻ octahedral voids in NaCl and other non-closest-packed structures, compare with Cu (fcc) side by side.',
+  '一次开关多个图层（只改列出的键，未列出的保持原状；演示开始应先 resetLayers 建基线）':
+    'Toggle several layers at once (only the listed keys change; call resetLayers first to establish a clean demo baseline).',
+  '重置图层': 'Reset layers',
+  '恢复干净教学基线：关掉空隙/对称元素/点阵点/标签/辅助几何，只留原子、晶胞线框与晶轴；演示开始先调它，避免继承上一画面的特殊图层':
+    'Restore a clean teaching baseline: turn off voids, symmetry elements, lattice points, labels and auxiliary geometry, '
+    + 'leaving only atoms, the cell wireframe and axes. Call it first so a demo does not inherit special layers from the previous view.',
+  '调整原子缩放 / 键粗细 / 透明度。透明度 0~0.5（0.9 几乎看不见），演示结束请恢复 0；越界值会被夹到允许区间':
+    'Adjust atom scale, bond radius and opacity. Opacity is 0–0.5 (0.9 is almost invisible); restore it to 0 at the end of a demo. Out-of-range values are clamped.',
+  '调整透明度': 'Adjust opacity',
 }, textGen)
 
 registerDict('crystal', { zh, en, text })
