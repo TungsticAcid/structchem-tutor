@@ -921,13 +921,25 @@ async function ensureModuleReady(id, hint) {
     // 没有可推导的目标页：能就地执行就算就绪，否则如实返回"办不到"（让模型去用 navigateTo）
     return id === 'crystal' ? !!getCrystalAdapter() : ready()
   }
+  /**
+   * ★★ 2026-11-27（用户："点返回后会在查看页与对比页之间来回跳，很久才退出去"）：
+   *   学生一旦自己离开（返回/回门户），这一轮演示就**不该再把他拽回去**。
+   *   分镜在 `stop()` 之后会把 `isDead()` 置真（generation 变了），这里据此放弃导航。
+   *   ★ 不放弃的话，那个正在 await 的步骤会照旧把页面改回去 —— 学生再按返回，
+   *     又一次被拽回，看起来就是"两个界面来回跳"。
+   */
+  const dead = () => !!(hint && typeof hint.isDead === 'function' && hint.isDead())
+  if (dead()) return false
   if (ready()) return true
-  if (router.currentPath !== routePath) location.hash = route
+  // ★ 用 replace 而不是压栈：演示会反复切页面，压栈会让浏览器的「返回」要退很多步
+  if (router.currentPath !== routePath) router.replace(routePath)
+  if (dead()) return false
   // 路由是异步挂载的：hash 变化 → router 回调 → 模块页面 mount → attach 运行时。
   // 轮询到就绪为止（上限 8 秒：实机首张等值面要十几秒，但**运行时挂载**很快）。
   const t0 = Date.now()
   while (Date.now() - t0 < 8000) {
     await new Promise((r) => { setTimeout(r, 120) })
+    if (dead()) return false
     if (ready()) return true
   }
   return false
@@ -1715,6 +1727,20 @@ router.onAfterMount(() => {
   if (router.currentPath !== '/') {
     installSaveImage($('#app'))
     setTimeout(() => { if (router.currentPath !== '/') installSaveImage($('#app')) }, 1200)
+  }
+  /**
+   * ★★ 2026-11-27（用户："点返回后会在查看页与对比页之间来回跳，很久才退出去"）：
+   *   学生一旦回到晶体库/门户，就说明他不想再看那条演示了 —— 但分镜队列还在跑，
+   *   下一步的 `ensureModuleReady` 会把页面**又拽回**查看页/对比页。于是他再按返回、
+   *   再被拽回，看起来就是"两个界面来回切换、退不出去"。
+   *   ⇒ 离开三维视图的页面时**结束演示**（stop 会让在飞的步骤作废，见 ensureModuleReady 的 isDead）。
+   *   ★ 演示过程中的换页发生在 viewer/compare 之间，不会命中这里，所以不影响正常演示。
+   */
+  if (router.currentPath === '/crystal' || router.currentPath === '/') {
+    try {
+      const st = app.storyboard && typeof app.storyboard.state === 'function' ? app.storyboard.state() : null
+      if (st && (st.playing || st.waitingForUser)) app.storyboard.stop('user-left-view')
+    } catch (e) { /* 停止失败不该影响页面 */ }
   }
   // ★ 每次换页都重新裁决"这一页能不能整页滚动"。
   //   量的是**内容有没有超出视口**（见 shell/doc-scroll.js），所以不依赖各页面自觉声明。

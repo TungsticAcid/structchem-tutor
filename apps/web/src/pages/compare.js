@@ -605,7 +605,8 @@ export class ComparePage {
       }
     </style>`
 
-    c.querySelector('#cpBack')?.addEventListener('click', () => router.back())
+    // ★ 与查看页同一条规矩：返回 = 回晶体库（一次确定导航），不走可被演示撑长的历史栈
+    c.querySelector('#cpBack')?.addEventListener('click', () => router.navigate('/crystal'))
     c.querySelector('#cpToggleLayout')?.addEventListener('click', () => this._onToggleLayout())
     c.querySelector('#cpToggleSync')?.addEventListener('click', () => this._onToggleSync())
     c.querySelector('#cpAlignView')?.addEventListener('click', () => this._onAlignViews())

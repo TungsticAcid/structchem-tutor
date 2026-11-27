@@ -515,7 +515,13 @@ export class ViewerPage {
 
   _bindEvents(container) {
     // 返回按钮
-    container.querySelector('#backBtn')?.addEventListener('click', () => router.back())
+    /**
+     * ★★ 2026-11-27（用户："演示里来回切了几次后，点返回会在查看页与对比页之间来回跳很久"）：
+     *   原先调 `history.back()` —— 而演示每切一次页面就压一条历史，返回只能一条条地退，
+     *   每退一条都要整页重挂，于是看起来像"在两个界面之间来回刷新"。
+     *   ⇒ 返回的语义是**离开这个晶体页、回到晶体库**：一次确定的导航，不依赖历史有多长。
+     */
+    container.querySelector('#backBtn')?.addEventListener('click', () => router.navigate('/crystal'))
 
     // 对比按钮
     container.querySelector('#compareBtn')?.addEventListener('click', () => {

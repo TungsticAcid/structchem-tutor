@@ -473,6 +473,29 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/rememberCrystal\(/.test(noComments) && /lastCrystalId/.test(ensureSrc),
     '查看页/对比页挂载时记住最近看过的晶体（库页动作的兜底）')
 
+  /**
+   * ★★ 2026-11-27（用户："演示在晶体展示与对比模式之间切换多次后，点返回会在两个界面
+   *   来回切换，很久才退出"）：
+   *   ① 返回按钮原先调 `history.back()`，而演示每换一次页就压一条历史 —— 只能一条条退；
+   *   ② 智能体触发的换页也压栈，历史被撑长；
+   *   ③ 学生离开后，演示队列里在飞的步骤还会把他拽回查看页/对比页。
+   *   三条都要钉住，缺一条症状就会回来。
+   */
+  const backViewerSrc = readFileSync(resolve(REPO, 'apps/web/src/pages/viewer.js'), 'utf8')
+  const backCompareSrc = readFileSync(resolve(REPO, 'apps/web/src/pages/compare.js'), 'utf8')
+  ok(!/router\.back\(\)/.test(backViewerSrc) && /router\.navigate\('\/crystal'\)/.test(backViewerSrc),
+    '查看页的返回按钮是一次确定导航（回晶体库），不是 history.back')
+  ok(!/router\.back\(\)/.test(backCompareSrc) && /router\.navigate\('\/crystal'\)/.test(backCompareSrc),
+    '对比页的返回按钮同理（否则要退很多步）')
+  const backRouterSrc = readFileSync(resolve(REPO, 'apps/web/src/shell/router.js'), 'utf8')
+  ok(/replace\(path\)/.test(backRouterSrc) && /replaceState/.test(backRouterSrc),
+    'router 提供 replace（智能体换页不应压栈）')
+  ok(/router\.replace\(routePath\)/.test(ensureSrc) && !/location\.hash = route\b/.test(ensureSrc),
+    '页面叫回用的是 replace，不是压栈式跳转')
+  ok(/isDead/.test(ensureSrc), '学生离开后，在飞的步骤不再把页面拽回去（isDead 守卫）')
+  ok(/currentPath === '\/crystal'/.test(noComments) && /storyboard\.stop\('user-left-view'\)/.test(noComments),
+    '回到晶体库/门户时结束正在播的演示')
+
   // ★★ 2026-10-12（用户："为何控制面板还在下边而不是在左边"）：
   //   查看页的控制面板在**桌面**下必须是左列且让位（窄屏才退回底部抽屉）。
   //   守卫：① 有 panel-left 的媒体查询与 --layer-panel-w 变量；

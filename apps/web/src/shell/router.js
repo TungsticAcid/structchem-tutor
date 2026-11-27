@@ -76,7 +76,27 @@ class Router {
   /** 导航到指定路径 */
   navigate(path) { location.hash = '#' + path }
 
-  /** 返回上一页 */
+  /**
+   * ★★ 2026-11-27（用户："演示在查看页与对比页之间切换多次后，点返回要在两个界面来回跳很久"）：
+   *   `navigate` 走的是 `location.hash =`，**每一次都压一条历史**。演示里
+   *   `openCompareView` / `loadCrystal` 会来回切页面，于是一次演示能压十几条 ——
+   *   而返回按钮用的是 `history.back()`，只能一条一条地退，每退一条都要整页重挂。
+   *   ⇒ 智能体触发的导航应当**替换**当前历史项（`replace`），用户主动点的导航才压栈。
+   *   `replaceState` 不派发 hashchange，所以这里必须自己再走一遍路由。
+   */
+  replace(path) {
+    const hash = '#' + path
+    if (location.hash === hash) return
+    try {
+      history.replaceState(null, '', hash)
+    } catch (e) {
+      location.hash = hash
+      return
+    }
+    this._handleRoute()
+  }
+
+  /** 返回上一页（浏览器历史） */
   back() { history.back() }
 
   /** 当前页面实例（诊断用） */
