@@ -802,22 +802,45 @@ let lastSceneModuleId = null
  *   `applyActions` 只会回一句"不在页面上"。中枢因此在这一步前先调用本函数：
  *   学生看到的画面才会与智能体正在讲的东西对上。
  */
-async function ensureModuleReady(id) {
+async function ensureModuleReady(id, hint) {
   /**
    * ★★ 这里必须用 **MODULES_BY_ID**（main.js 里 createXxxModule 造出来的**活模块**），
    *   而不是 `listDeclaredModules()` —— 后者给的是**描述符**（id/title/工具清单），
    *   它**没有 facade**。用描述符会让"就绪"判据恒真（`!(undefined && …)` === true），
    *   于是直接返回"已就绪"、一次都不导航 —— 表现与没修一模一样，
    *   而且不报错（本轮实测就是这么撞上的：ok:true、hash 还是 #/）。
+   *
+   * ★ hint 是当前要执行的动作（由分镜/演示透传）。当它是 `loadCrystal` 时，
+   *   目标不是模块首页，而是**该晶体的查看页**：学生在库页说"打开 NaCl"，
+   *   必须直接进 `/viewer/<id>`；只回 `/crystal` 仍然没有三维视图，
+   *   loadCrystal 会以"当前没有可驱动的三维视图"失败。
    */
   const mod = MODULES_BY_ID[id]
   if (!mod) return false
-  const ready = () => !(mod.facade && typeof mod.facade.canApplyActions === 'function') || !!mod.facade.canApplyActions()
+
+  // 分镜队列里的步骤字段叫 `name`，工具动作对象里叫 `action`；两者都认。
+  const actionName = hint && (hint.action || hint.name)
+  const crystalId = actionName === 'loadCrystal' && hint.params
+    ? hint.params.crystalId : ''
+  let route = MODULE_HOME_ROUTE[id]
+  if (id === 'crystal' && crystalId) {
+    route = '#/viewer/' + encodeURIComponent(crystalId)
+  }
+  const routePath = route ? route.replace(/^#/, '') : ''
+  const wantsViewer = id === 'crystal' && !!crystalId
+  const ready = () => {
+    // 查看页就绪的判据是"真的注册了可驱动适配器"，不是模块的 canApplyActions：
+    // 后者在库页也会返回真（视图代理存在 ≠ 查看器已挂载）。
+    // ★ 已在查看页（任意晶体）时不必再跳：loadCrystal 可以就地换晶体并保留视角；
+    //   但对比页虽有 adapter 也不支持 loadCrystal，必须跳到目标查看页。
+    if (wantsViewer) {
+      return !!getCrystalAdapter() && router.currentPath.startsWith('/viewer/')
+    }
+    return !(mod.facade && typeof mod.facade.canApplyActions === 'function') || !!mod.facade.canApplyActions()
+  }
   if (ready()) return true
-  const route = MODULE_HOME_ROUTE[id]
   if (route) {
-    const path = route.replace(/^#/, '')
-    if (router.currentPath !== path) location.hash = route
+    if (router.currentPath !== routePath) location.hash = route
   }
   // 路由是异步挂载的：hash 变化 → router 回调 → 模块页面 mount → attach 运行时。
   // 轮询到就绪为止（上限 8 秒：实机首张等值面要十几秒，但**运行时挂载**很快）。
@@ -905,7 +928,7 @@ const app = createAgentApp({
    *   （见上方 ensureModuleReady 的说明）。没有这条通路时，
    *   "用户在模块外"就只能以"不在页面上"失败收场。
    */
-  ensureModuleReady: (id) => ensureModuleReady(id),
+  ensureModuleReady: (id, hint) => ensureModuleReady(id, hint),
   /**
    * ★ 中枢在"当前没有活跃模块"时用它回落到最近一个场景模块
    *   （门户页上继续改画面：`sceneModuleId()` 拿不到 activeId 就用它）。
@@ -1065,7 +1088,7 @@ panel = createPanel({
    * ★ 面板在**回放收藏/历史演示之前**用它把该演示所属的板块叫回来
    *   （收藏与历史都是跨板块的清单，见 panel.js 里那两处的说明）。
    */
-  ensureSceneModule: (id) => ensureModuleReady(id),
+  ensureSceneModule: (id, hint) => ensureModuleReady(id, hint),
   /**
    * 悬浮球图标（apps/web/public/agent-icon.png）。
    * ★ 路径用 BASE_URL 拼，而不是写 `./agent-icon.png`：后者**相对当前页面 URL**
@@ -1736,7 +1759,7 @@ window.__chemAgent = {
    * ★ 实机验证用：把"把模块页面叫回来"与"最近一个场景模块"暴露出来。
    *   它们的行为**只能**在真实浏览器里验（要跨路由挂载），Node 侧测不了。
    */
-  ensureModuleReady: (id) => ensureModuleReady(id),
+  ensureModuleReady: (id, hint) => ensureModuleReady(id, hint),
   lastSceneModule: () => lastSceneModuleId,
   /**
    * ★ 实机验证用：练习入口（先出知识点选择器，选中后走"模型出题 → 兜底直接调工具"那条路）。

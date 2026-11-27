@@ -326,10 +326,24 @@ export function createShellTools(ctx) {
       //   后者正是"中枢退化成晶体中枢"的根源（见契约里该方法的 why）。
       // ★ 演示脚本属于**当前活跃的模块**：模块页面没挂时先请宿主把它叫回来
       //   （与 applyStep 同一条通路），否则会直接回一句"没有三维视图"。
-      if (typeof a.facade.canApplyActions === 'function' && !a.facade.canApplyActions()) {
-        if (typeof ctx.ensureModuleReady !== 'function' || !(await ctx.ensureModuleReady(sceneModuleId()))) {
+      /**
+       * ★★ 2026-11-27（用户：在晶典在线库页说"氯化钠的结构"，演示跳不到 NaCl）：
+       *   库页没有三维视图，但晶体模块的 `canApplyActions()` 仍返回真（它把
+       *   "视图代理存在"误当成"视图已挂载"）。只在 `!canApplyActions()` 时叫页面，
+       *   就会直接带着库页去播 `loadCrystal`，第一条动作报"没有可驱动的三维视图"。
+       *   ⇒ 这里改成：有宿主就先把**首步**交给它——首步是 `loadCrystal` 时，
+       *     宿主据此直接打开对应查看页，而不是只回到模块首页。
+       */
+      if (typeof ctx.ensureModuleReady === 'function') {
+        try {
+          const first = script.steps && script.steps[0]
+          const ready = await ctx.ensureModuleReady(sceneModuleId(), first)
+          if (!ready) return { error: t('agent.tool.playDemo.noView') }
+        } catch (e) {
           return { error: t('agent.tool.playDemo.noView') }
         }
+      } else if (typeof a.facade.canApplyActions === 'function' && !a.facade.canApplyActions()) {
+        return { error: t('agent.tool.playDemo.noView') }
       }
       // origin='script'：让演示记录能区分"预置脚本回放"与"智能体现场编排"
       // ★★ 2026-10-15（用户："连续播放应只作用于本次演示"）：
@@ -609,8 +623,14 @@ export function createAgentApp(opts = {}) {
       let m = modules.get(targetId)
       if (!m) return { ok: false, error: t('agent.storyboard.noModule') }
       const notReady = () => !!(m.facade && typeof m.facade.canApplyActions === 'function' && !m.facade.canApplyActions())
-      if (notReady() && typeof opts.ensureModuleReady === 'function') {
-        try { await opts.ensureModuleReady(targetId) } catch (e) { /* 宿主失败：按原样继续，下面会如实报错 */ }
+      /**
+       * ★ 不只看 notReady：库页没有视图代理时 `canApplyActions()` 可能是真。
+       *   `loadCrystal` 是"先打开晶体"的动作，必须让宿主看到这一步并按晶体 id
+       *   打开 `/viewer/<id>`；把 step 一并传下去，别只叫回模块首页。
+       */
+      const needsView = name === 'loadCrystal'
+      if ((notReady() || needsView) && typeof opts.ensureModuleReady === 'function') {
+        try { await opts.ensureModuleReady(targetId, step) } catch (e) { /* 宿主失败：按原样继续，下面会如实报错 */ }
         m = modules.get(targetId) || m
       }
       const r = m.facade.applyActions([{ action: name, params }])

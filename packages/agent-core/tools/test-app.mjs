@@ -815,6 +815,42 @@ section('导航：由模块声明 routes，中枢派生 schema 与跳转')
   } finally {
     globalThis.window = realWindow
   }
+
+  /**
+   * ★★ 2026-11-27（用户：在晶典在线的库页说"氯化钠的结构"，演示无法跳到 NaCl）：
+   *
+   *   库页没有三维视图，但 `canApplyActions()` 仍可能是真。分镜执行 `loadCrystal`
+   *   前必须无条件把**这一步**交给宿主；宿主据此打开 `/viewer/<id>`，而不是
+   *   只回到模块首页。这里用桩 ensure 记录调用，守住"只在 notReady 时才叫页面"
+   *   这个会复发的条件，不必依赖真实浏览器。
+   */
+  {
+    const ensured = []
+    const settingsC = createSettingsStore({
+      storageKey: 'test.loadCrystal', storage: { getItem: () => null, setItem() {}, removeItem() {} },
+    })
+    settingsC.set({ apiKey: 'k', model: 'm', maxTokens: 128 })
+    const appC = createAgentApp({
+      modules: [createCrystalModule({ view: mkView(), catalog: CATALOG, loadData })],
+      settings: settingsC,
+      llm: mkLLM([{ content: '（桩回复）' }]),
+      knowledge: createCatalog({ key: 'id' }), skills: createCatalog({ key: 'name' }),
+      node: 'explain',
+      ensureModuleReady: async (id, hint) => {
+        ensured.push({ id, hint })
+        return true
+      },
+    })
+    appC.setActiveModule('crystal')
+    await appC.registry._raw('applySceneActions', {
+      actions: [{ action: 'loadCrystal', params: { crystalId: 'naCl' } }],
+    })
+    await new Promise((r) => setTimeout(r, 50))
+    check('★ loadCrystal 演示前把步骤交给宿主（库页也能先打开查看页）',
+      ensured.some((x) => x.id === 'crystal' && x.hint
+        && (x.hint.name === 'loadCrystal' || x.hint.action === 'loadCrystal')),
+      JSON.stringify(ensured))
+  }
 }
 
 // ============================================================================

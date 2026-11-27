@@ -973,7 +973,9 @@ let lastDemoId = null
       const rec = SB.getDemo ? SB.getDemo(demoId) : null
       const mod = (rec && rec.module) || null
       if (mod && typeof cfg.ensureSceneModule === 'function') {
-        try { await cfg.ensureSceneModule(mod) } catch (e) { /* 宿主失败：继续按原样播 */ }
+        try {
+          await cfg.ensureSceneModule(mod, rec && rec.steps && rec.steps[0])
+        } catch (e) { /* 宿主失败：继续按原样播 */ }
       }
       SB.replay(demoId)
     }
@@ -1773,7 +1775,9 @@ let lastDemoId = null
          */
         const mod = f.module || (f.meta && f.meta.module) || (f.steps[0] && f.steps[0].module) || null
         if (mod && typeof cfg.ensureSceneModule === 'function') {
-          try { await cfg.ensureSceneModule(mod) } catch (e) { /* 宿主失败：继续按原样播 */ }
+          try {
+            await cfg.ensureSceneModule(mod, f.steps && f.steps[0])
+          } catch (e) { /* 宿主失败：继续按原样播 */ }
         }
         const r = SB.loadDemo(f.steps, { origin: 'favorite', reason: 'favorite', module: mod })
         if (!r || !r.ok) addChip(T('无法播放这条收藏：{error}', { error: (r && r.error) || '' }), 'warn')
