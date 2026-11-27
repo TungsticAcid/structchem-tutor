@@ -886,6 +886,31 @@ section('导航：由模块声明 routes，中枢派生 schema 与跳转')
       ensured.some((x) => x.id === 'crystal' && x.hint
         && (x.hint.name === 'loadCrystal' || x.hint.action === 'loadCrystal')),
       JSON.stringify(ensured))
+
+    /**
+     * ★★ 2026-11-27（用户："在库页问 NaCl 与 CsCl 的对比，没有跳转"）：
+     *   上一版只把 `loadCrystal` 当作"需要视图"——于是 `openCompareView`、`setLayer`
+     *   这些同样落在三维视图上的动作在库页必然失败，而且**中枢还以为没事**。
+     *   现在中枢不再按动作名硬编码：**每一步**都先问宿主能不能受理。
+     *   这条钉子守住"openCompareView 也要交给宿主"，正是漏掉的那一类。
+     */
+    const ensured2 = []
+    const appD = createAgentApp({
+      modules: [createCrystalModule({ view: mkView(), catalog: CATALOG, loadData })],
+      settings: settingsC,
+      llm: mkLLM([{ content: '（桩回复）' }]),
+      knowledge: createCatalog({ key: 'id' }), skills: createCatalog({ key: 'name' }),
+      node: 'explain',
+      ensureModuleReady: async (id, hint) => { ensured2.push({ id, action: hint && (hint.name || hint.action) }); return true },
+    })
+    appD.setActiveModule('crystal')
+    await appD.registry._raw('applySceneActions', {
+      actions: [{ action: 'openCompareView', params: { a: 'naCl', b: 'csCl' } }],
+    })
+    await new Promise((r) => setTimeout(r, 50))
+    check('★ openCompareView 也把步骤交给宿主（上一版只认 loadCrystal，于是库页不跳转）',
+      ensured2.some((x) => x.id === 'crystal' && x.action === 'openCompareView'),
+      JSON.stringify(ensured2))
   }
 }
 

@@ -69,6 +69,7 @@ export const zh = Object.assign({
   'crystal.t.facade.4': '当前是 {p1}：它不是最密堆积，没有 {p2} 的可显示数据，打开也不会有内容。'
     + '想看 Cl⁻ 的八面体空隙，请用「并排对比」：一侧放 NaCl、另一侧放 Cu（fcc），两侧都关掉化学键，'
     + '在 Cu 一侧打开八面体空隙——这些空隙的位置正好对应 NaCl 中的 Na⁺。',
+  'crystal.t.facade.6': '当前视图不支持并排对比（需先打开一个晶体，或带上第一个晶体的 id：openCompareView({a, b})）。',
   'crystal.t.facade.5': '透明度 {p1}% 会让原子几乎不可见，后面讲什么都看不清。'
     + '演示中请用 30%~50% 的透明度，并在讲解结束时恢复为 0；更透的效果请让学生自己在控制面板调。',
 }, zhGen)
@@ -108,6 +109,8 @@ export const en = Object.assign({
     + 'opening that layer would show nothing. To show the Cl⁻ octahedral voids, use "Compare side by side": '
     + 'NaCl on one side, Cu (fcc) on the other, turn bonds off on both sides, and open octahedral voids on the Cu side — '
     + 'those void positions correspond exactly to the Na⁺ positions in NaCl.',
+  'crystal.t.facade.6': 'The current view cannot open a side-by-side comparison. Open a crystal first, '
+    + 'or pass the first crystal id: openCompareView({a, b}).',
   'crystal.t.facade.5': 'Opacity {p1}% would make the atoms almost invisible, so nothing after it can be seen. '
     + 'Use 30%–50% during a demonstration and restore it to 0 at the end; for stronger transparency, let the student '
     + 'adjust the control panel directly.',
@@ -158,6 +161,10 @@ export const text = Object.assign({
   '调整原子缩放 / 键粗细 / 透明度。透明度 0~0.5（0.9 几乎看不见），演示结束请恢复 0；越界值会被夹到允许区间':
     'Adjust atom scale, bond radius and opacity. Opacity is 0–0.5 (0.9 is almost invisible); restore it to 0 at the end of a demo. Out-of-range values are clamped.',
   '调整透明度': 'Adjust opacity',
+  '把两块晶体并排显示（跳转到对比视图）。a 可选（不给用当前晶体）；在库页/首页没有当前晶体时必须给 a。两个 id 都须真实存在且不相同':
+    'Show two crystals side by side (jumps to the compare view). `a` is optional (defaults to the current crystal); '
+    + 'on the library page or the portal, where there is no current crystal, you must pass `a`. Both ids must exist and differ.',
+  'string（第一个晶体 id，可省略）': 'string (first crystal id, optional)',
 }, textGen)
 
 registerDict('crystal', { zh, en, text })

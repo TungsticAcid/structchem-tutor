@@ -167,6 +167,34 @@ section('applyActions：校验在前、落到视图在后')
   check('同一批先切到 fcc 再开八面体空隙则允许（按目标晶体判能力）',
     voidOk.ok === true && viewN.props.showOctahedral === true, JSON.stringify(voidOk))
 
+  /**
+   * ★★ 2026-11-27（用户：库页问「NaCl 和 CsCl 的配位环境有什么不同」，没有跳转）：
+   *   库页没有"当前晶体"，只给 b 的话左边无从确定。动作层新增可选 `a`；
+   *   两个 id 都给才可能从库页直接对比。另外"宿主已导航到同一对比页"时必须幂等。
+   */
+  {
+    const calls = []
+    const viewC = mkView()
+    viewC.props.crystalId = ''
+    viewC.openCompareWith = (b) => calls.push(b)
+    const FC = createCrystalFacade({ view: viewC, catalog: CATALOG, loadData: () => ({}) })
+    const ok = FC.applyActions([{ action: 'openCompareView', params: { a: 'naCl', b: 'fcc' } }])
+    check('库页上带 a、b 的对比动作被受理并落到视图', ok.ok === true && calls[0] === 'fcc', JSON.stringify(ok))
+    const same = FC.applyActions([{ action: 'openCompareView', params: { a: 'naCl', b: 'naCl' } }])
+    check('a 与 b 相同的对比被拒（不是跳到左右一样的页面）',
+      same.ok === false && /相同/.test(same.failed[0].error), JSON.stringify(same))
+
+    // 幂等：宿主可能已经按这一步导航到同一个对比页，动作不该再"开一次"（对比页会拒绝）
+    const viewD = mkView()
+    viewD.props.crystalId = 'naCl'
+    let opened = 0
+    viewD.openCompareWith = () => { opened++ }
+    const FD = createCrystalFacade({ view: viewD, catalog: CATALOG, loadData: () => ({}) })
+    const again = FD.applyActions([{ action: 'openCompareView', params: { a: 'naCl', b: 'fcc' } }])
+    check('已停在目标对比页时动作是幂等的（宿主已导航，就不再重复 openCompareWith）',
+      again.ok === true && opened === 0, `ok=${again.ok} opened=${opened}`)
+  }
+
   // ★ 切晶体是换一张干净底图：不继承点阵点/特殊图层/90% 透明度
   view.userChanges({ showLatticePoints: true, opacity: 0.9, showOctahedral: true })
   F.applyActions([{ action: 'loadCrystal', params: { crystalId: 'fcc' } }])

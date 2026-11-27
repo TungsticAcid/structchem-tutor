@@ -190,8 +190,8 @@ export const VOCAB = {
   openCompareView: {
     label: '并排对比',
     group: '结构',
-    desc: '把当前晶体与指定的另一个晶体并排显示（跳转到对比视图）。两个 id 都必须真实存在',
-    params: { b: 'string（第二个晶体的 id）' },
+    desc: '把两块晶体并排显示（跳转到对比视图）。a 可选（不给用当前晶体）；在库页/首页没有当前晶体时必须给 a。两个 id 都须真实存在且不相同',
+    params: { a: 'string（第一个晶体 id，可省略）', b: 'string（第二个晶体的 id）' },
   },
   /**
    * ★ **切换晶胞原点**（"谁在顶点、谁在体心"）。
@@ -317,12 +317,20 @@ export function validate(name, p, ctx = {}) {
       if (ctx.crystalIds && !ctx.crystalIds.has(b)) {
         return { err: t('crystal.t.actions.8', { p1: (b) }) }
       }
-      // 与当前晶体相同则没有可对比的内容——这一点在动作层就拦下，
-      // 免得跳过去看到一个"左右一样"的页面
-      if (ctx.currentCrystalId && ctx.currentCrystalId === b) {
+      /**
+       * ★ 2026-11-27：新增可选 `a`（第一个晶体）。库页/首页没有"当前晶体"，
+       *   只给 b 的话宿主无从知道左边该放谁（用户正是在库页问 NaCl 与 CsCl 的对比）。
+       */
+      const a = (typeof p.a === 'string' && p.a) ? p.a : ''
+      if (a && ctx.crystalIds && !ctx.crystalIds.has(a)) {
+        return { err: t('crystal.t.actions.8', { p1: (a) }) }
+      }
+      const left = a || ctx.currentCrystalId || ''
+      // 与另一边相同则没有可对比的内容——在动作层就拦下，免得跳到"左右一样"的页面
+      if (left && left === b) {
         return { err: '第二个晶体与当前晶体相同，没有可对比的内容' }
       }
-      return { params: { b } }
+      return { params: a ? { a, b } : { b } }
     }
     default:
       return { err: t('crystal.t.actions.9', { p1: (name) }) }

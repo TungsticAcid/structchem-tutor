@@ -331,14 +331,25 @@ export function createCrystalFacade(opts = {}) {
         //   但传 null 比传 [] 更明确（后续若加"高亮历史"之类也容易分辨）。
         view.setProps({ highlightElements: (p.elements && p.elements.length) ? p.elements : null })
         return
-      case 'openCompareView':
+      case 'openCompareView': {
         // 并排对比是"跳转 + 预置视图"，由宿主页面实现（它才持有 router 与当前状态）。
         // 非 viewer 页没有这个能力时**明确报错**，而不是静默什么也不做。
         if (typeof view.openCompareWith !== 'function') {
-          throw new Error('当前视图不支持并排对比（需先打开一个晶体）')
+          throw new Error(t('crystal.t.facade.6'))
         }
+        /**
+         * ★ 幂等：宿主可能已经按这一步导航到了同一个对比页（`ensureModuleReady` 会先跳，
+         *   再由页面挂载后执行本动作）。此时"目的已达成"，不能再调 openCompareWith ——
+         *   对比页的适配器会拒绝"在对比视图里再开对比"，学生看到的就是一步失败。
+         */
+        const props = (view.getProps && view.getProps()) || {}
+        const cur = props.crystalId || ''
+        const curB = props.crystalIdB || ''
+        // 已经在对比这两块（左右都一致）才算"目的已达成"；换成第三块仍要真的打开
+        if (p.a && cur && p.a === cur && (!p.b || !curB || p.b === curB)) return
         view.openCompareWith(p.b)
         return
+      }
       default:
         throw new Error('未实现的动作：' + name)
     }

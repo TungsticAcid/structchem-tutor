@@ -457,6 +457,22 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/function startCrystalPractice[\s\S]{0,5000}?app\.setNode\('quiz'\)/.test(noComments),
     '晶典练习入口先切到 quiz 节点（否则模型拿到的是 explain 工具集）')
 
+  /**
+   * ★★ 2026-11-27（用户："在晶体库问 NaCl 和 CsCl 的对比，没有跳转"）：
+   *   `ensureModuleReady` 上一版只认 `loadCrystal`，把 `openCompareView` 漏了——
+   *   库页没有视图，于是这一步静默失败。三条钉子：
+   *     ① 它认得 openCompareView；
+   *     ② 目标路由由**模块自己声明的 routes** 生成（宿主不另抄一份路由形状）；
+   *     ③ 查看页/对比页挂载时记下"最近看过的晶体"，供没有当前晶体时兜底。
+   */
+  const ensureSrc = (noComments.match(/async function ensureModuleReady[\s\S]*?\n\}/) || [''])[0]
+  ok(/findAct\('openCompareView'\)/.test(ensureSrc),
+    '页面叫回逻辑认得 openCompareView（否则库页上做对比不会跳转）')
+  ok(/facade\.routes/.test(ensureSrc) && /hashOf\('compare'/.test(ensureSrc),
+    '对比页地址由模块声明的 routes 生成（宿主不复制路由形状）')
+  ok(/rememberCrystal\(/.test(noComments) && /lastCrystalId/.test(ensureSrc),
+    '查看页/对比页挂载时记住最近看过的晶体（库页动作的兜底）')
+
   // ★★ 2026-10-12（用户："为何控制面板还在下边而不是在左边"）：
   //   查看页的控制面板在**桌面**下必须是左列且让位（窄屏才退回底部抽屉）。
   //   守卫：① 有 panel-left 的媒体查询与 --layer-panel-w 变量；

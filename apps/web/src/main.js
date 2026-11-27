@@ -796,6 +796,19 @@ const MODULE_SUB_ROUTES = {
 let lastSceneModuleId = null
 
 /**
+ * ★★ 2026-11-27（用户："在晶体库问 NaCl 和 CsCl 的对比，没有跳转"）：
+ *   **最近看过的晶体**。库页本身没有三维视图，而模型下发的动作（openCompareView、
+ *   setLayer、setView…）全都落在视图上。学生说"打开 NaCl 看看"，动作里通常会带
+ *   `loadCrystal`，宿主据此跳到查看页；但"把这两个对比一下"这类动作可能只带
+ *   `b`（第二个晶体），此时宿主至少要知道**左边那一侧是谁**。
+ *   记在宿主而不是模块里：这是"学生最近在哪个页面"，与模块的知识无关。
+ */
+let lastCrystalId = ''
+function rememberCrystal(id) {
+  if (typeof id === 'string' && id) lastCrystalId = id
+}
+
+/**
  * 把某个模块的页面**叫回来**（切路由 + 等它的运行时挂上），返回是否就绪。
  *
  * ★ 动作属于模块 X 而 X 的页面已卸载时，`facade.canApplyActions()` 为假，
@@ -819,33 +832,87 @@ async function ensureModuleReady(id, hint) {
   if (!mod) return false
 
   // 分镜队列里的步骤字段叫 `name`，工具动作对象里叫 `action`；两者都认。
-  // 一步多动作时，真正需要判"打开哪个晶体"的是组里的 loadCrystal。
-  const grouped = hint && Array.isArray(hint.actions) ? hint.actions : null
-  const groupedLoad = grouped && grouped.find((a) => a && a.action === 'loadCrystal')
-  const actionName = groupedLoad ? 'loadCrystal' : (hint && (hint.action || hint.name))
-  const crystalId = actionName === 'loadCrystal'
-    ? ((hint && hint.params && hint.params.crystalId) || (groupedLoad && groupedLoad.params && groupedLoad.params.crystalId))
-    : ''
-  let route = MODULE_HOME_ROUTE[id]
-  if (id === 'crystal' && crystalId) {
-    route = '#/viewer/' + encodeURIComponent(crystalId)
+  // 一步多动作时，真正决定"去哪一页"的是组里的 loadCrystal / openCompareView。
+  const acts = hint
+    ? (Array.isArray(hint.actions) && hint.actions.length ? hint.actions : [hint])
+    : []
+  const findAct = (n) => acts.find((a) => a && (a.action === n || a.name === n))
+  const load = findAct('loadCrystal')
+  const cmp = findAct('openCompareView')
+
+  /** 用模块自己声明的路由生成 hash —— 宿主不抄一份路由形状（见 facade.routes） */
+  const hashOf = (target, params) => {
+    const list = (mod.facade && mod.facade.routes) || []
+    const r = list.find((x) => x && x.target === target)
+    try { return r && typeof r.hash === 'function' ? r.hash(params) : '' } catch (e) { return '' }
   }
+
+  /**
+   * 目标路由：'#/viewer/<id>' 或 '#/compare/<a>?b=<b>'，空串表示"就地执行"。
+   *
+   * ★ 判据全部来自**这一步要做什么**，而不是"库里有没有视图"：
+   *   · openCompareView → 对比页（缺 a 时用最近看过的晶体补）
+   *   · loadCrystal     → 该晶体的查看页
+   *   · 其它视图动作     → 最近看过的晶体（没有则无法受理）
+   */
+  let route = ''
+  if (id === 'crystal') {
+    const holdsView = () => !!getCrystalAdapter()
+    const onViewer = () => router.currentPath.startsWith('/viewer/')
+    if (cmp) {
+      const p = (cmp.params || {})
+      const a = p.a || p.crystalId || lastCrystalId
+      const b = p.b || p.otherCrystalId
+      const currentId = (() => {
+        const ad = getCrystalAdapter()
+        const pr = ad && typeof ad.getProps === 'function' ? ad.getProps() : null
+        return (pr && pr.crystalId) || ''
+      })()
+      /**
+       * 已在查看页、且"左边就是当前这块"时可以就地打开对比（`openCompareWith` 会保留
+       * 当前视角）。但若动作明确给了另一个 `a`（例如当前在看 CsCl，却要对比 NaCl 与
+       * CsCl），就必须导航到对比页 —— 否则会变成"CsCl 与 CsCl"。
+       */
+      if (holdsView() && onViewer() && (!a || a === currentId)) return true
+      if (a && b && a !== b) route = hashOf('compare', { crystalId: a, otherCrystalId: b })
+      else if (a) route = hashOf('crystal', { crystalId: a })
+    } else if (load) {
+      const p = load.params || {}
+      // 已在查看页：loadCrystal 就地换晶体并保留视角，比"跳一下再加载"更稳
+      if (holdsView() && onViewer()) return true
+      if (p.crystalId) route = hashOf('crystal', { crystalId: p.crystalId })
+      else if (lastCrystalId) route = hashOf('crystal', { crystalId: lastCrystalId })
+    } else if (acts.length) {
+      // 纯视图动作（setLayer / setView / setAppearance …）：有视图就就地执行
+      if (holdsView() && (onViewer() || router.currentPath.startsWith('/compare/'))) return true
+      if (lastCrystalId) route = hashOf('crystal', { crystalId: lastCrystalId })
+    }
+  } else {
+    route = MODULE_HOME_ROUTE[id] || ''
+  }
+
   const routePath = route ? route.replace(/^#/, '') : ''
-  const wantsViewer = id === 'crystal' && !!crystalId
   const ready = () => {
-    // 查看页就绪的判据是"真的注册了可驱动适配器"，不是模块的 canApplyActions：
-    // 后者在库页也会返回真（视图代理存在 ≠ 查看器已挂载）。
-    // ★ 已在查看页（任意晶体）时不必再跳：loadCrystal 可以就地换晶体并保留视角；
-    //   但对比页虽有 adapter 也不支持 loadCrystal，必须跳到目标查看页。
-    if (wantsViewer) {
-      return !!getCrystalAdapter() && router.currentPath.startsWith('/viewer/')
+    // 查看页/对比页就绪的判据是"真的注册了可驱动适配器"，不是模块的 canApplyActions：
+    // 后者在库页也会返回真（视图代理存在 ≠ 页面已挂载）。
+    if (id === 'crystal' && routePath) {
+      /**
+       * ★ 比较**完整 hash**，不只 currentPath：对比页的身份包含 `?b=`，
+       *   只看 `/compare/naCl` 会把"换成另一块对比"误判成"已经在目标页"，
+       *   于是既不导航、动作又被当作幂等跳过 —— 画面停在旧的一对晶体上。
+       */
+      const cur = (typeof location !== 'undefined' && location.hash) || ''
+      const same = cur === route || cur === route.replace(/^#/, '')
+      return !!getCrystalAdapter() && same
     }
     return !(mod.facade && typeof mod.facade.canApplyActions === 'function') || !!mod.facade.canApplyActions()
   }
-  if (ready()) return true
-  if (route) {
-    if (router.currentPath !== routePath) location.hash = route
+  if (!route) {
+    // 没有可推导的目标页：能就地执行就算就绪，否则如实返回"办不到"（让模型去用 navigateTo）
+    return id === 'crystal' ? !!getCrystalAdapter() : ready()
   }
+  if (ready()) return true
+  if (router.currentPath !== routePath) location.hash = route
   // 路由是异步挂载的：hash 变化 → router 回调 → 模块页面 mount → attach 运行时。
   // 轮询到就绪为止（上限 8 秒：实机首张等值面要十几秒，但**运行时挂载**很快）。
   const t0 = Date.now()
@@ -1699,6 +1766,9 @@ router
   // 查看器
   .on('/viewer/:crystal', ({ params }) => {
     app.setActiveModule('crystal')
+    // ★ 记下"最近看过的晶体"：库页上的视图动作（对比/切图层…）没有当前晶体，
+    //   宿主只能拿它兜底（见 ensureModuleReady 的说明）。
+    rememberCrystal(params && params.crystal)
     const p = new ViewerPage(params)
     p.mount($('#app'))
     return p
@@ -1706,6 +1776,7 @@ router
   // 并排对比
   .on('/compare/:crystal', ({ params, query }) => {
     app.setActiveModule('crystal')
+    rememberCrystal((params && params.crystal) || (query && query.b))
     const p = new ComparePage(Object.assign({}, params, { b: query && query.b }))
     p.mount($('#app'))
     return p

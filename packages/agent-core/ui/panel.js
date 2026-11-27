@@ -2675,7 +2675,14 @@ let lastDemoId = null
     demoBar.classList.remove('hidden')
     setBarMode('done')
     demoPrev.disabled = !(evt && evt.canPrev !== false && qTotalOf(evt) > 0)
-    demoIdx.textContent = '演示完成'
+    /**
+     * ★★ 2026-11-27（用户："在库页问对比，没有跳转"）：**"演示完成"是假话**的时候要说清楚。
+     *   动作可能因为"当前页面没有可驱动的视图"而整步失败，若这里仍写"演示完成"，
+     *   学生看到的是一次什么都没发生、却报告成功的演示。
+     */
+    const failedCount = Number((evt && evt.failed) || 0)
+    demoIdx.textContent = failedCount ? T('演示结束 · {n} 步未执行', { n: failedCount }) : '演示完成'
+    if (failedCount) demoBar.classList.add('bad')
     /**
      * ★★ 2026-10-11（用户："到了第五步，第五步的描述文字就没了"）：
      *   原先这里把主文字**换成**"共 N 步 · 可重新演示…" ✗ —— 学生看完演示，
@@ -2690,6 +2697,13 @@ let lastDemoId = null
     } else {
       demoText.textContent = T('共 {total} 步 · 可重新演示，或退回去重看某一步', { total: qTotalOf(evt) })
       demoText.classList.add('muted')
+    }
+    // 有失败步骤时把原因留在提示行：否则"标红但不解释"，学生只会以为界面坏了
+    if (failedCount) {
+      demoNextHint.classList.remove('hidden')
+      demoNextHint.textContent = evt.firstError
+        ? T('{n} 步未执行：{error}', { n: failedCount, error: evt.firstError })
+        : T('{n} 步未执行（当前页面可能没有可驱动的视图）', { n: failedCount })
     }
   }
 

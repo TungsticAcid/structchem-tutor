@@ -648,12 +648,16 @@ export function createAgentApp(opts = {}) {
         ? step.actions
         : [{ action: name, params }]
       /**
-       * ★ 不只看 notReady：库页没有视图代理时 `canApplyActions()` 可能是真。
-       *   组里有 `loadCrystal` 就表示"先打开晶体"，必须让宿主看到这一步并按晶体 id
-       *   打开 `/viewer/<id>`；把 step 一并传下去，别只叫回模块首页。
+       * ★★ 2026-11-27（用户："在晶体库问对比，没有跳转"）：
+       *   原先只有组里出现 `loadCrystal` 才叫宿主把页面叫起来。而 `openCompareView`、
+       *   `setLayer`、`setView` 这些**同样落在三维视图上**的动作被漏掉了：库页没有视图，
+       *   它们必然失败，而且失败只写进事后账本、学生与模型都看不出来。
+       *   ⇒ 现在**每一步都先问宿主**："这个模块的页面能受理这一步吗？"——
+       *     宿主就绪时立即返回 true（几乎零成本），需要导航时由它按 step 的内容决定目标页。
+       *   ★ "哪种动作需要什么页面"是宿主知识，中枢不该硬编码 action 名字（这正是
+       *     上一版把 loadCrystal 写死、于是漏掉 openCompareView 的原因）。
        */
-      const needsView = acts.some((a) => a && a.action === 'loadCrystal')
-      if ((notReady() || needsView) && typeof opts.ensureModuleReady === 'function') {
+      if (typeof opts.ensureModuleReady === 'function') {
         try { await opts.ensureModuleReady(targetId, step) } catch (e) { /* 宿主失败：按原样继续，下面会如实报错 */ }
         m = modules.get(targetId) || m
       }
@@ -663,7 +667,15 @@ export function createAgentApp(opts = {}) {
     capture: () => {
       const m = modules.get(activeId)
       if (!m || !m.facade.getSnapshot) return null
-      return { module: activeId, state: m.facade.getSnapshot() }
+      /**
+       * ★ 带上当前路由。**「回到演示前」在别的页面上点的时候**要靠它先把页面换回去：
+       *   演示常常把学生从库页带到查看页/对比页，之后他退回库页再点「↩ 回到演示前」，
+       *   若只在"此刻的页面"上还原，动作会落到没有视图的页面上而整批失败。
+       *   面板读的正是 `snap.route`（见 panel.js 的回退按钮），缺了它那次跳转就是空操作。
+       */
+      const route = (typeof window !== 'undefined' && window.location)
+        ? String(window.location.hash || '') : ''
+      return { module: activeId, route, state: m.facade.getSnapshot() }
     },
     restore: (snap) => {
       if (!snap) return false

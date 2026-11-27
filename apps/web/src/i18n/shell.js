@@ -106,7 +106,11 @@ export const zh = {
     + '要讲 Cl⁻ 的八面体空隙，改用并排对比：一侧 NaCl、一侧 Cu（fcc），两侧关化学键，在 Cu 一侧打开八面体空隙——'
     + 'Cu 的空隙位置正好对应 NaCl 中的 Na⁺。演示中一步可以包含多个动作（见 applySceneActions 的 actions 分组）。'
     + '★ 演示前先看快照里的 layersOn：点阵点/对称元素/空隙/标签若与本次无关，第一步用 resetLayers 建干净基线，'
-    + '不要假设当前画面是干净的。★ 原子透明度只在需要看内部时用 30%~50%，并在结束前恢复 0；不要留下 >60% 的透明度。',
+    + '不要假设当前画面是干净的。★ 原子透明度只在需要看内部时用 30%~50%，并在结束前恢复 0；不要留下 >60% 的透明度。'
+    + '★ **在库页或门户上**做对比时，两块晶体都还没有"当前晶体"：用 navigateTo({target:"compare", crystalId, otherCrystalId})，'
+    + '或 openCompareView({a, b}) 把两个 id 都给全；只给 b 会让左边那一侧无从确定。'
+    + '★ 任何落在三维视图上的动作（切图层、切视角、对比…）若当前不在查看页，宿主会先打开相应页面；'
+    + '若它打不开（例如不知道要看哪个晶体），那一步会**如实失败**并在演示条标红——此时请改用 navigateTo 或先 loadCrystal。',
   'shell.prompt.roleOrbit': '节面数、径向峰位、能级、简并度等一切数值必须用 queryOrbital 取得，不要凭记忆或口算。',
   /**
    * ★★ 2026-10-14（用户两条）：① "甲烷对称元素全部显示出来有点乱，智能体应避免把对称元素
@@ -346,7 +350,13 @@ export const en = {
     + '★ Before demonstrating, read layersOn in the snapshot: if lattice points / symmetry elements / voids / labels are '
     + 'unrelated to this explanation, call resetLayers as the first step to establish a clean baseline; never assume the '
     + 'current view is clean. ★ Use atom opacity of 30%–50% only when you need to see inside, and restore it to 0 before '
-    + 'the end; never leave opacity above 60%.',
+    + 'the end; never leave opacity above 60%. '
+    + '★ **On the library page or the portal** there is no "current crystal": when comparing, use '
+    + 'navigateTo({target:"compare", crystalId, otherCrystalId}) or openCompareView({a, b}) with both ids. '
+    + 'Passing only b leaves the left-hand side undefined. '
+    + '★ Any action that lives on the 3D view (layers, view direction, comparison…) makes the host open the right page '
+    + 'first; if it cannot (for example the crystal is unknown), that step fails honestly and the demo bar turns red — '
+    + 'then switch to navigateTo or loadCrystal first.',
   'shell.prompt.roleOrbit': 'For any number — node count, radial peak positions, energy levels, degeneracy — '
     + 'obtain it with queryOrbital. Never rely on memory or mental arithmetic.',
   'shell.prompt.roleSymmetry': 'Always obtain point-group symbols and symmetry-element lists with queryPointGroup; '

@@ -82,6 +82,9 @@ export const zh = {
   // ---- 动作气泡：一次多动作的摘要 / 回执 / 校验失败 ----
   '等 {n} 个动作': '等 {n} 个动作',
   '组合动作（{n} 个）': '组合动作（{n} 个）',
+  '演示结束 · {n} 步未执行': '演示结束 · {n} 步未执行',
+  '{n} 步未执行：{error}': '{n} 步未执行：{error}',
+  '{n} 步未执行（当前页面可能没有可驱动的视图）': '{n} 步未执行（当前页面可能没有可驱动的视图）',
   /**
    * ★★ 2026-10-11（用户："动作里有很多提示词"）：场景动作（SEQ_TOOL）的回执里带着
    *   **给模型看的**行为规范，原先界面上把整个 JSON 截 400 字贴出来 ⇒ 学生看到的是
@@ -203,6 +206,10 @@ export const en = {
   // ---- 动作气泡 ----
   '等 {n} 个动作': '{n} actions',
   '组合动作（{n} 个）': 'Combined action ({n} actions)',
+  '演示结束 · {n} 步未执行': 'Demo ended · {n} step(s) did not run',
+  '{n} 步未执行：{error}': '{n} step(s) did not run: {error}',
+  '{n} 步未执行（当前页面可能没有可驱动的视图）':
+    '{n} step(s) did not run (this page may have no drivable view)',
   '已排好 {n} 步演示{manual}：点「下一步」逐步确认，或「连续播放」一次看完':
     '{n} demo steps queued{manual} — click “Next step” to confirm one by one, or “Auto-play” to watch it through',
   '（自动连播）': ' (auto-play)',

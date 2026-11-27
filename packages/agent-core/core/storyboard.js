@@ -889,6 +889,22 @@ export function createStoryboard(opts = {}) {
       const one = r && r.ok ? { action: st.name } : { action: st.name, error: (r && r.error) || t('agent.sb.execFailed') }
       ;(r && r.ok ? executed : failed).push(one)
 
+      /**
+       * ★★ 2026-11-27（用户："在库页问 NaCl 和 CsCl 的对比，没有跳转"）：
+       *   原来这一步**只在事后账本里记失败**，界面上仍显示"第 1/1 步"、演示条也不标红 ——
+       *   学生在库页看到的是一次"什么都没发生"的演示，而模型收到的回执还是"已入队"。
+       *   ⇒ 失败时重发一条 `ok:false` 的 step 事件：面板据此把该步标成「（未执行）」并把
+       *     演示条置为 bad（见 panel.js 的 renderStep）。
+       */
+      if (!(r && r.ok)) {
+        emitProgress({
+          phase: 'step', index: qIndex + 1, total: queue.length, action: st.name,
+          label: label(st.name, st.params), speech: st.speech,
+          actions: st.actions,
+          concept: v.concept, ok: false, error: one.error, manual, fast: ff,
+        })
+      }
+
       qIndex++
       if (dead()) return { executed, failed, aborted: true }
 
@@ -935,6 +951,9 @@ export function createStoryboard(opts = {}) {
     const selfDone = !manual
     emitProgress({
       phase: 'done', total: qTotal, canReplay: queue.length > 0, canPrev: qIndex > 0,
+      // ★ 有步骤没执行成功时要一起报出去：否则演示条只写「演示完成」，
+      //   学生看不出"刚才那一步其实什么都没发生"（见 renderDone 的失败文案）。
+      failed: failed.length, firstError: (failed[0] && failed[0].error) || '',
       queueDrained: selfDone, selfFinished: selfDone,
     })
     return { executed, failed, aborted: false }
