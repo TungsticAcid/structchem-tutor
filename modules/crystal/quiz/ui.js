@@ -513,13 +513,25 @@ export function createQuizUI(deps = {}) {
   function finishTurn() {
     const card = turnCard
     turnCard = null
-    if (!card || !card.parentElement) return
-    try {
-      card.parentElement.appendChild(card)
-      const nodes = panel.nodes && panel.nodes()
-      const box = nodes && nodes.msgBox
-      if (box) box.scrollTop = box.scrollHeight
-    } catch (e) { /* 卡片已脱落 / 面板已卸载：不影响对话 */ }
+    if (!card) return
+    /**
+     * ★★ 2026-11-27（用户："题目卡下方还有一段文本"）：
+     *   `onDone` 触发时面板的 `running` 还是真，`renderPath()` 会被**推迟**到
+     *   `runAgent` 收尾之后（`endTurnRepaint`）。如果此刻立即搬卡，随后的那次
+     *   重画又会按卡片创建时的锚点把它插回助手正文之前 ⇒ 正文又跑到卡片下面。
+     *   等一个宏任务，让收尾重画先完成，再搬到最后。
+     */
+    const move = () => {
+      if (!card.parentElement) return
+      try {
+        card.parentElement.appendChild(card)
+        const nodes = panel.nodes && panel.nodes()
+        const box = nodes && nodes.msgBox
+        if (box) box.scrollTop = box.scrollHeight
+      } catch (e) { /* 卡片已脱落 / 面板已卸载：不影响对话 */ }
+    }
+    if (typeof setTimeout === 'function') setTimeout(move, 0)
+    else move()
   }
 
   return {
