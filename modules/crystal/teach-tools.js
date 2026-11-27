@@ -59,7 +59,13 @@ export function createTeachTools(opts = {}) {
         '出一道练习题。**返回的题目不含答案**——答案已由程序算定并冻结在本地，你无法看到它，也不要猜测。请把题干与 4 个选项原样呈现给学生（选项是固定顺序的文本数组，按 A/B/C/D 编号），然后等学生作答。学生作答后调用 checkAnswer，判定与解析由本地完成。kptopic 可选：同一知识点可能有多个题型（如 C7 有 cellVolume/density/nearestNeighbor）。', {
         kp: { type: 'string', description: '知识点 id，如 crystal:C5（也可写 C5）' },
         crystalId: { type: 'string', description: '可选：指定晶体；缺省按能力矩阵选强关联的' },
-        topic: { type: 'string', description: '可选：指定题型，如 density / intersticesInCell' },
+        // ★ 题型名要列全：学生说"出一道空间利用率题"时，模型若猜成 stacking 就答非所问
+        //   （实测踩过：卡片出的是"属于哪种堆积方式"）。
+        topic: {
+          type: 'string',
+          // 单行（勿拆成多段拼接）：i18n 覆盖率扫描按**字符串字面量**逐条登记
+          description: '可选：指定题型。C1 latticeType；C2 structuralUnitAtoms / atomsInCell；C3 stacking / spaceUtilization；C4 coordinationNumber / polyhedron；C5 intersticesInCell / intersticePerSphere；C6 spaceGroup；C7 cellVolume / density / nearestNeighbor；C8 structureProperty',
+        },
         difficulty: { type: 'string', description: '可选：L1–L4' },
       }, ['kp']),
 

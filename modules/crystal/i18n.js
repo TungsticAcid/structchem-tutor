@@ -169,6 +169,18 @@ export const text = Object.assign({
   '调整透明度': 'Adjust opacity',
   '对比页暂不支持只换左侧晶体——请重新打开这一组对比':
     'The compare page cannot swap only the left crystal — please reopen this comparison.',
+  '可选：指定题型。C1 latticeType；C2 structuralUnitAtoms / atomsInCell；C3 stacking / spaceUtilization；C4 coordinationNumber / polyhedron；C5 intersticesInCell / intersticePerSphere；C6 spaceGroup；C7 cellVolume / density / nearestNeighbor；C8 structureProperty':
+    'Optional: which question type. C1 latticeType; C2 structuralUnitAtoms / atomsInCell; C3 stacking / spaceUtilization; '
+    + 'C4 coordinationNumber / polyhedron; C5 intersticesInCell / intersticePerSphere; C6 spaceGroup; '
+    + 'C7 cellVolume / density / nearestNeighbor; C8 structureProperty',
+  // ---- 空间利用率题的干扰项错因（答错时用来诊断"是怎么算错的"）----
+  '把最密堆积的 74.05% 当成了本题的答案（A1 与 A3 相同）':
+    'Took the closest-packing value 74.05% as the answer (A1 and A3 share it).',
+  '按体心立方（4r = a√3）算的': 'Computed it as body-centred cubic (4r = a√3).',
+  '按简单立方（π/6，球沿棱相切）算的': 'Computed it as simple cubic (π/6, spheres touching along the edge).',
+  '按金刚石型（4r = a√3/4）算的': 'Computed it as the diamond type (4r = a√3/4).',
+  '把球半径当成 a/4 算的（面心立方的关系记反了）':
+    'Took the sphere radius as a/4 (the face-centred-cubic relation was inverted).',
   '正八面体空隙（空隙位置标记，不是配位多面体）':
     'Octahedral void (a void-position marker, not a coordination polyhedron)',
   '正四面体空隙（空隙位置标记，不是配位多面体）':
