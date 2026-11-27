@@ -958,6 +958,8 @@ function wrapHandlers(handlers) {
   //   不记录提问/回答正文——agent_turn 只带计数与工具名。
   const turn = { startedAt: Date.now(), toolCalls: 0, tools: new Set() }
   const moduleOfTurn = () => currentBoardId() || (app && app.activeModule) || null
+  // 本轮开始时清掉上一轮"待移到底部"的卡片标记（见 quiz/ui.js 的 addCard 说明）。
+  try { if (quizUI && typeof quizUI.startTurn === 'function') quizUI.startTurn() } catch (e) { /* 统计/UI 失败不影响对话 */ }
 
   h.onToolResult = (info) => {
     if (typeof origTool === 'function') {
@@ -1017,6 +1019,8 @@ function wrapHandlers(handlers) {
     } catch (e) {
       console.warn('[agent] 对话落盘/重渲染失败（不影响当前会话）：', e)
     }
+    // 本轮若出了题目卡，把它从"流式正文中间"移到消息区末尾；见 quiz/ui.js 的 finishTurn。
+    try { if (quizUI && typeof quizUI.finishTurn === 'function') quizUI.finishTurn() } catch (e) { /* 不影响对话 */ }
   }
 
   h.onError = (err) => {
@@ -1033,6 +1037,7 @@ function wrapHandlers(handlers) {
     if (typeof origError === 'function') {
       try { origError(err) } catch (e) { /* 面板的处理失败不应影响其它订阅者 */ }
     }
+    try { if (quizUI && typeof quizUI.finishTurn === 'function') quizUI.finishTurn() } catch (e) { /* 不影响错误处理 */ }
   }
   return h
 }

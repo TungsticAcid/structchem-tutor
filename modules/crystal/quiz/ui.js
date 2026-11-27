@@ -68,6 +68,23 @@ export function createQuizUI(deps = {}) {
   const answered = new Set()
 
   /**
+   * ★★ 2026-11-27（用户："未作答又点一次练习，题目卡不在最下方"）：
+   *
+   *   `generateQuiz` 是模型回合中的工具结果，题目卡会在**助手正文还没流完**时就
+   *   append 到消息区；随后同一轮的正文气泡继续追加在卡片下面 ⇒ 视觉上题目卡
+   *   被夹在中间，不在最下方。这里记下"本轮渲染的卡片"，等 onDone（正文流完、
+   *   对话重画完成）再把它移到消息区末尾。
+   *
+   *   ★ 只移动**本轮**这张卡：上一轮的题目卡仍按时间顺序留在上面，不能一起搬。
+   */
+  let turnCard = null
+  function addCard(html, cls) {
+    const card = panel.addCard(html, cls)
+    turnCard = card
+    return card
+  }
+
+  /**
    * 拦截工具结果：识别出题与判分，渲染对应卡片。
    * 由 assemble.js 包装 send 时调用（见那里的说明）。
    */
@@ -108,7 +125,7 @@ export function createQuizUI(deps = {}) {
         <div class="agent-opts">${optHtml}</div>
       </div>`
 
-    const card = panel.addCard(html, 'agent-question')
+    const card = addCard(html, 'agent-question')
     for (const btn of card.querySelectorAll('.agent-opt')) {
       btn.addEventListener('click', () => answer(q.id, Number(btn.dataset.i), card))
     }
@@ -168,7 +185,7 @@ export function createQuizUI(deps = {}) {
         ${gotoBtn}
       </div>`
 
-    const card = panel.addCard(html, 'agent-feedback')
+    const card = addCard(html, 'agent-feedback')
 
     const goto = card.querySelector('.agent-goto')
     if (goto && r.presetView) {
@@ -339,7 +356,7 @@ export function createQuizUI(deps = {}) {
         <button class="agent-practice-show" type="button">看答案</button>
       </div>`
 
-    const card = panel.addCard(
+    const card = addCard(
       `<div class="agent-practice">${head}${stem}${body}${tools}</div>`, 'agent-practice-card')
 
     card.querySelector('.agent-practice-exit').addEventListener('click', () => {
@@ -485,8 +502,29 @@ export function createQuizUI(deps = {}) {
     return p && !p.error ? p.presetView : null
   }
 
+  /** 每轮模型请求开始前清掉"本轮卡片"标记（见 addCard 的说明）。 */
+  function startTurn() { turnCard = null }
+
+  /**
+   * 模型回合结束后，把本轮题目卡移到消息区末尾。
+   * ★ 必须等 `panel.renderPath()` 之后再调：renderPath 会先按锚点还原卡片，
+   *   这里再统一放到最下方，才不会被随后追加的助手正文压在中间。
+   */
+  function finishTurn() {
+    const card = turnCard
+    turnCard = null
+    if (!card || !card.parentElement) return
+    try {
+      card.parentElement.appendChild(card)
+      const nodes = panel.nodes && panel.nodes()
+      const box = nodes && nodes.msgBox
+      if (box) box.scrollTop = box.scrollHeight
+    } catch (e) { /* 卡片已脱落 / 面板已卸载：不影响对话 */ }
+  }
+
   return {
     handleToolResult, renderQuestion, renderFeedback, gotoStructure,
+    startTurn, finishTurn,
   /** 已渲染的题目卡数量（练习入口的"兜底"判据：这一轮没出卡就直接调工具） */
   renderedCards: () => renderedCards,
     // 练习模式
