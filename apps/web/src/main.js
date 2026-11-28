@@ -1304,6 +1304,37 @@ panel = createPanel({
     }
     return Object.assign({}, pick(crystal), pick(orbit), pick(symmetry))
   })(),
+  /**
+   * 动作 → 人话（动作气泡里"括号中那一串"）。
+   *
+   * ★★ 2026-12-02（用户："动作气泡也改一下"）：原先气泡把参数按 `k=v` 原样打出，
+   *   于是界面上出现 `显示/隐藏图层（layers={"atoms":true,"bonds":false,…}）`。
+   *   这里问**认得这个动作的那个模块**（按 actionLabels 的键判断归属），
+   *   它返回 null 时面板回退到自己的默认渲染 —— 半懂的动作宁可显示原始参数，
+   *   也不编一句可能不准的人话（诊断信息失真比不漂亮更糟）。
+   */
+  describeAction: (name, params) => {
+    const pick = (m, key) => {
+      try {
+        const v = m && m[key]
+        return typeof v === 'function' ? v : (v || null)
+      } catch (e) { return null }
+    }
+    for (const m of [crystal, orbit, symmetry]) {
+      const fn = pick(m, 'describeAction')
+      if (!fn) continue
+      const labels = (() => {
+        try {
+          const v = m && m.actionLabels
+          return (typeof v === 'function' ? v() : v) || {}
+        } catch (e) { return {} }
+      })()
+      // 只把这个模块**认得的**动作交给它：三个模块共用一个钩子，认错就会串台
+      if (!Object.prototype.hasOwnProperty.call(labels, name)) continue
+      try { const s = fn(name, params); if (s) return s } catch (e) { /* 落回默认 */ }
+    }
+    return null
+  },
   sequenceToolName: 'applySceneActions',
   getShowReasoning: () => settings.get().showReasoning,
   storyboard: app.storyboard,

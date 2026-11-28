@@ -21,7 +21,7 @@
  * ★ `tr` 是**惰性**的：它在被调用的那一刻查表，所以语言切换之后再取就拿到新语言。
  *   绝不能在模块加载时把它算好存进常量——那样切语言不会生效，而且不报错。
  */
-import { t, tsrc } from '../../packages/i18n/index.js'
+import { t, tsrc, i18n } from '../../packages/i18n/index.js'
 // ★ 副作用 import：**保证字典一定被注册**。
 //   任何用 t()/tr() 的文件都会 import 本文件，所以把注册挂在这里，就不必逐个文件
 //   记得加 `import './i18n.js'`。反过来（只在 index.js 里注册）会有一个静默缺陷：
@@ -29,7 +29,12 @@ import { t, tsrc } from '../../packages/i18n/index.js'
 //   原样返回键名，于是 `facade.title` 变成字符串 'crystal.title'，而它不报错。
 import './i18n.js'
 
-export { t }
+/**
+ * ★ 2026-12-02：把 `i18n` 一并转出去（取当前语言用）。
+ *   拼"列表连接符"与"图层后缀"必须知道语言（中文「、」+「图层」，英文「, 」+ 小写），
+ *   否则会出现「打开 Atoms layer」这种半中半英 —— 而它**不报错**，只有人眼看得见。
+ */
+export { t, i18n }
 
 /**
  * 中文原文 → 当前语言译文。

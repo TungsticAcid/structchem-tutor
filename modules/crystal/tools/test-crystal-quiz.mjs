@@ -46,13 +46,23 @@ function leaks(obj) {
   const s = JSON.stringify(obj)
   return FORBIDDEN.filter((f) => s.indexOf('"' + f + '"') >= 0)
 }
-/** 从 presetView 里取出"揭示答案会打开哪些图层" */
+/**
+ * 从 presetView 里取出"揭示答案会打开哪些图层"。
+ * ★ 2026-12-02：一步可能**包含多个动作**（`{ actions: [...] }`，"切晶体 + 设图层"
+ *   就是合成的一步，见 preset-view.js 的 toActions）。只认 `a.action === 'setLayers'`
+ *   会漏掉它们，且**不报错**——测试照样绿，但它守的东西已经不在了。
+ */
+function stepActs(step) {
+  return (step && Array.isArray(step.actions) && step.actions.length) ? step.actions : [step]
+}
 function presetLayers(pv) {
   const out = []
-  for (const a of ((pv && pv.actions) || [])) {
-    if (a.action === 'setLayers') {
-      for (const [k, v] of Object.entries(a.params.layers || {})) if (v) out.push(k)
-    } else if (a.action === 'setLayer' && a.params.visible !== false) out.push(a.params.layer)
+  for (const step of ((pv && pv.actions) || [])) {
+    for (const a of stepActs(step)) {
+      if (a.action === 'setLayers') {
+        for (const [k, v] of Object.entries((a.params && a.params.layers) || {})) if (v) out.push(k)
+      } else if (a.action === 'setLayer' && a.params.visible !== false) out.push(a.params.layer)
+    }
   }
   return out
 }
@@ -305,21 +315,37 @@ console.log('【④ 纯邻近值题型的干扰项】—— 不允许存在固�
       const speech = String(step.speech || '')
       const hit = keyPattern.exec(speech)
       if (hit) offenders.push(`${tag} → "${speech}"（含键名 ${hit[1]}）`)
-      if (step.action === 'setLayers') labelled++
+      if (stepActs(step).some((a) => a.action === 'setLayers')) labelled++
     }
   }
   ok(labelled >= samples.length - 1,
-    `样本里应当几乎每条预设都有一步 setLayers（实际 ${labelled}/${samples.length}）`)
+    `样本里应当几乎每条预设都有一步（含 setLayers）（实际 ${labelled}/${samples.length}）`)
   ok(offenders.length === 0,
     '★ 图层开关的旁白里出现参数键名（学生看不懂；应当过 LAYER_LABELS）：'
     + offenders.slice(0, 3).join(' | '))
 
   // 反面：中文标签本身必须真的进了句子（否则上面那条可以靠"删掉整段旁白"通过）
   const c2 = buildPresetView('crystal:C2', { crystalId: 'fcc' })
-  const c2Speech = (c2.actions.find((a) => a.action === 'setLayers') || {}).speech || ''
+  const c2Step = (c2.actions || []).find((s) => stepActs(s).some((a) => a.action === 'setLayers')) || {}
+  const c2Speech = String(c2Step.speech || '')
   ok(c2Speech.includes(LAYER_LABELS.atoms) && c2Speech.includes(LAYER_LABELS.wireframe),
     `C2 的旁白应当用中文图层名（期望含「${LAYER_LABELS.atoms}」「${LAYER_LABELS.wireframe}」，实际 "${c2Speech}"）`)
-  ok(/打开|关闭/.test(c2Speech), `旁白应当是"打开…/关闭…"的人话（实际 "${c2Speech}"）`)
+  // ★ 用户明确要求叫「原子图层」「晶胞线框图层」（只写「原子」分不清是画面上的球还是开关）
+  ok(c2Speech.includes(LAYER_LABELS.atoms + '图层') && c2Speech.includes(LAYER_LABELS.wireframe + '图层'),
+    `C2 的旁白应当带"图层"二字（实际 "${c2Speech}"）`)
+  ok(/打开/.test(c2Speech), `旁白应当是"打开…"的人话（实际 "${c2Speech}"）`)
+
+  // ★★ 用户："这个应该是第一步打开这个晶体时就该做好的吧……现在这样看起来第二步像啥也没做"
+  //   判据：**第一步**同时含 loadCrystal 与 setLayers（一步把晶体和图层都摆好），
+  //   于是点第一次就有变化，第二次是换视角。
+  const first = stepActs((c2.actions || [])[0] || {})
+  ok(first.some((a) => a.action === 'loadCrystal') && first.some((a) => a.action === 'setLayers'),
+    '★ C2 的第一步应当**同时**切晶体与设图层（否则第二次点击画面毫无变化）：'
+    + JSON.stringify(first.map((a) => a.action)))
+  ok((c2.actions || []).length === 2,
+    `★ C2 预设应当是"准备 + 换视角"两步（实际 ${(c2.actions || []).length} 步）`)
+  ok(!/关闭/.test(c2Speech),
+    '★ 旁白不再讲"关闭…"（"关闭体对角线"这类句子在描述一个本来就没发生的变化）：' + c2Speech)
 }
 
 // ---------------------------------------------------------------------------

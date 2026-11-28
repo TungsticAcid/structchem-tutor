@@ -25,7 +25,7 @@ import { createCrystalFacade } from './facade.js'
 import { createCrystalTools } from './tools.js'
 import { createTeachTools } from './teach-tools.js'
 import { createCompareTools } from './compare-tools.js'
-import { VOCAB, validate as rawValidate, listActions, labels as actionLabels } from './actions.js'
+import { VOCAB, validate as rawValidate, listActions, labels as actionLabels, describeAction } from './actions.js'
 // 视觉颜色与逐元素配色的声明式 schema（值的真源在模块自己的存储里，见该文件）
 import { visualSettings } from './settings-visual.js'
 // 装配期校验「宿主有没有给够」——方向与 facade 相反，见 host-requirements.js
@@ -199,6 +199,24 @@ export function createModule(opts = {}) {
     vocabulary: VOCAB,
     /** 动作名 → 短标签（面板的动作气泡用；不该在应用入口里硬编码） */
     actionLabels: actionLabels(),
+    /**
+     * 动作 → **人话**（动作气泡的第二行：参数不再按 `k=v` 原样打出）。
+     *
+     * ★ 2026-12-02（用户："动作气泡也改一下"）：气泡里原先出现
+     *   `显示/隐藏图层（layers={"atoms":true,"bonds":false,…}）` —— 参数名 + 原始 JSON。
+     *   这里把"说得出人话"的动作接管掉（图层、晶体、视角、元素显隐、对比），
+     *   其余返回 null，由面板回退到它自己的「标签（k=v）」（宁可显示原始参数，
+     *   也不编一句可能不准的人话）。
+     * ★ 晶体名要查目录：`crystalId`（`naCl`）对学生没有意义，`NaCl(岩盐)型` 才有。
+     */
+    describeAction: (name, params) => describeAction(name, params, {
+      crystalName: (id) => {
+        const c = catalog.find((x) => x.id === id)
+        // ★ 过一遍 tr()：英文界面下气泡里不该出现"NaCl(岩盐)型"这种中文，
+        //   与图层面板用 tr(LAYER_LABELS[...]) 是同一条规矩。
+        return c ? tr(c.name) : ''
+      },
+    }),
     /**
      * 模块的设置项（声明式，可直接喂 ui-kit 的 settings-popup）。
      * ★ 两段拼起来：`facade.settings` 是"影响三维视图的参数"（原子缩放/键粗细/

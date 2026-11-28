@@ -27,8 +27,8 @@
  *      必须**排在 setView 之后**，不能寄望于"顺序无关"。
  */
 
-import { t, tr } from '../i18n-live.js'
-import { LAYER_LABELS } from '../actions.js'
+import { t } from '../i18n-live.js'
+import { layersPhrase, LAYER_PROPS } from '../actions.js'
 import { STACKING_BY_CRYSTAL } from './data/crystal-facts.js'
 
 /** 合法的视角取值（`ViewerCanvas.setView` 只认这四个） */
@@ -197,25 +197,31 @@ export function buildPresetView(kp, ctx = {}) {
 function toActions({ crystalId, modelType, layers, view, highlight, notes }) {
   const actions = []
 
-  actions.push({
-    action: 'loadCrystal',
-    params: { crystalId },
-    speech: '先切到这道题对应的晶体。',
-  })
-
   // modelType 要经 setAppearance 之外的通道：actions.js 里 modelType 不在 VOCAB 中，
   // 故此处用 setAppearance 携带不了它——改由调用方在需要时用 setLayers + 说明处理。
   // （保持动作词汇表最小：模型能做的动作就是界面能做的动作。）
   void modelType
 
-  const layerNames = Object.keys(layers)
-  if (layerNames.length) {
-    actions.push({
-      action: 'setLayers',
-      params: { layers },
-      speech: describeLayers(layers),
-    })
-  }
+  /**
+   * ★★ 2026-12-02（用户："这个应该是第一步打开这个晶体时就该做好的吧……
+   *   现在这样看起来第二步像啥也没做"）：
+   *
+   *   原先"换晶体"与"设图层"是**两步**。第二步通常只是把几个开关补到默认状态
+   *   （原子、晶胞线框本来就开着），于是点一下「下一步」画面**一动不动**——
+   *   学生看到的是"演示卡住了"，而不是"状态已就位"。
+   *   ⇒ 合成**一步**（storyboard 支持一步多动作）：第一下就把"晶体 + 该看的图层"
+   *     摆好；第二下换视角，那一下一定看得见变化。
+   *
+   *   ★ 旁白只讲"打开哪几个图层"（layersPhrase 的 onlyOn）：
+   *     原先还讲"关闭辅助体"——学生既不知道体对角线是什么，也不知道它本来就没开。
+   */
+  const layerOn = layersPhrase(layers, { onlyOn: true })   // '打开原子图层、晶胞线框图层'
+  const hasLayers = !!(layers && Object.keys(layers).length)
+  const setup = [{ action: 'loadCrystal', params: { crystalId } }]
+  if (hasLayers) setup.push({ action: 'setLayers', params: { layers } })
+  actions.push(setup.length > 1
+    ? { actions: setup, speech: layerOn ? t('crystal.t.quiz-preset-view.6', { p1: layerOn }) : t('crystal.t.quiz-preset-view.7') }
+    : { action: 'loadCrystal', params: { crystalId }, speech: t('crystal.t.quiz-preset-view.7') })
 
   // 高亮：P4 前 `highlightAtoms` 尚未实现，用"隐藏其他元素"近似达到突出目标的效果。
   // ★ 不静默丢弃：面板会看到这条 note，从而知道"为什么没有真正的高亮"。
@@ -227,7 +233,9 @@ function toActions({ crystalId, modelType, layers, view, highlight, notes }) {
     actions.push({
       action: 'setView',
       params: { direction: view },
-      speech: '调到一个能看清这个问题答案的视角。',
+      // ★ 2026-12-02：这句原先**写死中文**，英文界面下演示条会蹦出一句中文（不报错）。
+      //   现在走键，与上面两步一致。
+      speech: t('crystal.t.quiz-preset-view.8'),
     })
     notes.push('setView 会重置缩放与平移，故它排在动作序列末位')
   }
@@ -236,36 +244,20 @@ function toActions({ crystalId, modelType, layers, view, highlight, notes }) {
 }
 
 /**
- * 图层 id → **学生看得懂的名字**（并翻到当前语言）。
+ * 图层短语与"打开/关闭"的措辞，现在**统一由 `actions.js` 负责**
+ * （`layerPhrase` / `layersPhrase`）——动作气泡与演示旁白共用同一套映射，
+ * 免得两处各写一份、改一处另一处还是英文键名。
  *
- * ★★ 2026-12-02（用户看演示条："这里的 atoms、wireframe 等，中文使用者不一定看得懂，
- *   并且这个像是参数名，可能不适合直接给用户看"）：
- *
- *   原先旁白直接拼了**参数键名**，于是演示条上出现
- *   「打开 atoms、wireframe；关闭 auxiliaryBody」。三处都不对：
- *     · 它是**代码里的字段名**，不是中文 —— 学生读的是句子，不是 API；
- *     · 键名一旦要改（重命名图层），这条旁白会跟着变成另一个看不懂的词；
- *     · 键名与界面上那个开关的名字对不上，学生不知道该看哪个按钮
- *       （面板上写的是「原子」「晶胞线框」「辅助体」，见 actions.js 的 LAYER_LABELS）。
- *
- *   ★ 参数名本身**不能改**：`vocab` 里必须是英文键，模型靠它调工具（见
- *     actions.js「这些英文名是动作参数值，会出现在给模型看的词汇表里」）。
- *     要改的是**说话的那一侧** —— 也就是这里。
- *   ★ 走 `tr()`：英文界面下这些标签要出英文，与 LAYER_LABELS 在面板里的用法一致
- *     （facade.js 报"图层无数据"时也是 `tr(LAYER_LABELS[x] || x)` 这么取的）。
+ * ★ 参数名本身**不能改**：`vocab` 里必须是英文键，模型靠它调工具（见
+ *   actions.js「这些英文名是动作参数值，会出现在给模型看的词汇表里」）。
  */
-function layerName(id) {
-  return tr(LAYER_LABELS[id] || id)
-}
 
-/** 给图层开关写一句人话旁白（演示每步都必须有旁白，否则画面莫名一跳） */
-function describeLayers(layers) {
-  const on = Object.entries(layers).filter(([, v]) => v).map(([k]) => layerName(k))
-  const off = Object.entries(layers).filter(([, v]) => !v).map(([k]) => layerName(k))
-  const parts = []
-  if (on.length) parts.push(t('crystal.t.quiz-preset-view.2', { p1: (on.join('、')) }))
-  if (off.length) parts.push(t('crystal.t.quiz-preset-view.3', { p1: (off.join('、')) }))
-  return t('crystal.t.quiz-preset-view.4', { p1: (parts.join('；')) })
+/**
+ * 一步里可能有多个动作（`{ actions: [...] }`，见 storyboard 的 makeStep）。
+ * 下面几处校验都要看**这一步做了什么**，而不是只看 `a.action`。
+ */
+function actsOf(step) {
+  return (step && Array.isArray(step.actions) && step.actions.length) ? step.actions : [step]
 }
 
 /**
@@ -283,24 +275,31 @@ export function stackingHintFor(crystalId) {
 export function assertPresetInvariants(preset) {
   const problems = []
   const acts = preset.actions || []
-  const layerAct = acts.find((a) => a.action === 'setLayers')
+  const all = acts.flatMap(actsOf)
+  const layerAct = all.find((a) => a.action === 'setLayers')
   const L = (layerAct && layerAct.params && layerAct.params.layers) || {}
   // ① 空隙子层必须有总开关
   if ((L.octahedral || L.tetrahedral) && !L.interstices) {
     problems.push('开了空隙子层但没有总开关 —— 画面上一个空隙都不会显示')
   }
-  // ② setView 必须在最后（它重置缩放平移）
-  const viewIdx = acts.findIndex((a) => a.action === 'setView')
+  // ② setView 必须在**最后一步**（它重置缩放平移）
+  const viewIdx = acts.findIndex((a) => actsOf(a).some((x) => x.action === 'setView'))
   if (viewIdx >= 0 && viewIdx !== acts.length - 1) {
     problems.push('setView 不在末位 —— 它后面的动作会重置缩放与平移')
   }
-  // ③ 首步应为 loadCrystal
-  if (acts.length && acts[0].action !== 'loadCrystal') {
+  // ③ 首步必须**包含** loadCrystal（可以和 setLayers 合成一步，见 toActions 的说明）
+  if (acts.length && !actsOf(acts[0]).some((a) => a.action === 'loadCrystal')) {
     problems.push('首步不是 loadCrystal —— 后续动作可能落到另一个晶体上')
   }
   // ④ 每步都要有旁白（演示的硬要求）
   for (const [i, a] of acts.entries()) {
     if (!a.speech) problems.push(t('crystal.t.quiz-preset-view.5', { p1: (i + 1) }))
+  }
+  // ⑤ 旁白里不许出现图层**参数名**（用户反馈：atoms / wireframe 学生看不懂）
+  const ids = Object.keys(LAYER_PROPS).join('|')
+  const re = new RegExp('\\b(' + ids + ')\\b')
+  for (const a of acts) {
+    if (re.test(String(a.speech || ''))) problems.push('旁白里出现了图层参数名：' + a.speech)
   }
   return problems
 }

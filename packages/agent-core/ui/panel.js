@@ -1915,7 +1915,18 @@ let lastDemoId = null
 
   /** 动作的中文描述（可由 cfg.describeAction 完全接管，或靠 actionLabels 查表） */
   function describeAction(name, args) {
-    if (typeof cfg.describeAction === 'function') return cfg.describeAction(name, args)
+    if (typeof cfg.describeAction === 'function') {
+      /**
+       * ★★ 2026-12-02（用户："动作气泡也改一下"）：允许回调回答"这个动作我没专门格式化"
+       *   —— 返回 null / 空串即回退到下面的默认渲染。
+       *   原先只要宿主动了这个钩子就是**全接管**，于是模块只能二选一：
+       *   要么把所有动作都编成人话（`setAppearance` 的数值编成话反而更含糊），
+       *   要么一个都不改（气泡里继续出现 `layers={"atoms":true,…}`）。
+       *   有了回退，模块就能只接管"说得出人话"的那几个。
+       */
+      const custom = cfg.describeAction(name, args)
+      if (custom) return custom
+    }
     // ★ 标签要**单独过一遍 T**：`T()` 在查不到键时会回退到"中文原文 → 译文"表，
     //   而动作标签正是"原文即键"的那类（登记在各模块的 text 表里）。
     //   不过这一遍的话，英文模式下会得到 `显示/隐藏对称元素（key="C2#1"）` 这种半中半英。

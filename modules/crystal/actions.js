@@ -14,7 +14,7 @@
  * ★ 本文件刻意**不 import 任何 three.js / DOM 相关模块**：它只有数据与纯函数，
  *   因此可在 Node 里直接测试（facade.js 同理，它通过参数接收 view，不 import 视图实现）。
  */
-import { t } from './i18n-live.js'
+import { t, tr, i18n } from './i18n-live.js'
 import { clamp } from '../../packages/agent-core/core/params.js'
 
 /** 图层友好名 → ViewerCanvas 的属性名。取名的原则是"模型说起来自然" */
@@ -36,7 +36,16 @@ export const LAYER_PROPS = {
 
 /** 图层短标签（面板按钮用）。与 LAYER_NOTES 的区别：这里是按钮上的两三个字，
  *  后者是悬浮说明。★ 面板上不该显示 `hydrogenBonds` 这种键名——
- *  用户看不懂，而键名是给代码用的。 */
+ *  用户看不懂，而键名是给代码用的。
+ *
+ *  ★★ 2026-12-02（用户："统一成「点阵型式」"）：这些标签必须与**界面上那个开关**的
+ *    文字一致 —— 学生听到「打开点阵型式」要能一眼找到那个开关。上游图层面板的用词是
+ *    「点阵型式 / 坐标轴 / 体对角线 / 面对角线」（见 crystal-view/components/layer-control.js），
+ *    本表原来写的是「点阵点 / 晶轴 / 辅助体 / 辅助面」：同一件事两个名字，学生找不到按钮。
+ *    ⇒ 一律跟随界面上已有的写法。
+ *  ★ `auxiliaryBody` 不是"某个辅助的物体"，而是**体对角线**（画面上那条辅助线）；
+ *    原先旁白里的"关闭辅助体"既没说明白是什么，也没说明白为什么，是这次反馈的直接来源。
+ */
 export const LAYER_LABELS = {
   atoms: '原子',
   bonds: '化学键',
@@ -45,12 +54,12 @@ export const LAYER_LABELS = {
   octahedral: '八面体空隙',
   tetrahedral: '四面体空隙',
   symmetry: '对称元素',
-  axes: '晶轴',
-  auxiliaryBody: '辅助体',
-  auxiliaryFace: '辅助面',
+  axes: '坐标轴',
+  auxiliaryBody: '体对角线',
+  auxiliaryFace: '面对角线',
   atomLabels: '原子标签',
   hydrogenBonds: '氢键',
-  latticePoints: '点阵点',
+  latticePoints: '点阵型式',
 }
 
 /** 图层的教学含义（写进词汇表给模型看，也用于设置面板的说明） */
@@ -64,12 +73,12 @@ export const LAYER_NOTES = {
   octahedral: '正八面体空隙（空隙位置标记，不是配位多面体）',
   tetrahedral: '正四面体空隙（空隙位置标记，不是配位多面体）',
   symmetry: '对称元素（旋转轴、镜面、反演中心）',
-  axes: '晶轴（a/b/c 方向）',
-  auxiliaryBody: '辅助几何-体（如甲烷的立方体参照）',
-  auxiliaryFace: '辅助几何-面（如四面体的面）',
+  axes: '坐标轴（a/b/c 方向）',
+  auxiliaryBody: '体对角线（辅助线：按晶体类型画出的立方体体对角线）',
+  auxiliaryFace: '面对角线（辅助线：面上那条对角线）',
   atomLabels: '原子标签',
   hydrogenBonds: '氢键',
-  latticePoints: '点阵点（打开后隐藏原子、只显示点阵）',
+  latticePoints: '点阵型式（打开后隐藏原子、只显示点阵）',
 }
 
 /** 预置视角（ViewerCanvas.setView 支持的方向）。★ 这些英文名是**动作参数值**，
@@ -87,6 +96,10 @@ export const VIEW_NOTES = {
 
 /** 晶胞显示模式 */
 export const CELL_MODES = ['conventional', 'primitive']
+export const CELL_MODE_LABELS = {
+  conventional: '惯用晶胞',
+  primitive: '原胞',
+}
 export const CELL_MODE_NOTES = {
   conventional: '惯用晶胞（教材上画的那个）',
   primitive: '原胞（最小的重复单元）',
@@ -364,4 +377,139 @@ export function labels() {
   return out
 }
 
-export default { VOCAB, LAYER_PROPS, LAYER_LABELS, LAYER_NOTES, VIEW_DIRECTIONS, VIEW_LABELS, CELL_MODES, APPEARANCE_RANGES, validate, listActions, labels }
+// ---------------------------------------------------------------------------
+// 参数 → 人话
+// ---------------------------------------------------------------------------
+/**
+ * 列表连接符。中文「、」，英文「, 」。
+ * ★ 这个必须跟着语言走：拿中文的「、」去拼英文列表，会得到
+ *   「atoms、unit-cell wireframe」——不报错，只是看着像没翻完。
+ */
+function joinList(items) {
+  return items.join(i18n.lang === 'en' ? ', ' : '、')
+}
+
+/**
+ * 图层 id → 面板/旁白里的**短语**。
+ *
+ * 中文：`atoms` → 「原子图层」（用户明确要求：说「原子图层」「晶胞线框图层」）
+ * 英文：`atoms` → 「atoms」（句子里的首字母小写，后缀交给模板）
+ *
+ * ★ 参数键名（atoms / wireframe / auxiliaryBody）**不给人看**：它们是给模型调工具用的。
+ *   要改的是"说话的那一侧"，见 describeAction 与 quiz/preset-view.js。
+ */
+export function layerPhrase(id) {
+  const label = tr(LAYER_LABELS[id] || id)
+  if (i18n.lang === 'en') return label.charAt(0).toLowerCase() + label.slice(1)
+  return t('crystal.t.actions.layerSuffix', { p1: label })
+}
+
+/**
+ * `{ layer: boolean }` → 「打开原子图层、晶胞线框图层；关闭体对角线」。
+ *
+ * @param {Object}  layers
+ * @param {Object}  [opts]
+ * @param {boolean} [opts.onlyOn=false] 只讲"打开"的那几层。
+ *        ★ 旁白只用 true 的那一侧：把「关闭体对角线」写进演示旁白，学生既不知道
+ *          体对角线是什么，也不知道它本来就没开（等于在描述一个没发生的变化）。
+ */
+export function layersPhrase(layers, opts = {}) {
+  const entries = Object.entries(layers || {})
+  const of = (want) => entries.filter(([, v]) => want ? !!v : !v).map(([k]) => layerPhrase(k))
+  const parts = []
+  const on = of(true)
+  if (on.length) parts.push(t('crystal.t.actions.layerOn', { p1: joinList(on) }))
+  if (!opts.onlyOn) {
+    const off = of(false)
+    if (off.length) parts.push(t('crystal.t.actions.layerOff', { p1: joinList(off) }))
+  }
+  // ★ 分句符也要跟语言走：中文「；」夹在英文句子中间会读成"没翻完"。
+  return parts.join(i18n.lang === 'en' ? '; ' : '；')
+}
+
+/**
+ * 动作 → **人话**（面板的动作气泡用）。
+ *
+ * ★★ 2026-12-02（用户："动作气泡也改一下"）：气泡原先直接把参数按 `k=v` 打出来，
+ *   于是界面上出现 `显示/隐藏图层（layers={"atoms":true,...}）` —— 参数名、原始
+ *   JSON、还把**没被改动**的 false 项一并列出来。学生读不懂，也读不出"到底动了什么"。
+ *
+ * 返回 `null` 表示"这个动作没有专门格式化"，由面板回退到它自己的「标签（k=v）」——
+ * 半懂的动作宁可显示原始参数，也不要编一句可能不准的人话（诊断信息失真更糟）。
+ *
+ * @param {string}   name
+ * @param {Object}   params
+ * @param {Object}   [opts]
+ * @param {Function} [opts.crystalName] (id) => 晶体显示名（缺省用 id 本身）
+ * @returns {string|null}
+ */
+export function describeAction(name, params, opts = {}) {
+  const v = VOCAB[name]
+  if (!v) return null
+  const p = params || {}
+  const label = tr(v.label)
+  const nameOf = (id) => {
+    if (!id) return ''
+    try { return (typeof opts.crystalName === 'function' && opts.crystalName(id)) || String(id) } catch (e) { return String(id) }
+  }
+
+  let detail = ''
+  switch (name) {
+    case 'loadCrystal':
+      detail = nameOf(p.crystalId)
+      break
+    case 'setLayer':
+      detail = p.layer ? layersPhrase({ [p.layer]: p.visible !== false }) : ''
+      break
+    case 'setLayers':
+      detail = layersPhrase(p.layers || {})
+      break
+    case 'setView':
+      detail = p.direction ? tr(VIEW_LABELS[p.direction] || p.direction) : ''
+      break
+    case 'setCellDisplayMode':
+      detail = p.mode ? tr(CELL_MODE_LABELS[p.mode] || p.mode) : ''
+      break
+    case 'setAtomVisibility':
+      detail = p.element
+        ? t(p.visible === false ? 'crystal.t.actions.hideElem' : 'crystal.t.actions.showElem', { p1: p.element })
+        : ''
+      break
+    /**
+     * 外观：参数只有三个，但**键名是英文**（atomScale / stickRadius / opacity）。
+     * 演示里"把原子调透明"是很常见的一步，气泡若写 `opacity=0.4`，学生仍然读不懂。
+     */
+    case 'setAppearance': {
+      const NAMES = { atomScale: '原子缩放', stickRadius: '键粗细', opacity: '透明度' }
+      const parts = Object.keys(NAMES)
+        .filter((k) => p[k] != null)
+        .map((k) => t('crystal.t.actions.appearanceItem', { p1: tr(NAMES[k]), p2: String(p[k]) }))
+      if (!parts.length) return null
+      detail = parts.join(i18n.lang === 'en' ? ', ' : '、')
+      break
+    }
+    case 'highlightAtoms': {
+      const els = Array.isArray(p.elements) ? p.elements.filter(Boolean) : []
+      detail = els.length
+        ? t('crystal.t.actions.highlight', { p1: joinList(els) })
+        : t('crystal.t.actions.highlightOff')
+      break
+    }
+    case 'openCompareView': {
+      const a = nameOf(p.a)
+      const b = nameOf(p.b)
+      detail = a && b ? t('crystal.t.actions.comparePair', { p1: a, p2: b }) : (b || a || '')
+      break
+    }
+    // resetLayers / resetView 没有参数，标签本身就说清了
+    case 'resetLayers':
+    case 'resetView':
+      detail = ''
+      break
+    default:
+      return null
+  }
+  return detail ? t('crystal.t.actions.describe', { p1: label, p2: detail }) : label
+}
+
+export default { VOCAB, LAYER_PROPS, LAYER_LABELS, LAYER_NOTES, VIEW_DIRECTIONS, VIEW_LABELS, CELL_MODES, CELL_MODE_LABELS, APPEARANCE_RANGES, validate, listActions, labels, layerPhrase, layersPhrase, describeAction }

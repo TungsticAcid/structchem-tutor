@@ -16,6 +16,19 @@ export const zh = {
   'crystal.t.actions.7': '至少要给一项：{p1}',
   'crystal.t.actions.8': '未知晶体 id：{p1}（id 必须来自检索工具返回的原值，不可编造）',
   'crystal.t.actions.9': '未知动作：{p1}（可用动作见 listSceneActions）',
+  // ---- 动作/图层的「人话」文案（2026-12-02：参数名不再直接给学生看）----
+  // ★ 图层短语带"图层"后缀：只写「原子」时，学生分不清那是画面上的原子还是那个开关。
+  'crystal.t.actions.layerSuffix': '{p1}图层',
+  'crystal.t.actions.layerOn': '打开{p1}',
+  'crystal.t.actions.layerOff': '关闭{p1}',
+  'crystal.t.actions.describe': '{p1}（{p2}）',
+  'crystal.t.actions.showElem': '显示 {p1}',
+  'crystal.t.actions.hideElem': '隐藏 {p1}',
+  'crystal.t.actions.highlight': '高亮 {p1}',
+  'crystal.t.actions.highlightOff': '取消高亮',
+  'crystal.t.actions.comparePair': '{p1} 与 {p2}',
+  // 外观参数：键名（atomScale / stickRadius / opacity）不给人看
+  'crystal.t.actions.appearanceItem': '{p1} {p2}',
   'crystal.t.tools.1': '化学式 {p1} 含元素表中的未知元素：{p2}',
   'crystal.t.tools.2': '化学式 {p1} 解析不出元素',
   'crystal.t.tools.3': '化学式 {p1} 解析不出原子数',
@@ -61,9 +74,12 @@ export const zh = {
   'crystal.t.quiz-preset-view.1': '预置了高亮 {p1}；当前版本用图层与视角近似，highlightAtoms 待 P4',
   // ★ 中文不加空格：{p1} 现在是**中文图层名**（原子/晶胞线框…），"打开 原子"里的
   //   那个空格是英文排版习惯，中文读起来像排版错误。英文那两条自己带空格。
-  'crystal.t.quiz-preset-view.2': '打开{p1}',
-  'crystal.t.quiz-preset-view.3': '关闭{p1}',
-  'crystal.t.quiz-preset-view.4': '把视图调到这道题需要的样子：{p1}。',
+  // ★ .2/.3/.4 已删除：图层的"打开/关闭"措辞统一到 `crystal.t.actions.layerOn/Off`，
+  //   "把视图调到…"那句被 .6/.7 取代（第一步就把晶体与图层一起摆好，见 preset-view.js）。
+  //   .6 用于"先切晶体 + 打开图层"合成的那一步，{p1} 是「打开原子图层、晶胞线框图层」。
+  'crystal.t.quiz-preset-view.6': '先切到这道题对应的晶体，{p1}。',
+  'crystal.t.quiz-preset-view.7': '先切到这道题对应的晶体。',
+  'crystal.t.quiz-preset-view.8': '调到一个能看清这个问题答案的视角。',
   'crystal.t.quiz-preset-view.5': '第 {p1} 步缺旁白（画面会莫名跳一下）',
   'crystal.t.quiz-concept.1': '知识点 {p1} 没有概念题型「{p2}」{p3}',
   'crystal.t.quiz-concept.2': '知识点 {p1} 暂无概念题',
@@ -112,6 +128,17 @@ export const en = {
   'crystal.t.actions.7': 'At least one entry is required: {p1}',
   'crystal.t.actions.8': 'Unknown crystal id: {p1} (the id must be a value returned by a lookup tool; never invent one)',
   'crystal.t.actions.9': 'Unknown action: {p1} (see listSceneActions for the available actions)',
+  // ---- human-readable action/layer wording (2026-12-02: never show parameter ids) ----
+  'crystal.t.actions.layerSuffix': '{p1}',
+  'crystal.t.actions.layerOn': 'switch on {p1}',
+  'crystal.t.actions.layerOff': 'switch off {p1}',
+  'crystal.t.actions.describe': '{p1} ({p2})',
+  'crystal.t.actions.showElem': 'show {p1}',
+  'crystal.t.actions.hideElem': 'hide {p1}',
+  'crystal.t.actions.highlight': 'highlight {p1}',
+  'crystal.t.actions.highlightOff': 'clear highlight',
+  'crystal.t.actions.comparePair': '{p1} vs {p2}',
+  'crystal.t.actions.appearanceItem': '{p1} {p2}',
   'crystal.t.tools.1': 'The formula {p1} contains elements that are not in the element table: {p2}',
   'crystal.t.tools.2': 'No elements could be parsed from the formula {p1}',
   'crystal.t.tools.3': 'No atom count could be parsed from the formula {p1}',
@@ -155,9 +182,11 @@ export const en = {
   'crystal.t.quiz-selfcheck.9': '"interstices around each sphere for {p1}" = {p2},',
   'crystal.t.quiz-selfcheck.10': 'which disagrees with the built-in knowledge table ({p1} gives {p2})',
   'crystal.t.quiz-preset-view.1': 'Highlighting {p1} was preset; the current version approximates it with layers and view, and highlightAtoms is pending P4',
-  'crystal.t.quiz-preset-view.2': 'Switch on {p1}',
-  'crystal.t.quiz-preset-view.3': 'Switch off {p1}',
-  'crystal.t.quiz-preset-view.4': 'Set the view up as this question needs: {p1}.',
+  // .2/.3/.4 removed — layer on/off wording now lives in crystal.t.actions.layerOn/Off;
+  // .6 is the combined "switch crystal + set layers" step, {p1} = "switch on atoms layer, …".
+  'crystal.t.quiz-preset-view.6': 'Switch to the crystal this question is about, and {p1}.',
+  'crystal.t.quiz-preset-view.7': 'Switch to the crystal this question is about.',
+  'crystal.t.quiz-preset-view.8': 'Turn the view so the answer is easy to see.',
   'crystal.t.quiz-preset-view.5': 'Step {p1} has no narration (the picture will jump for no apparent reason)',
   'crystal.t.quiz-concept.1': 'Knowledge point {p1} has no concept question of type "{p2}"{p3}',
   'crystal.t.quiz-concept.2': 'Knowledge point {p1} has no concept questions yet',

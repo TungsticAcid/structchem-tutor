@@ -1699,6 +1699,37 @@ section('panel：界面故障防护（rAF 合帧 / finish 掐帧 / 空正文诊�
     capturedHandlers.onDone({ ok: true, aborted: false, finishReason: 'stop' })
     await p
 
+    // ---- ★ describeAction 允许"部分接管"：返回 null 时必须回退到默认渲染 ----
+    /**
+     * ★★ 2026-12-02（用户："动作气泡也改一下"）：宿主/模块只接管**说得出人话**的动作，
+     *   其余返回 null 让面板按「标签（k=v）」渲染。这条守的是那个回退：
+     *   若面板在拿到 null 后直接返回空串，气泡就只剩一个标签、参数全没了——
+     *   而且**不报错**，看起来只是"描述变短了"。
+     */
+    {
+      const dom2 = mkDom()
+      const panel2 = createPanel({
+        doc: dom2.document,
+        storageKey: 'test.panel.describe',
+        title: 't', greeting: 'g',
+        actionLabels: { setRenderMode: '切换渲染方式', setLayer: '切换图层' },
+        sequenceToolName: 'applySceneActions',
+        getShowReasoning: () => true,
+        storyboard: SB,
+        send: async () => ({ ok: true }),
+        describeAction: (name) => (name === 'setRenderMode' ? '切换渲染方式（表面模式）' : null),
+      })
+      panel2.init()
+      panel2.addActionBubble('setRenderMode', { mode: 'surface' }, { ok: true })
+      panel2.addActionBubble('setLayer', { layer: 'atoms', visible: true }, { ok: true })
+      const bs = collect(panel2.nodes().msgBox, 'details').filter((d) => hasClass(d, 'agent-action'))
+      const s1 = collect(bs[0], 'summary')[0].innerHTML
+      const s2 = collect(bs[1], 'summary')[0].innerHTML
+      check('describeAction 接管的动作用它的文案', /表面模式/.test(s1), s1)
+      check('★ describeAction 返回 null 时回退到「标签（k=v）」', /切换图层/.test(s2) && /layer=/.test(s2), s2)
+      panel2.destroy()
+    }
+
     // ---- destroy 解绑订阅（防反复进出页面时累积）----
     check('destroy 前有订阅', progressHooks.length === 1)
     panel.destroy()

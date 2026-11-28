@@ -321,6 +321,26 @@ section('其余契约方法')
       VIEW_DIRECTIONS.every((d) => !!VIEW_LABELS[d]), VIEW_DIRECTIONS.filter((d) => !VIEW_LABELS[d]).join(','))
     check('图层短标签与教学含义说明分工清楚（短标签更短）',
       Object.keys(LAYER_PROPS).every((k) => LAYER_LABELS[k].length <= 6))
+    /**
+     * ★★ 2026-12-02（用户："统一成「点阵型式」"）：图层标签必须与**界面上那个开关**
+     *   的写法一致，否则学生听到「打开点阵点」却找不到按钮。这几个是用户点名过的。
+     *   ★ 判据取自上游图层面板的文案（crystal-view/components/layer-control.js），
+     *     不是凭印象写的。
+     */
+    const PANEL_WORDING = {
+      latticePoints: '点阵型式',
+      axes: '坐标轴',
+      auxiliaryBody: '体对角线',
+      auxiliaryFace: '面对角线',
+      atoms: '原子',
+      bonds: '化学键',
+      octahedral: '八面体空隙',
+      tetrahedral: '四面体空隙',
+    }
+    const mismatch = Object.entries(PANEL_WORDING).filter(([k, v]) => LAYER_LABELS[k] !== v)
+    check('★ 图层标签与图层面板上的写法一致（学生要能对上按钮）',
+      mismatch.length === 0,
+      mismatch.map(([k, v]) => `${k}: 期望「${v}」实际「${LAYER_LABELS[k]}」`).join('；'))
   }
 
   const st = F.settings
@@ -338,6 +358,82 @@ section('其余契约方法')
   check('crystalIds 列出全部 id', F.crystalIds().length === 2)
   check('门面自带 validate（工具层可复用，不必再实现一份）',
     F.validate('setView', { direction: 'top' }).params.direction === 'top')
+}
+
+// ============================================================================
+section('动作气泡：参数要说人话（不出现图层键名 / 原始 JSON）')
+// ============================================================================
+/**
+ * ★★ 2026-12-02（用户："动作气泡也改一下"）：
+ *   气泡原先把参数按 `k=v` 直接打出来，界面上是
+ *   `批量切换图层（layers={"atoms":true,"bonds":false,…}）`——键名、原始 JSON、
+ *   还把**没被改动**的 false 项一并列出。这里守两件事：
+ *     ① 常见动作必须给出人话（图层名带"图层"、晶体用显示名、视角用中文）；
+ *     ② **任何**动作的返回都不得包含 `=`、`{`、`[` 这些"原始参数"的痕迹——
+ *        将来新增动作若忘了格式化，只要它落回默认渲染就一定要返回 null，
+ *        而不是半格式化（那种最容易被当成"已经改好了"）。
+ */
+{
+  const { describeAction, VOCAB, LAYER_PROPS } = await import('../actions.js')
+  const nameOf = (id) => ({ fcc: 'Cu 型晶体', naCl: 'NaCl(岩盐)型' }[id] || '')
+  const opts = { crystalName: nameOf }
+
+  const layersText = describeAction('setLayers', { layers: { atoms: true, wireframe: true, auxiliaryBody: false } }, opts)
+  check('setLayers → 说清开了哪几层、关了哪几层',
+    /打开原子图层、晶胞线框图层/.test(layersText) && /关闭体对角线图层/.test(layersText),
+    layersText)
+  check('★ setLayers 的文案里没有图层键名',
+    !/\b(atoms|wireframe|auxiliaryBody)\b/.test(layersText), layersText)
+  check('★ setLayers 的文案里没有原始 JSON / 等号',
+    !/[={}[\]]|true|false/.test(layersText), layersText)
+
+  const loadText = describeAction('loadCrystal', { crystalId: 'naCl' }, opts)
+  check('loadCrystal 用晶体显示名（不是 naCl 这种 id）',
+    loadText.includes('NaCl(岩盐)型') && !loadText.includes('naCl'), loadText)
+
+  const viewText = describeAction('setView', { direction: 'iso' }, opts)
+  check('setView 用中文视角名（不是 iso）', /等轴/.test(viewText) && !/\biso\b/.test(viewText), viewText)
+
+  check('highlightAtoms 说"高亮 Na、Cl"',
+    /高亮 Na、Cl/.test(describeAction('highlightAtoms', { elements: ['Na', 'Cl'] }, opts)))
+  check('setAtomVisibility 说"隐藏 Cl"',
+    /隐藏 Cl/.test(describeAction('setAtomVisibility', { element: 'Cl', visible: false }, opts)))
+  check('setCellDisplayMode 用"惯用晶胞/原胞"',
+    /原胞/.test(describeAction('setCellDisplayMode', { mode: 'primitive' }, opts)))
+  check('setAppearance 用"透明度 0.4"（不是 opacity=0.4）',
+    /透明度 0\.4/.test(describeAction('setAppearance', { opacity: 0.4 }, opts))
+    && !/opacity/.test(describeAction('setAppearance', { opacity: 0.4 }, opts)))
+
+  // 完全没格式化的动作必须返回 null：让面板回退到「标签（k=v）」，
+  // 而不是返回半句人话（那会让人以为参数已经被翻译过了）
+  check('setEquivalentOrigin 没有专门文案 → 返回 null（交给面板默认渲染）',
+    describeAction('setEquivalentOrigin', { origin: 'Cl' }, opts) === null)
+
+  // 全动作扫描：返回非空的必须干净；返回 null 的必须真的"没法说人话"
+  const dirty = []
+  const SAMPLE = {
+    loadCrystal: { crystalId: 'fcc' },
+    setLayer: { layer: 'atoms', visible: false },
+    setLayers: { layers: { octahedral: true, interstices: true } },
+    resetLayers: {},
+    setView: { direction: 'front' },
+    resetView: {},
+    setCellDisplayMode: { mode: 'conventional' },
+    setAtomVisibility: { element: 'Na', visible: true },
+    setAppearance: { atomScale: 1.2 },
+    highlightAtoms: { elements: ['Na'] },
+    openCompareView: { a: 'naCl', b: 'fcc' },
+    setEquivalentOrigin: {},
+  }
+  for (const k of Object.keys(VOCAB)) {
+    const out = describeAction(k, SAMPLE[k] || {}, opts)
+    if (out == null) continue
+    if (/[={}[\]]|true|false/.test(out)) dirty.push(k + ' → ' + out)
+    for (const id of Object.keys(LAYER_PROPS)) {
+      if (new RegExp('\\b' + id + '\\b').test(out)) dirty.push(k + ' → ' + out)
+    }
+  }
+  check('★ 所有动作的文案都不含原始参数（键名/JSON/布尔值）', dirty.length === 0, dirty.slice(0, 3).join(' | '))
 }
 
 // ============================================================================

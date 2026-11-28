@@ -205,6 +205,21 @@ export const text = Object.assign({
     'Show two crystals side by side (jumps to the compare view). `a` is optional (defaults to the current crystal); '
     + 'on the library page or the portal, where there is no current crystal, you must pass `a`. Both ids must exist and differ.',
   'string（第一个晶体 id，可省略）': 'string (first crystal id, optional)',
+  // ---- 2026-12-02：图层标签与动作气泡的"人话" ----
+  // ★ 图层标签一律跟随**界面上那个开关**的写法：上游图层面板写「坐标轴 / 体对角线 /
+  //   面对角线 / 点阵型式」，本模块原来写「晶轴 / 辅助体 / 辅助面 / 点阵点」——
+  //   同一件事两个名字，学生听到旁白也找不到按钮。
+  '坐标轴': 'Axes',
+  '坐标轴（a/b/c 方向）': 'Axes (the a/b/c directions)',
+  '体对角线（辅助线：按晶体类型画出的立方体体对角线）':
+    'Body diagonal (an auxiliary line: the cube body diagonal drawn for this structure)',
+  '面对角线（辅助线：面上那条对角线）':
+    'Face diagonal (an auxiliary line: the diagonal across one face)',
+  '点阵型式（打开后隐藏原子、只显示点阵）':
+    'Lattice type (switching it on hides the atoms and shows only the lattice points)',
+  // 这条是 assertPresetInvariants 的诊断文案（测试用），登记进本区以保持覆盖率 100%
+  '旁白里出现了图层参数名：': 'the narration contains a layer parameter id:',
+  '透明度': 'Opacity',
 }, textGen)
 
 registerDict('crystal', { zh, en, text })
