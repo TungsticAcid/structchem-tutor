@@ -38,7 +38,7 @@
 //   而守卫照样绿（它只读字典文件里登记了哪些原文）。
 import '../i18n.js'
 import { t } from '../../i18n/index.js'
-import { buildMessages } from './context-budget.js'
+import { buildMessages, resolveBudget } from './context-budget.js'
 
 /** 默认最大轮数 */
 export const DEFAULT_MAX_ROUNDS = 6
@@ -275,7 +275,9 @@ export function createConversation(opts = {}) {
         system: buildSystem(),
         history: hist,
         snapshotText: takeSnapshot(),
-        maxHistoryTokens: maxHistoryTokens,
+        // ★ 预算可以是**函数**：宿主传 `() => historyBudgetFor(settings.model, …)`，
+        //   于是学生换了模型 / 改了输出上限，下一轮就按新窗口压缩（不必重开会话）。
+        maxHistoryTokens: resolveBudget(maxHistoryTokens, DEFAULT_MAX_HISTORY_TOKENS),
         elidedNote: (n) => t('agent.context.elided', { n }),
       }).messages
 

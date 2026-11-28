@@ -12,7 +12,9 @@
  */
 import {
   estimateTokens, messageTokens, safeCutIndex, buildMessages,
+  resolveBudget, contextWindowFor, historyBudgetFor, DEFAULT_CONTEXT_WINDOW,
 } from '../core/context-budget.js'
+import { createConversation } from '../core/conversation.js'
 
 let ok = 0
 let bad = 0
@@ -135,6 +137,75 @@ for (let i = 1; i <= 12; i++) big.push(...turn(i))
   check('⑧ 切分点只落在 user / 无 tool_calls 的 assistant 上', !!safe,
     m ? `切点是 ${m.role}${m.tool_calls ? '(带 tool_calls)' : ''}` : '越界')
   check('⑧ estimateTokens 单调且对空串为 0', estimateTokens('') === 0 && estimateTokens('abc') > 0)
+}
+
+// ---------------------------------------------------------------------------
+// ⑨ 上下文窗口：API 拿不到，只能按型号表 / 人工覆盖
+// ---------------------------------------------------------------------------
+{
+  check('已知型号：deepseek 系 = 128k',
+    contextWindowFor('SDU-AI/DeepSeek-V4-Flash') === 128000 && contextWindowFor('deepseek-chat') === 128000,
+    contextWindowFor('SDU-AI/DeepSeek-V4-Flash'))
+  check('已知型号：gpt-3.5 只有 16k（表里取保守值）', contextWindowFor('gpt-3.5-turbo') === 16384)
+  check('认不出的型号 → 保守默认 32k', contextWindowFor('some-unknown-model') === DEFAULT_CONTEXT_WINDOW)
+  check('空型号不抛异常', contextWindowFor('') === DEFAULT_CONTEXT_WINDOW && contextWindowFor(null) === DEFAULT_CONTEXT_WINDOW)
+
+  const b128 = historyBudgetFor('deepseek-chat', { maxTokens: 8192 })
+  check('128k 窗口 → 历史预算明显大于旧的写死值 24000', b128 > 24000, String(b128))
+  check('预算不越界（4000 ~ 120000）', b128 >= 4000 && b128 <= 120000, String(b128))
+  check('人工填更小的窗口 → 预算随之变小（下限 4000）',
+    historyBudgetFor('deepseek-chat', { maxTokens: 8192, override: 16000 }) === 4000)
+  check('超大窗口被封顶在 120000', historyBudgetFor('gemini-1.5', { maxTokens: 8192 }) <= 120000)
+  check('override 优先于型号表', historyBudgetFor('gpt-3.5-turbo', { override: 200000 }) > 30000)
+
+  check('resolveBudget：数字原样返回', resolveBudget(1234, 999) === 1234)
+  check('resolveBudget：函数被求值', resolveBudget(() => 4321, 999) === 4321)
+  check('resolveBudget：函数抛错 → 回退', resolveBudget(() => { throw new Error('x') }, 999) === 999)
+  check('resolveBudget：undefined → 回退', resolveBudget(undefined, 999) === 999)
+  check('resolveBudget：函数返回非数字 → 回退', resolveBudget(() => 'abc', 999) === 999)
+}
+
+// ---------------------------------------------------------------------------
+// ⑩ 端到端：会话真的按"函数预算"压缩（不是只有单测函数对）
+// ---------------------------------------------------------------------------
+{
+  const calls = []
+  const big = '这是一段教学说明。'.repeat(30)   // ≈ 270 字符 ≈ 135 token
+  const conv = createConversation({
+    llm: {
+      chat: async (o) => {
+        calls.push(o.messages)
+        return { content: '好的', reasoning: '', toolCalls: [], finishReason: 'stop', usage: {} }
+      },
+    },
+    getSettings: () => ({ apiKey: 'k', model: 'm' }),
+    getTools: () => [],
+    executeTool: async () => ({}),
+    buildSystem: () => 'SYS',
+    getSnapshotText: () => '',
+    // ★ 极小预算：只有"函数预算被真正求值并传进 buildMessages"才会压缩
+    maxHistoryTokens: () => 150,
+    onAbort: () => {},
+  })
+  conv.setHistory([
+    { role: 'user', content: big },
+    { role: 'assistant', content: big },
+    { role: 'user', content: big },
+    { role: 'assistant', content: big },
+    { role: 'user', content: big },
+    { role: 'assistant', content: big },
+  ])
+  let sent = null
+  try { sent = await conv.send('继续', {}) } catch (e) { sent = { error: String(e.message) } }
+  const msgs = calls[0] || []
+  const sys = msgs.filter((m) => m.role === 'system')
+  const hasNote = sys.some((m) => /上下文压缩|Context compressed/.test(String(m.content || '')))
+  check('会话真的请求了模型（否则下面的断言是空跑）', msgs.length > 0, JSON.stringify(sent).slice(0, 100))
+  check('★ 函数预算生效：消息被压缩（少于历史 + 2 条 system）', msgs.length < 6 + 2, `${msgs.length} 条`)
+  check('★ 压缩后带"更早的 N 条已不在上下文"说明', hasNote,
+    JSON.stringify(sys.map((m) => String(m.content).slice(0, 40))))
+  check('被丢弃的条数写进了说明（不是空口压缩）',
+    sys.some((m) => /[1-9]/.test(String(m.content || ''))), JSON.stringify(sys.map((m) => String(m.content).slice(0, 60))))
 }
 
 console.log('\n结果：通过 ' + ok + ' 项，失败 ' + bad + ' 项')

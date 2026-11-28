@@ -33,6 +33,8 @@ import { t, i18n } from '../i18n/index.js'
 import { createPerception } from './core/perception.js'
 import { createStoryboard } from './core/storyboard.js'
 import { createConversation, buildManifestText, composeSystemPrompt } from './core/conversation.js'
+// ★ 2026-11-29：历史预算按"模型窗口"动态算（API 不提供窗口，见该模块头注释）
+import { historyBudgetFor } from './core/context-budget.js'
 import { createToolRegistry } from './core/tool-registry.js'
 import { buildNodePrompt, listNodes, NODES, GRANT_CLASSES } from './nodes/constraints.js'
 // ★ 契约已提升为独立包（packages/module-contract/），此处用固定深度的相对路径引用
@@ -887,6 +889,16 @@ export function createAgentApp(opts = {}) {
     beginToolRound: () => registry.freezeRound(),
     endToolRound: () => registry.endRound(),
     getSnapshotText: () => (activeId ? perception.toCompactText() : ''),
+    /**
+     * ★★ 2026-11-29：历史预算**按模型窗口动态算**（原先写死 24000）。
+     *   API 拿不到窗口（`/v1/models` 只有 id/object/created/owned_by），
+     *   所以走"型号表 + 设置里可覆盖"，见 core/context-budget.js。
+     *   传**函数**而不是数值：学生换了模型/输出上限，下一轮就按新预算压缩。
+     */
+    maxHistoryTokens: () => {
+      const s = settings.get() || {}
+      return historyBudgetFor(s.model, { maxTokens: s.maxTokens, override: s.contextWindow })
+    },
     buildSystem: () => {
       const m = modules.get(activeId)
       const manifest = buildManifestText({ knowledge, skills })

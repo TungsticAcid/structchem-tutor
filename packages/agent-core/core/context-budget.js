@@ -129,4 +129,88 @@ export function buildMessages(o) {
   }
 }
 
-export default { estimateTokens, messageTokens, safeCutIndex, buildMessages }
+// ============================================================================
+// 上下文窗口：从"模型名"推断（API 一般不给）
+// ============================================================================
+/**
+ * ★★ 2026-11-29（用户："是否能通过使用的模型获取该模型的最大上下文信息？"）：
+ *
+ * **不能**。实测（`/v1/models`）：
+ *   · SDU 网关返回的条目只有 `id / object / created / owned_by`；
+ *   · DeepSeek 官方同样不返回 `context_length`。
+ *   OpenAI 兼容协议里 `/models` **没有**"上下文窗口"这个字段（OpenRouter 之类
+ *   是它自己加的扩展，不能指望所有服务都这么干）。真要拿到，只能靠：
+ *     ① 服务商文档里抄一张表（本文件就是那张表的代码化）；
+ *     ② 让学生/老师在设置里自己填（见设置项的 `contextWindow`，0 = 自动）。
+ *
+ * 于是这里的策略是：**按模型名匹配一张保守的表**，匹配不上就用 DEFAULT（32k）。
+ * ★ 表里的数字刻意取**该系列的最小值**：宁可早一点压缩，也不要撞上限报错
+ *   （撞上限的表现是"请求直接失败"，学生看到的是"智能体不回话"）。
+ * ★ 匹配顺序从具体到宽泛；新增型号往上加一行即可，不要动下面的推导公式。
+ */
+export const MODEL_CONTEXT_WINDOWS = [
+  [/deepseek[-_/ ]?(v3|v4|chat|reasoner)|sdu-ai\/deepseek/i, 128000],
+  [/kimi/i, 128000],
+  [/qwen|dashscope/i, 131072],
+  [/gpt-4\.1|gpt-4o|gpt-4-turbo|^o1|^o3/i, 128000],
+  [/gpt-3\.5/i, 16384],
+  [/claude/i, 200000],
+  [/glm|chatglm/i, 128000],
+  [/llama-?3/i, 128000],
+  [/gemini/i, 1000000],
+]
+
+/** 认不出型号时的保守默认（32k）——多数 2024 年后的服务都给得起 */
+export const DEFAULT_CONTEXT_WINDOW = 32000
+
+/** 模型名 → 上下文窗口（tokens）。认不出时返回默认值，**不抛异常** */
+export function contextWindowFor(model) {
+  const s = String(model || '').trim()
+  if (!s) return DEFAULT_CONTEXT_WINDOW
+  for (const [re, win] of MODEL_CONTEXT_WINDOWS) if (re.test(s)) return win
+  return DEFAULT_CONTEXT_WINDOW
+}
+
+/**
+ * 历史部分该给多少 token。
+ *
+ * 推导：窗口 − 输出上限（max_tokens）− 系统提示/快照预留 ≈ 可用空间；
+ * 再只拿其中 **80%** 给历史（留 20% 余量给工具回执、快照增长与估算误差）。
+ * 下限 4000：再小就只剩一两轮，教学连续性断掉；上限 120000：再大已没有意义。
+ *
+ * @param {string} model
+ * @param {Object} [o]
+ * @param {number} [o.maxTokens] 单次输出上限（settings.maxTokens）
+ * @param {number} [o.override]  人工填的窗口（>0 时优先于型号表）
+ * @param {number} [o.reserve]   系统提示+快照的预留（缺省 6000）
+ * @returns {number} 历史 token 预算
+ */
+export function historyBudgetFor(model, o = {}) {
+  const win = Number(o.override) > 0 ? Number(o.override) : contextWindowFor(model)
+  const out = Number(o.maxTokens) > 0 ? Number(o.maxTokens) : 8192
+  const reserve = Number(o.reserve) > 0 ? Number(o.reserve) : 6000
+  const usable = win - out - reserve
+  if (!(usable > 0)) return 4000
+  return Math.max(4000, Math.min(120000, Math.floor(usable * 0.8)))
+}
+
+/**
+ * 预算是"数"还是"取数的函数"。conversation 在**每次组装 messages 时**调用它，
+ * 这样学生在设置里换了模型/输出上限，下一轮就按新窗口压缩，不必重开会话。
+ */
+export function resolveBudget(v, fallback) {
+  if (typeof v === 'function') {
+    try {
+      const n = Number(v())
+      if (Number.isFinite(n)) return n
+    } catch (e) { /* 落到下面的兜底 */ }
+  }
+  if (v == null) return fallback
+  const n = Number(v)
+  return Number.isFinite(n) ? n : fallback
+}
+
+export default {
+  estimateTokens, messageTokens, safeCutIndex, buildMessages,
+  resolveBudget, contextWindowFor, historyBudgetFor, MODEL_CONTEXT_WINDOWS, DEFAULT_CONTEXT_WINDOW,
+}

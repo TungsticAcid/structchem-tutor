@@ -43,6 +43,15 @@ export const DEFAULT_SETTINGS = {
   // 单次回复的输出上限（思考 + 正文共用）。推理模型在写正文前会先花掉一大段思考，
   // 给太小会导致"正文一个字没写就截断"，界面上表现为空白回复。
   maxTokens: 8192,
+  /**
+   * 上下文窗口（tokens）。**0 = 自动**：按模型名查一张保守的表
+   * （`core/context-budget.js` 的 MODEL_CONTEXT_WINDOWS；认不出按 32k）。
+   *
+   * ★★ 2026-11-29：服务商的 `/v1/models` **不返回**上下文窗口
+   *   （实测 SDU 网关只有 id/object/created/owned_by），所以只能"查表 + 允许手填"。
+   *   填了就以它为准（例如自建服务给了 8k 窗口，而型号名认不出来）。
+   */
+  contextWindow: 0,
 }
 
 /**

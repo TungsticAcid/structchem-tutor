@@ -92,6 +92,14 @@ export const DEFAULT_SCHEMA = [
     key: 'maxTokens', label: '输出上限 max_tokens', type: 'number', min: 1024, max: 65536, step: 1024,
     hint: '思考 + 正文共用。推理模型提问较长时若出现「没有正文」，把它调大',
   },
+  /**
+   * ★★ 2026-11-29：上下文窗口只能"查表 + 手填"——服务商的 /v1/models 不返回它
+   *   （实测只有 id/object/created/owned_by）。0 = 按模型名自动。
+   */
+  {
+    key: 'contextWindow', label: '上下文窗口（tokens，0 = 自动）', type: 'number', min: 0, max: 1000000, step: 1000,
+    hint: '服务商不返回这个数字，只能按型号估（未知型号按 32k）。填了以它为准，用于决定多长的历史会被压缩',
+  },
   { key: 'showReasoning', label: '显示「思考中」过程', type: 'checkbox' },
   { key: 'proactive', label: '启用主动服务（在检测到困惑时主动介入）', type: 'checkbox' },
   { key: 'animSpeed', label: '动画速度', type: 'range', min: 0.5, max: 2, step: 0.25, unit: '×' },

@@ -69,6 +69,11 @@ export const text = {
   '思考 + 正文共用。推理模型提问较长时若出现「没有正文」，把它调大':
     'Shared by reasoning and answer text. If a reasoning model shows "no answer text" on longer prompts, raise it.',
   '显示「思考中」过程': 'Show the "thinking" process',
+  // 上下文窗口（服务商不返回，只能查表 + 手填；见 agent-core/core/context-budget.js）
+  '上下文窗口（tokens，0 = 自动）': 'Context window (tokens; 0 = automatic)',
+  '服务商不返回这个数字，只能按型号估（未知型号按 32k）。填了以它为准，用于决定多长的历史会被压缩':
+    'Providers do not report this number, so it is estimated from the model name (32k when unknown). '
+    + 'If set, it wins and decides how much history is kept before compression.',
   '启用主动服务（在检测到困惑时主动介入）': 'Enable proactive help (step in when confusion is detected)',
   '动画速度': 'Animation speed',
   '演示播放方式': 'Demonstration playback',
