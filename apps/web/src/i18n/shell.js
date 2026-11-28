@@ -243,9 +243,11 @@ export const zh = {
    *   判分仍走本地（不经模型），这条只是让下一轮讲解接得上——否则模型只会反问
    *   "你先说说你是怎么选的"（真机就是这么回的）。
    */
-  'shell.practice.noteRight': '（学生刚在题目卡上作答：知识点 {kp}，选了「{chosen}」，**答对了**。'
+  'shell.practice.noteRight': '（学生刚在题目卡上作答——题目：「{stem}」，选项：{options}；'
+    + '学生选「{chosen}」，**答对了**。'
     + '接下来讲解请在此基础上继续，不要重复出同一道题。）',
-  'shell.practice.noteWrong': '（学生刚在题目卡上作答：知识点 {kp}，选了「{chosen}」，**答错了**，正确答案是「{answer}」{cause}。'
+  'shell.practice.noteWrong': '（学生刚在题目卡上作答——题目：「{stem}」，选项：{options}；'
+    + '学生选「{chosen}」，**答错了**，正确答案是「{answer}」{cause}。'
     + '接下来的讲解请针对这个错误引导，**不要直接把答案再念一遍**；'
     + '要归因就调 diagnoseError，要检验是否真懂了就调 generateVariant。）',
   // 错因编号：diagnoseError({causeId}) 的唯一入口参数（判定是本地做的，见 noteWrong 的说明）
@@ -484,9 +486,11 @@ export const en = {
     + 'and do not compute the answer) — the question card appears automatically; '
     + 'just say in one sentence what this question tests.',
   'shell.practice.toolFallback': 'The model did not call the quiz tool this turn, so generateQuiz was called directly',
-  'shell.practice.noteRight': '(The student just answered on the question card: knowledge point {kp}, chose “{chosen}” — '
+  'shell.practice.noteRight': '(The student just answered on the question card — question: “{stem}”, options: {options}; '
+    + 'they chose “{chosen}” and it is **correct**. '
     + '**correct**. Build on this when explaining; do not re-issue the same question.)',
-  'shell.practice.noteWrong': '(The student just answered on the question card: knowledge point {kp}, chose “{chosen}” — '
+  'shell.practice.noteWrong': '(The student just answered on the question card — question: “{stem}”, options: {options}; '
+    + 'they chose “{chosen}” and it is **wrong**; the correct answer is “{answer}”{cause}. '
     + '**wrong**; the correct answer is “{answer}”{cause}. Address this misconception in your explanation; do not simply repeat '
     + 'the answer; call diagnoseError to name the misconception, and generateVariant to check that it is really fixed.)',
   'shell.practice.causeHint': ' (cause id {causeId}; pass it to diagnoseError as-is)',

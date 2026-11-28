@@ -1449,7 +1449,14 @@ export function createStoryboard(opts = {}) {
    *     反而是干扰（且与新演示的画面冲突）。
    */
   function beginTurn() {
-    if (queue.length || playing || curDemoId) stop('newTurn')
+    /**
+     * ★ 只在**真有东西要收**时调 stop()：`curDemoId` 只是个"记录还开着"的标记，
+     *   它常常指向上一条**已经播完**的演示。若仅因为它就 stop()，每一轮都会多出一条
+     *   「已停止（本次循环剩余动作已丢弃）」的提示条 —— 学生什么都没做，却总被告知
+     *   "已停止"（实测：连问四句话，四轮都冒这条）。
+     */
+    if (queue.length || playing) stop('newTurn')
+    curDemoId = null
   }
 
   return {

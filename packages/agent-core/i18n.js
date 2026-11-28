@@ -294,7 +294,13 @@ export const zh = {
     + '· 要检验是否真懂 → 调 **generateVariant({questionId})** 出一道变式；'
     + '· 学生愿意复述 → **startFeynmanCheck({kp})** 发起、**evaluateFeynman({kp, transcript})** 评估；'
     + '· 收尾 → **recordLearningEvent({kp, correct})** 记学情、**recommendNext()** 给下一步建议。'
-    + '★ 答错时不要直接给出答案：你的任务不是替他重算一遍，而是把画面切到能让他自己看出矛盾的状态。',
+    + '★ 答错时不要直接给出答案：你的任务不是替他重算一遍，而是把画面切到能让他自己看出矛盾的状态。'
+    + '★ 对学生说话时**不要提节点名、工具名或参数名**：说「我把结构调出来给你看」，'
+    + '不要说「我在 grade 节点调 loadCrystal」——那是给开发者看的话。'
+    + '★ 题目就在上面那条「学生刚作答」的内部消息里（题干 + 选项都在），**不要再反问学生题目是什么**。'
+    + '★ **判分节点不能动画面**（applySceneActions 被禁）。要在画面上演示诊断，先调 '
+    + 'declareIntent({intent:"explain"}) 切到讲解节点，下一轮再下发动作；'
+    + '不要对学生说"我调不出画面"，也不要假装已经调了。',
   'agent.node.grade.input0': '题目',
   'agent.node.grade.input1': '学生答案',
   'agent.node.grade.output': '正误 + 错因类型 + 诊断动作序列 + 引导话术（不得含答案明文）',

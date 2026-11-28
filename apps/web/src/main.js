@@ -1443,11 +1443,15 @@ quizUI = createQuizUI({
       if (!conv || typeof conv.getHistory !== 'function' || typeof conv.setHistory !== 'function') return
       if (typeof conv.isRunning === 'function' && conv.isRunning()) return
       const kp = String(info.kp || '').replace(/^crystal:/, '')
-      // ★ 2026-12-02：答错时把错因编号一并交给模型 —— 它是 diagnoseError 的唯一入参
+      // ★ 2026-12-02：题干与选项一并交给模型 —— 题目卡只在 DOM 里，不告诉它就"不知道问的是什么"
+      const stem = String(info.stem || '').slice(0, 200)
+      const options = (Array.isArray(info.options) ? info.options : [])
+        .map((o, i) => 'ABCD'[i] + '. ' + String(o).slice(0, 40)).join('　')
+      // ★ 答错时把错因编号一并交给模型 —— 它是 diagnoseError 的唯一入参
       const cause = info.causeId ? t('shell.practice.causeHint', { causeId: info.causeId }) : ''
       const note = info.correct
-        ? t('shell.practice.noteRight', { kp, chosen: info.chosenText || '' })
-        : t('shell.practice.noteWrong', { kp, chosen: info.chosenText || '', answer: info.answerText || '', cause })
+        ? t('shell.practice.noteRight', { kp, chosen: info.chosenText || '', stem, options })
+        : t('shell.practice.noteWrong', { kp, chosen: info.chosenText || '', answer: info.answerText || '', cause, stem, options })
       const hist = conv.getHistory()
       hist.push({ role: 'user', origin: 'internal', content: note })
       conv.setHistory(hist)
