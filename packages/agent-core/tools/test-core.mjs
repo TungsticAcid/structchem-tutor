@@ -1784,6 +1784,38 @@ section('panel：界面故障防护（rAF 合帧 / finish 掐帧 / 空正文诊�
       await p3
     }
 
+    // ---- ★ 被拒绝的动作：行上只说「未执行」，参数名进 title（学生看不到） ----
+    /**
+     * ★★ 2026-12-02（实测扫出来的唯一一类"文本混参数"）：校验器的原始报错
+     *   （`需要 crystalId（字符串）`）原先直接印在行尾给学生看。校验器是给模型自我
+     *   纠正用的，不能改；改的是展示——行上只说「未执行」，原因进 `title`。
+     */
+    {
+      panel.setInput('再试一次')
+      const p4 = panel.send()
+      capturedHandlers.onToolCall({
+        name: 'applySceneActions',
+        args: { actions: [{ action: 'loadCrystal', params: {} }] },
+        round: 1,
+      })
+      capturedHandlers.onToolResult({
+        name: 'applySceneActions',
+        result: {
+          demoId: '', totalSteps: 0,
+          perAction: [{ ok: false, stepIndex: 0, error: '组合步骤里的第 1 个动作无效：需要 crystalId（字符串）' }],
+        },
+        round: 1,
+      })
+      const badRow = collect(msgs, 'div').filter((x) => hasClass(x, 'agent-act-row')).pop()
+      const skip = collect(badRow, 'span').find((x) => hasClass(x, 'agent-act-skip'))
+      check('★ 未执行的行上只写「未执行」', !!skip && String(skip.textContent).trim() === '未执行', String(skip && skip.textContent))
+      check('★ 参数名挪进 title（学生看不见，悬停/读屏才拿到详细原因）',
+        /crystalId/.test(String((skip && skip.attrs && skip.attrs.title) || '')),
+        String((skip && skip.attrs && skip.attrs.title) || '').slice(0, 60))
+      capturedHandlers.onDone({ ok: true, aborted: false, finishReason: 'stop' })
+      await p4
+    }
+
     // ---- destroy 解绑订阅（防反复进出页面时累积）----
     check('destroy 前有订阅', progressHooks.length === 1)
     panel.destroy()

@@ -949,9 +949,21 @@ let lastDemoId = null
       const pa = Array.isArray(perAction) ? perAction[i] : null
       if (pa && pa.ok === false) {
         rows[i].classList.add('skipped')
+        /**
+         * ★★ 2026-12-02（实测：10 个问答 + 5 个演示里扫出来的**唯一**一类"文本混参数"）：
+         *
+         *   被拒绝的那一步会把**校验器的原始报错**直接印在行的末尾，实测学生看到的是
+         *   「未执行：组合步骤里的第 1 个动作无效：需要 crystalId（字符串）」——
+         *   那是**写给模型看的**参数名（crystalId），对读屏前的学生毫无意义。
+         *
+         *   这些错误串**必须保持精确**（模型靠它自我纠正），所以不能改校验器；
+         *   改的是**展示**：行上只说「未执行」，技术原因挪进 `title`（鼠标悬停可见，
+         *   老师排查时仍拿得到）。这样"学生看到的话"与"给模型的诊断"各归各位。
+         */
         rows[i].appendChild(E('span', {
           class: 'agent-act-skip',
-          text: T('未执行：{reason}', { reason: pa.error || T('参数不合法') }),
+          text: T('未执行'),
+          title: T('未执行：{reason}', { reason: pa.error || T('参数不合法') }),
         }))
         continue
       }

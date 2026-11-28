@@ -111,6 +111,8 @@ export const zh = {
   '（题目已生成，答案已冻结——在下面的题目卡里作答即可，这里不显示答案）':
     '（题目已生成，答案已冻结——在下面的题目卡里作答即可，这里不显示答案）',
   '未执行：{reason}': '未执行：{reason}',
+  // ★ 行上**只说这句**：详细原因（可能含 crystalId 这类参数名）放 title，悬停才出现
+  '未执行': '未执行',
   '参数不合法': '参数不合法',
   '{n} 个动作未执行': '{n} 个动作未执行',
 
@@ -218,6 +220,7 @@ export const en = {
   '（题目已生成，答案已冻结——在下面的题目卡里作答即可，这里不显示答案）':
     '(the question is generated and the answer is frozen — answer on the question card below; it is not shown here)',
   '未执行：{reason}': 'Not executed: {reason}',
+  '未执行': 'Not run',
   '参数不合法': 'invalid parameters',
   '{n} 个动作未执行': '{n} actions were not executed',
 
