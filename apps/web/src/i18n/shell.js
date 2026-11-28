@@ -245,8 +245,11 @@ export const zh = {
    */
   'shell.practice.noteRight': '（学生刚在题目卡上作答：知识点 {kp}，选了「{chosen}」，**答对了**。'
     + '接下来讲解请在此基础上继续，不要重复出同一道题。）',
-  'shell.practice.noteWrong': '（学生刚在题目卡上作答：知识点 {kp}，选了「{chosen}」，**答错了**，正确答案是「{answer}」。'
-    + '接下来的讲解请针对这个错误引导，**不要直接把答案再念一遍**，可以用高亮或对比帮他看出矛盾。）',
+  'shell.practice.noteWrong': '（学生刚在题目卡上作答：知识点 {kp}，选了「{chosen}」，**答错了**，正确答案是「{answer}」{cause}。'
+    + '接下来的讲解请针对这个错误引导，**不要直接把答案再念一遍**；'
+    + '要归因就调 diagnoseError，要检验是否真懂了就调 generateVariant。）',
+  // 错因编号：diagnoseError({causeId}) 的唯一入口参数（判定是本地做的，见 noteWrong 的说明）
+  'shell.practice.causeHint': '，错因编号 {causeId}（调 diagnoseError 时原样传它）',
   /**
    * ★★ 2026-10-12：练习入口按板块分流（用户截图：在点群观鉴里点练习，列的是晶体知识点）。
    *   三个板块的练习能力本来不同 ⇒ 分开说，不假装每个板块都有题库。
@@ -484,8 +487,9 @@ export const en = {
   'shell.practice.noteRight': '(The student just answered on the question card: knowledge point {kp}, chose “{chosen}” — '
     + '**correct**. Build on this when explaining; do not re-issue the same question.)',
   'shell.practice.noteWrong': '(The student just answered on the question card: knowledge point {kp}, chose “{chosen}” — '
-    + '**wrong**; the correct answer is “{answer}”. Address this misconception in your explanation; do not simply repeat '
-    + 'the answer — use highlighting or a comparison to help them see the contradiction.)',
+    + '**wrong**; the correct answer is “{answer}”{cause}. Address this misconception in your explanation; do not simply repeat '
+    + 'the answer; call diagnoseError to name the misconception, and generateVariant to check that it is really fixed.)',
+  'shell.practice.causeHint': ' (cause id {causeId}; pass it to diagnoseError as-is)',
   'shell.practice.chooseBoard': 'Choose a module to practise:',
   'shell.practice.board.crystal': 'Crystal Online · crystal structures',
   'shell.practice.board.orbit': 'Orbital Horizon · atomic orbitals',

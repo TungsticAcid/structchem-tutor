@@ -184,6 +184,14 @@ export function createQuizUI(deps = {}) {
           answerText: r.answerText || '',
           kp: q && q.kp ? q.kp : '',
           crystalId: q && q.crystalId ? q.crystalId : '',
+          /**
+           * ★★ 2026-12-02（模拟用户对话实测）：`causeId` 必须一起交出去。
+           *   判分是本地做的，而"答完之后的诊断"是模型的任务 —— 它要调
+           *   `diagnoseError({causeId})`，而 causeId 只有**判定结果**里才有。
+           *   不传的话模型只能猜，实测它会干脆不调工具、直接凭理解讲一段
+           *   （grade 节点的 7 个工具于是整场对话一次都没被调用）。
+           */
+          causeId: r.causeId || null,
         })
       } catch (e) { /* 上报失败不影响判分与反馈卡 */ }
     }

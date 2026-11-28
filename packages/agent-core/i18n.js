@@ -287,8 +287,14 @@ export const zh = {
   // ---- grade（判卷与错因诊断） ----
   'agent.node.grade.title': '判卷与错因诊断',
   'agent.node.grade.role':
-    '你负责判定答案并归因错因。答错时你的任务不是给答案，'
-    + '而是把画面切到能让学生自己看出矛盾的状态。',
+    '学生已经在题目卡上作答，正误由程序判过（对话里那条「学生刚作答」的内部消息就是判定结果）。'
+    + '你的任务是把这次作答讲透：'
+    + '· 要归因 → 调 **diagnoseError({causeId})**（错因编号就在那条消息里），'
+    + '按它给的诊断动作把画面调到位，再引导学生自己看出矛盾；'
+    + '· 要检验是否真懂 → 调 **generateVariant({questionId})** 出一道变式；'
+    + '· 学生愿意复述 → **startFeynmanCheck({kp})** 发起、**evaluateFeynman({kp, transcript})** 评估；'
+    + '· 收尾 → **recordLearningEvent({kp, correct})** 记学情、**recommendNext()** 给下一步建议。'
+    + '★ 答错时不要直接给出答案：你的任务不是替他重算一遍，而是把画面切到能让他自己看出矛盾的状态。',
   'agent.node.grade.input0': '题目',
   'agent.node.grade.input1': '学生答案',
   'agent.node.grade.output': '正误 + 错因类型 + 诊断动作序列 + 引导话术（不得含答案明文）',
@@ -444,7 +450,11 @@ export const zh = {
   'agent.tool.reviseDemo.demoId': '要改的演示号（如 d2）；省略则改当前这条',
   'agent.tool.reviseDemo.index': '步号，从 0 起（见 getSnapshot 的 steps[].i）'
     + '——与界面上显示的「第 N 步」**相差 1**（界面是给人看的，从 1 数）',
-  'agent.tool.reviseDemo.step': 'op 为 replace / insert 时必填：新的那一步',
+  'agent.tool.reviseDemo.step':
+    'op 为 replace / insert 时**必填**：新的那一步，形状与 applySceneActions 的一步相同，'
+    + '例如 {action:"setView", params:{direction:"front"}, speech:"换成正视再看一次"}。'
+    + '★ 只写"换个视角"这种意图不够 —— 必须给出 action 与 params（实测：模型只给了 op 与 index，'
+    + '被校验拒掉，学生的整改请求白说）。',
   'agent.tool.noModule': '当前没有激活任何模块（请先让用户选定要讲解的对象）',
   'agent.tool.loadKnowledge.notFound': '未找到知识条目：{id}（可用条目见系统提示中的清单）',
   'agent.tool.loadSkill.notFound': '未找到技能：{name}（可用技能见系统提示中的清单）',
@@ -718,9 +728,17 @@ export const en = {
 
   'agent.node.grade.title': 'answer checking and misconception diagnosis',
   'agent.node.grade.role':
-    'You judge the answer and attribute the misconception. When the answer is wrong, your job '
-    + 'is not to give the answer but to bring the view to a state in which the student can see '
-    + 'the contradiction themselves.',
+    'The student has already answered on the question card and the program has judged it '
+    + '(the internal “student just answered” message in the conversation is that verdict). '
+    + 'Your job is to make sense of this answer: '
+    + '· to attribute the mistake → call **diagnoseError({causeId})** (the cause id is in that message), '
+    + 'apply the diagnostic actions it returns, then let the student see the contradiction themselves; '
+    + '· to check that it is really fixed → call **generateVariant({questionId})** for a variant question; '
+    + '· if the student wants to explain it back → **startFeynmanCheck({kp})**, then '
+    + '**evaluateFeynman({kp, transcript})**; '
+    + '· to wrap up → **recordLearningEvent({kp, correct})** and **recommendNext()**. '
+    + '★ Never give the answer away when the answer was wrong: your job is not to recompute it for them '
+    + 'but to bring the view to a state in which they can see the contradiction themselves.',
   'agent.node.grade.input0': 'the question',
   'agent.node.grade.input1': 'the answer given by the student',
   'agent.node.grade.output': 'right or wrong + misconception type + diagnostic action sequence + guiding wording (must not contain the answer itself)',
@@ -875,7 +893,11 @@ export const en = {
   'agent.tool.reviseDemo.demoId': 'demonstration id to revise (such as d2); omit to revise the current one',
   'agent.tool.reviseDemo.index': 'step number, starting at 0 (see steps[].i in getSnapshot)'
     + ' — that is **1 less** than the "step N" shown in the UI (the UI counts from 1 for humans)',
-  'agent.tool.reviseDemo.step': 'required when op is replace / insert: the new step',
+  'agent.tool.reviseDemo.step':
+    'required when op is replace / insert: the new step, shaped like one step of '
+    + 'applySceneActions, e.g. {action:"setView", params:{direction:"front"}, speech:"look at it face on"}. '
+    + '★ "change the angle" is not enough — give the action and params (measured: the model passed only '
+    + 'op and index, the validator rejected it, and the student\'s revision request was lost).',
   'agent.tool.noModule': 'No module is active (first let the user choose what to talk about)',
   'agent.tool.loadKnowledge.notFound': 'Knowledge entry not found: {id} (see the index in the system prompt for available entries)',
   'agent.tool.loadSkill.notFound': 'Skill not found: {name} (see the index in the system prompt for available skills)',

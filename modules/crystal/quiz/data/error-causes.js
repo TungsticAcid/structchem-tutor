@@ -301,6 +301,34 @@ export const ERROR_CAUSES = [
     avoid: '不要说「那是范德华力所以不算」，要先让他看出距离差异',
     followUp: '哪个距离更短？',
   },
+  /**
+   * ★★ 2026-12-02（模拟用户对话实测）：**没有登记错因的错项**要有兜底。
+   *
+   *   实测：学生点了一个"邻近整数"干扰项，`checkAnswer` 的 `causeId` 为空
+   *   （模板没给那个干扰项挂错因），于是模型只能**编一个** `E-UNC` 传给
+   *   `diagnoseError`，工具回「未找到错因 E-UNC」，诊断链在那里断掉 ——
+   *   而 grade 节点的 fallback 明明写着"错因无法归类 → 走通用诊断"。
+   *
+   *   ⇒ 把这条通用诊断**落成数据**：`checkAnswer` 在错项没有错因时返回
+   *     `causeId:'E-UNC'`，于是 `diagnoseError('E-UNC')` 一定能取到一组通用动作。
+   *   ★ 它不属于任何知识点（`kps: []`）：按知识点筛错因时不会混进正常题库。
+   */
+  {
+    id: 'E-UNC',
+    type: 'E-A',
+    kps: [],
+    label: '未归类的错解（按通用诊断处理）',
+    wrongBelief: '这道题的错项没有登记具体错因——说明错误不在"典型误区"里，需要回到结构本身重看一遍',
+    distractor: null,
+    oneLine: '这个选项不对。先把画面调回"能看清这一步"的状态，再一步步重数/重看，比猜更可靠。',
+    diagnosticActions: [
+      { action: 'resetLayers', params: {}, speech: '先把图层恢复干净：只留原子与晶胞线框。' },
+      { action: 'setView', params: { direction: 'iso' }, speech: '回到等轴视角，先看清整个晶胞。' },
+      { action: 'setLayers', params: { layers: { atoms: true, wireframe: true, atomLabels: true } }, speech: '打开原子标签，逐个位置对着数一遍。' },
+    ],
+    avoid: '不要说「这题很简单」或直接给答案；要让学生自己重数一遍',
+    followUp: '你刚才是怎么数的？从哪一个位置开始？',
+  },
 ]
 
 // ============================================================================

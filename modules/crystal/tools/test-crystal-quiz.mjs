@@ -349,6 +349,28 @@ console.log('【④ 纯邻近值题型的干扰项】—— 不允许存在固�
 }
 
 // ---------------------------------------------------------------------------
+// ⑤ grade 链路的兜底：错项没登记错因 → causeId 必须是 E-UNC（否则模型只能编）
+// ---------------------------------------------------------------------------
+{
+  const quiz = freshEngine()
+  let hit = null
+  for (let i = 0; i < 40 && !hit; i++) {
+    const r = quiz.generate({ kp: 'crystal:C2', topic: 'atomsInCell' })
+    if (!r || r.error) continue
+    const full = quiz.peek(r.id)
+    const wrong = (full.answerIndex + 1) % 4
+    const res = quiz.check({ questionId: r.id, chosenIndex: wrong, by: 'student' })
+    if (res && res.causeId === 'E-UNC') hit = { res, quiz }
+  }
+  ok(!!hit, '★ 错项没有登记错因时，check 要给 causeId=E-UNC（否则模型只能自己编一个 id）')
+  if (hit) {
+    const d = hit.quiz.diagnose('E-UNC')
+    ok(d && Array.isArray(d.actions) && d.actions.length > 0,
+      '★ diagnoseError(E-UNC) 能取到通用诊断动作', d && d.error)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // ⑤ teach 工具：**每一个**都带有效参数真调一次（不许崩、不许返回 error）
 // ---------------------------------------------------------------------------
 /**

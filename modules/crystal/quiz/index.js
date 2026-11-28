@@ -39,9 +39,21 @@ import { buildPresetView, buildQuestionView } from './preset-view.js'
 
 /** 把 'C5' / 'crystal:C5' 统一为 'crystal:C5' */
 function normalizeKp(kp) {
-  const s = String(kp || '').trim()
+  let s = String(kp || '').trim()
   if (!s) return ''
-  return s.includes(':') ? s : `crystal:${s}`
+  if (!s.includes(':')) return `crystal:${s}`
+  /**
+   * ★★ 2026-12-02（模拟用户对话实测）：模型把**知识条目 id** 当成了知识点 id ——
+   *   `loadKnowledge('crystal:C2-2')` 拿到的条目 id 形如 `crystal:C2-2`，它随后
+   *   直接调 `generateQuiz({kp:'crystal:C2-2'})`，引擎按知识点找不到模板，回
+   *   「知识点 crystal:C2-2 暂无概念题」，出题直接失败（学生看到的是没题卡）。
+   *
+   *   条目 id = 知识点 id + `-序号`，这条约定是**本仓库自己定的**，顺手把后缀剥掉
+   *   比要求模型"别搞混"可靠得多（提示词劝不住的东西，就该由程序兜）。
+   *   只剥"末尾 -数字"，`crystal:C1` 这类原值不受影响。
+   */
+  s = s.replace(/^(crystal:[A-Za-z]+\d*)-\d+$/, '$1')
+  return s
 }
 
 /** 一次生成最多尝试几个（晶体 × 模板）组合 */
@@ -312,10 +324,17 @@ export function createQuizEngine(deps = {}) {
     }
 
     if (!correct) {
-      // 错因来自干扰项自带的标签；没有标签时退回"通用诊断"
-      const causeId = chosen.errorCause
-      const cause = causeId ? causeById(causeId) : null
-      out.causeId = causeId || null
+      /**
+       * 错因来自干扰项自带的标签；没有标签时退回**通用诊断** `E-UNC`。
+       *
+       * ★★ 2026-12-02（模拟用户对话实测）：原先这里 `causeId` 会是 null，
+       *   于是模型拿到"学生答错了、没有错因编号"，只能自己编一个 id 传给
+       *   `diagnoseError`（实测编了 E-UNC，工具回"未找到错因"），诊断链当场断掉。
+       *   现在 `E-UNC` 是错因库里的一条真数据（见 error-causes.js），一定查得到。
+       */
+      const causeId = chosen.errorCause || 'E-UNC'
+      const cause = causeById(causeId) || null
+      out.causeId = cause ? cause.id : null
       out.causeLabel = cause ? cause.label : '（未归类的错误）'
       out.causeType = cause ? cause.type : null
       out.diagnosticActions = cause ? cause.diagnosticActions : genericDiagnosis(q)

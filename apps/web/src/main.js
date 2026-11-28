@@ -1422,14 +1422,32 @@ quizUI = createQuizUI({
    *     · 但下一次提问时它在历史里，模型据此接着讲
    */
   onAnswered(info) {
+    /**
+     * ★★ 2026-12-02（模拟用户对话实测：把 23 个晶体工具逐个"用嘴"触发）：
+     *
+     *   判分节点（grade）里的那 9 个工具 —— checkAnswer / diagnoseError / generateVariant /
+     *   startFeynmanCheck / evaluateFeynman / recommendNext / recordLearningEvent ——
+     *   **整个对话里一次都调不到**。原因不是工具坏了，而是**没人把节点切到 grade**：
+     *   出题走 quiz 节点、讲解走 explain 节点，学生答完题节点还停在 quiz，
+     *   模型连 `checkAnswer` 都被拒（"工具 checkAnswer 在当前决策节点不可用（节点：quiz）"）。
+     *   于是"答错之后诊断、出变式、做复述、记学情"这一整条教学闭环在真实运行中是死代码。
+     *
+     *   ⇒ 学生一作答（点选项，判定是**本地**做的），就把下一轮的决策节点切到 grade：
+     *     模型于是看得到诊断/变式/复述/学情工具，接得上"那他为什么错"这一步。
+     *   ★ 切**下一轮**才生效（节点在每轮开始时装系统提示），正是我们要的时机。
+     *   ★ 学生换话题时模型可自己 declareIntent 切回 explain（grade 节点里带这个工具）。
+     */
+    try { app.setNode('grade') } catch (e) { /* 切不过去就按原节点走 */ }
     try {
       const conv = app && app.conversation
       if (!conv || typeof conv.getHistory !== 'function' || typeof conv.setHistory !== 'function') return
       if (typeof conv.isRunning === 'function' && conv.isRunning()) return
       const kp = String(info.kp || '').replace(/^crystal:/, '')
+      // ★ 2026-12-02：答错时把错因编号一并交给模型 —— 它是 diagnoseError 的唯一入参
+      const cause = info.causeId ? t('shell.practice.causeHint', { causeId: info.causeId }) : ''
       const note = info.correct
         ? t('shell.practice.noteRight', { kp, chosen: info.chosenText || '' })
-        : t('shell.practice.noteWrong', { kp, chosen: info.chosenText || '', answer: info.answerText || '' })
+        : t('shell.practice.noteWrong', { kp, chosen: info.chosenText || '', answer: info.answerText || '', cause })
       const hist = conv.getHistory()
       hist.push({ role: 'user', origin: 'internal', content: note })
       conv.setHistory(hist)

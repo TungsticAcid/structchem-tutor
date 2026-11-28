@@ -220,6 +220,21 @@ export const text = Object.assign({
   // 这条是 assertPresetInvariants 的诊断文案（测试用），登记进本区以保持覆盖率 100%
   '旁白里出现了图层参数名：': 'the narration contains a layer parameter id:',
   '透明度': 'Opacity',
+  // ---- E-UNC：错项没有登记错因时的通用诊断（2026-12-02）----
+  '未归类的错解（按通用诊断处理）': 'Unclassified wrong answer (handled with the generic diagnosis)',
+  '这道题的错项没有登记具体错因——说明错误不在"典型误区"里，需要回到结构本身重看一遍':
+    'This wrong option has no registered cause — the mistake is not one of the classic misconceptions, '
+    + 'so go back to the structure itself and look again',
+  '这个选项不对。先把画面调回"能看清这一步"的状态，再一步步重数/重看，比猜更可靠。':
+    'That option is not right. Bring the view back to a state where this step is visible, then recount and '
+    + 're-check step by step — more reliable than guessing.',
+  '先把图层恢复干净：只留原子与晶胞线框。':
+    'Restore a clean set of layers first: keep only the atoms and the cell wireframe.',
+  '回到等轴视角，先看清整个晶胞。': 'Return to the isometric view and take in the whole cell first.',
+  '打开原子标签，逐个位置对着数一遍。': 'Turn on atom labels and count position by position.',
+  '不要说「这题很简单」或直接给答案；要让学生自己重数一遍':
+    'Do not say "this one is easy" or give the answer away; let the student recount it themselves',
+  '你刚才是怎么数的？从哪一个位置开始？': 'How did you count just now? Which position did you start from?',
 }, textGen)
 
 registerDict('crystal', { zh, en, text })
