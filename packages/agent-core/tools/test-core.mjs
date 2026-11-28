@@ -1601,10 +1601,13 @@ section('panel：界面故障防护（rAF 合帧 / finish 掐帧 / 空正文诊�
   const dom = mkDom()
   try {
     const progressHooks = []
+    let beginTurnCalls = 0
     const SB = {
       onProgress: (fn) => { progressHooks.push(fn); return () => { const i = progressHooks.indexOf(fn); if (i >= 0) progressHooks.splice(i, 1) } },
       prev: () => ({ ok: true }), next: () => ({ ok: true }), autoPlay: () => {},
       stop: () => {}, replay: () => ({ ok: true }), state: () => ({ pending: [] }),
+      // ★ 2026-12-02：每个用户回合开始时要把上一轮演示收尾（见 panel 的 doSend）
+      beginTurn: () => { beginTurnCalls++ },
     }
 
     let capturedHandlers = null
@@ -1687,6 +1690,8 @@ section('panel：界面故障防护（rAF 合帧 / finish 掐帧 / 空正文诊�
     panel.setInput('演示一下')
     const p = panel.send()
     check('发送后把文本交给 send', sentText === '演示一下')
+    // ★ 2026-12-02：每个用户回合开始时把上一轮演示收尾（否则跨轮动作会并进同一条演示）
+    check('★ 每次用户发送都调一次 beginTurn（新问题 = 新演示）', beginTurnCalls === 1, `调用 ${beginTurnCalls} 次`)
     capturedHandlers.onToolCall({ name: 'applySceneActions', args: { actions: [{ action: 'setRenderMode', params: { mode: 'surface' } }] }, round: 1 })
     const bubbles = collect(msgs, 'details').filter((d) => hasClass(d, 'agent-action'))
     check('为动手类工具画了动作气泡', bubbles.length === 1, `气泡数 ${bubbles.length}`)
@@ -2338,6 +2343,51 @@ console.log(`\n${'═'.repeat(60)}`)
       //   （第一版我断言 index===0，那是把 `loadDemo` 的 parkImmediately 语义搬错了）。
       fresh.total === B.length && fresh.index === 1 && fresh.waitingForUser === true,
       `index=${fresh.index} total=${fresh.total} waiting=${fresh.waitingForUser}（应为 1 / ${B.length} / true）`)
+  }
+
+  /**
+   * ★★ 2026-12-02（实测：连问 10 个问题，同一条演示从 4 步涨到 24 步）：
+   *   新的一轮提问必须**另起一条演示**（`beginTurn()`），而同一轮里的多次下发仍要合并。
+   *   两个方向都要钉住：只钉"换轮开新演示"会让"一次演示分几批下发"退化回两条。
+   *
+   *   ★ 批次必须是**两步以上**：一步的批次会立刻执行完、队列随之清空，
+   *     下一批本来就会被判成"新演示"（`playing=false` 且没有 `selfFinished`）——
+   *     那样的用例测不到"合并"，也测不到"跨轮合并"这个真问题。
+   *     真实场景里正是"学生没点下一步、队列停在闸门上"时，下一轮的新动作被追加进来。
+   */
+  {
+    const sbT = createStoryboard({
+      validate: (name, p) => ({ params: p || {} }),
+      vocabulary: ['act'],
+      applyStep: () => {},
+      capture: () => ({}),
+      restore: () => {},
+      getDefaultPlayback: () => 'manual',
+    })
+    const batch = (prefix) => ([
+      { action: 'act', params: {}, speech: prefix + ' 第1步' },
+      { action: 'act', params: {}, speech: prefix + ' 第2步' },
+    ])
+    await sbT.applySequence(batch('第1轮 A'), { origin: 'agent' })
+    const d1 = sbT.state().demoId
+    await sbT.applySequence(batch('第1轮 B'), { origin: 'agent' })   // 同一轮的第二批
+    const stillD1 = sbT.state().demoId
+    const stepsSameTurn = (sbT.getDemo(d1) || {}).steps || []
+    check('同一轮里的多次下发仍合并成同一条演示',
+      !!d1 && stillD1 === d1 && stepsSameTurn.length === 4,
+      `d=${d1} 第二批后=${stillD1} 步数=${stepsSameTurn.length}`)
+
+    // 学生发下一条消息：面板会调 beginTurn()
+    sbT.beginTurn()
+    const cleared = sbT.state()
+    await sbT.applySequence(batch('第2轮 A'), { origin: 'agent' })
+    const d2 = sbT.state().demoId
+    check('★ 新一轮提问另起一条演示（beginTurn 清队列、换 demoId）',
+      !!d2 && d2 !== d1 && cleared.total === 0 && sbT.state().total === 2,
+      `d1=${d1} d2=${d2} 清空后 total=${cleared.total} 新 total=${sbT.state().total}`)
+    check('★ 上一条演示的记录仍在（可回放/收藏/引用），只是不再接收追加',
+      !!sbT.getDemo(d1) && ((sbT.getDemo(d1) || {}).steps || []).length === 4,
+      'd1 步数=' + ((sbT.getDemo(d1) || {}).steps || []).length)
   }
 
   // ─────────────────────────────────────────────────────────────────────────

@@ -580,7 +580,24 @@ const QuestionEngine = (function () {
   // ---------------------------------------------------------------------------
   function explain(kp, opts) {
     const K = getKnowledge();
-    const entries = K ? K.byKnowledgePoint(kp) : [];
+    /**
+     * ★★ 2026-12-02（全量工具冒烟实测）：这里原先写的是 `K.byKnowledgePoint(kp)`，
+     *   而宿主注入的 `knowledge` 是**共享目录**（packages/agent-core/core/catalog.js），
+     *   它的 API 是 `filterBy(field, value)` —— 于是 `explainConcept` 一点就抛
+     *   `K.byKnowledgePoint is not a function`。
+     *
+     *   为什么一直没被发现：这个工具**只有模型会在"讲讲某个知识点"时调**，
+     *   而此前的测试只覆盖出题/判分，没人真调过它；界面上也没有入口 ⇒
+     *   坏了整整一段时间，症状只是"模型调了个工具然后回答变得没内容"。
+     *
+     *   ⇒ 用目录真正提供的方法；`byKnowledgePoint` 保留成兼容分支（老注入方仍在用）。
+     *   条目里的键是 `kp`（裸值 K1…，见 packages/knowledge/orbit/entries.js 的说明）。
+     */
+    let entries = [];
+    if (K) {
+      if (typeof K.filterBy === 'function') entries = K.filterBy('kp', kp) || [];
+      else if (typeof K.byKnowledgePoint === 'function') entries = K.byKnowledgePoint(kp) || [];
+    }
     const meta = MasteryModel ? MasteryModel.meta(kp) : null;
     return {
       knowledgePoint: kp,

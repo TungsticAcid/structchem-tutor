@@ -2341,6 +2341,16 @@ let lastDemoId = null
     // ★ 引用块已随消息发出，状态也要一起清：否则下一轮再点「引用」会把上一轮的
     //   演示号一并带进去（模型会去改一条已经发过的引用）。
     quoteRefs.length = 0
+    /**
+     * ★★ 2026-12-02（实测：连问 10 个问题，同一条演示从 4 步涨到 24 步）：
+     *   新的一轮提问 = 新的一段演示。这里让分镜把上一轮**收尾**（清队列、关记录），
+     *   本轮的第一批动作于是开出新的 demoId；同一轮里的多次下发仍然合并
+     *   （那是"一次演示分几批下发"，见 storyboard 的 noteSteps）。
+     *   ★ 用可选调用：老的分镜实现（或测试桩）没有 beginTurn 也不该崩。
+     */
+    if (SB && typeof SB.beginTurn === 'function') {
+      try { SB.beginTurn() } catch (e) { /* 收尾失败不该挡住提问 */ }
+    }
     addUser(text)
     return runAgent(text)
   }

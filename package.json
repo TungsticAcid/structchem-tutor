@@ -22,7 +22,8 @@
     "test:orbit": "node modules/orbit/tools/test-orbit-core.mjs && node modules/orbit/tools/test-orbit-module.mjs && node modules/orbit/tools/test-orbit-engine.mjs",
     "test:shell": "node apps/web/tools/test-shell.mjs && node apps/web/tools/test-home-visuals.mjs",
     "verify:live": "node tools/acceptance.mjs",
-    "test:secrets": "node tools/check-secrets.mjs"
+    "test:secrets": "node tools/check-secrets.mjs",
+    "audit:tools": "node tools/audit-tools.mjs"
   },
   "comment": "刻意不使用 npm workspaces：各包之间目前是源码级相对引用（无构建步骤），加 workspaces 会改变 node_modules 布局并引入安装步骤，收益不足。等阶段 B6 建 apps/web 时再评估。",
   "devDependencies": {

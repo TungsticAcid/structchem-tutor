@@ -105,7 +105,8 @@ export function createDemoFavorites(opts = {}) {
       || (steps.find((s) => s && s.speech) || {}).speech || t('agent.fav.untitled')
     const entry = {
       key: 'f' + now().toString(36) + Math.floor(Math.random() * 1e4).toString(36),
-      label: String(name).slice(0, 40),
+      // ★ 同名加序号：见 uniqueLabel 的说明
+      label: uniqueLabel(list, String(name).slice(0, 40)),
       at: now(),
       origin: (meta && meta.origin) || 'agent',
       kp: (meta && meta.kp) || null,
@@ -135,6 +136,26 @@ export function createDemoFavorites(opts = {}) {
       return { ok: false, key: entry.key, label: entry.label, count: entry.steps.length, error: t('agent.fav.saveFailed') }
     }
     return { ok: true, key: entry.key, label: entry.label, count: entry.steps.length }
+  }
+
+  /**
+   * 收藏的标题去重：同名时依次加 ` (2)`、` (3)`…
+   *
+   * ★★ 2026-12-02（用户："收藏旁白前 28 字若一模一样，则在后面加数字"）：
+   *   标题取自首步旁白，同一条演示再收藏一次、或两条演示开头句式相同，
+   *   列表里就会出现几条**一模一样**的条目 —— 看得出"重了"，却分不清是哪一条。
+   *   ★ 先截断再编号（`base.slice(0, 40 - suffix.length)`）：否则 ` (12)` 会被 40 字
+   *     上限切掉，又变回同名（那正是这类"修了等于没修"的典型）。
+   */
+  function uniqueLabel(list, base) {
+    const used = new Set((list || []).map((x) => x && x.label))
+    if (!used.has(base)) return base
+    for (let n = 2; n < 10000; n++) {
+      const suffix = ' (' + n + ')'
+      const cand = String(base).slice(0, Math.max(0, 40 - suffix.length)) + suffix
+      if (!used.has(cand)) return cand
+    }
+    return base
   }
 
   /** 改名 */

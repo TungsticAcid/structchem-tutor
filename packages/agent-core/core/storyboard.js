@@ -1427,9 +1427,34 @@ export function createStoryboard(opts = {}) {
    */
   function beforeSnapshot() { return beforeSnap }
 
+  /**
+   * 新的一轮用户提问开始 → 把上一轮的演示**收尾**，本轮的动作另起一条。
+   *
+   * ★★ 2026-12-02（实测：连问 10 个问题，同一条 `d1` 从 4 步涨到 24 步，
+   *   演示条的"共 N 步"越问越长）：
+   *
+   *   原先 `noteSteps` 只要 `curDemoId` 还在，就把新批次**追加**到同一条记录上。
+   *   那条规则的服务对象是"同一轮里模型分几次下发"——一次 applySceneActions 塞不下
+   *   全部步骤时，不该被拆成两条演示。但它没有"轮次"的概念：学生换了问题、上一段
+   *   演示还没点过「下一步」，新动作仍然接在旧记录后面 ⇒ 两条互不相干的演示被缝成一条，
+   *   步号、收藏、引用全都指向那条越来越长的记录。
+   *
+   *   ⇒ 由**面板**在每个用户回合开始时调一次（面板是"一个回合"的定义者）：
+   *     收掉未播完的队列与当前记录（记录本身留在 demos 里，仍可回放/收藏/引用），
+   *     于是本轮第一批动作自然开出新的 demoId；同一轮内的后续批次照旧合并。
+   *
+   *   ★ 用 stop() 而不是只手写 `curDemoId = null`：队列里没播完的步骤也必须丢掉，
+   *     否则它们会和新步骤混在同一个队列里，学生点「下一步」看到的仍是上一题的演示。
+   *   ★ 正在自动连播时也照做：学生已经在问下一个问题了，把画面继续推向上一段演示
+   *     反而是干扰（且与新演示的画面冲突）。
+   */
+  function beginTurn() {
+    if (queue.length || playing || curDemoId) stop('newTurn')
+  }
+
   return {
     onProgress, emitProgress, setVocabulary,
-    applySequence, stop, next, prev, autoPlay, replay, state,
+    applySequence, stop, beginTurn, next, prev, autoPlay, replay, state,
     // ★ 当前队列/记录属于哪个模块（切模块时判断"要不要中止"，见 currentModule 的说明）
     currentModule,
     // 演示的"可寻址"三件套：整改 / 从历史重建 / 节奏切换

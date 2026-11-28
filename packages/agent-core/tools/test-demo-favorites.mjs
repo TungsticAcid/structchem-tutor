@@ -153,5 +153,30 @@ const STEPS_B = [{ action: 'showSymElements', params: { on: true }, speech: '显
     r.ok === false, `ok=${r.ok} count=${f.count()}（修复前实测：ok=true 但 count=0）`)
 }
 
+// ── ⑦ 同名标题要加序号（用户："收藏旁白前 28 字若一模一样，则在后面加数字"）──
+{
+  const s = memStorage()
+  const f = createDemoFavorites({ storage: s, storageKey: 'k' })
+  const SAME = [{ action: 'setLayers', params: {}, speech: '先加载 Cu 型晶体，重置到干净基线。' }]
+  const a = f.save('', SAME, { module: 'crystal' })
+  const b = f.save('', SAME, { module: 'crystal' })
+  const c = f.save('', SAME, { module: 'crystal' })
+  const labels = f.list().map((x) => x.label)
+  check('⑦ 同名收藏依次加序号 (2) / (3)',
+    a.label === '先加载 Cu 型晶体，重置到干净基线。'
+    && b.label === '先加载 Cu 型晶体，重置到干净基线。 (2)'
+    && c.label === '先加载 Cu 型晶体，重置到干净基线。 (3)',
+    JSON.stringify(labels))
+
+  // ★ 截断陷阱：标题本来就在 40 字上限附近时，` (12)` 不能被截掉（否则又变回同名）
+  const LONG = [{ action: 'a', params: {}, speech: '一排四十个字的旁白'.repeat(5).slice(0, 40) }]
+  const f2 = createDemoFavorites({ storage: memStorage(), storageKey: 'k2' })
+  for (let i = 0; i < 12; i++) f2.save('', LONG, { module: 'crystal' })
+  const l2 = f2.list().map((x) => x.label)
+  check('⑦ 长标题加序号后仍不重复、且不超过 40 字',
+    new Set(l2).size === l2.length && l2.every((x) => x.length <= 40),
+    l2.slice(0, 3).join(' | '))
+}
+
 console.log('\n结果：通过 ' + ok + ' 项，失败 ' + bad + ' 项')
 process.exit(bad ? 1 : 0)

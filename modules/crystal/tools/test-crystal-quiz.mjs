@@ -349,6 +349,68 @@ console.log('【④ 纯邻近值题型的干扰项】—— 不允许存在固�
 }
 
 // ---------------------------------------------------------------------------
+// ⑤ teach 工具：**每一个**都带有效参数真调一次（不许崩、不许返回 error）
+// ---------------------------------------------------------------------------
+/**
+ * ★★ 2026-12-02（用户："AI 能够调用的工具是否都经过测试？把工具都测试一遍"）：
+ *   实测扫描发现 5 个工具在所有测试文件里**一次都没出现**：
+ *   generateVariant / listDemos / recommendNext / recordLearningEvent / startFeynmanCheck。
+ *   它们都在 teach 工具集里，模型随时能调 —— 也就随时可能像 orbit 的 explainConcept
+ *   那样"坏了没人知道"（那个是运行时冒烟才抓到的）。
+ *
+ *   这条守卫的做法：**按 teach.handlers 的键遍历**，每个都给一份样例参数真调。
+ *   于是新增工具若没在这里给参数，会当场报"清单变了"——而不是悄悄没人测。
+ */
+{
+  const { createTeachTools } = await import('../teach-tools.js')
+  const { createCatalog } = await import('../../../packages/agent-core/core/catalog.js')
+  const { registerInto: registerSkills } = await import('../../../packages/skills/common/index.js')
+  const skills = createCatalog({ key: 'name' })
+  registerSkills(skills)
+  // 学情模型：这里只要接口形状（它自己另有测试），目标是让 teach 工具走通
+  const mastery = {
+    update: () => ({ ok: true, score: 1, mastered: false }),
+    recommend: () => ({ recommended: [] }),
+    toText: () => '（学情摘要）',
+    meta: () => null,
+  }
+  const quiz = freshEngine()
+  const teach = createTeachTools({ quiz, mastery, skills })
+  const first = quiz.generate({ kp: 'crystal:C2', topic: 'atomsInCell' })
+  const qid = first && (first.id || (first.question && first.question.id))
+
+  const ARGS = {
+    generateQuiz: { kp: 'crystal:C2', topic: 'atomsInCell' },
+    checkAnswer: { questionId: qid, chosenIndex: 0, by: 'student' },
+    diagnoseError: { causeId: 'E-B3' },
+    generateVariant: { questionId: qid },
+    recordLearningEvent: { kp: 'crystal:C2', correct: true },
+    startFeynmanCheck: { kp: 'crystal:C2' },
+    evaluateFeynman: { kp: 'crystal:C2', transcript: '晶胞里的原子要按分摊折算后再相加' },
+    recommendNext: {},
+  }
+  const names = Object.keys(teach.handlers).sort()
+  const noArgs = names.filter((n) => !(n in ARGS))
+  ok(noArgs.length === 0,
+    'teach 工具清单变了：新增的必须在这里给样例参数并一起测（否则又是"没人调过"）：' + noArgs.join(', '))
+
+  const failed = []
+  for (const n of names) {
+    try {
+      const r = await teach.handlers[n](ARGS[n] || {})
+      if (!r) failed.push(n + ' → 返回 undefined')
+      else if (r.error) failed.push(n + ' → ' + String(r.error).slice(0, 80))
+    } catch (e) { failed.push(n + ' → THROW ' + e.message) }
+  }
+  ok(failed.length === 0, `★ teach 的 ${names.length} 个工具逐个真调都成功`, failed.join(' | '))
+
+  // 声明与实现同源（防"白名单里有、实现里没有"）
+  const defNames = Object.values(teach.defs).flat().map((d) => d.function.name).sort()
+  ok(defNames.join(',') === names.join(','),
+    'teach 的 defs 与 handlers 一一对应', 'defs=' + defNames.join(',') + ' handlers=' + names.join(','))
+}
+
+// ---------------------------------------------------------------------------
 console.log(`\n通过 ${pass}；失败 ${fail}`)
 if (bad.length) {
   console.log('失败项：')

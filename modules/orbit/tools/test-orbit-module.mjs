@@ -158,6 +158,38 @@ console.log('【③ 工具定义与实现同源】')
   }
 }
 
+// ---------------------------------------------------------------- ③b explain 真跑
+/**
+ * ★★ 2026-12-02（全量工具冒烟实测）：`explainConcept` 一点就抛
+ *   `K.byKnowledgePoint is not a function` —— 宿主注入的 knowledge 是共享目录
+ *   （API 是 filterBy），而引擎按旧接口调。
+ *
+ *   ③ 那组"空参数逐个调"**抓不到它**：那时 quiz 是**桩**（`explain() {}`），
+ *   桩不会走到真引擎里那行。所以这里用**真实引擎 + 真实知识库**跑一遍 ——
+ *   "工具不崩"和"工具能给出内容"是两件事，两个都要测。
+ */
+{
+  const { createCatalog } = await import('../../../packages/agent-core/core/catalog.js')
+  const { registerInto: registerOrbitKnowledge } = await import('../../../packages/knowledge/orbit/index.js')
+  const { QuestionEngine } = await import('../core/question-engine.js')
+  const KB = createCatalog({ key: 'id' })
+  const added = registerOrbitKnowledge(KB)
+  QuestionEngine.configure({ getKnowledge: () => KB })
+
+  let threw = null
+  let r = null
+  try { r = QuestionEngine.explain('K1') } catch (e) { threw = e }
+  ok(!threw, 'explain(K1) 不抛异常（旧实现：K.byKnowledgePoint is not a function）', threw && threw.message)
+  ok(r && Array.isArray(r.entries) && r.entries.length > 0,
+    `explain(K1) 能取到该知识点的条目（知识库 ${added} 条）`,
+    r && ('entries=' + (r.entries || []).length))
+  ok(r && r.entries.every((e) => e && e.title && e.body != null),
+    'explain 返回的条目带标题与正文（模型要按条目讲）')
+  const none = QuestionEngine.explain('K-不存在')
+  ok(none && Array.isArray(none.entries) && none.entries.length === 0,
+    '未知知识点返回空条目（而不是抛异常）')
+}
+
 // ---------------------------------------------------------------- ⑦ 停用项不外泄
 console.log('【⑦ 停用的动作/演示不得泄回模型那一侧】')
 {
