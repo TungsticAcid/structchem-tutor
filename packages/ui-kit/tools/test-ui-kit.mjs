@@ -52,7 +52,8 @@ section('settings-store：持久化与密钥掩码')
   s2.set({ apiKey: 'sk-abcdefghijklmnop' })
   check('hasKey 为真', s2.hasKey() === true)
   const m = s2.mask('sk-abcdefghijklmnop')
-  check('掩码保留首尾、中间全掩', m === 'sk-abcd****mnop', m)
+  // ★ 2026-12-02 收紧：原先露**前 7 位**（sk-abcd****mnop），现在只露首 4 尾 4
+  check('掩码保留首 4 尾 4、中间全掩', m === 'sk-a****mnop', m)
   check('掩码不含原文中段', !m.includes('efghijkl'))
   check('空密钥的掩码是明确提示', s2.mask('') === '（未配置）')
   check('极短密钥也不泄漏', s2.mask('sk-ab') === 'sk-****', s2.mask('sk-ab'))
@@ -61,6 +62,82 @@ section('settings-store：持久化与密钥掩码')
   s2.clearAll()
   check('clearAll 清掉设置键', s2.hasKey() === false && s2.get().model === 'deepseek-flash')
   check('clearAll 也清掉调用方声明的其它键', !('test.mastery' in mem))
+}
+
+// ============================================================================
+section('settings-store：密钥「仅在本次保存」（sessionStorage）')
+// ============================================================================
+/**
+ * ★★ 2026-12-02（用户："加一个『仅在本次保存』开关"）：localStorage 是明文落盘的，
+ *   共用电脑上需要一条"不写磁盘"的路。这里守四件事：
+ *     ① 打开开关时密钥**立刻**从磁盘消失（不是等下次保存）；
+ *     ② 开关本身留在磁盘（否则下次启动读不到它，又会把密钥写回去）；
+ *     ③ 关掉浏览器（sessionStorage 清空）后**不回落**到磁盘上的旧值；
+ *     ④ 关闭开关 = 搬家回磁盘，且 sessionStorage 那份被删掉（只有一个真源）。
+ */
+{
+  const disk = {}
+  const sess = {}
+  const mkMem = (o) => ({
+    getItem: (k) => (k in o ? o[k] : null),
+    setItem: (k, v) => { o[k] = String(v) },
+    removeItem: (k) => { delete o[k] },
+  })
+  const KEY = 't.sec'
+  const SKEY = KEY + '.session-key'
+  const mkStore = () => createSettingsStore({
+    storageKey: KEY, storage: mkMem(disk), sessionStorage: mkMem(sess),
+  })
+  /**
+   * 测试用的假密钥。**字面必须带 `test`** —— `tools/check-secrets.mjs` 靠这个
+   * 关键词把"造出来的值"和真密钥区分开；不带它、又不像连号时，守卫会把它当成
+   * 泄露进版本库的真密钥（第一版就是这样把 `npm test` 跑红的）。
+   */
+  const FAKE_KEY = 'sk-test-only-1a2b3c4d'
+  const FAKE_KEY2 = 'sk-test-only-5e6f7a8b'
+  const FAKE_STALE = 'sk-test-only-9c0d1e2f'
+
+  const s = mkStore()
+  s.set({ apiKey: FAKE_KEY, model: 'm1' })
+  check('默认：密钥落在 localStorage 那份里', disk[KEY].includes(FAKE_KEY))
+
+  s.set({ keySessionOnly: true })
+  check('★ 打开「仅在本次保存」：密钥进 sessionStorage',
+    sess[SKEY] === FAKE_KEY, JSON.stringify(sess))
+  check('★ 打开后磁盘那份**立即**不含密钥（不是等下次保存）',
+    !disk[KEY].includes(FAKE_KEY), disk[KEY])
+  check('开关本身仍留在磁盘（否则下次启动又会把密钥写回去）',
+    /"keySessionOnly":true/.test(disk[KEY]), disk[KEY])
+  check('本次会话里照常可用（hasKey 为真）', s.hasKey() === true)
+
+  // 刷新页面 = 新的 store 实例，但 sessionStorage 与 localStorage 都还在
+  check('刷新页面后本次会话里仍拿得到密钥',
+    mkStore().get().apiKey === FAKE_KEY)
+
+  // 关掉浏览器 = sessionStorage 清空
+  delete sess[SKEY]
+  check('★ 关掉浏览器后密钥不在（不回落磁盘旧值）', mkStore().hasKey() === false)
+
+  // 关闭开关：密钥搬回磁盘，session 那份删掉
+  const s2 = mkStore()
+  s2.set({ apiKey: FAKE_KEY2, keySessionOnly: false })
+  check('关闭开关后密钥回到 localStorage', disk[KEY].includes(FAKE_KEY2))
+  check('关闭开关后 sessionStorage 里那份被删掉', !(SKEY in sess), JSON.stringify(sess))
+
+  // 老版本残留：磁盘上同时有 keySessionOnly:true 和 apiKey
+  disk[KEY] = JSON.stringify({ keySessionOnly: true, apiKey: FAKE_STALE, model: 'm1' })
+  const migrated = mkStore()
+  check('磁盘上残留的密钥会被搬进本次会话、并擦掉磁盘那份',
+    migrated.get().apiKey === FAKE_STALE
+    && sess[SKEY] === FAKE_STALE
+    && !disk[KEY].includes(FAKE_STALE),
+    JSON.stringify({ disk: disk[KEY], sess }))
+
+  // 「清除本机全部数据」必须连 sessionStorage 一起清
+  migrated.set({ keySessionOnly: true })
+  migrated.clearAll()
+  check('clearAll 连 sessionStorage 里的密钥一起清掉',
+    !(SKEY in sess) && !(KEY in disk), JSON.stringify({ disk, sess }))
 }
 
 // ============================================================================
@@ -255,7 +332,14 @@ section('settings-popup：声明式表单与密钥安全')
     setItem: (k, v) => { mem[k] = String(v) },
     removeItem: (k) => { delete mem[k] },
   }
-  const store = createSettingsStore({ storage, storageKey: 't.s', clearKeys: ['t.x'] })
+  // ★ 2026-12-02：密钥可能只进 sessionStorage（「仅在本次保存」），弹层要能真的把它写进去
+  const sess = {}
+  const sessionStorage = {
+    getItem: (k) => (k in sess ? sess[k] : null),
+    setItem: (k, v) => { sess[k] = String(v) },
+    removeItem: (k) => { delete sess[k] },
+  }
+  const store = createSettingsStore({ storage, sessionStorage, storageKey: 't.s', clearKeys: ['t.x'] })
   store.set({ apiKey: 'sk-originalkey123456' })
 
   const dom = mkDom()
@@ -381,7 +465,7 @@ section('settings-popup：声明式表单与密钥安全')
   const keyInput = dom.collectAll(box, 'input').find((i) => i.attrs.type === 'password')
   check('密钥输入框是 password 类型', !!keyInput)
   check('密钥输入框**不回填**完整密钥', keyInput.value === '', String(keyInput.value))
-  check('密钥以掩码形式出现在 placeholder', /sk-orig\*\*\*\*3456/.test(keyInput.placeholder), keyInput.placeholder)
+  check('密钥以掩码形式出现在 placeholder', /sk-o\*\*\*\*3456/.test(keyInput.placeholder), keyInput.placeholder)
 
   // --- 不点过就保存：原密钥必须保留 ---
   popup.collect()
@@ -409,10 +493,39 @@ section('settings-popup：声明式表单与密钥安全')
   check('文本留空回退到默认值（不会存空串）', store.get().endpoint === 'https://api.deepseek.com', store.get().endpoint)
 
   // --- 复选框与下拉 ---
-  const cb = dom.collectAll(box, 'input').find((i) => i.attrs.type === 'checkbox')
-  cb.checked = false
+  /**
+   * ★ 2026-12-02：schema 里多了「仅在本次保存」这个复选框，所以**不能按"第一个
+   *   checkbox"取** —— 那会把 showReasoning 的断言悄悄绑到它身上，测出个假结果。
+   *   这里按 schema 里 checkbox 的声明顺序取（两个分组都按 schema 顺序渲染），
+   *   并单独断言「仅在本次保存」这个标签确实出现在了界面上。
+   */
+  const cbs = dom.collectAll(box, 'input').filter((i) => i.attrs.type === 'checkbox')
+  const cbKeys = DEFAULT_SCHEMA.filter((f) => f.type === 'checkbox').map((f) => f.key)
+  const cbOf = (k) => cbs[cbKeys.indexOf(k)]
+  check('界面上有「仅在本次保存」这个开关',
+    dom.collectAll(box, 'span').some((s) => /仅在本次保存/.test(s.textContent || '')))
+  check('复选框数量与 schema 里的 checkbox 一致', cbs.length === cbKeys.length,
+    `${cbs.length} vs ${cbKeys.length}`)
+
+  const showCb = cbOf('showReasoning')
+  showCb.checked = false
   popup.collect()
   check('复选框读到未勾选', store.get().showReasoning === false)
+
+  // ★ 端到端：「仅在本次保存」勾上 → 密钥离开 localStorage、进 sessionStorage
+  const sessionCb = cbOf('keySessionOnly')
+  sessionCb.checked = true
+  popup.collect()
+  check('★ 弹层里勾上「仅在本次保存」后，密钥进 sessionStorage',
+    sess['t.s.session-key'] === store.get().apiKey && !!sess['t.s.session-key'],
+    JSON.stringify(sess))
+  check('★ 同时 localStorage 那份里不再有密钥',
+    !/sk-/.test(mem['t.s'] || ''), mem['t.s'])
+  sessionCb.checked = false
+  popup.collect()
+  check('取消勾选后密钥搬回 localStorage、sessionStorage 清掉',
+    /sk-/.test(mem['t.s'] || '') && !('t.s.session-key' in sess),
+    JSON.stringify({ disk: mem['t.s'], sess }))
   const sel = dom.collectAll(box, 'select')[0]
   sel.value = 'max'
   popup.collect()

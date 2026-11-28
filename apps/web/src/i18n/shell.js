@@ -549,6 +549,11 @@ export const text = {
     '· Anonymous usage analytics reports page and feature counts only (can be turned off below); it never uploads conversation content, API keys or identity.',
   '· API Key 只发往你填写的接入点，不经过任何第三方中转。':
     '· Your API key is sent only to the endpoint you configure; no third-party relay is involved.',
+  '· 密钥只发往你填写的接入点，不经过任何第三方中转。':
+    '· Your API key is sent only to the endpoint you configure; no third-party relay is involved.',
+  '· 密钥按明文存在本机（未加密，任何能打开本机浏览器数据的人都读得到）；勾选「仅在本次保存」可让它不写磁盘、关掉浏览器即失效。':
+    '· The key is stored on this device in plain text (not encrypted: anyone who can open this browser profile can read it). '
+    + 'Tick "Keep for this visit only" to keep it off disk so it expires when the browser closes.',
 
   // ---- 设置弹层的「关于」 ----
   '结构化学教学智能体': 'Structural Chemistry Teaching Agent',

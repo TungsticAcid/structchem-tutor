@@ -50,6 +50,13 @@ export const text = {
     'Any OpenAI-compatible service works. A bare domain or /v1 is completed to /chat/completions automatically.',
   '留空则保持不变': 'Leave blank to keep the current key',
   '仅存本机，不上传服务器': 'Stored on this device only; never uploaded',
+  // 「仅在本次保存」：密钥只进 sessionStorage（2026-12-02）
+  '仅在本次保存': 'Keep for this visit only',
+  '密钥不写入磁盘：关掉浏览器（或标签页）后要重新填写。多人共用的电脑建议打开。':
+    'The key is not written to disk: you have to re-enter it after closing the browser (or tab). '
+    + 'Turn this on for a shared computer.',
+  '本次未配置（密钥只在本次保存，关掉浏览器后需重新填写）':
+    'Not configured in this visit (the key is kept for this visit only; re-enter it after closing the browser)',
   '模型名': 'Model name',
   '填服务商文档里的模型名（本工具默认 deepseek-flash）。各家命名不同、且会随版本变化':
     "The model name from your provider's docs (this tool defaults to deepseek-flash). Naming differs between providers and changes over time",

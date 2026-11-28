@@ -56,9 +56,24 @@ export const DEFAULT_SCHEMA = [
   {
     key: 'apiKey', label: 'API Key（BYOK）', type: 'secret',
     placeholder: 'sk-...',
-    hint: (store) => (store.hasKey()
-      ? t('uikit.configuredHint', { mask: store.mask(store.get().apiKey) })
-      : '仅存本机，不上传服务器'),
+    hint: (store) => {
+      if (store.hasKey()) return t('uikit.configuredHint', { mask: store.mask(store.get().apiKey) })
+      // ★ 本次会话里没有密钥时要说清**为什么**：否则开了「仅在本次保存」的用户
+      //   第二天打开看到"仅存本机，不上传服务器"，会以为是自己没保存成功。
+      return store.get().keySessionOnly
+        ? '本次未配置（密钥只在本次保存，关掉浏览器后需重新填写）'
+        : '仅存本机，不上传服务器'
+    },
+  },
+  {
+    /**
+     * ★★ 2026-12-02（用户："加一个『仅在本次保存』开关"）：
+     *   勾上之后密钥只进 sessionStorage —— 不写磁盘，关掉浏览器/标签页即失效。
+     *   ★ 名字是"仅在本次保存"，不是"仅本次会话"：本工具里的"会话"指对话，
+     *     那个说法会让人以为"开了它就不能切会话"。
+     */
+    key: 'keySessionOnly', label: '仅在本次保存', type: 'checkbox',
+    hint: '密钥不写入磁盘：关掉浏览器（或标签页）后要重新填写。多人共用的电脑建议打开。',
   },
   {
     key: 'model', label: '模型名', type: 'text', placeholder: 'deepseek-flash',
@@ -91,7 +106,7 @@ export const DEFAULT_GROUPS = [
   // ★ 标题**不带括号说明**（用户明确要求）：括号里那句是给开发者写使用场景的，
   //   放在一级标题后面既占宽度又像注释；真要解释，该写成该组第一项的 hint。
   // ★ `id` 供 `open({ expand })` 定位（缺 Key 自动弹层要展开这一组），别用标题匹配。
-  { id: 'model', title: '模型服务', keys: ['endpoint', 'apiKey', 'model', 'effort', 'maxTokens'], test: true },
+  { id: 'model', title: '模型服务', keys: ['endpoint', 'apiKey', 'keySessionOnly', 'model', 'effort', 'maxTokens'], test: true },
   { title: '教学偏好', keys: ['showReasoning', 'proactive', 'animSpeed', 'playback'] },
 ]
 
@@ -153,6 +168,28 @@ export function createSettingsPopup(cfg = {}) {
   }
 
   /**
+   * 把一个字段放进分组。`bare` 的字段（复选框自带一个 `<label>` 行）原先走到这里就被
+   * **直接 append** 了 —— 于是它的 `hint` 永远不会显示。
+   *
+   * ★★ 2026-12-02（用户："加一个『仅在本次保存』开关"）：那条 hint 正是这个开关的
+   *   **全部解释**（"密钥不写入磁盘、关掉浏览器后要重新填写"）。不显示它，界面上就只
+   *   剩下光秃秃的五个字，含义完全靠猜。所以这里补齐：bare 也要把 hint 渲染出来，
+   *   并且照常挂到 `_hintEl` 上，供 refreshHints() 重算。
+   */
+  function mountField(container, def, built) {
+    const hint = resolveHint(def)
+    if (!built.bare) { container.appendChild(field(def.label, built.node, hint)); return }
+    const wrap = el('div', { class: 'agent-field' }, undefined, doc)
+    wrap.appendChild(built.node)
+    if (hint) {
+      const h = el('div', { class: 'agent-fhint', text: hint }, undefined, doc)
+      if (built.input) built.input._hintEl = h
+      wrap.appendChild(h)
+    }
+    container.appendChild(wrap)
+  }
+
+  /**
    * 重算所有依赖 store 状态的提示文案。
    * 在「测试连接」成功、以及「保存」之后调用——那两处都会改变 `store`，
    * 而界面上的文案不会自己跟着变。
@@ -207,7 +244,8 @@ export function createSettingsPopup(cfg = {}) {
           input, el('span', { text: ' ' + def.label }, undefined, doc),
         ], doc)
         // 复选框自带标签，故 bare=true 让调用方跳过外层 label
-        return { node: row, read: () => input.checked, bare: true }
+        // ★ 2026-12-02：把 input 一并交出去 —— 复选框的 hint 也要能刷新（见 mountField）
+        return { node: row, read: () => input.checked, bare: true, input }
       }
       case 'select': {
         const sel = el('select', { class: 'agent-input' }, undefined, doc)
@@ -489,8 +527,7 @@ export function createSettingsPopup(cfg = {}) {
         if (!def) continue
         const built = buildInput(def, s)
         inputs[key] = built
-        if (built.bare) gEl.appendChild(built.node)
-        else gEl.appendChild(field(def.label, built.node, resolveHint(def)))
+        mountField(gEl, def, built)
       }
 
       // 「测试连接」：先落库再测，测的就是用户刚填的这一组值
@@ -542,8 +579,7 @@ export function createSettingsPopup(cfg = {}) {
       if (!def) continue
       const built = buildInput(def, s)
       inputs[key] = built
-      if (built.bare) g3.appendChild(built.node)
-      else g3.appendChild(field(def.label, built.node, resolveHint(def)))
+      mountField(g3, def, built)
     }
     const clearBtn = el('button', { class: 'agent-btn danger', text: '清除本机全部数据' }, undefined, doc)
     clearBtn.onclick = () => {
