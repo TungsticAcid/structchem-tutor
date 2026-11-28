@@ -10,6 +10,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#ffffff" />
     <!--
+      ★★ 内容安全策略（CSP）：**这不是可选项，它守的是本机的 BYOK 密钥**。
+
+      § 为什么必须有：密钥按明文存在 localStorage，而同一份存储对**同源**的任何脚本
+        都是可读的 ⇒ 一个 XSS 就能把它整份发走（见 README 的隐私说明）。CSP 的
+        `script-src 'self'` 让注入进来的行内脚本（`script` 标签、`onerror=` 这类
+        内联事件处理器）**根本不会执行** —— 即使某天又有数据从不可信路径漏进了
+        innerHTML，攻击者也拿不到执行权。这是"兜底"，不是"替代转义"。
+
+      § 为什么这一段在 <meta> 里、而不是只靠服务器响应头：
+        · 开发服务器（vite）不带响应头，靠它才能在开发时就撞见违规；
+        · 学校 Nginx 与 Vercel 的响应头见 README / deploy/ 下的片段。
+        两处会**同时生效**（浏览器取交集），所以这里比响应头略宽一点点：
+        多放行 `ws://127.0.0.1:*`，否则 vite 的热更新（WebSocket）会被拦掉。
+
+      § 逐条理由（改之前先读，每一条去掉都会坏点东西）：
+        · script-src 'self'          —— 唯一的脚本来源。**不许加 'unsafe-inline'**，
+                                        加了等于没有 CSP。
+        · style-src  'unsafe-inline' —— KaTeX 生成的 HTML 里到处是 `style="height:…"`，
+                                        CSP 对内联样式没有哈希以外的替代，只能放开。
+                                        样式注入的危害（遮挡、假提示）远小于脚本执行，
+                                        而脚本那一侧已被上一条钉死。
+        · img-src data: blob:        —— 缩略图/元素遮罩用 data:，截图下载用 blob:。
+        · font-src 'self' data:      —— KaTeX 字体在本地。
+        · connect-src https:         —— **BYOK 要求**：接入点是用户自己填的任意 OpenAI
+                                        兼容服务，不可能预先枚举。但**不放开 http:**
+                                        （只给 127.0.0.1 / localhost 留了本地模型的例外），
+                                        于是"接入点误填成 http://"这种明文发 key 的情况
+                                        会在浏览器里直接失败，而不是悄悄发出去。
+        · object-src 'none'          —— 没有 Flash/插件，直接关掉。
+        · base-uri 'none'            —— 防 `<base href=//evil>` 把相对路径全劫走。
+        · form-action 'self'         —— 没有表单提交需求。
+        · frame-ancestors 只能由**响应头**给（<meta> 里写了也会被忽略），见 deploy 片段。
+
+      ★ 别顺手删掉 `frame-ancestors` 那条响应头：没有它，本站可以被放进别人的 iframe
+        里做点击劫持（学生在假页面上点「保存」）。
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'self'"
+    />
+    <!--
       ★ 图标复用智能体形象（浏览器标签页与右下角悬浮球是同一个）。
         它已经在 public/ 里（供面板的 iconSrc 用），所以不会再有 `/favicon.ico` 的 404。
         此前这里用的是内联 SVG data URI，那是"public 里还没有图标"时的权宜做法。
@@ -31,23 +72,13 @@
     <!--
       ★ 首帧前定主题（避免"先按深色画一帧、再跳成浅色"的闪一下）。
 
-      § 与 @ui-kit/theme.js 是**同一套判据**：显式选的直接写，'system' 交给
-        matchMedia 解析 —— 解析结果同样写进 `data-theme`。属性是**唯一**真源，
-        CSS 里不再有 prefers-color-scheme 那一份"第二套浅色调色板"
-        （那正是"跟随系统"看起来跟浅色/深色都不一样的根因）。
-      § 必须是**行内**脚本：模块脚本是 defer 的，等到那时第一帧已经画完了。
+      § 为什么是**阻塞**脚本（没有 defer/async）：模块脚本是 defer 的，等到那时第一帧
+        已经画完了。放在 <head> 里同步执行，解析到 <body> 之前主题就已就位。
+      § 为什么是**外部文件**而不是行内脚本：加了 `script-src 'self'` 之后行内脚本会被
+        CSP 拒绝执行；用哈希白名单又会被行尾换行符（CRLF/LF）坑到"只在部署环境失效"。
+        详细理由写在 public/theme-boot.js 的文件头。
     -->
-    <script>
-      (function () {
-        try {
-          var t = localStorage.getItem('chem-agent.theme') || 'system'
-          var resolved = (t === 'dark' || t === 'light')
-            ? t
-            : ((window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark')
-          document.documentElement.setAttribute('data-theme', resolved)
-        } catch (e) { /* 隐私模式等：交给运行时，最多闪一下 */ }
-      })()
-    </script>
+    <script src="%BASE_URL%theme-boot.js"></script>
   </head>
   <body>
     <!--

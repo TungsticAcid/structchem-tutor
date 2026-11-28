@@ -596,9 +596,31 @@ section('令牌与样式文件：结构约定')
     !/prefers-color-scheme/.test(stripCssComments(tokens)))
   check('theme.js：system 也把解析后的主题写进 data-theme',
     /setAttribute\('data-theme'/.test(readFileSync(repo('packages/ui-kit/theme.js'), 'utf-8')))
-  check('index.html：首帧前就有行内脚本定主题（否则会闪一下深色）',
-    /chem-agent\.theme/.test(readFileSync(repo('apps/web/index.html'), 'utf-8'))
-    && /setAttribute\('data-theme'/.test(readFileSync(repo('apps/web/index.html'), 'utf-8')))
+  /**
+   * ★ 2026-12-02：主题引导脚本从 index.html 的**行内** <script> 搬到了
+   *   `public/theme-boot.js`（理由：加了 `script-src 'self'` 之后行内脚本会被 CSP
+   *   拒绝执行；哈希白名单又会被 CRLF/LF 换行差异坑到"只在部署环境失效"）。
+   *   所以这条断言跟着改：**代码在 theme-boot.js 里，index.html 以阻塞脚本引用它**。
+   *   ★ 判据要同时盯住三处，缺一处都会静默变成"闪一下深色"：
+   *     ① 脚本文件里真的有这段逻辑；② index.html 用 <script src> 引用；
+   *     ③ 那个 script 标签**没有 defer/async**（否则第一帧已经画完）。
+   */
+  {
+    const idx = readFileSync(repo('apps/web/index.html'), 'utf-8')
+    // ★ 先剥注释：本文件的注释里会**提到** <body> 与 script 标签（写理由时难免），
+    //   不剥的话 indexOf('<body') 会命中注释里的那一个，判据就反了。
+    const idxCode = idx.replace(/<!--[\s\S]*?-->/g, '')
+    const boot = readFileSync(repo('apps/web/public/theme-boot.js'), 'utf-8')
+    check('theme-boot.js 里有定主题的逻辑（读 chem-agent.theme 并写 data-theme）',
+      /chem-agent\.theme/.test(boot) && /setAttribute\('data-theme'/.test(boot))
+    check('index.html 用 <script src> 引用 theme-boot.js（不再是行内脚本）',
+      /<script src="%BASE_URL%theme-boot\.js"><\/script>/.test(idxCode),
+      idxCode.match(/<script[^>]*theme-boot[^>]*>/)?.[0] || '没找到引用')
+    check('★ 引用 theme-boot 的 script 是**阻塞**的（没有 defer/async，否则会闪一下深色）',
+      !/<script[^>]*theme-boot[^>]*(defer|async)/.test(idxCode))
+    check('★ theme-boot 的 script 出现在 <body> 之前（head 里，赶在第一帧前面）',
+      idxCode.indexOf('theme-boot.js') < idxCode.search(/<body[\s>]/))
+  }
 
   check('components.css 的三维视口用变量且带兜底', /height:\s*var\(--viewer-h,\s*44vh\)/.test(comps))
   check('components.css 给三维 canvas 设了 touch-action:none', /canvas\s*\{[^}]*touch-action:\s*none/.test(comps))

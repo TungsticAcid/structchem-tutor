@@ -60,7 +60,23 @@ npm run dev        # → http://localhost:3001
 
 打开首页后，点「开始探索」进入三个教学模块，或点「问智能体」直接打开侧边栏。
 首次使用智能体时，在面板右上角「设置 → 模型服务」填写自己的 API Key；
-密钥只保存在本机浏览器。
+密钥保存在本机浏览器（默认明文落盘；勾「仅在本次保存」可让它不写磁盘）。
+
+### 部署时请加上安全响应头
+
+`apps/web/index.html` 里已有一条 CSP 的 `<meta>`（开发服务器也靠它生效），但
+`frame-ancestors`（防点击劫持）等指令**只能由响应头给**，`<meta>` 里写了也会被忽略。
+仓库里备好了两份片段，把整段放进站点即可：
+
+- Nginx：`deploy/nginx-security-headers.conf`（`include` 进 `server { }`）
+- Vercel：`vercel.json` 里的 `headers`（已配好）
+
+为什么它不可省：BYOK 的密钥按明文存在 localStorage，同一份存储对**同源**任何脚本
+都是可读的 —— 也就是说，**一次 XSS 就能把密钥整份发走**。`script-src 'self'` 让注入
+进来的行内脚本（`script` 标签、`onerror=` 这类内联处理器、`javascript:` 链接）
+根本不执行，即使某天又有数据从不可信路径漏进了 innerHTML，攻击者也拿不到执行权。
+`apps/web/tools/test-shell.mjs` 会检查三处（`<meta>` / Nginx / Vercel）都在、
+且**关键指令一致**（不一致时浏览器取交集，会静默拦掉功能）。
 
 另开一个终端，在仓库根目录进行真实浏览器验证（截图、抓控制台报错、执行表达式）：
 

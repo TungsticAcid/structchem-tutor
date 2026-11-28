@@ -1138,6 +1138,110 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   }
 }
 
+// ============================================================================
+// 安全响应头（CSP）：守的是本机的 BYOK 密钥
+// ============================================================================
+/**
+ * ★★ 2026-12-02（用户问"XSS 呢"→ 补上）：
+ *
+ *   密钥明文存在 localStorage，同源任何脚本都能读走 ⇒ **一次 XSS = 交出 key**。
+ *   CSP 的作用是"即使注入了 HTML，注入的脚本也不执行"——`script-src 'self'` 会同时
+ *   干掉 `<script>…</script>` 与 `onerror=` / `onclick=` 这类行内处理器。
+ *
+ *   这组断言守三件事（任何一件丢了，保护就静默消失，页面看起来一切正常）：
+ *     ① index.html 的 <meta> CSP 在，且**没有**给 script-src 放开 'unsafe-inline'
+ *        （那条错误最容易被"为了修好某个内联脚本"而加上，加完这层保护等于没有）；
+ *     ② index.html 里**不再有行内 <script>**：CSP 会静默拒绝执行它们 ——
+ *        表现是"主题不生效 / 某段启动逻辑没跑"，不报错，最难查；
+ *     ③ 两个部署口的响应头片段（Nginx / Vercel）都在，且都有 frame-ancestors
+ *        （<meta> 里写这条会被忽略，只能靠响应头防点击劫持）。
+ */
+{
+  console.log('【⑬ 安全响应头：CSP（script-src 必须只认 self）】')
+
+  /** 把一条 CSP 策略解析成 { 指令名: [值…] }，用于逐指令断言（不比整串，免得空格差异） */
+  const parseCsp = (s) => {
+    const out = {}
+    for (const part of String(s).split(';')) {
+      const toks = part.trim().split(/\s+/).filter(Boolean)
+      if (toks.length) out[toks[0].toLowerCase()] = toks.slice(1)
+    }
+    return out
+  }
+
+  const idxHtml = readFileSync(resolve(REPO, 'apps/web/index.html'), 'utf8')
+  const metaMatch = /http-equiv="Content-Security-Policy"\s*\n?\s*content="([^"]+)"/.exec(idxHtml)
+  ok(!!metaMatch, 'index.html 里有 CSP 的 <meta http-equiv>')
+
+  const meta = parseCsp(metaMatch ? metaMatch[1] : '')
+  ok(meta['default-src'] && meta['default-src'].join(' ') === "'self'",
+    "CSP：default-src 'self'")
+  ok(meta['script-src'] && meta['script-src'].join(' ') === "'self'",
+    "★ CSP：script-src 只能是 'self'（当前：" + (meta['script-src'] || []).join(' ') + '）')
+  ok(!(meta['script-src'] || []).includes("'unsafe-inline'")
+    && !(meta['script-src'] || []).includes("'unsafe-eval'")
+    && !(meta['script-src'] || []).includes('*'),
+    '★ script-src 没有放开 unsafe-inline / unsafe-eval / 通配（放开就等于没有 CSP）')
+  ok((meta['object-src'] || []).join(' ') === "'none'", "CSP：object-src 'none'")
+  ok((meta['base-uri'] || []).join(' ') === "'none'",
+    "CSP：base-uri 'none'（否则注入 <base href=//evil> 能把相对路径全劫走）")
+  ok((meta['style-src'] || []).includes("'unsafe-inline'"),
+    'CSP：style-src 必须允许内联样式（KaTeX 的 HTML 里到处是 style="…"）')
+  ok((meta['img-src'] || []).includes('data:') && (meta['img-src'] || []).includes('blob:'),
+    'CSP：img-src 放行 data: 与 blob:（缩略图 / 截图）')
+  ok((meta['connect-src'] || []).includes('https:'),
+    'CSP：connect-src 放行 https:（BYOK 的接入点是用户自填的任意服务）')
+  ok(!(meta['connect-src'] || []).includes('http:'),
+    '★ CSP：connect-src 不放开**任意** http:（只给 127.0.0.1/localhost 例外）'
+    + '—— 否则"接入点误填成 http://"会把密钥明文发出去')
+
+  // ② 行内脚本：CSP 下它们会被静默拒绝，所以一条都不许有
+  /**
+   * ★ 先剥掉 HTML 注释再扫：本文件（index.html）的 CSP 说明里就会提到 script 标签，
+   *   不剥的话守卫会把"解释规则的那句话"判成违规——本仓库在 tokens.css 的
+   *   prefers-color-scheme 那条棘轮上踩过同一个坑（注释里提到规则名 → 扫到自己）。
+   */
+  const idxNoComments = idxHtml.replace(/<!--[\s\S]*?-->/g, '')
+  const inlineScripts = [...idxNoComments.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+    .filter((m) => m[1].trim().length > 0)
+  ok(inlineScripts.length === 0,
+    '★ index.html 里没有行内 <script>（CSP 会静默拒绝执行它们；主题引导已移到 public/theme-boot.js）',
+    inlineScripts.map((m) => m[1].trim().slice(0, 40)).join(' | '))
+
+  // ③ 两个部署口
+  const nginxConf = readFileSync(resolve(REPO, 'deploy/nginx-security-headers.conf'), 'utf8')
+  const nginxCsp = /add_header Content-Security-Policy "([^"]+)"/.exec(nginxConf)
+  ok(!!nginxCsp, 'deploy/nginx-security-headers.conf 里有 CSP 响应头')
+  const ng = parseCsp(nginxCsp ? nginxCsp[1] : '')
+  ok((ng['script-src'] || []).join(' ') === "'self'",
+    "Nginx 片段的 script-src 也是 'self'")
+  ok((ng['frame-ancestors'] || []).join(' ') === "'none'",
+    "★ Nginx 片段有 frame-ancestors 'none'（<meta> 里写这条会被忽略，只能靠响应头）")
+
+  const vercel = JSON.parse(readFileSync(resolve(REPO, 'vercel.json'), 'utf8'))
+  const vHeaders = (vercel.headers || []).flatMap((h) => h.headers || [])
+  const vCsp = vHeaders.find((h) => h.key === 'Content-Security-Policy')
+  ok(!!vCsp, 'vercel.json 里配置了 CSP 响应头（Vercel 站点与 Nginx 站点同源同策）')
+  const vp = parseCsp(vCsp ? vCsp.value : '')
+  ok((vp['script-src'] || []).join(' ') === "'self'" && (vp['frame-ancestors'] || []).join(' ') === "'none'",
+    "vercel.json 的 CSP 同样有 script-src 'self' 与 frame-ancestors 'none'")
+  ok(['X-Content-Type-Options', 'Referrer-Policy'].every((k) => vHeaders.some((h) => h.key === k)),
+    'vercel.json 还带 nosniff 与 Referrer-Policy')
+
+  // ★ 三处策略在**关键指令**上必须一致：不一致时浏览器取交集，
+  //   于是"改了一处、另一处更严"会表现成"某功能在生产环境不工作"。
+  const KEY_DIRECTIVES = ['script-src', 'object-src', 'base-uri', 'default-src']
+  const drift = KEY_DIRECTIVES.filter((d) => {
+    const a = (meta[d] || []).join(' ')
+    const b = (ng[d] || []).join(' ')
+    const c = (vp[d] || []).join(' ')
+    return !(a === b && b === c)
+  })
+  ok(drift.length === 0,
+    '★ meta / Nginx / Vercel 三处 CSP 在关键指令上一致（不一致时浏览器取交集，会静默拦掉功能）',
+    drift.map((d) => `${d}: meta=[${(meta[d] || []).join(' ')}] nginx=[${(ng[d] || []).join(' ')}] vercel=[${(vp[d] || []).join(' ')}]`).join(' / '))
+}
+
 console.log('')
 console.log('═══════════════════════════════════════════════════════════════')
 if (fail === 0) {
