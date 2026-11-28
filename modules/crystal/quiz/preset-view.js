@@ -27,7 +27,8 @@
  *      必须**排在 setView 之后**，不能寄望于"顺序无关"。
  */
 
-import { t } from '../i18n-live.js'
+import { t, tr } from '../i18n-live.js'
+import { LAYER_LABELS } from '../actions.js'
 import { STACKING_BY_CRYSTAL } from './data/crystal-facts.js'
 
 /** 合法的视角取值（`ViewerCanvas.setView` 只认这四个） */
@@ -234,10 +235,33 @@ function toActions({ crystalId, modelType, layers, view, highlight, notes }) {
   return actions
 }
 
+/**
+ * 图层 id → **学生看得懂的名字**（并翻到当前语言）。
+ *
+ * ★★ 2026-12-02（用户看演示条："这里的 atoms、wireframe 等，中文使用者不一定看得懂，
+ *   并且这个像是参数名，可能不适合直接给用户看"）：
+ *
+ *   原先旁白直接拼了**参数键名**，于是演示条上出现
+ *   「打开 atoms、wireframe；关闭 auxiliaryBody」。三处都不对：
+ *     · 它是**代码里的字段名**，不是中文 —— 学生读的是句子，不是 API；
+ *     · 键名一旦要改（重命名图层），这条旁白会跟着变成另一个看不懂的词；
+ *     · 键名与界面上那个开关的名字对不上，学生不知道该看哪个按钮
+ *       （面板上写的是「原子」「晶胞线框」「辅助体」，见 actions.js 的 LAYER_LABELS）。
+ *
+ *   ★ 参数名本身**不能改**：`vocab` 里必须是英文键，模型靠它调工具（见
+ *     actions.js「这些英文名是动作参数值，会出现在给模型看的词汇表里」）。
+ *     要改的是**说话的那一侧** —— 也就是这里。
+ *   ★ 走 `tr()`：英文界面下这些标签要出英文，与 LAYER_LABELS 在面板里的用法一致
+ *     （facade.js 报"图层无数据"时也是 `tr(LAYER_LABELS[x] || x)` 这么取的）。
+ */
+function layerName(id) {
+  return tr(LAYER_LABELS[id] || id)
+}
+
 /** 给图层开关写一句人话旁白（演示每步都必须有旁白，否则画面莫名一跳） */
 function describeLayers(layers) {
-  const on = Object.entries(layers).filter(([, v]) => v).map(([k]) => k)
-  const off = Object.entries(layers).filter(([, v]) => !v).map(([k]) => k)
+  const on = Object.entries(layers).filter(([, v]) => v).map(([k]) => layerName(k))
+  const off = Object.entries(layers).filter(([, v]) => !v).map(([k]) => layerName(k))
   const parts = []
   if (on.length) parts.push(t('crystal.t.quiz-preset-view.2', { p1: (on.join('、')) }))
   if (off.length) parts.push(t('crystal.t.quiz-preset-view.3', { p1: (off.join('、')) }))

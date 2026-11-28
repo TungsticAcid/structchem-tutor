@@ -274,6 +274,55 @@ console.log('【④ 纯邻近值题型的干扰项】—— 不允许存在固�
 }
 
 // ---------------------------------------------------------------------------
+// 演示旁白不得出现**参数名**（用户 2026-12-02 看演示条："这里的 atoms、wireframe 等，
+// 中文使用者不一定看得懂，并且这个像是参数名，可能不适合直接给用户看"）
+// ---------------------------------------------------------------------------
+/**
+ * ★ 判据是"旁白里不许出现图层**键名**"，而不是"必须出现某个中文字"：
+ *   前者是这条缺陷的定义（键名是给代码和模型用的），后者会把任何措辞改动判红。
+ *   ★ 键名清单**从 LAYER_PROPS 现取**，不手抄：将来加图层时，新键名自动纳入检查。
+ *   ★ 用 `\b` 词边界 + 大小写敏感：中文句子里的英文单词只可能是被误拼进去的键名，
+ *     而 `atoms` 这种复数形式不会在正常中文里出现。
+ */
+{
+  const { LAYER_PROPS, LAYER_LABELS } = await import('../actions.js')
+  const { buildPresetView, buildQuestionView } = await import('../quiz/preset-view.js')
+  const LAYER_IDS = Object.keys(LAYER_PROPS)
+  const keyPattern = new RegExp('\\b(' + LAYER_IDS.join('|') + ')\\b')
+
+  const samples = []
+  for (const kp of ['crystal:C1', 'crystal:C2', 'crystal:C3', 'crystal:C4', 'crystal:C5', 'crystal:C6', 'crystal:C7', 'crystal:C8']) {
+    for (const crystalId of ['fcc', 'naCl', 'diamond']) {
+      samples.push([kp + '/' + crystalId, buildPresetView(kp, { crystalId })])
+    }
+  }
+  samples.push(['题境视图', buildQuestionView('crystal:C2', { crystalId: 'fcc' })])
+
+  const offenders = []
+  let labelled = 0
+  for (const [tag, pv] of samples) {
+    for (const step of (pv.actions || [])) {
+      const speech = String(step.speech || '')
+      const hit = keyPattern.exec(speech)
+      if (hit) offenders.push(`${tag} → "${speech}"（含键名 ${hit[1]}）`)
+      if (step.action === 'setLayers') labelled++
+    }
+  }
+  ok(labelled >= samples.length - 1,
+    `样本里应当几乎每条预设都有一步 setLayers（实际 ${labelled}/${samples.length}）`)
+  ok(offenders.length === 0,
+    '★ 图层开关的旁白里出现参数键名（学生看不懂；应当过 LAYER_LABELS）：'
+    + offenders.slice(0, 3).join(' | '))
+
+  // 反面：中文标签本身必须真的进了句子（否则上面那条可以靠"删掉整段旁白"通过）
+  const c2 = buildPresetView('crystal:C2', { crystalId: 'fcc' })
+  const c2Speech = (c2.actions.find((a) => a.action === 'setLayers') || {}).speech || ''
+  ok(c2Speech.includes(LAYER_LABELS.atoms) && c2Speech.includes(LAYER_LABELS.wireframe),
+    `C2 的旁白应当用中文图层名（期望含「${LAYER_LABELS.atoms}」「${LAYER_LABELS.wireframe}」，实际 "${c2Speech}"）`)
+  ok(/打开|关闭/.test(c2Speech), `旁白应当是"打开…/关闭…"的人话（实际 "${c2Speech}"）`)
+}
+
+// ---------------------------------------------------------------------------
 console.log(`\n通过 ${pass}；失败 ${fail}`)
 if (bad.length) {
   console.log('失败项：')

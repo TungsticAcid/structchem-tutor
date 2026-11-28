@@ -59,8 +59,10 @@ export const zh = {
   'crystal.t.quiz-selfcheck.9': '「每个球周围的{p1}空隙数」 = {p2}，',
   'crystal.t.quiz-selfcheck.10': '与内置知识表（{p1} 为 {p2}）不符',
   'crystal.t.quiz-preset-view.1': '预置了高亮 {p1}；当前版本用图层与视角近似，highlightAtoms 待 P4',
-  'crystal.t.quiz-preset-view.2': '打开 {p1}',
-  'crystal.t.quiz-preset-view.3': '关闭 {p1}',
+  // ★ 中文不加空格：{p1} 现在是**中文图层名**（原子/晶胞线框…），"打开 原子"里的
+  //   那个空格是英文排版习惯，中文读起来像排版错误。英文那两条自己带空格。
+  'crystal.t.quiz-preset-view.2': '打开{p1}',
+  'crystal.t.quiz-preset-view.3': '关闭{p1}',
   'crystal.t.quiz-preset-view.4': '把视图调到这道题需要的样子：{p1}。',
   'crystal.t.quiz-preset-view.5': '第 {p1} 步缺旁白（画面会莫名跳一下）',
   'crystal.t.quiz-concept.1': '知识点 {p1} 没有概念题型「{p2}」{p3}',
