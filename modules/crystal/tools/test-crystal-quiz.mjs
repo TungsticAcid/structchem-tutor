@@ -238,6 +238,42 @@ console.log('【④ 纯邻近值题型的干扰项】—— 不允许存在固�
 }
 
 // ---------------------------------------------------------------------------
+// ★★ 2026-11-28（用户："C2 的原题是哪来的"）：
+//   计数型题目（结构基元含几个原子 / 晶胞原子数 / 空隙数 / 对称轴类型数）
+//   曾用**倍率**生成干扰项，于是出现 "0.6 个原子""0.8 个原子"这种荒谬选项；
+//   C2 的"晶胞原子数"还会把错因库里的**概念文案**（`C（1 个原子）`）当选项。
+//   守卫：计数题的 4 个选项必须是**互不相同的正整数**。
+{
+  const COUNT_CASES = [
+    ['crystal:C2', 'structuralUnitAtoms'],
+    ['crystal:C2', 'atomsInCell'],
+    ['crystal:C5', 'intersticesInCell'],
+    ['crystal:C5', 'intersticePerSphere'],
+    ['crystal:C6', 'symmetryAxisTypes'],
+  ]
+  for (const [kp, topic] of COUNT_CASES) {
+    let checked = 0
+    let bad = null
+    for (let i = 0; i < 12 && !bad; i++) {
+      const quiz = freshEngine()
+      const r = quiz.generate({ kp, topic })
+      if (!r || r.error) { bad = '出题失败：' + ((r && r.error) || ''); break }
+      const opts = r.options.map((o) => (typeof o === 'string' ? o : o.text))
+      if (opts.length !== 4) { bad = '选项不是 4 个：' + opts.join('/'); break }
+      if (new Set(opts).size !== opts.length) { bad = '选项重复：' + opts.join('/'); break }
+      const nonInt = opts.filter((t) => !/^\d+$/.test(String(t).trim()))
+      if (nonInt.length) { bad = '出现非整数选项：' + opts.join(' / '); break }
+      // 答案也必须是正整数（peek 才拿得到）
+      const full = quiz.peek(r.id)
+      const ans = String(opts[full.answerIndex] || '')
+      if (!/^\d+$/.test(ans) || Number(ans) <= 0) { bad = '答案不是正整数：' + ans; break }
+      checked++
+    }
+    ok(!bad && checked >= 10, `${topic}：计数题选项必须是互不相同的正整数（${bad || 'checked ' + checked}）`)
+  }
+}
+
+// ---------------------------------------------------------------------------
 console.log(`\n通过 ${pass}；失败 ${fail}`)
 if (bad.length) {
   console.log('失败项：')

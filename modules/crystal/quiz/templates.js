@@ -85,16 +85,46 @@ function assemble({ correctText, distractors, seed, ...rest }) {
 }
 
 /** 从错因库取干扰项（策略 ①） */
-function distractorsFromCauses(kp, { excludeValue, limit = 3 } = {}) {
+function distractorsFromCauses(kp, { excludeValue, limit = 3, numericOnly = false } = {}) {
   const causes = causesForKnowledgePoint(kp)
   const out = []
   for (const c of causes) {
     if (c.distractor == null) continue
+    /**
+     * ★★ 2026-11-28（用户："C2 的原题是哪来的"）：
+     *   错因库里的干扰项有两种：**数值**（14）与**概念文案**（"C（1 个原子）"）。
+     *   计数型题目只能接数值——把概念文案塞进"晶胞含几个原子"的选项里，
+     *   学生会看到 "C（1 个原子）" 这种既不是数字也不是本问法的选项。
+     *   ⇒ 计数题一律 `numericOnly: true`。
+     */
+    if (numericOnly && typeof c.distractor !== 'number') continue
     // ★ 干扰项的文本可能来自错因库（如 E-A5 的「体心立方(cI)」），那是文案、要过 tr()；
     //   数值型干扰项（distractor 是数字）不受影响。
     const text = typeof c.distractor === 'number' ? num(c.distractor) : tr(String(c.distractor))
     if (excludeValue != null && text === num(excludeValue)) continue
     out.push({ text, errorCause: c.id })
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+/**
+ * 计数型干扰项：**只能是正整数**，且不与答案重复。
+ *
+ * ★★ 2026-11-28（用户："C2 的原题是哪来的"）：C2 问"结构基元含几个原子"，
+ *   干扰项却由 `nearValues(1)` 按倍率生成 0.6 / 0.8 / 1.6 / 2.5 ——
+ *   "0.6 个原子"既不是整数也不可数，是**荒谬选项**（学生一眼看出错，题就废了）。
+ *   计数量（原子数、空隙数、对称轴类型数）必须用整数邻近值。
+ */
+function nearInts(value, { limit = 3 } = {}) {
+  const n = Math.max(1, Math.round(Number(value) || 0))
+  const cand = [n + 1, n - 1, n + 2, n * 2, n + 3, n * 3]
+  const seen = new Set([n])
+  const out = []
+  for (const v of cand) {
+    if (!(v > 0) || seen.has(v)) continue
+    seen.add(v)
+    out.push({ text: num(v), errorCause: null })
     if (out.length >= limit) break
   }
   return out
@@ -222,7 +252,7 @@ export const TEMPLATES = [
       if (!(n > 0)) return { error: t('crystal.t.quiz-templates.4', { p1: (data.structuralUnit) }) }
       const q = assemble({
         correctText: num(n),
-        distractors: nearValues(n).concat([{ text: num(n + 1), errorCause: null }]),
+        distractors: nearInts(n),
         seed,
         kp: 'crystal:C2', topic: 'structuralUnitAtoms', difficulty: 'L2',
         crystalId: data.id,
@@ -244,7 +274,7 @@ export const TEMPLATES = [
       const q = assemble({
         correctText: num(n),
         // 错因 E-B3：把顶点/面心原子整个算进去（常见错法）
-        distractors: distractorsFromCauses('crystal:C2').concat(nearValues(n)),
+        distractors: distractorsFromCauses('crystal:C2', { numericOnly: true }).concat(nearInts(n)),
         seed,
         kp: 'crystal:C2', topic: 'atomsInCell', difficulty: 'L2',
         crystalId: data.id,
@@ -414,7 +444,7 @@ export const TEMPLATES = [
       const q = assemble({
         correctText: num(n),
         // ★ 错因 E-B1：用"每个球周围"的数目作答（6 或 8）——这是最高危的混淆
-        distractors: distractorsFromCauses('crystal:C5').concat(nearValues(n)),
+        distractors: distractorsFromCauses('crystal:C5', { numericOnly: true }).concat(nearInts(n)),
         seed,
         kp: 'crystal:C5', topic: 'intersticesInCell', intersticeKind: kind, difficulty: 'L3',
         crystalId: data.id,
@@ -446,7 +476,7 @@ export const TEMPLATES = [
       const kindName = kind === 'octahedral' ? tr('正八面体') : tr('正四面体')
       const q = assemble({
         correctText: num(n),
-        distractors: distractorsFromCauses('crystal:C5', { excludeValue: n }).concat(nearValues(n)),
+        distractors: distractorsFromCauses('crystal:C5', { excludeValue: n, numericOnly: true }).concat(nearInts(n)),
         seed,
         kp: 'crystal:C5', topic: 'intersticePerSphere', intersticeKind: kind, stacking: st, difficulty: 'L3',
         crystalId: data.id,
@@ -500,7 +530,7 @@ export const TEMPLATES = [
       const n = types.length
       const q = assemble({
         correctText: num(n),
-        distractors: nearValues(n).concat([{ text: num(axes.length), errorCause: null }]),
+        distractors: nearInts(n),
         seed,
         kp: 'crystal:C6', topic: 'symmetryAxisTypes', difficulty: 'L2',
         crystalId: data.id,
