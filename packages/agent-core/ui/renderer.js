@@ -25,8 +25,28 @@ export function createRenderer(opts = {}) {
    * 未注入时**不在这里捕获** `globalThis.katex`，改到每次渲染时现取（见 katexHtml）。
    */
   const injectedKatex = opts.katex || null
+  /**
+   * KaTeX 选项。**`trust` 必须是 false**（这里渲染的是模型输出，不是我们自己的文案）。
+   *
+   * ★★ 2026-12-02（用户问"BYOK 的 key 怎么存的、有没有加密/隔离"→ 顺着查了渲染层）：
+   *
+   *   `trust: true` 会让 KaTeX 执行 `\href` / `\url` / `\includegraphics` /
+   *   `\htmlData` 这类"默认不信"的命令，而且**不校验协议**。实测（仓里那份
+   *   katex 0.16.9，把模型输出 `$\href{javascript:…}{点我}$` 交给 renderRich）：
+   *
+   *     <a href="javascript:window.__pwned=1">点我</a>
+   *
+   *   于是"模型说一句话"就能在消息里放一个可点链接；学生一点，脚本以**本站源**
+   *   执行，`localStorage['chem-agent.settings']` 里的 BYOK key 就整份可读。
+   *   模型输出是不可信输入（提示注入、粘贴的网页内容都能影响它），所以这不是
+   *   "理论上"的风险。`trust: false` 下这类命令退化成红色提示文本，教学公式
+   *   （\frac / \sqrt / \text / 上下标）一个都不受影响。
+   *   ★ 反过来的代价也要记住：**别为了排版给这里加回 trust:true**；
+   *     orbit 模块自己的公式确实要 `\htmlClass`，那走的是 `pages/orbit.js`
+   *     的渲染路径（我们自己的 LaTeX），与这条不是一回事。
+   */
   const KATEX_OPTS = Object.assign(
-    { throwOnError: false, trust: true, output: 'html' },
+    { throwOnError: false, trust: false, output: 'html' },
     opts.katexOptions || {},
   )
 

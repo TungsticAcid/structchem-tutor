@@ -1365,6 +1365,27 @@ section('renderer：Markdown+LaTeX 渲染（与 orbit 原实现逐字比对）')
   check('KaTeX 抛错时退化为源码而非整条渲染失败', /<code>/.test(badKatex.renderRich('$x$')))
   check('KaTeX 抛错不影响同条消息的其它内容', /正文/.test(badKatex.renderRich('正文 $x$ 结尾')))
 
+  /**
+   * ★★ 2026-12-02（用户问「BYOK 的 key 怎么存的」→ 顺着查渲染层查到的真问题）：
+   *
+   *   这里渲染的是**模型输出**（不可信输入）。KaTeX 的 `trust: true` 会放行
+   *   `\href`，且**不校验协议** —— 实测仓里这份 0.16.9：模型写
+   *   `$\href{javascript:…}{点我}$` 会产出 truly 可点的
+   *   `<a href="javascript:...">`，学生一点就以本站源执行脚本，
+   *   `localStorage['chem-agent.settings']` 里的 BYOK key 整份可读。
+   *   下面两条钉住"默认不信"：选项里是 false，且真的传到了 katex。
+   */
+  check('★ 模型输出渲染时 KaTeX 的 trust 为 false（\href{javascript:…} 不得变成可点链接）',
+    M.KATEX_OPTS.trust === false, JSON.stringify(M.KATEX_OPTS))
+  {
+    let seen = null
+    const spy = createRenderer({ katex: { renderToString: (tex, o) => { seen = o; return '[k]' } } })
+    spy.renderRich('$x$')
+    check('★ 传给 katex.renderToString 的选项里 trust 也是 false',
+      !!seen && seen.trust === false, JSON.stringify(seen))
+  }
+
+
   // mdInline()：界面文案的轻量标记（用 innerHTML 渲染的那些字符串）
   // 用例取自 orbit 真实文案里的写法，不是自造字符串——自造容易测出并不存在的问题
   {
