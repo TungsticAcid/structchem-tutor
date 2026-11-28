@@ -1167,7 +1167,14 @@ export function createStoryboard(opts = {}) {
     if (op !== 'insert' && i >= rec.steps.length) {
       return { ok: false, error: t('agent.sb.stepRangeDemo', { n: rec.steps.length }) }
     }
-    if ((op === 'replace' || op === 'insert') && (!step || !step.action)) {
+    /**
+     * `step` 允许两种形状：单动作 `{action, params, speech}` 与**组合步**
+     * `{actions:[…], speech}`（applySceneActions 支持一步多动作，整改当然也要支持）。
+     * ★ 2026-12-02 实测：模型整改时给的是组合步，被 `!step.action` 这条判据拒了两次，
+     *   学生那句"把这一步改一下"于是石沉大海——判据只看单一形状，是这里的老毛病。
+     */
+    const stepOk = !!step && (!!step.action || (Array.isArray(step.actions) && step.actions.length > 0))
+    if ((op === 'replace' || op === 'insert') && !stepOk) {
       return { ok: false, error: t('agent.sb.needAction', { op }) }
     }
     if (op === 'jump') {

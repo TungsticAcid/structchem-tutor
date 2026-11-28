@@ -168,7 +168,6 @@ export function createQuizUI(deps = {}) {
       }
     }
 
-    renderFeedback(r)
     /**
      * ★★ 2026-11-27（真机：学生答完题再追问"解释一下"，模型却回"你先说说你是怎么选的"）：
      *   作答是**纯本地**的（判分不经模型，这是对的），但结果也**没有告诉模型** ——
@@ -206,6 +205,7 @@ export function createQuizUI(deps = {}) {
         })
       } catch (e) { /* 上报失败不影响判分与反馈卡 */ }
     }
+    renderFeedback(r)
   }
 
   /** 渲染反馈卡：正误 + 解析 +（答错时）诊断 + 「去看结构」 */
