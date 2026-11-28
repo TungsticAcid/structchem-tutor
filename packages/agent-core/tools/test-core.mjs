@@ -1730,6 +1730,60 @@ section('panel：界面故障防护（rAF 合帧 / finish 掐帧 / 空正文诊�
       panel2.destroy()
     }
 
+    // ---- ★ 「引用」可以叠加：连点两行都在，学生自己写的话不丢 ----
+    /**
+     * ★★ 2026-12-02（用户："新的动作气泡可以引用动作让智能体修改吗？可以同时引用多个吗？"）：
+     *   原先 `quoteStep` 是**直接赋值** —— 点第二行会把第一行的引用、连同学生已经写好的
+     *   整改意见一起冲掉，而界面不提示。下面四条守的就是"追加 + 去重 + 保留"。
+     */
+    {
+      panel.setInput('')
+      panel.setInput('先说个话试试')
+      const p2b = panel.send()
+      check('第二次发送：文本已提交给 send', sentText === '先说个话试试')
+      capturedHandlers.onToolCall({
+        name: 'applySceneActions',
+        args: {
+          actions: [
+            { action: 'setRenderMode', params: { mode: 'surface' } },
+            { action: 'setRenderMode', params: { mode: 'wireframe' } },
+          ],
+        },
+        round: 1,
+      })
+      capturedHandlers.onToolResult({
+        name: 'applySceneActions',
+        result: { demoId: 'd7', totalSteps: 3, perAction: [{ ok: true, stepIndex: 0 }, { ok: true, stepIndex: 1 }] },
+        round: 1,
+      })
+      const lastBubble = collect(msgs, 'details').filter((d) => hasClass(d, 'agent-action')).pop()
+      const quoteBtns = collect(lastBubble, 'button').filter((b) => /引用/.test(b.textContent || ''))
+      check('每一行动作都有「引用」按钮', quoteBtns.length === 2, `按钮数 ${quoteBtns.length}`)
+      // 模拟"学生先打了一句话"：直接写输入框（setInput 会清引用状态，此刻还没引用过）
+      panel.setInput('说得太快，拆成两步')
+      quoteBtns[0].onclick()
+      quoteBtns[1].onclick()
+      const v = panel.nodes().inputEl.value
+      check('★ 连点两行：两条引用都在（第 1 步与第 2 步）',
+        /第 1 步/.test(v) && /第 2 步/.test(v), v)
+      check('★ 引用块只有一处「我想改成：」', (v.match(/我想改成：/g) || []).length === 1, v)
+      check('★ 学生先写的话没被冲掉', /说得太快，拆成两步/.test(v), v)
+      quoteBtns[0].onclick()
+      const v2 = panel.nodes().inputEl.value
+      check('★ 重复点同一行不会重复插入', (v2.match(/第 1 步/g) || []).length === 1, v2)
+      capturedHandlers.onDone({ ok: true, aborted: false, finishReason: 'stop' })
+      await p2b
+      // 引用块随消息发出后：输入框清空，**引用状态也要清**（否则下一轮会带上旧演示号）
+      const p3 = panel.send()
+      check('发送后输入框被清空', panel.nodes().inputEl.value === '', JSON.stringify(panel.nodes().inputEl.value))
+      quoteBtns[1].onclick()
+      const v3 = panel.nodes().inputEl.value
+      check('★ 发送后引用状态已清空（再点只出现这一条，不带旧演示号）',
+        (v3.match(/第 \d+ 步/g) || []).length === 1, v3)
+      capturedHandlers.onDone({ ok: true, aborted: false, finishReason: 'stop' })
+      await p3
+    }
+
     // ---- destroy 解绑订阅（防反复进出页面时累积）----
     check('destroy 前有订阅', progressHooks.length === 1)
     panel.destroy()

@@ -1022,24 +1022,57 @@ let lastDemoId = null
   }
 
   /**
-   * 把"引用这一步"写成一句**可寻址**的话放进输入框，学生接着写整改意见即可。
+   * 已引用的步骤（**可以叠加**：一次引用多步、让智能体一起改）。
+   *
+   * ★★ 2026-12-02（用户："新的动作气泡可以引用动作让智能体修改吗？可以同时引用多个吗？"）：
+   *   此前 `quoteStep` 是**直接赋值** `inputEl.value = …` —— 于是：
+   *     · 点第二行的「引用」，第一行的引用**被冲掉**（看起来像"只支持一个"）；
+   *     · 更糟的是学生已经打好的整改意见也一起没了，而且不提示。
+   *   现在改成"追加 + 去重"：引用块按引用顺序排在前面，`我想改成：` 与
+   *   学生自己写的话**原样保留**在后面；重复点同一行不会重复插入。
+   */
+  const quoteRefs = []
+  const quoteKey = (r) => String(r.demoId) + '#' + String(r.stepIndex)
+
+  /** 一条引用 → 可寻址的一句话（模型据此拿到 demoId 与步号，不必猜） */
+  function quoteLine(ref) {
+    const n = String(ref.demoId).replace(/^d/, '')
+    return T('【整改演示】演示 #{id} 的第 {index} 步（共 {total} 步）{what}', {
+      id: n, index: ref.stepIndex + 1, total: ref.total,
+      what: ref.what ? T('「{what}」', { what: ref.what }) : '',
+    })
+  }
+
+  /** 输入框里"学生自己写的话"：引用块与 `我想改成：` 之后的部分（没有则整段都是） */
+  function composerTail() {
+    const s = String((inputEl && inputEl.value) || '')
+    const mark = T('我想改成：')
+    const i = s.lastIndexOf(mark)
+    if (i < 0) return s.trim() ? s : ''
+    return s.slice(i + mark.length).replace(/^\s*\n/, '').replace(/^ +/, '')
+  }
+
+  /**
+   * 把"引用这一步"写进输入框，学生接着写整改意见即可。
    * ★ 写的是结构化指认（演示 #N 的第 M 步），不是自然语言转述：模型据此能精确
    *   调到 `reviseDemo` 的 demoId 与 index，不必猜。
+   * ★ 多次引用会**累积**（见 quoteRefs 的说明）；同一行点两次只算一次。
    */
   function quoteStep(act, opts) {
     if (!inputEl) return
-    const demoId = opts && opts.demoId
-    const stepIndex = (opts && opts.stepIndex) || 0
-    const total = (opts && opts.total) || '?'
     const what = act && Array.isArray(act.actions)
       ? act.actions.map((sa) => describeAction(sa.action, sa.params || sa)).join('；')
       : (act ? describeAction(act.action, act.params || act) : '')
-    const n = String(demoId).replace(/^d/, '')
-    // ★ 整句一次成型：拆成 `'已演示 #' + n + ' 的第 ' ...` 那种写法，译文语序没法处理
-    inputEl.value = T('【整改演示】演示 #{id} 的第 {index} 步（共 {total} 步）{what}', {
-      id: n, index: stepIndex + 1, total,
-      what: what ? T('「{what}」', { what }) : '',
-    }) + '\n' + T('我想改成：')
+    const ref = {
+      demoId: (opts && opts.demoId) || '',
+      stepIndex: (opts && opts.stepIndex) || 0,
+      total: (opts && opts.total) || '?',
+      what,
+    }
+    const tail = composerTail()          // ★ 先取走学生已经写的话，再整体重排
+    if (!quoteRefs.some((r) => quoteKey(r) === quoteKey(ref))) quoteRefs.push(ref)
+    const head = quoteRefs.map(quoteLine).join('\n')
+    inputEl.value = head + '\n' + T('我想改成：') + (tail ? '\n' + tail : '')
     inputEl.focus()
     if (inputEl.setSelectionRange) {
       const p = inputEl.value.length
@@ -2293,6 +2326,9 @@ let lastDemoId = null
     }
     inputEl.value = ''
     inputEl.style.height = 'auto'
+    // ★ 引用块已随消息发出，状态也要一起清：否则下一轮再点「引用」会把上一轮的
+    //   演示号一并带进去（模型会去改一条已经发过的引用）。
+    quoteRefs.length = 0
     addUser(text)
     return runAgent(text)
   }
@@ -2946,7 +2982,12 @@ let lastDemoId = null
     enterConvPage, leaveConvPage,
     /** 供测试/调试取用内部节点 */
     nodes: () => ({ fab, drawer, msgBox, inputEl, sendBtn, stopBtn, dot, demoBar, convPage }),
-    setInput: (v) => { inputEl.value = v },
+    /**
+     * 宿主/测试直接写输入框（不走「引用」按钮）。
+     * ★ 这时把引用状态一并清掉：外部写入的是**整段文本**，若还留着上一轮的
+     *   引用记录，下一次点「引用」会把它们重新拼回去（模型会去改一条旧的演示）。
+     */
+    setInput: (v) => { quoteRefs.length = 0; inputEl.value = v },
     /**
      * 走**与点「发送」完全相同**的入口跑一轮（读输入框 → runAgent）。
      *

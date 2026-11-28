@@ -435,6 +435,9 @@ export const zh = {
     + '★ **已经播完的演示同样可以改**（这是最常见的情形）：程序会按整改后的完整步骤'
     + '重播、并快进到被改的那一步停下，所以其余步骤一个都不会少；'
     + '回执里的 steps 就是整改后的完整清单，用它核对。'
+    + '★ 学生一次引用了**多步**时（输入框里会有多行「【整改演示】…」）：一条一条改，'
+    + '每步调一次本工具；若其中有 insert / remove，**从步号大的往小的改**——'
+    + '插入与删除会让它后面各步的编号移动，先改小的会把后面的步号弄错。'
     + 'demoId 与步号取自 getSnapshot 的「演示播放」一行（steps[].i 即步号）。',
   'agent.tool.reviseDemo.op':
     'replace=替换某步 / insert=在该步之后插入 / remove=删除该步 / jump=跳回该步（仅在播时可用）',
@@ -861,6 +864,10 @@ export const en = {
     + 'common case): the program replays the full revised step list and fast-forwards to the '
     + 'changed step, so no other step is lost; the steps in the acknowledgement are the '
     + 'complete revised list, use it to double-check. '
+    + '★ When the student quotes **several steps at once** (the input box then holds several '
+    + '"【整改演示】…" lines): revise them one by one, one call per step; if any of them is an '
+    + 'insert / remove, work **from the highest step number down** — inserting or removing '
+    + 'shifts the numbers of the steps after it, so doing the low ones first corrupts them. '
     + 'demoId and step numbers come from the "demonstration playback" line of getSnapshot '
     + '(steps[].i is the step number).',
   'agent.tool.reviseDemo.op':
