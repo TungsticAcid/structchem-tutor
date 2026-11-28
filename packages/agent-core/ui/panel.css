@@ -129,6 +129,21 @@ body.agent-open .compare-page {
 }
 .agent-drawer.show { transform: translateX(0); }
 
+/**
+ * ★★ 2026-12-02（用户："智能体中的文本应可被选中，便于复制、查询"）：
+ *
+ *   `packages/crystal-view/styles/global.css` 给 `html, body` 设了
+ *   `user-select: none` —— 那条是给"满屏画布、拖动时别误选文字"用的，但它会
+ *   **一路继承进抽屉**，于是回复正文、题目卡、公式、代码全都选不中 ✗（用户实测）。
+ *   这里在抽屉内部局部放开；标题栏、拖拽手柄、按钮、折叠标题仍旧禁选 ——
+ *   否则点一下按钮就把按钮文字刷成高亮，看着像坏了。
+ */
+.agent-drawer { user-select: text; -webkit-user-select: text; }
+.agent-drawer .agent-head,
+.agent-drawer .agent-resize,
+.agent-drawer button,
+.agent-drawer summary { user-select: none; -webkit-user-select: none; }
+
 /* 拖拽调整大小期间：关掉过渡，让抽屉与晶体视图**跟手**同步变化 */
 body.agent-resizing .agent-drawer,
 body.agent-resizing .viewer-page,

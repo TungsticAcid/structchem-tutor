@@ -915,6 +915,42 @@ section('导航：由模块声明 routes，中枢派生 schema 与跳转')
 }
 
 // ============================================================================
+// 面板 CSS：智能体说的每句话都必须**能被选中**（复制 / 查词）
+// ============================================================================
+/**
+ * ★★ 2026-12-02（用户："智能体中的文本应可被选中，便于复制、查询"）：
+ *
+ *   `packages/crystal-view/styles/global.css` 给 `html, body` 设了
+ *   `user-select: none`（满屏画布拖动时别误选文字），它会**一路继承进抽屉**，
+ *   于是回复正文、题目卡、公式、代码全都选不中 —— 而 CSS 错不会报错，
+ *   浏览器里也看不出"本该能选"，只有用户去拖才发现 ✗。
+ *
+ *   所以在这儿钉一条：抽屉自己必须声明 `user-select: text`，并且把
+ *   "点一下就高亮"的按钮/标题栏继续钉成 `none`。
+ *   ★ 这条只看源文件（真正的鼠标拖拽在 `tmp/` 的实机探针里验过），
+ *     它守的是"没人顺手把这两条删了"，不是"浏览器一定这么渲染"。
+ */
+{
+  section('面板 CSS：正文可选中 · 按钮不可选')
+  const { readFileSync } = await import('node:fs')
+  const { dirname, resolve } = await import('node:path')
+  const { fileURLToPath } = await import('node:url')
+  const here = dirname(fileURLToPath(import.meta.url))
+  const css = readFileSync(resolve(here, '../ui/panel.css'), 'utf8').replace(/\s+/g, ' ')
+  const globalCss = readFileSync(resolve(here, '../../../packages/crystal-view/styles/global.css'), 'utf8').replace(/\s+/g, ' ')
+
+  check('★ 全站 html, body 仍是 user-select: none（本条的由来，改掉它就要重看这里）',
+    /html,[^{]*body[^{]*\{[^}]*user-select: none/.test(globalCss) || /body \{ user-select: none/.test(globalCss),
+    '没找到 global.css 的全局禁选规则')
+  check('★ 抽屉声明 user-select: text（否则智能体正文选不中）',
+    /\.agent-drawer \{ user-select: text; -webkit-user-select: text; \}/.test(css),
+    'panel.css 里缺少 `.agent-drawer { user-select: text }`')
+  check('抽屉里的按钮/标题栏仍为 none（点按钮不会把按钮文字刷成高亮）',
+    /\.agent-drawer \.agent-head, \.agent-drawer \.agent-resize, \.agent-drawer button, \.agent-drawer summary \{ user-select: none; -webkit-user-select: none; \}/.test(css),
+    'panel.css 里缺少"抽屉内按钮禁选"那条')
+}
+
+// ============================================================================
 console.log(`\n${'═'.repeat(60)}`)
 console.log(`test-app 结果：通过 ${pass} 项，失败 ${fail} 项`)
 console.log('═'.repeat(60))
