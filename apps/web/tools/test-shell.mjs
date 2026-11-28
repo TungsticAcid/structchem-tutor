@@ -493,6 +493,20 @@ console.log('【⑫ 每个前端源文件都能被真正的解析器读通】')
   ok(/router\.replace\(routePath\)/.test(ensureSrc) && !/location\.hash = route\b/.test(ensureSrc),
     '页面叫回用的是 replace，不是压栈式跳转')
   ok(/isDead/.test(ensureSrc), '学生离开后，在飞的步骤不再把页面拽回去（isDead 守卫）')
+
+  /**
+   * ★★ 2026-11-28（真机：说"再出一道同类型的题目"，模型在 explain 节点拿不到
+   *   generateQuiz，只回文字、不出卡；12 个题型里 4/4 复现）：
+   *   ① 宿主识别"要出题"的请求并在**这一轮**切到 quiz 节点；
+   *   ② 这一轮若没出卡，按上一题的题型直接调引擎兜底（不出卡=功能缺失）。
+   */
+  ok(/wantsQuiz/.test(noComments) && /setNode\('quiz'\)/.test(noComments),
+    '宿主识别"要出题"的请求并切到 quiz 节点（否则模型没有 generateQuiz）')
+  ok(/cardsBefore/.test(noComments) && /quizUI\.lastMeta/.test(noComments),
+    '这一轮没出卡时按上一题题型兜底出题（"再出一道"必须有卡）')
+  const quizUiSrc = readFileSync(resolve(REPO, 'modules/crystal/quiz/ui.js'), 'utf8')
+  ok(/checkAnswer\(\{ questionId: q\.id, chosenIndex \}, \{ by: 'student' \}\)/.test(quizUiSrc),
+    '练习模式的选择题按"学生作答"判分（否则反馈卡里的正确答案与解析是空的）')
   ok(/currentPath === '\/crystal'/.test(noComments) && /storyboard\.stop\('user-left-view'\)/.test(noComments),
     '回到晶体库/门户时结束正在播的演示')
 

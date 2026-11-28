@@ -1305,7 +1305,50 @@ panel = createPanel({
   getShowReasoning: () => settings.get().showReasoning,
   storyboard: app.storyboard,
   // ★ 包装 send：拦截工具结果，把「出题」「判分」的结果渲染成卡片。
-  send: (text, handlers) => app.send(text, wrapHandlers(handlers)),
+  send: (text, handlers) => {
+    /**
+     * ★★ 2026-11-28（真机：学生答完一题再要"再出一道同类型的题目"，模型只回文字、不出卡）：
+     *   `generateQuiz` 是 **quiz 节点专属**工具，而对话在 explain 节点里进行。
+     *   要求出题是**宿主的语义**（"再出一道/换一题/考考我"），不该赌模型自己
+     *   先 `declareIntent`——实测 12 个题型里，"再来一题"这一句 4/4 都没出卡。
+     *   ⇒ 宿主识别这类请求，**这一轮**切到 quiz 节点，结束后恢复原节点。
+     *   ★ 判据刻意收紧成"出/来/换 + 题"或"考考我/做题/练习"：
+     *     "这道题为什么选错""再讲讲这题"都**不**命中（它们问的是已有题，不是要新题）。
+     */
+    const text0 = String(text || '')
+    const wantsQuiz = /(出|来|换|加)\s*(一|两|几)?\s*道?[^，。！？]{0,10}题|考考我|考我|做题|练习一下/.test(text0)
+    const prevNode = app.node
+    if (wantsQuiz && prevNode !== 'quiz') {
+      try { app.setNode('quiz') } catch (e) { /* 切不过去就按原节点走 */ }
+    }
+    const cardsBefore = quizUI && quizUI.renderedCards ? quizUI.renderedCards() : 0
+    const p = app.send(text, wrapHandlers(handlers))
+    if (wantsQuiz) {
+      Promise.resolve(p).finally(() => {
+        /**
+         * ★★ 2026-11-28（真机：quiz 节点里模型仍有"只回一句题目马上来、不调工具"的回合）：
+         *   与练习入口同一条兜底——这一轮没出卡就直接调出题引擎，**照上一题的题型与晶体**出。
+         *   ★ 不是"退回另一套题库"：`generateQuiz` 用的就是同一套引擎，每次带自增种子。
+         */
+        try {
+          const after = quizUI && quizUI.renderedCards ? quizUI.renderedCards() : 0
+          if (after <= cardsBefore) {
+            const meta = quizUI && typeof quizUI.lastMeta === 'function' ? quizUI.lastMeta() : null
+            const q = quiz.generate({ kp: (meta && meta.kp) || 'crystal:C3', crystalId: (meta && meta.crystalId) || undefined, topic: (meta && meta.topic) || undefined })
+            if (q && !q.error) {
+              quizUI.renderQuestion(q)
+              panel.addChip(t('shell.practice.toolFallback'), 'info')
+            }
+          }
+        } catch (e) { /* 兜底失败不该影响这一轮对话 */ }
+        try {
+          const inPractice = quizUI && typeof quizUI._session === 'function' && quizUI._session()
+          if (!inPractice && app.node === 'quiz' && prevNode !== 'quiz') app.setNode(prevNode || 'explain')
+        } catch (e) { /* 恢复失败不影响这一轮的结果 */ }
+      })
+    }
+    return p
+  },
   /**
    * ★ 哪些工具的**返回体不能打在界面上**（用户报：练习时"直接暴露了答案"）。
    *   `generateQuiz` 的返回里带冻结的正确答案 —— 题目卡要用它判分，但绝不能贴出来。

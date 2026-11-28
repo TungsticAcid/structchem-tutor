@@ -66,6 +66,8 @@ export function createQuizUI(deps = {}) {
   let renderedCards = 0
   /** 已渲染过反馈卡、避免重复渲染 */
   const answered = new Set()
+  /** 最近一道题的题型/晶体（宿主兜底出题用，见 renderQuestion 的说明） */
+  let lastMeta = null
 
   /**
    * ★★ 2026-11-27（用户："未作答又点一次练习，题目卡不在最下方"）：
@@ -110,6 +112,12 @@ export function createQuizUI(deps = {}) {
   /** 渲染题目卡（固定的 4 个大按钮，无需输入——移动端可点击作答） */
   function renderQuestion(q) {
     pending.set(q.id, q)
+    /**
+     * ★★ 2026-11-28（真机：模型在 quiz 节点里有时**不调 generateQuiz**，只回一句
+     *   "题目马上来"，学生拿不到卡）：记住刚出过的题型与晶体，宿主的兜底就能
+     *   "照着一道同类题"直接出卡（与练习入口的兜底同一条思路）。
+     */
+    lastMeta = { kp: q.kp || '', crystalId: q.crystalId || '', topic: q.topic || '', difficulty: q.difficulty || '' }
     const kpLabel = String(q.kp || '').replace(/^crystal:/, '')
     const meta = [kpLabel, q.difficulty, q.crystalId].filter(Boolean).join(' · ')
 
@@ -449,7 +457,14 @@ export function createQuizUI(deps = {}) {
 
   /** 选择题作答：走与本地面板同一条判分链（不经模型） */
   function answerChoice(q, chosenIndex, card) {
-    const r = module_.handlers.checkAnswer({ questionId: q.id, chosenIndex })
+    /**
+     * ★★ 2026-11-28（真机：练习模式的选择题答错后，反馈卡只写「正确答案是」——冒号后面是空的）：
+     *   `checkAnswer(p, meta)` 用**第二个参数**区分"谁在判"：`by:'student'` 才返回
+     *   答案明文与解析（`by:'model'` 刻意不给，防模型把答案念给学生）。
+     *   本地练习这一步是**学生自己点的选项**，必须传 `{ by: 'student' }`；
+     *   漏了它，判分是对的、答案与解析却是空的（学生看到一句没说完的话）。
+     */
+    const r = module_.handlers.checkAnswer({ questionId: q.id, chosenIndex }, { by: 'student' })
     if (r && r.error) return panel.addChip(t('crystal.t.ui.1', { p1: (r.error) }), 'warn')
     card.querySelectorAll('.agent-opt').forEach((btn) => {
       btn.disabled = true
@@ -555,6 +570,8 @@ export function createQuizUI(deps = {}) {
   return {
     handleToolResult, renderQuestion, renderFeedback, gotoStructure,
     startTurn, finishTurn,
+    /** 最近一道题的题型/晶体（宿主兜底出题用） */
+    lastMeta: () => lastMeta,
   /** 已渲染的题目卡数量（练习入口的"兜底"判据：这一轮没出卡就直接调工具） */
   renderedCards: () => renderedCards,
     // 练习模式
